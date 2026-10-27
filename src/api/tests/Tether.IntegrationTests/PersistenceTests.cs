@@ -174,8 +174,14 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         await using (var r = await cmd.ExecuteReaderAsync())
             while (await r.ReadAsync()) found.Add((r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3)));
 
-        // Allow-list (docs/architecture/backend-foundation.md): courses.user_id -> identity.users, ON DELETE CASCADE ('c').
-        Assert.Equal([("fk_courses_user_id", "courses", "identity", "c")], found);
+        // Allow-list (docs/architecture/backend-foundation.md): ADR-014 courses.user_id -> identity.users, and ADR-019
+        // lecture_sessions.user_id -> identity.users / lecture_sessions.course_id -> courses.courses, all ON DELETE CASCADE ('c').
+        Assert.Equal(
+        [
+            ("fk_courses_user_id", "courses", "identity", "c"),
+            ("fk_lecture_sessions_course_id", "lectures", "courses", "c"),
+            ("fk_lecture_sessions_user_id", "lectures", "identity", "c"),
+        ], found);
     }
 
     [Fact]

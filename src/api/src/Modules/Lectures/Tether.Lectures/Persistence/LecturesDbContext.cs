@@ -30,7 +30,7 @@ internal sealed class LecturesDbContext(DbContextOptions<LecturesDbContext> opti
             b.ToTable("lecture_sessions", t =>
             {
                 t.HasCheckConstraint("ck_lecture_sessions_state", "state IN ('Active','Paused','Stopped','Failed')");
-                t.HasCheckConstraint("ck_lecture_sessions_stopped_at", "state NOT IN ('Active','Paused') OR stopped_at IS NULL");
+                t.HasCheckConstraint("ck_lecture_sessions_stopped_at", "(state NOT IN ('Active','Paused') OR stopped_at IS NULL) AND (state <> 'Stopped' OR stopped_at IS NOT NULL)");
             });
             b.HasKey(x => x.Id);
             b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
@@ -136,6 +136,7 @@ internal sealed class LecturesDbContext(DbContextOptions<LecturesDbContext> opti
                 .HasConstraintName("fk_audio_tickets_session_id").OnDelete(DeleteBehavior.Cascade);
             b.HasIndex(x => x.SessionId).IsUnique().HasDatabaseName("ux_audio_tickets_session_id"); // one outstanding per session
             b.HasIndex(x => x.TokenHash).IsUnique().HasDatabaseName("ux_audio_tickets_token_hash");
+            b.HasIndex(x => x.ExpiresAt).HasDatabaseName("ix_audio_tickets_expires_at");
             b.HasQueryFilter(x => x.UserId == CurrentUserId);
         });
 
@@ -153,6 +154,7 @@ internal sealed class LecturesDbContext(DbContextOptions<LecturesDbContext> opti
                 .HasConstraintName("fk_idempotency_keys_session_id").OnDelete(DeleteBehavior.Cascade);
             b.HasIndex(x => new { x.UserId, x.KeyHash }).IsUnique().HasDatabaseName("ux_idempotency_keys_user_key");
             b.HasIndex(x => x.SessionId).HasDatabaseName("ix_idempotency_keys_session_id");
+            b.HasIndex(x => x.CreatedAt).HasDatabaseName("ix_idempotency_keys_created_at");
             b.HasQueryFilter(x => x.UserId == CurrentUserId);
         });
 

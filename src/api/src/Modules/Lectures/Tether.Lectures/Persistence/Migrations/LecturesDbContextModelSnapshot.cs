@@ -60,6 +60,9 @@ namespace Tether.Lectures.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_audio_tickets_session_id");
 
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_audio_tickets_expires_at");
+
                     b.HasIndex("TokenHash")
                         .IsUnique()
                         .HasDatabaseName("ux_audio_tickets_token_hash");
@@ -230,6 +233,9 @@ namespace Tether.Lectures.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_idempotency_keys_created_at");
+
                     b.HasIndex("SessionId")
                         .HasDatabaseName("ix_idempotency_keys_session_id");
 
@@ -303,7 +309,7 @@ namespace Tether.Lectures.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_lecture_sessions_state", "state IN ('Active','Paused','Stopped','Failed')");
 
-                            t.HasCheckConstraint("ck_lecture_sessions_stopped_at", "state NOT IN ('Active','Paused') OR stopped_at IS NULL");
+                            t.HasCheckConstraint("ck_lecture_sessions_stopped_at", "(state NOT IN ('Active','Paused') OR stopped_at IS NULL) AND (state <> 'Stopped' OR stopped_at IS NOT NULL)");
                         });
                 });
 

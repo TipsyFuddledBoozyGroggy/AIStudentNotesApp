@@ -42,6 +42,8 @@ internal static class SessionEndpoints
         if (string.IsNullOrEmpty(title)) title = null;
         if (title is { Length: > SessionService.MaxTitleLength })
             errors["title"] = [$"Must be at most {SessionService.MaxTitleLength} characters."];
+        else if (title is not null && title.Any(c => char.IsControl(c) || c is (>= '‪' and <= '‮') or (>= '⁦' and <= '⁩')))
+            errors["title"] = ["Must not contain control or bidirectional override characters."];
         if (body?.Consent?.TextVersion is { Length: > 64 })
             errors["consent.textVersion"] = ["Must be at most 64 characters."];
 

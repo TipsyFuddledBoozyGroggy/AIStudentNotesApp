@@ -167,3 +167,6 @@ Not run: nothing has been executed; no SDK present.
 5. AI token budget per user/day; summarizer cadence defaults.
 6. Hard-delete vs soft-delete retention periods (database-architect).
 7. Stack confirmation: EF Core one-DbContext-per-module with schema-per-module (database-architect).
+
+## Addendum (2026-10-27): cross-schema FK allow-list and sweeper
+The allow-list of DB-level cross-schema FKs (ADR-014, ADR-019) is now exactly three entries, all `ON DELETE CASCADE`: `courses.courses.user_id -> identity.users` (`fk_courses_user_id`), `lectures.lecture_sessions.user_id -> identity.users` (`fk_lecture_sessions_user_id`) and `lectures.lecture_sessions.course_id -> courses.courses` (`fk_lecture_sessions_course_id`). This supersedes any earlier "one entry" wording above. Lectures also runs a hosted `ExpiredRowSweeper` (config `Lectures:SweepIntervalSeconds`, default 300, minimum 30) that deletes expired audio tickets and idempotency rows. `consent_events` and `audit_events` are append-only in the DB; deletion is only possible through `lectures.purge_evidence(user_id)`. Retention of those rows is an open Product Owner/counsel decision (gate G1).

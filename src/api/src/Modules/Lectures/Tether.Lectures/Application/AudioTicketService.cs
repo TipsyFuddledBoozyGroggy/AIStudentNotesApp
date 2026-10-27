@@ -10,12 +10,17 @@ namespace Tether.Lectures.Application;
 
 /// <summary>
 /// Redeems a ticket (C-01, C-02). Single use is enforced by deleting the row: of two concurrent redemptions only one
-/// DELETE affects a row, the other gets a concurrency exception and fails. A ticket row that is found is always removed,
-/// whatever the outcome, so a wrong-user or expired attempt also burns it.
-/// All failure paths return the same <c>false</c> and write one content-free audit event (C-30).
+/// DELETE affects a row, the other gets a concurrency exception and fails. A ticket row that is visible to the caller is
+/// removed whatever the outcome (expired, wrong login session). A different user cannot even see the row (query filter),
+/// so a wrong-user attempt does NOT burn the owner's ticket; that is deliberate, do not "fix" it.
+/// All failure paths return the same <c>false</c>. Failures write at most one content-free audit event per user per
+/// minute (C-30, B1-05), and record the session id only if that session belongs to the caller, so a caller cannot
+/// create unbounded rows or rows carrying ids of their choosing.
 /// </summary>
 internal sealed class AudioTicketService(LecturesDbContext db, ICurrentUser currentUser, TimeProvider clock) : IAudioTicketConsumer
 {
+    public static readonly TimeSpan RejectAuditWindow = TimeSpan.FromMinutes(1);
+
     public async Task<bool> ConsumeAsync(string ticket, Guid sessionId, CancellationToken ct = default)
     {
         var userId = currentUser.UserId;
@@ -48,8 +53,16 @@ internal sealed class AudioTicketService(LecturesDbContext db, ICurrentUser curr
 
         if (!ok)
         {
-            db.AuditEvents.Add(new AuditEvent { Id = Ids.New(), SessionId = sessionId, Action = AuditActions.TicketRejected, OccurredAt = clock.GetUtcNow() });
-            await db.SaveChangesAsync(ct);
+            var now = clock.GetUtcNow();
+            var since = now - RejectAuditWindow;
+            var recent = await db.AuditEvents.AsNoTracking()
+                .AnyAsync(a => a.Action == AuditActions.TicketRejected && a.OccurredAt > since, ct);
+            if (!recent)
+            {
+                var owned = await db.Sessions.AsNoTracking().AnyAsync(s => s.Id == sessionId, ct);
+                db.AuditEvents.Add(new AuditEvent { Id = Ids.New(), SessionId = owned ? sessionId : null, Action = AuditActions.TicketRejected, OccurredAt = now });
+                await db.SaveChangesAsync(ct);
+            }
         }
         return ok;
     }

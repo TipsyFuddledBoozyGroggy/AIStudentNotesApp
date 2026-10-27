@@ -76,18 +76,19 @@ internal sealed class SessionService(
         // 404 before anything else so a foreign course id leaks nothing about consent or sessions.
         if (!await courses.IsOwnedByAsync(userId, courseId, ct)) return SessionOutcome.Fail(Problems.NotFound("Course not found."));
 
+        // C-13: the version must be one the server knows; anything else is not valid consent. This runs BEFORE any
+        // idempotent replay so a request carrying invalid consent is never answered with a replayed success (B1-04).
+        if (consent is not { Acknowledged: true } || !registry.IsAccepted(consent.TextVersion))
+            return SessionOutcome.Fail(Problems.ConsentRequired());
+
         byte[]? keyHash = null, fingerprint = null;
         if (idempotencyKey is not null)
         {
             keyHash = SHA256.HashData(Encoding.UTF8.GetBytes(idempotencyKey));
-            fingerprint = SHA256.HashData(Encoding.UTF8.GetBytes($"{courseId:N}|{title}|{consent?.TextVersion}|{consent?.Acknowledged}"));
+            fingerprint = Fingerprint(courseId, title, consent.TextVersion, consent.Acknowledged);
             var replay = await TryReplayAsync(keyHash, fingerprint, ct);
             if (replay is { } r) return r;
         }
-
-        // C-13: the version must be one the server knows; anything else is not valid consent.
-        if (consent is not { Acknowledged: true } || !registry.IsAccepted(consent.TextVersion))
-            return SessionOutcome.Fail(Problems.ConsentRequired());
 
         if (await db.Sessions.AnyAsync(s => s.State == SessionState.Active || s.State == SessionState.Paused, ct))
             return SessionOutcome.Fail(Problems.InvalidState());
@@ -129,6 +130,13 @@ internal sealed class SessionService(
         return SessionOutcome.Ok((await GetAsync(sessionId, ct))!);
     }
 
+    /// <summary>
+    /// Collision-safe request fingerprint (B1-04): SHA-256 of a JSON array of the fields. JSON encoding is unambiguous
+    /// (strings are quoted and escaped, null differs from empty), unlike a delimiter join.
+    /// </summary>
+    internal static byte[] Fingerprint(Guid courseId, string? title, string? textVersion, bool? acknowledged) =>
+        SHA256.HashData(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new object?[] { courseId.ToString("N"), title, textVersion, acknowledged }));
+
     /// <summary>Replay returns the original session without a second consent event (C-32). A reused key with a different request is a 400.</summary>
     private async Task<SessionOutcome?> TryReplayAsync(byte[] keyHash, byte[] fingerprint, CancellationToken ct)
     {
@@ -164,6 +172,14 @@ internal sealed class SessionService(
             if (s.State == target) return SessionOutcome.Ok((await GetAsync(id, ct))!); // idempotent: no new event
             var allowed = s.State == from || (t == Transition.Stop && s.State == SessionState.Paused);
             if (!allowed) return SessionOutcome.Fail(Problems.InvalidState());
+
+            if (t == Transition.Resume)
+            {
+                // Defense in depth for B1-01 (FK cascade removes the session with the course) and B1-08 (retired consent version).
+                if (!await courses.IsOwnedByAsync(UserId, s.CourseId, ct)) return SessionOutcome.Fail(Problems.NotFound("Session not found."));
+                var rc = await db.Consents.AsNoTracking().FirstAsync(c => c.Id == s.ConsentRecordId, ct);
+                if (!registry.IsAccepted(rc.TextVersion)) return SessionOutcome.Fail(Problems.ConsentRequired());
+            }
 
             var now = Now();
             var consent = await db.Consents.AsNoTracking().FirstAsync(c => c.Id == s.ConsentRecordId, ct);
@@ -249,6 +265,7 @@ internal sealed class SessionService(
             if (authSid is null) return (null, Problems.Unauthenticated());
             if (!registry.IsAccepted(row.TextVersion)) return (null, Problems.ConsentRequired());
             if (row.Session.State != SessionState.Active) return (null, Problems.InvalidState());
+            if (!await courses.IsOwnedByAsync(UserId, row.Session.CourseId, ct)) return (null, Problems.NotFound("Session not found."));
 
             var now = Now();
             var token = WebEncoders256.NewToken();
