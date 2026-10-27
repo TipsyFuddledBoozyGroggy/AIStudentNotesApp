@@ -87,6 +87,7 @@ Timecodes: `startMs`/`endMs` are offsets from session start **excluding paused t
 - Consent text and `textVersion` content (G1, decisions D1/D2/D8/D10); M2 uses clearly labeled DRAFT text.
 - ~~Confirm server-relayed audio~~ CONFIRMED by PO 2026-10-27.
 - Session auto-stop timing and hard cap defaults (10 min heartbeat, 3 h).
+- Pause wording: PO has no preference; draft wording is used until counsel review (G1).
 
 ## 8. Security requirements folded in from review (docs/security/m2-contract-review.md)
 Normative for implementation. IDs refer to that review. Medium/low items (C-03..C-05, C-08..C-12, C-15..C-20, C-22, C-24, C-26..C-32) remain open in the review file and must be triaged before freeze.
@@ -99,3 +100,6 @@ Normative for implementation. IDs refer to that review. Medium/low items (C-03..
 - **Deletion (C-21):** `DELETE /sessions/{id}` removes transcript, summaries, catch-ups, notes, export records and pending jobs. Writers must check the session still exists, so a late job cannot recreate data. Deleting an Active session stops it first. Only content-free consent metadata is kept. The UI must disclose that vendor and Google copies are not deleted by this call.
 - **Log canary (C-23):** a required merge check at Trace level across all sinks, with a sentinel in fixtures, exception messages and request bodies, plus fault injection. It also asserts tickets and cookies never appear. `error.detail` comes from a fixed vocabulary, never exception text.
 - **Ingest limits (C-25):** max frame size, byte-rate cap (~1.1x real time), per-user socket cap, per-user STT minutes budget and a global kill switch. Defaults are configuration, values pending PO budget (PO-2/3/4).
+
+## 9. Pause UX (PO direction 2026-10-27)
+When a session is Paused the UI shows a clear paused state stating that recording is paused, with a Resume button (and Stop). The recording indicator is driven by `session.state` and the local mic track, never by the button alone. Wording is DRAFT; final text, including any note about audio sent just before the pause, remains a G1 item for the Product Owner and counsel. Detailed layout (persistent panel vs dialog, focus handling, screen-reader announcement) is delegated to `adhd-ux-specialist`.
