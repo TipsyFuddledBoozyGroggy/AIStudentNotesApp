@@ -1,12 +1,12 @@
-# College Companion API (src/api)
+# Tether API (src/api)
 
 ASP.NET Core modular monolith. Design: `docs/architecture/backend-foundation.md`. Decisions: `docs/DECISIONS.md`.
 
 ## Build and test (Docker, no host SDK needed)
 
 ```
-docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm dotnet dotnet build src/api/CollegeCompanion.slnx
-docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm dotnet dotnet test  src/api/CollegeCompanion.slnx
+docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm dotnet dotnet build src/api/Tether.slnx
+docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm dotnet dotnet test  src/api/Tether.slnx
 ```
 
 Integration tests create a throwaway `cc_test_*` database on the compose Postgres per test class.
@@ -46,7 +46,7 @@ Generate (example):
 ```
 docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm dotnet sh -c \
   "cd src/api && dotnet tool restore && dotnet ef migrations add M00X_Name \
-   --project src/Modules/Identity/CollegeCompanion.Identity --context IdentityDbContext --output-dir Persistence/Migrations"
+   --project src/Modules/Identity/Tether.Identity --context IdentityDbContext --output-dir Persistence/Migrations"
 ```
 
 Cross-schema constraints are raw SQL by design (`M004_CoursesUserFk`) and must be added to the allow-list in `backend-foundation.md` and the `pg_constraint` test.

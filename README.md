@@ -1,4 +1,4 @@
-# College Companion AI
+# Tether
 
 An ADHD-friendly college academic assistant: consented live lecture transcription, a continuously updated TL;DR, one-click **I Lost Track** catch-up, contextual tutoring, editable study guides, and student-approved Google Docs/Calendar workflows.
 

@@ -19,7 +19,7 @@ services:
   api:
     image: mcr.microsoft.com/dotnet/sdk:10.0
     working_dir: /repo
-    command: dotnet run --project src/api/src/CollegeCompanion.Host --urls http://0.0.0.0:5080
+    command: dotnet run --project src/api/src/Tether.Host --urls http://0.0.0.0:5080
     ports:
       - "127.0.0.1:5080:5080"
     volumes:

@@ -1,4 +1,4 @@
-# College Companion AI — Project Instructions for Claude Code
+# Tether — Project Instructions for Claude Code
 
 ## Mission
 Build an ADHD-friendly college academic assistant. Prioritize the real student experience: explicit-consent live lecture transcription, a continuously updated TL;DR, one-click **I Lost Track** catch-up, contextual tutoring, editable study guides, and student-approved Google Docs/Calendar workflows. Support practice-test remediation, syllabus-based planning, knowledge tracking, and low-pressure executive-function coaching in later increments.

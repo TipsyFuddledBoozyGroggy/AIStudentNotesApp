@@ -9,7 +9,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-10 border-b border-slate-300 bg-white">
       <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-2 px-4 py-2">
         <Link href="/" className="text-lg font-bold text-blue-900">
-          College Companion
+          Tether
         </Link>
         {status === "authenticated" && user ? (
           <nav aria-label="Account" className="flex items-center gap-3">

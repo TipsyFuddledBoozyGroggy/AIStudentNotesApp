@@ -6,7 +6,7 @@ const P = "*/api/v1";
 
 function problem(status: number, code: string, title: string, errors?: Record<string, string[]>) {
   return HttpResponse.json(
-    { type: `https://errors.collegecompanion.app/${code}`, title, status, code, errors },
+    { type: `https://errors.tether.invalid/${code}`, title, status, code, errors },
     { status, headers: { "Content-Type": "application/problem+json" } },
   );
 }

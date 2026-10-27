@@ -1,4 +1,4 @@
-# College Companion AI - Product Requirements (v0.1, DRAFT)
+# Tether - Product Requirements (v0.1, DRAFT)
 
 Status: proposal for Product Owner review. Nothing here is implemented or verified. Date: 2026-10-27.
 Owner: Product Manager. Reviewers needed: Lead Architect, security-engineer, adhd-ux-specialist, learning-science, qa-engineer.

@@ -48,7 +48,7 @@ Purpose: "What should I do next?" in under 5 seconds.
 
 ```
 +--------------------------------------------------+
-| College Companion            [Settings] [Account]|
+| Tether            [Settings] [Account]|
 +--------------------------------------------------+
 | Good afternoon.                                  |
 |                                                  |

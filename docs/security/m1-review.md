@@ -4,7 +4,7 @@ Reviewer: security-engineer. Commit reviewed: e5739f9. Scope: `src/api` against 
 
 Method legend: **READ** = verified by reading code only. **RAN** = exercised by a test I executed. No source was modified.
 
-Test run (RAN): `docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm dotnet dotnet test src/api/CollegeCompanion.slnx` gave 7/7 architecture and 60/60 integration tests passing. These tests confirm the existing positive behavior only. They do not cover the findings below.
+Test run (RAN): `docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm dotnet dotnet test src/api/Tether.slnx` gave 7/7 architecture and 60/60 integration tests passing. These tests confirm the existing positive behavior only. They do not cover the findings below.
 
 ## Release position
 
@@ -13,7 +13,7 @@ No Critical findings. Two High findings (F-01, F-02) must be fixed before any no
 ## Findings
 
 ### F-01 High: logout and account deletion do not revoke sessions (SEC-004)
-- Evidence: `src/api/src/Modules/Identity/CollegeCompanion.Identity/Endpoints/IdentityEndpoints.cs:30-34` (logout only calls `SignOutAsync`, which deletes the client cookie). `IdentityModule.cs:46-67` (stateless data-protection cookie, no server-side ticket store).
+- Evidence: `src/api/src/Modules/Identity/Tether.Identity/Endpoints/IdentityEndpoints.cs:30-34` (logout only calls `SignOutAsync`, which deletes the client cookie). `IdentityModule.cs:46-67` (stateless data-protection cookie, no server-side ticket store).
 - Effect: a copied or stolen cookie stays valid after logout until it expires. `OnValidatePrincipal` (`IdentityModule.cs:58-66`) never checks the user, so a soft-deleted user (`DeletedAt`) keeps working on `/courses`. Only `/me` re-checks, at `IdentityEndpoints.cs:46`. Verified by READ.
 - Lightest acceptable fix: add `identity.sessions(id uuid pk, user_id, created_at, revoked_at)`. Put the session id in a claim at sign-in. In `OnValidatePrincipal`, do a PK lookup and reject if the row is missing or revoked, if `created_at` is older than 14 days, or if the user is deleted. Logout sets `revoked_at` for that one session. Cost is one indexed read per request, about half a day of work.
 - Cheaper alternative: a `session_epoch int` on `users`, carried as a claim and bumped on logout. This is less code but signs the student out on all their devices, so I do not recommend it.
@@ -110,7 +110,7 @@ Verdict on sufficiency:
 
 ## Appendix: remediation status (backend-engineer, after commit 66a09e3)
 
-Each fix was written test-first: tests were added, run red (21 failed / 69 passed of 90), then the code changed and the suite run green (7/7 architecture, 90/90 integration, then 8/8 after one guard test was added). Tests are in `src/api/tests/CollegeCompanion.IntegrationTests/SecurityHardeningTests.cs` and `RaceTests.cs`. Not independently re-reviewed by security-engineer yet.
+Each fix was written test-first: tests were added, run red (21 failed / 69 passed of 90), then the code changed and the suite run green (7/7 architecture, 90/90 integration, then 8/8 after one guard test was added). Tests are in `src/api/tests/Tether.IntegrationTests/SecurityHardeningTests.cs` and `RaceTests.cs`. Not independently re-reviewed by security-engineer yet.
 
 | Finding | Status | Evidence / notes |
 |---|---|---|

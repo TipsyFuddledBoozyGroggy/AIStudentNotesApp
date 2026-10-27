@@ -6,7 +6,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "College Companion", template: "%s | College Companion" },
+  title: { default: "Tether", template: "%s | Tether" },
   description: "A calm place for your courses and lectures.",
 };
 

@@ -13,12 +13,12 @@ Status: PROPOSAL (design only, no code executed). Owner: backend-engineer. Revie
 
 ```
 src/api/
-  CollegeCompanion.slnx
+  Tether.slnx
   global.json
   Directory.Build.props         (nullable, warnings-as-errors, analyzers)
   src/
-    CollegeCompanion.Host/          composition root, Program.cs, hubs, middleware, ProblemDetails, DI wiring
-    CollegeCompanion.SharedKernel/  Result types, IClock, ids, pagination, domain event base, ICurrentUser
+    Tether.Host/          composition root, Program.cs, hubs, middleware, ProblemDetails, DI wiring
+    Tether.SharedKernel/  Result types, IClock, ids, pagination, domain event base, ICurrentUser
     Modules/
       Identity/    {.Domain,.Application,.Infrastructure,.Api}
       Courses/     ...
@@ -62,7 +62,7 @@ Choice: **Google OIDC sign-in (authorization code + PKCE) issuing a first-party 
 
 ## 5. Error format
 
-RFC 9457 ProblemDetails via `AddProblemDetails` + `IExceptionHandler`. `Content-Type: application/problem+json`. Fields: `type` (`https://errors.collegecompanion.app/{code}`), `title`, `status`, `detail`, `instance`, plus extensions `code` (stable machine string), `traceId`, `errors` (field map for 400/422). No stack traces, tokens or transcript content in responses or logs.
+RFC 9457 ProblemDetails via `AddProblemDetails` + `IExceptionHandler`. `Content-Type: application/problem+json`. Fields: `type` (`https://errors.tether.invalid/{code}`), `title`, `status`, `detail`, `instance`, plus extensions `code` (stable machine string), `traceId`, `errors` (field map for 400/422). No stack traces, tokens or transcript content in responses or logs.
 
 | Status | code | When |
 |---|---|---|

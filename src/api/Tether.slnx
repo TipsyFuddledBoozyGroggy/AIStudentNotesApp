@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Tether.Host/Tether.Host.csproj" />
+    <Project Path="src/Tether.SharedKernel/Tether.SharedKernel.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/Courses/">
+    <Project Path="src/Modules/Courses/Tether.Courses.Contracts/Tether.Courses.Contracts.csproj" />
+    <Project Path="src/Modules/Courses/Tether.Courses/Tether.Courses.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Identity/">
+    <Project Path="src/Modules/Identity/Tether.Identity/Tether.Identity.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Tether.ArchitectureTests/Tether.ArchitectureTests.csproj" />
+    <Project Path="tests/Tether.IntegrationTests/Tether.IntegrationTests.csproj" />
+  </Folder>
+</Solution>
