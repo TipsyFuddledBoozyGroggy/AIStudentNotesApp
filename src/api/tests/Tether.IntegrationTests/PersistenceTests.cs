@@ -2,6 +2,7 @@ using Tether.Courses.Domain;
 using Tether.Courses.Persistence;
 using Tether.IntegrationTests.Infrastructure;
 using Tether.Identity.Persistence;
+using Tether.Lectures.Persistence;
 using Tether.SharedKernel;
 using Tether.SharedKernel.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -136,14 +137,19 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         using var scope = sp.CreateScope();
         var courses = scope.ServiceProvider.GetRequiredService<CoursesDbContext>();
         var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var lectures = scope.ServiceProvider.GetRequiredService<LecturesDbContext>();
 
+        await lectures.GetService<IMigrator>().MigrateAsync("0");
         await courses.GetService<IMigrator>().MigrateAsync("0");
         await identity.GetService<IMigrator>().MigrateAsync("0");
+        Assert.Empty(await lectures.Database.GetAppliedMigrationsAsync());
         Assert.Empty(await courses.Database.GetAppliedMigrationsAsync());
         Assert.Empty(await identity.Database.GetAppliedMigrationsAsync());
 
         await identity.GetService<IMigrator>().MigrateAsync();
         await courses.GetService<IMigrator>().MigrateAsync();
+        await lectures.GetService<IMigrator>().MigrateAsync();
+        Assert.Empty(await lectures.Database.GetPendingMigrationsAsync());
         Assert.Empty(await courses.Database.GetPendingMigrationsAsync());
         Assert.Empty(await identity.Database.GetPendingMigrationsAsync());
     }
@@ -202,17 +208,20 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         using var scope = factory.Services.CreateScope();
         var courses = scope.ServiceProvider.GetRequiredService<CoursesDbContext>();
         var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var lectures = scope.ServiceProvider.GetRequiredService<LecturesDbContext>();
         try
         {
+            await lectures.GetService<IMigrator>().MigrateAsync("0");
             await courses.GetService<IMigrator>().MigrateAsync("0");
             await identity.GetService<IMigrator>().MigrateAsync("0");
             Assert.Equal(0, await factory.ScalarAsync(
-                "select count(*) from pg_tables where schemaname in ('identity','courses') and tablename <> '__ef_migrations_history'"));
+                "select count(*) from pg_tables where schemaname in ('identity','courses','lectures') and tablename <> '__ef_migrations_history'"));
         }
         finally
         {
             await identity.GetService<IMigrator>().MigrateAsync();
             await courses.GetService<IMigrator>().MigrateAsync();
+            await lectures.GetService<IMigrator>().MigrateAsync();
         }
     }
 }

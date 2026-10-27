@@ -15,4 +15,7 @@ internal sealed class HttpContextCurrentUser(IHttpContextAccessor accessor) : IC
             return Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
         }
     }
+
+    public Guid? AuthSessionId =>
+        accessor.HttpContext?.User is { Identity.IsAuthenticated: true } u ? SessionPolicy.SessionId(u) : null;
 }

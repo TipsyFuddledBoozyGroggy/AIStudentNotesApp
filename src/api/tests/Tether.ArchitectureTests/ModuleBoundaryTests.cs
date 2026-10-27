@@ -2,6 +2,8 @@ using System.Reflection;
 using Tether.Courses;
 using Tether.Courses.Contracts;
 using Tether.Identity;
+using Tether.Lectures;
+using Tether.Lectures.Contracts;
 using Tether.SharedKernel;
 
 namespace Tether.ArchitectureTests;
@@ -16,9 +18,11 @@ public class ModuleBoundaryTests
     private static readonly Assembly Identity = typeof(IdentityModule).Assembly;
     private static readonly Assembly Courses = typeof(CoursesModule).Assembly;
     private static readonly Assembly CoursesContracts = typeof(ICourseOwnership).Assembly;
+    private static readonly Assembly Lectures = typeof(LecturesModule).Assembly;
+    private static readonly Assembly LecturesContracts = typeof(IAudioTicketConsumer).Assembly;
     private static readonly Assembly SharedKernel = typeof(ICurrentUser).Assembly;
 
-    private static readonly string[] ModuleImplementations = ["Tether.Identity", "Tether.Courses"];
+    private static readonly string[] ModuleImplementations = ["Tether.Identity", "Tether.Courses", "Tether.Lectures"];
 
     private static IEnumerable<string> ProjectRefs(Assembly a) =>
         a.GetReferencedAssemblies().Select(r => r.Name!).Where(n => n.StartsWith("Tether.", StringComparison.Ordinal));
@@ -26,7 +30,7 @@ public class ModuleBoundaryTests
     [Fact]
     public void Module_implementations_do_not_reference_other_module_implementations()
     {
-        foreach (var asm in new[] { Identity, Courses })
+        foreach (var asm in new[] { Identity, Courses, Lectures })
         {
             var self = asm.GetName().Name!;
             var illegal = ProjectRefs(asm).Where(n => ModuleImplementations.Contains(n) && n != self).ToList();
@@ -41,8 +45,9 @@ public class ModuleBoundaryTests
         {
             ["Tether.Identity"] = ["Tether.SharedKernel"],
             ["Tether.Courses"] = ["Tether.SharedKernel", "Tether.Courses.Contracts"],
+            ["Tether.Lectures"] = ["Tether.SharedKernel", "Tether.Courses.Contracts", "Tether.Lectures.Contracts"],
         };
-        foreach (var asm in new[] { Identity, Courses })
+        foreach (var asm in new[] { Identity, Courses, Lectures })
         {
             var self = asm.GetName().Name!;
             var extra = ProjectRefs(asm).Except(allowed[self]).ToList();
@@ -53,7 +58,7 @@ public class ModuleBoundaryTests
     [Fact]
     public void Contracts_and_shared_kernel_do_not_depend_on_any_module_implementation_or_host()
     {
-        foreach (var asm in new[] { CoursesContracts, SharedKernel })
+        foreach (var asm in new[] { CoursesContracts, LecturesContracts, SharedKernel })
         {
             var bad = ProjectRefs(asm).Where(n => ModuleImplementations.Contains(n) || n.EndsWith(".Host")).ToList();
             Assert.True(bad.Count == 0, $"{asm.GetName().Name} references: {string.Join(", ", bad)}");
@@ -65,6 +70,8 @@ public class ModuleBoundaryTests
     {
         AssertPublicSurface(Identity, "IdentityModule");
         AssertPublicSurface(Courses, "CoursesModule");
+        AssertPublicSurface(Lectures, "LecturesModule");
+        AssertPublicSurface(LecturesContracts, "IAudioTicketConsumer");
     }
 
     private static void AssertPublicSurface(Assembly asm, params string[] allowed)
@@ -85,6 +92,7 @@ public class ModuleBoundaryTests
         var refs = ProjectRefs(hostAsm).ToList();
         Assert.Contains("Tether.Identity", refs);
         Assert.Contains("Tether.Courses", refs);
+        Assert.Contains("Tether.Lectures", refs);
     }
 
     [Fact]
@@ -178,5 +186,37 @@ public class BulkOperationBanTests
     {
         Assert.Single(Offenders([("x.cs", "await db.Courses.Where(c => true).ExecuteDeleteAsync(ct);")]));
         Assert.Empty(Offenders([("x.cs", "await db.Sessions.Where(s => s.Id == sid)\n  .ExecuteUpdateAsync(u => u, ct);")]));
+    }
+}
+
+/// <summary>
+/// Ownership rule (docs/data/schema-m1-m2.md section 6): every persisted entity in a user-data module is IUserOwned, so the
+/// ownership interceptor and the per-entity query filter apply to it. Identity is exempt (users and login sessions are
+/// keyed by the authenticated principal, not by an owner column).
+/// </summary>
+public class OwnershipConventionTests
+{
+    [Fact]
+    public void Every_entity_in_Courses_and_Lectures_domain_namespaces_is_user_owned()
+    {
+        foreach (var asm in new[] { typeof(CoursesModule).Assembly, typeof(LecturesModule).Assembly })
+        {
+            var entities = asm.GetTypes()
+                .Where(t => t.IsClass && !t.IsAbstract && !t.IsNested && !t.Name.StartsWith('<')
+                            && t.Namespace is { } ns && ns.EndsWith(".Domain", StringComparison.Ordinal)
+                            && !(t.IsAbstract && t.IsSealed)) // static helper classes
+                .ToList();
+            Assert.NotEmpty(entities);
+            var notOwned = entities.Where(t => !typeof(IUserOwned).IsAssignableFrom(t)).Select(t => t.FullName).ToList();
+            Assert.True(notOwned.Count == 0, $"{asm.GetName().Name} has non-IUserOwned domain classes: {string.Join(", ", notOwned)}");
+        }
+    }
+
+    [Fact]
+    public void Lectures_never_calls_into_other_modules_except_through_contracts()
+    {
+        var refs = typeof(LecturesModule).Assembly.GetReferencedAssemblies().Select(r => r.Name);
+        Assert.DoesNotContain("Tether.Courses", refs);
+        Assert.DoesNotContain("Tether.Identity", refs);
     }
 }

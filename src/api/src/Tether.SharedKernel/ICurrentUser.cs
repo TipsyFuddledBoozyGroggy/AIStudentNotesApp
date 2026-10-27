@@ -5,6 +5,12 @@ public interface ICurrentUser
 {
     /// <summary>Null when the request is anonymous.</summary>
     Guid? UserId { get; }
+
+    /// <summary>
+    /// Id of the server-side login session (identity.sessions) behind this request's cookie, or null. Lets features such as
+    /// audio tickets bind to one login so that logout invalidates them. Default null keeps test fakes source compatible.
+    /// </summary>
+    Guid? AuthSessionId => null;
 }
 
 /// <summary>Marker for entities owned by exactly one user. UserId is stamped and verified by the ownership interceptor.</summary>

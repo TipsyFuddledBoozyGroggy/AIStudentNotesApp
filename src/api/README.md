@@ -23,12 +23,13 @@ Integration tests create a throwaway `cc_test_*` database on the compose Postgre
 | `RateLimiting:WritePermitPerMinute` | 30 | Per user, POST/PUT/PATCH/DELETE (additional bucket) |
 | `RateLimiting:AnonymousPermitPerMinute` | 60 | Per client IP for unauthenticated requests, including `/health/*` |
 | `RateLimiting:AuthPermitPerMinute` | 10 | Per client IP on login |
+| `RateLimiting:AudioTicketPermitPerMinute` | 6 | Per user on `POST /sessions/{id}/audio-ticket` (C-04) |
 
 Sessions: the cookie holds only a session id; `identity.sessions` is authoritative (revocation, 14-day absolute expiry, soft-deleted users). The cookie is `__Host-cc.session` outside Development and `cc.session` in Development (plain http cannot carry a `Secure` cookie).
 
 ## Migrations
 
-Applied in this order: Identity, then Courses (the Courses FK to `identity.users` needs it). Roll back in the reverse order. Down methods drop their tables and constraints but not the schemas: each schema hosts its own `__ef_migrations_history` table that EF needs after `Down` runs, so `DROP SCHEMA` fails (verified, SQLSTATE 2BP01).
+Applied in this order: Identity, Courses, Lectures (the Courses FK to `identity.users` needs Identity first; Lectures has no cross-schema FK). Roll back in the reverse order. Down methods drop their tables and constraints but not the schemas: each schema hosts its own `__ef_migrations_history` table that EF needs after `Down` runs, so `DROP SCHEMA` fails (verified, SQLSTATE 2BP01).
 
 Policy: `Down` is maintained until production data exists; after that, expand/contract.
 

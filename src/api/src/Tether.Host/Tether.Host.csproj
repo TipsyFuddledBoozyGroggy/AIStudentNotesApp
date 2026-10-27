@@ -3,5 +3,6 @@
     <ProjectReference Include="..\Tether.SharedKernel\Tether.SharedKernel.csproj" />
     <ProjectReference Include="..\Modules\Identity\Tether.Identity\Tether.Identity.csproj" />
     <ProjectReference Include="..\Modules\Courses\Tether.Courses\Tether.Courses.csproj" />
+    <ProjectReference Include="..\Modules\Lectures\Tether.Lectures\Tether.Lectures.csproj" />
   </ItemGroup>
 </Project>

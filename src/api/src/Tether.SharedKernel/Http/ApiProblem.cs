@@ -43,6 +43,13 @@ public static class Problems
         => new ApiProblemResult(400, "validation_failed", title, errors: errors);
     public static IResult Validation(string field, string message) =>
         Validation(new Dictionary<string, string[]> { [field] = [message] }, message);
+    // Fixed vocabulary (contract section 11 item 6, C-24): detail is the constant title, never exception text or input echo.
+    public const string ConsentRequiredText = "Recording consent is required before this action.";
+    public const string InvalidStateText = "This action is not available in the session's current state.";
+    public const string ProviderUnavailableText = "A required service is temporarily unavailable.";
+    public static IResult ConsentRequired() => new ApiProblemResult(403, "consent_required", ConsentRequiredText, ConsentRequiredText);
+    public static IResult InvalidState() => new ApiProblemResult(409, "invalid_state", InvalidStateText, InvalidStateText);
+    public static IResult ProviderUnavailable() => new ApiProblemResult(503, "provider_unavailable", ProviderUnavailableText, ProviderUnavailableText);
     public static IResult CsrfFailed() => new ApiProblemResult(403, "csrf_failed", "Request origin was not accepted.");
     public static IResult PreconditionRequired() => new ApiProblemResult(428, "precondition_required", "An If-Match header is required.");
     public static IResult PreconditionFailed() => new ApiProblemResult(412, "precondition_failed", "The resource has changed. Reload and try again.");

@@ -5,6 +5,7 @@ using System.Threading.RateLimiting;
 using Tether.Courses;
 using Tether.Host;
 using Tether.Identity;
+using Tether.Lectures;
 using Tether.SharedKernel;
 using Tether.SharedKernel.Http;
 using Tether.SharedKernel.Persistence;
@@ -28,6 +29,7 @@ builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogL
 builder.Services.AddSharedKernel();
 builder.AddIdentityModule(); // fails startup if dev login is enabled outside Development
 builder.AddCoursesModule();
+builder.AddLecturesModule();
 
 var allowedOrigins = builder.Configuration.GetSection("Security:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddSingleton(new OriginPolicy(allowedOrigins));
@@ -161,11 +163,13 @@ app.MapHealthChecks("/health/ready", new() { Predicate = r => r.Tags.Contains("r
 var api = app.MapGroup("/api/v1");
 api.MapIdentityEndpoints(app.Services);
 api.MapCoursesEndpoints();
+api.MapLecturesEndpoints();
 
 if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 {
     await app.Services.MigrateIdentityAsync();
     await app.Services.MigrateCoursesAsync();
+    await app.Services.MigrateLecturesAsync();
     await app.Services.SeedDevUsersAsync(); // no-op unless Development and dev login enabled
 }
 

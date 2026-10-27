@@ -48,7 +48,7 @@ public class AuthBoundaryTests(ApiFactory factory) : IClassFixture<ApiFactory>
         foreach (var (method, path, _) in Routes(factory.Services))
         {
             if (AnonymousAllowlist.Contains($"{method} {path}")) continue;
-            var url = path.Replace("{id:guid}", Guid.NewGuid().ToString());
+            var url = System.Text.RegularExpressions.Regex.Replace(path, @"\{\w+(:guid)?\}", _ => Guid.NewGuid().ToString());
             Assert.DoesNotContain("{", url);
             var res = await client.SendAsync(new HttpRequestMessage(new HttpMethod(method), url)
             {

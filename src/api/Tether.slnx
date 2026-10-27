@@ -11,6 +11,10 @@
   <Folder Name="/src/Modules/Identity/">
     <Project Path="src/Modules/Identity/Tether.Identity/Tether.Identity.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/Lectures/">
+    <Project Path="src/Modules/Lectures/Tether.Lectures.Contracts/Tether.Lectures.Contracts.csproj" />
+    <Project Path="src/Modules/Lectures/Tether.Lectures/Tether.Lectures.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Tether.ArchitectureTests/Tether.ArchitectureTests.csproj" />
     <Project Path="tests/Tether.ContractTests/Tether.ContractTests.csproj" />
