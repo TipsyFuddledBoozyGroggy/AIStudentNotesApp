@@ -44,6 +44,20 @@ body {
   }
 }
 
+/* Live-lecture screens: sticky site header plus sticky status bar must not hide focused elements (SC 2.4.11). */
+html:has([data-lecture-root]) {
+  scroll-padding-top: 10rem;
+}
+
+/* In-app Reduce motion toggle (UX section 0); prefers-reduced-motion is handled above. */
+[data-reduce-motion="true"] *,
+[data-reduce-motion="true"] *::before,
+[data-reduce-motion="true"] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
 @layer components {
   .btn {
     @apply inline-flex min-h-[44px] items-center justify-center rounded-lg px-5 py-2 text-base font-semibold;
