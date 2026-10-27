@@ -141,3 +141,13 @@ Items 4-13 of the README (id format, nullable fields, free-string `reason`) are 
 3. No summary-retry endpoint in M2. The Failed state keeps the last good revision and shows no Try again button.
 4. Typed-notes fallback after mic denial is out of M2 scope; the denied state offers instructions and a way back only.
 5. The `Alt+L`, `Alt+P`, `Alt+J` shortcuts are unverified against screen-reader and browser conflicts: ship them off by default until device testing (G3) says otherwise.
+
+## 13. Decisions from the F1 client pass (Lead Architect, 2026-10-27)
+1. `GET /sessions/{id}/transcript?afterSeq&limit` returns **all persisted events** after `afterSeq` (`transcript.final`, `transcript.correction`, `gap`, `session.state`) in seq order as `{events, hasMore}`, so truncated-replay paging cannot lose corrections or gaps. Default `limit` 200, server maximum 500. (Supersedes "finalized segments only" in §2; the schema for the response must be added by backend in B2.)
+2. The extractive and AI versions of one catch-up share one `catchUpId`. An AI version may replace the extractive one; the reverse never happens.
+3. Non-retryable join errors: `not_found`, `unauthenticated`, `csrf_failed`, `consent_required`. All others retry with backoff.
+4. Server `Failed` is shown as Stopped with a "ended by the system" explanation.
+5. Disconnected with a live mic: Mismatch (stop capture) if the last known server state is not Active, otherwise NotConnected. Jitter is +/-20%.
+6. `seq` starts at 1; a value of `0` is invalid (backend to enforce, schema to be tightened to a positive decimal string).
+7. Shared red-team fixtures move to `src/shared/contracts/fixtures/redteam/` so both stacks use identical strings (open task).
+8. Schemas keep `minLength` beside `$ref`; web keeps Ajv `strictTypes: false`.
