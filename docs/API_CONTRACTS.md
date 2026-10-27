@@ -1,6 +1,6 @@
 # API Contracts — Milestone 2 (live lecture slice)
 
-**Status:** DRAFT v1, NOT frozen (security review C-01..C-32 folded in at §8, mediums open), authored by Lead Architect 2026-10-27. Nothing here is implemented. It reconciles `architecture/backend-foundation.md` §6-7 and `architecture/speech-pipeline.md` §4-6, which disagreed. Where they conflict, this file wins. Vendor facts are out of scope (see `vendors/verification-report.md`, gate G2).
+**Status:** FROZEN v1 for M2 mock-backed work as of 2026-10-27 (security review C-01..C-32 folded in at §8 and §10; numeric limits are proposals; wording and legal items remain open under G1), authored by Lead Architect 2026-10-27. Nothing here is implemented. It reconciles `architecture/backend-foundation.md` §6-7 and `architecture/speech-pipeline.md` §4-6, which disagreed. Where they conflict, this file wins. Vendor facts are out of scope (see `vendors/verification-report.md`, gate G2).
 
 Freeze rule: additive changes only within `v1`. Any breaking change needs a new version and an ADR. Schemas will live in `src/shared/contracts/` and be contract-tested by both stacks before parallel frontend/backend work starts.
 
@@ -103,3 +103,24 @@ Normative for implementation. IDs refer to that review. Medium/low items (C-03..
 
 ## 9. Pause UX (PO direction 2026-10-27)
 When a session is Paused the UI shows a clear paused state stating that recording is paused, with a Resume button (and Stop). The recording indicator is driven by `session.state` and the local mic track, never by the button alone. Wording is DRAFT; final text, including any note about audio sent just before the pause, remains a G1 item for the Product Owner and counsel. Detailed layout (persistent panel vs dialog, focus handling, screen-reader announcement) is delegated to `adhd-ux-specialist`.
+
+## 10. Remaining review findings accepted (PO: "go with the defaults", 2026-10-27)
+Numeric values are the reviewer's **proposals**, configurable, not measured. Maximums are fixed here; devops owns the configuration.
+
+- **Origin (C-03, C-08, C-29):** checked before upgrade on all three channels; bad or missing Origin gets HTTP 403, exact ordinal match against one allowlist. Session cookie `SameSite=Strict`. CSP `connect-src` lists only the configured API/ingest origins; `Permissions-Policy: microphone=(self)`. No provider endpoint or key is reachable from the browser (a test greps the built bundle). Post-upgrade failures use 4401/4409.
+- **Socket pre-auth (C-04, C-05):** `hello` within 5 s and at most 1 KB, else close; binary before `hello` closes; text max 4 KB; binary frame max 250 ms of PCM + 12-byte header; oversize closes 1009. Ticket issuance limited to 6/min per user and per session; failed `hello` counts per user and IP; bad, expired, used and foreign tickets give identical 4401.
+- **Scoping (C-09, C-12, C-18, C-19):** every event read is keyed by `(userId, sessionId)`, never by `seq` alone; out-of-range `lastSeq` returns current state with empty replay; two-user test with overlapping `seq` and `segmentId`. Citations are validated against the same session and dropped if invalid; `segmentId` is meaningful only with `sessionId`. One recording per user via unique partial index on `(user_id) WHERE state IN ('Active','Paused')`; second socket for a session gets 4409. Server derives timecodes from accepted sample counts; `captureOffsetMs` is advisory.
+- **seq (C-10, C-27):** per-session counter row updated in the persisting transaction (not a DB sequence), with a max event rate; `seq` is serialized as a string. Replay cap lowered to **500** with `truncated:true`; `Join` limited to 10/min per session.
+- **Partials (C-11):** held per `(userId, sessionId)`, cleared on pause, stop and delete, never logged or persisted.
+- **Control path (C-15):** the audio socket accepts only `pause` and `stop`. `resume` is REST only and needs a new ticket. REST wins on mismatch and the socket is closed.
+- **Indicator (C-16):** computed from server state **and** local `MediaStreamTrack` state. Pause/stop stops the track before showing Paused/Stopped. Disagreement shows a prominent mismatch warning and stops capture. Hub disconnect shows "not connected, audio not being saved". Announced via a live region.
+- **Unattended limits (C-17, proposals):** heartbeat = hub `Ping` and audio frame arrival. Active with no frames for 60 s emits a `gap`; after 5 min auto-pause. Paused auto-stops after 30 min. Hard cap 3 h of total elapsed time including paused.
+- **Speaker (C-20):** `speaker` is off by default in M2 (never emitted), is on the G1 legal checklist, and no cross-session voice identification.
+- **Errors (C-24):** `detail` comes from a fixed server vocabulary keyed by `code`; never exception text, input echo or model output.
+- **Abuse limits (C-26):** hub `MaximumReceiveMessageSize` 4 KB; 3 concurrent hub connections per user; `lost-track` 6/min per session with a per-session AI call budget (extractive always returned); maximum `limit` on every list.
+- **AI output is untrusted plain text (C-28):** `text`, `tldr`, `bullets[]` are rendered as text nodes; no markdown, HTML or links. Summarizer inputs are delimited untrusted data; output is schema-validated with one repair retry; no tool access. Red-team fixtures (injection speech, markdown image URL, script payload) must render inert.
+- **Audit (C-30):** each lifecycle transition, delete, export and repeated ticket failure writes an audit event (user id, session id, action, timestamp only).
+- **Idempotency (C-32):** `Idempotency-Key` on session creation; a replay returns the original session without a second consent event.
+- **Mock exporter (C-22):** writes nothing outside the database; exports are owner-scoped on read.
+- **Later change of audio path (C-31):** a direct-to-vendor design is a new contract version and needs a new security review.
+- **Tests (§6 additions):** two-user overlap test, Origin 403 on all channels, bundle grep for provider endpoints/keys, red-team rendering fixtures, replay cap, pause/stop cutoff, ticket replay.
