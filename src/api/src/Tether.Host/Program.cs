@@ -21,6 +21,10 @@ builder.WebHost.ConfigureKestrel(o =>
     o.AddServerHeader = false;
 });
 
+// F-08: these framework categories log the exception object (and so any row values / SQL detail inside it) at Error.
+builder.Logging.AddFilter("Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware", LogLevel.None);
+builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Update", LogLevel.None);
+builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.None);
 builder.Services.AddSharedKernel();
 builder.AddIdentityModule(); // fails startup if dev login is enabled outside Development
 builder.AddCoursesModule();
@@ -65,14 +69,14 @@ builder.Services.AddRateLimiter(o =>
     o.GlobalLimiter = PartitionedRateLimiter.CreateChained(
         PartitionedRateLimiter.Create<HttpContext, string>(ctx => UserKey(ctx) is { } uid
             ? RateLimitPartition.GetFixedWindowLimiter("u:" + uid, _ => PerMinute(apiPermits))
-            : RateLimitPartition.GetFixedWindowLimiter("ip:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+            : RateLimitPartition.GetFixedWindowLimiter("ip:" + ClientIpKey.For(ctx.Connection.RemoteIpAddress),
                 _ => PerMinute(anonPermits))),
         PartitionedRateLimiter.Create<HttpContext, string>(ctx => UserKey(ctx) is { } uid && !HttpMethods.IsGet(ctx.Request.Method)
             && !HttpMethods.IsHead(ctx.Request.Method) && !HttpMethods.IsOptions(ctx.Request.Method)
             ? RateLimitPartition.GetFixedWindowLimiter("w:" + uid, _ => PerMinute(writePermits))
             : RateLimitPartition.GetNoLimiter("none")));
     o.AddPolicy("auth", ctx => RateLimitPartition.GetFixedWindowLimiter(
-        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => PerMinute(authPermits)));
+        ClientIpKey.For(ctx.Connection.RemoteIpAddress), _ => PerMinute(authPermits)));
     o.OnRejected = async (ctx, ct) =>
     {
         ctx.HttpContext.Response.Headers.RetryAfter = "60";
@@ -129,9 +133,12 @@ app.UseExceptionHandler(errorApp => errorApp.Run(async ctx =>
             result = Problems.ConcurrencyConflict();
             break;
         default:
-            // Log the exception type and trace id only; the response never carries details (SEC-029).
+            // F-08: exception type and trace id ONLY. Never pass the exception object: DB exceptions embed row values
+            // ("Failing row contains ...") and parse errors can echo request content. Framework loggers that would
+            // log the exception themselves are silenced via the filters near the top of this file.
             ctx.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Unhandled")
-                .LogError(ex, "Unhandled exception for trace {TraceId}", ctx.TraceIdentifier);
+                .LogError("Unhandled exception of type {ExceptionType} for trace {TraceId}",
+                    ex?.GetType().FullName ?? "unknown", ctx.TraceIdentifier);
             result = new ApiProblemResult(500, "internal_error", "Something went wrong on our side.");
             break;
     }

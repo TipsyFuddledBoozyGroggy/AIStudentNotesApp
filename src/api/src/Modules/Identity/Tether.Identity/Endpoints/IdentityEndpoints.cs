@@ -80,6 +80,13 @@ internal static partial class IdentityEndpoints
     /// <summary>Creates the server-side session row (ADR-016), then issues the cookie that points at it.</summary>
     internal static async Task SignInAsync(HttpContext ctx, IdentityDbContext db, TimeProvider clock, User user)
     {
+        // N-03: a new login ends the session this browser already carries, whoever it belonged to.
+        if (SessionPolicy.SessionId(ctx.User) is { } oldSid)
+        {
+            var now = clock.GetUtcNow();
+            await db.Sessions.Where(s => s.Id == oldSid && s.RevokedAt == null)
+                .ExecuteUpdateAsync(u => u.SetProperty(s => s.RevokedAt, now), ctx.RequestAborted);
+        }
         var session = SessionPolicy.Create(user.Id, clock);
         db.Sessions.Add(session);
         await db.SaveChangesAsync(ctx.RequestAborted);

@@ -132,3 +132,51 @@ public class ModuleBoundaryTests
         Assert.True(offenders.Count == 0, "Migrations create an xmin column: " + string.Join(", ", offenders));
     }
 }
+
+/// <summary>
+/// N-09: ExecuteUpdate/ExecuteDelete bypass the SaveChanges ownership interceptor. They are banned in source except on
+/// identity.sessions (keyed by the authenticated sid; Session is not IUserOwned).
+/// </summary>
+public class BulkOperationBanTests
+{
+    private static readonly System.Text.RegularExpressions.Regex Bulk =
+        new(@"\.Execute(Update|Delete)(Async)?\s*\(", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static string SourceRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Tether.slnx"))) dir = dir.Parent;
+        Assert.NotNull(dir);
+        return Path.Combine(dir!.FullName, "src");
+    }
+
+    /// <summary>Returns offending "file:line" entries; a use is allowed only if its statement starts at db.Sessions.</summary>
+    private static List<string> Offenders(IEnumerable<(string Path, string Text)> files) =>
+        files.SelectMany(f => Bulk.Matches(f.Text).Select(m => (f.Path, f.Text, m)))
+            .Where(x =>
+            {
+                var stmtStart = Math.Max(0, x.Text.LastIndexOf(';', x.m.Index) + 1);
+                var stmt = x.Text[stmtStart..x.m.Index];
+                return !System.Text.RegularExpressions.Regex.IsMatch(stmt, @"\bdb\.Sessions\b");
+            })
+            .Select(x => $"{x.Path}:{x.Text[..x.m.Index].Count(c => c == '\n') + 1}")
+            .ToList();
+
+    [Fact]
+    public void ExecuteUpdate_and_ExecuteDelete_are_only_used_on_identity_sessions()
+    {
+        var sep = Path.DirectorySeparatorChar;
+        var files = Directory.EnumerateFiles(SourceRoot(), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{sep}obj{sep}") && !f.Contains($"{sep}bin{sep}") && !f.Contains($"{sep}Migrations{sep}"))
+            .Select(f => (f, File.ReadAllText(f)));
+        var offenders = Offenders(files);
+        Assert.True(offenders.Count == 0, "Bulk ExecuteUpdate/ExecuteDelete outside identity.sessions: " + string.Join(", ", offenders));
+    }
+
+    [Fact]
+    public void The_ban_detects_a_bulk_call_on_an_owned_set_and_allows_sessions()
+    {
+        Assert.Single(Offenders([("x.cs", "await db.Courses.Where(c => true).ExecuteDeleteAsync(ct);")]));
+        Assert.Empty(Offenders([("x.cs", "await db.Sessions.Where(s => s.Id == sid)\n  .ExecuteUpdateAsync(u => u, ct);")]));
+    }
+}

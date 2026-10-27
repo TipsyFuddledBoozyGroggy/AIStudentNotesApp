@@ -37,3 +37,10 @@
 **Not independently re-reviewed:** security-engineer has not yet re-reviewed these fixes.
 **Open:** F-04 and F-08 (M2 gates); SEC-005 lockout; session-row retention job; cookie keys not encrypted at rest and no compose volume for them; deploy needs `Security:ETagKey` and trusted-proxy config; EF history tables prevent dropping schemas in `Down` (decision: shared history schema?); schema doc drift (semesters, quiet_mode, purge_after).
 **Next:** security re-review; API_CONTRACTS.md; Milestone 2 against mock STT/AI.
+
+## Iteration 3 — Pre-M2 hardening and contract draft (2026-10-27)
+**Done (Lead Architect re-ran the suite):** N-03 (login revokes carried session), N-04 (IPv6 /64 limiter keys), N-09 (ExecuteUpdate/ExecuteDelete ban, regex-based), F-08 (no exception object in logs, three framework loggers silenced, log-canary test shown to fail on the old code). Build 0 warnings; 10 architecture + 99 integration tests pass (run in the SDK container on the compose network with `ConnectionStrings__Default` set).
+**Contract:** `API_CONTRACTS.md` draft v1 (ADR-018), NOT frozen. Security review `security/m2-contract-review.md` (C-01..C-32, read-only review, nothing run); High items folded into §8, mediums open.
+**Caveats:** silencing EF save-failure loggers reduces diagnosability; N-09 scan is textual. F-04 (WebSocket Origin) still open until the hub exists. Playwright not re-run this iteration. Nothing committed at time of writing.
+**Open PO decisions:** server-relayed audio, `speaker` labels in M2, auto-stop timings (C-17), in-flight audio wording (G1).
+**Next:** triage mediums, freeze contract, write `src/shared/contracts` schemas, then M2 backend/frontend against mocks.
