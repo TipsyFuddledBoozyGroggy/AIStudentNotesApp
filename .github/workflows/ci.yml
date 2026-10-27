@@ -49,6 +49,23 @@ jobs:
     defaults:
       run:
         working-directory: src/api
+    # Integration tests create and drop their own cc_test_* databases (need CREATEDB).
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_only_password   # throwaway CI container, not a secret
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci_user"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ConnectionStrings__Default: "Host=localhost;Port=5432;Database=postgres;Username=ci_user;Password=ci_only_password"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
