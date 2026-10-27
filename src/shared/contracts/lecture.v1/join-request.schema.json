@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/join-request.schema.json",
+  "title": "join-request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sessionId",
+    "protocol"
+  ],
+  "properties": {
+    "sessionId": {
+      "$ref": "common.schema.json#/$defs/sessionId"
+    },
+    "protocol": {
+      "const": "lecture.v1"
+    },
+    "lastSeq": {
+      "$ref": "common.schema.json#/$defs/seq"
+    },
+    "lastSummaryRevision": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    }
+  }
+}

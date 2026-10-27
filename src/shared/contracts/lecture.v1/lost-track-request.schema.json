@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/lost-track-request.schema.json",
+  "title": "lost-track-request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "windowMinutes"
+  ],
+  "properties": {
+    "windowMinutes": {
+      "$ref": "common.schema.json#/$defs/windowMinutes"
+    }
+  }
+}

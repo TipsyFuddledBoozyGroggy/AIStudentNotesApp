@@ -1,0 +1,6 @@
+{
+  "type": "gap",
+  "fromMs": 1000,
+  "toMs": 2000,
+  "reason": "device"
+}

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/summary-revision.schema.json",
+  "title": "summary-revision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "revision",
+    "basedOnSeq",
+    "tldr",
+    "bullets",
+    "coveredFromMs",
+    "coveredToMs",
+    "status",
+    "citations"
+  ],
+  "properties": {
+    "revision": {
+      "$ref": "common.schema.json#/$defs/revision"
+    },
+    "basedOnSeq": {
+      "$ref": "common.schema.json#/$defs/seq"
+    },
+    "tldr": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "bullets": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "maxLength": 500
+      }
+    },
+    "coveredFromMs": {
+      "$ref": "common.schema.json#/$defs/ms"
+    },
+    "coveredToMs": {
+      "$ref": "common.schema.json#/$defs/ms"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Draft",
+        "Final"
+      ]
+    },
+    "citations": {
+      "$ref": "common.schema.json#/$defs/citations"
+    }
+  }
+}

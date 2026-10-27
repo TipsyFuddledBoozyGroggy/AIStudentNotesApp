@@ -1,0 +1,7 @@
+{
+  "type": "hello",
+  "version": "speech.v1",
+  "sampleRate": 16000,
+  "encoding": "pcm_s16le",
+  "channels": 1
+}

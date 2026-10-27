@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/speech.hello.schema.json",
+  "title": "speech.hello",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "version",
+    "ticket",
+    "sampleRate",
+    "encoding",
+    "channels"
+  ],
+  "properties": {
+    "type": {
+      "const": "hello"
+    },
+    "version": {
+      "const": "speech.v1"
+    },
+    "ticket": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "sampleRate": {
+      "const": 16000
+    },
+    "encoding": {
+      "const": "pcm_s16le"
+    },
+    "channels": {
+      "const": 1
+    },
+    "resumeFromFrame": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    }
+  }
+}

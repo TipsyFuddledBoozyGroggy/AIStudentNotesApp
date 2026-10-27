@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "type": "transcript.correction",
+  "sessionId": "ses_01HZX",
+  "seq": null,
+  "ts": "2026-10-27T14:03:05.250Z",
+  "payload": {
+    "segmentId": "seg_3",
+    "revision": 2,
+    "text": "So the derivative of x squared is 2x.",
+    "supersedes": 1
+  }
+}

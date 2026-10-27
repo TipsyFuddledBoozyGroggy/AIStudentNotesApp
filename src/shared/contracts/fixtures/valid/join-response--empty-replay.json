@@ -1,0 +1,10 @@
+{
+  "state": "Paused",
+  "currentSeq": "0",
+  "currentSummaryRevision": null,
+  "replay": {
+    "fromSeq": null,
+    "toSeq": null,
+    "truncated": false
+  }
+}

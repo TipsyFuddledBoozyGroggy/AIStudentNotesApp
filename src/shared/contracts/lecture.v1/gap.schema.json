@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/gap.schema.json",
+  "title": "gap",
+  "description": "Persisted event: seq is non-null.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "v",
+    "type",
+    "sessionId",
+    "seq",
+    "ts",
+    "payload"
+  ],
+  "properties": {
+    "v": {
+      "type": "integer",
+      "const": 1
+    },
+    "type": {
+      "const": "gap"
+    },
+    "sessionId": {
+      "$ref": "common.schema.json#/$defs/sessionId"
+    },
+    "seq": {
+      "$ref": "common.schema.json#/$defs/seq"
+    },
+    "ts": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fromMs",
+        "toMs",
+        "reason"
+      ],
+      "properties": {
+        "fromMs": {
+          "$ref": "common.schema.json#/$defs/ms"
+        },
+        "toMs": {
+          "$ref": "common.schema.json#/$defs/ms"
+        },
+        "reason": {
+          "$ref": "common.schema.json#/$defs/gapReason"
+        }
+      }
+    }
+  }
+}

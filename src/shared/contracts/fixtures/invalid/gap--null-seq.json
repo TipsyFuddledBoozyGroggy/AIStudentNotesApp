@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "type": "gap",
+  "sessionId": "ses_01HZX",
+  "seq": null,
+  "ts": "2026-10-27T14:03:05.250Z",
+  "payload": {
+    "fromMs": 60000,
+    "toMs": 75000,
+    "reason": "network"
+  }
+}

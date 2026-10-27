@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/speech.ack.schema.json",
+  "title": "speech.ack",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "frameSeq"
+  ],
+  "properties": {
+    "type": {
+      "const": "ack"
+    },
+    "frameSeq": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "type": "transcript.partial",
+  "sessionId": "ses_01HZX",
+  "seq": "3",
+  "ts": "2026-10-27T14:03:05.250Z",
+  "payload": {
+    "segmentId": "seg_3",
+    "revision": 2,
+    "startMs": 12000,
+    "text": "so the derivative of"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/catchup.schema.json",
+  "title": "catchup",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "catchUpId",
+    "windowMinutes",
+    "text",
+    "citations",
+    "kind"
+  ],
+  "properties": {
+    "catchUpId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "windowMinutes": {
+      "$ref": "common.schema.json#/$defs/windowMinutes"
+    },
+    "text": {
+      "$ref": "common.schema.json#/$defs/text"
+    },
+    "citations": {
+      "$ref": "common.schema.json#/$defs/citations"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "Extractive",
+        "Ai"
+      ]
+    }
+  }
+}

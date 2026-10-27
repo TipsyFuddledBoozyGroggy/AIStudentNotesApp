@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "type": "error",
+  "sessionId": "ses_01HZX",
+  "seq": "3",
+  "ts": "2026-10-27T14:03:05.250Z",
+  "payload": {
+    "code": "rate_limited",
+    "detail": "Too many requests. Please slow down."
+  }
+}

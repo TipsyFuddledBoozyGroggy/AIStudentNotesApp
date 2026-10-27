@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/speech.control.schema.json",
+  "title": "speech.control",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type"
+  ],
+  "properties": {
+    "type": {
+      "enum": [
+        "pause",
+        "stop"
+      ]
+    }
+  },
+  "description": "Client->server control frame. resume is REST only (C-15) and is rejected here."
+}

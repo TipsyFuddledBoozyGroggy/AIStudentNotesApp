@@ -124,3 +124,13 @@ Numeric values are the reviewer's **proposals**, configurable, not measured. Max
 - **Mock exporter (C-22):** writes nothing outside the database; exports are owner-scoped on read.
 - **Later change of audio path (C-31):** a direct-to-vendor design is a new contract version and needs a new security review.
 - **Tests (§6 additions):** two-user overlap test, Origin 403 on all channels, bundle grep for provider endpoints/keys, red-team rendering fixtures, replay cap, pause/stop cutoff, ticket replay.
+
+## 11. Wire-format clarifications (Lead Architect, 2026-10-27)
+Resolved from the schema pass (`src/shared/contracts/README.md` lists all 13 items). The schemas under `src/shared/contracts/lecture.v1/` are now the machine-readable source of truth where this prose is silent.
+1. Hub events nest their payload: `{v, type, sessionId, seq, ts, payload:{...}}`.
+2. Audio-socket frames use `type` as discriminator (`hello`, `ack`, `gap`, `error`, `pause`, `stop`).
+3. All seq-like values are decimal strings (`lastSeq`, `currentSeq`, `replay.fromSeq/toSeq`, `basedOnSeq`, `Session.lastSeq`); this overrides `long` in §3 `Join`.
+4. All objects are strict (`additionalProperties:false`); additive v1 changes update the schema first. `speaker` stays optional in schema but the M2 server never emits it (C-20).
+5. `supersedes < revision`, `toMs >= fromMs` and `endMs >= startMs` cannot be expressed in the schema and need server-side tests. Length limits in the schemas (text 4000, tldr 2000, bullets 20x500, citations 50) are proposals.
+6. `error.detail` is the constant server title for its code. Backend must define fixed strings for `consent_required`, `invalid_state` and `provider_unavailable`.
+Items 4-13 of the README (id format, nullable fields, free-string `reason`) are accepted as written and remain editable until the first consumer ships.

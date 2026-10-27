@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/summary.status.schema.json",
+  "title": "summary.status",
+  "description": "Ephemeral event: seq is null.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "v",
+    "type",
+    "sessionId",
+    "seq",
+    "ts",
+    "payload"
+  ],
+  "properties": {
+    "v": {
+      "type": "integer",
+      "const": 1
+    },
+    "type": {
+      "const": "summary.status"
+    },
+    "sessionId": {
+      "$ref": "common.schema.json#/$defs/sessionId"
+    },
+    "seq": {
+      "type": "null"
+    },
+    "ts": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "lagSeconds"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "Pending",
+            "Running",
+            "Delayed",
+            "Failed"
+          ]
+        },
+        "lagSeconds": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

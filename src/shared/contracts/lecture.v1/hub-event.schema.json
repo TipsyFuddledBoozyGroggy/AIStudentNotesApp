@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/hub-event.schema.json",
+  "title": "hub-event",
+  "description": "Any server->client hub event; discriminated by type.",
+  "oneOf": [
+    {
+      "$ref": "session.state.schema.json"
+    },
+    {
+      "$ref": "transcript.partial.schema.json"
+    },
+    {
+      "$ref": "transcript.final.schema.json"
+    },
+    {
+      "$ref": "transcript.correction.schema.json"
+    },
+    {
+      "$ref": "gap.schema.json"
+    },
+    {
+      "$ref": "summary.revision.schema.json"
+    },
+    {
+      "$ref": "summary.status.schema.json"
+    },
+    {
+      "$ref": "catchup.ready.schema.json"
+    },
+    {
+      "$ref": "stt.status.schema.json"
+    },
+    {
+      "$ref": "error.schema.json"
+    }
+  ]
+}

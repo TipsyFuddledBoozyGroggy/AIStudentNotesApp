@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/error.schema.json",
+  "title": "error",
+  "description": "Ephemeral event: seq is null.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "v",
+    "type",
+    "sessionId",
+    "seq",
+    "ts",
+    "payload"
+  ],
+  "properties": {
+    "v": {
+      "type": "integer",
+      "const": 1
+    },
+    "type": {
+      "const": "error"
+    },
+    "sessionId": {
+      "$ref": "common.schema.json#/$defs/sessionId"
+    },
+    "seq": {
+      "type": "null"
+    },
+    "ts": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "detail"
+      ],
+      "properties": {
+        "code": {
+          "$ref": "common.schema.json#/$defs/errorCode"
+        },
+        "detail": {
+          "$ref": "common.schema.json#/$defs/errorDetail"
+        }
+      }
+    }
+  }
+}

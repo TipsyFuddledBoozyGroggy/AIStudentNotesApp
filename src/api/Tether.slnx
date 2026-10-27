@@ -13,6 +13,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Tether.ArchitectureTests/Tether.ArchitectureTests.csproj" />
+    <Project Path="tests/Tether.ContractTests/Tether.ContractTests.csproj" />
     <Project Path="tests/Tether.IntegrationTests/Tether.IntegrationTests.csproj" />
   </Folder>
 </Solution>

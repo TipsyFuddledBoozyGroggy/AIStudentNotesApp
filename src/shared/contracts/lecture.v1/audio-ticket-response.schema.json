@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/audio-ticket-response.schema.json",
+  "title": "audio-ticket-response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ticket",
+    "expiresAt"
+  ],
+  "properties": {
+    "ticket": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "expiresAt": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    }
+  }
+}

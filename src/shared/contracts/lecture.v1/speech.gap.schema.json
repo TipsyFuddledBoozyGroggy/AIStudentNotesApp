@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/speech.gap.schema.json",
+  "title": "speech.gap",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "fromMs",
+    "toMs",
+    "reason"
+  ],
+  "properties": {
+    "type": {
+      "const": "gap"
+    },
+    "fromMs": {
+      "$ref": "common.schema.json#/$defs/ms"
+    },
+    "toMs": {
+      "$ref": "common.schema.json#/$defs/ms"
+    },
+    "reason": {
+      "$ref": "common.schema.json#/$defs/gapReason"
+    }
+  }
+}

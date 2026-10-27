@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/transcript.correction.schema.json",
+  "title": "transcript.correction",
+  "description": "Persisted event: seq is non-null.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "v",
+    "type",
+    "sessionId",
+    "seq",
+    "ts",
+    "payload"
+  ],
+  "properties": {
+    "v": {
+      "type": "integer",
+      "const": 1
+    },
+    "type": {
+      "const": "transcript.correction"
+    },
+    "sessionId": {
+      "$ref": "common.schema.json#/$defs/sessionId"
+    },
+    "seq": {
+      "$ref": "common.schema.json#/$defs/seq"
+    },
+    "ts": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "segmentId",
+        "revision",
+        "text",
+        "supersedes"
+      ],
+      "properties": {
+        "segmentId": {
+          "$ref": "common.schema.json#/$defs/segmentId"
+        },
+        "revision": {
+          "$ref": "common.schema.json#/$defs/revision"
+        },
+        "text": {
+          "$ref": "common.schema.json#/$defs/text",
+          "minLength": 1
+        },
+        "supersedes": {
+          "$ref": "common.schema.json#/$defs/revision"
+        }
+      }
+    }
+  }
+}

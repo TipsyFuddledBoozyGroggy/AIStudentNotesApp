@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/join-response.schema.json",
+  "title": "join-response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "state",
+    "currentSeq",
+    "currentSummaryRevision",
+    "replay"
+  ],
+  "properties": {
+    "state": {
+      "$ref": "common.schema.json#/$defs/sessionState"
+    },
+    "currentSeq": {
+      "$ref": "common.schema.json#/$defs/seq"
+    },
+    "currentSummaryRevision": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "replay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fromSeq",
+        "toSeq",
+        "truncated"
+      ],
+      "properties": {
+        "fromSeq": {
+          "oneOf": [
+            {
+              "$ref": "common.schema.json#/$defs/seq"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toSeq": {
+          "oneOf": [
+            {
+              "$ref": "common.schema.json#/$defs/seq"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

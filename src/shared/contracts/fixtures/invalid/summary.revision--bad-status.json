@@ -1,0 +1,25 @@
+{
+  "v": 1,
+  "type": "summary.revision",
+  "sessionId": "ses_01HZX",
+  "seq": null,
+  "ts": "2026-10-27T14:03:05.250Z",
+  "payload": {
+    "revision": 3,
+    "basedOnSeq": "9",
+    "tldr": "Derivatives measure rate of change.",
+    "bullets": [
+      "Power rule",
+      "Chain rule intro"
+    ],
+    "coveredFromMs": 0,
+    "coveredToMs": 75000,
+    "status": "Done",
+    "citations": [
+      {
+        "segmentId": "seg_3",
+        "startMs": 12000
+      }
+    ]
+  }
+}

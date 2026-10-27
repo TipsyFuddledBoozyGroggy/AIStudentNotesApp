@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/session.schema.json",
+  "title": "session",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "courseId",
+    "title",
+    "state",
+    "startedAt",
+    "lastSeq",
+    "consent",
+    "etag"
+  ],
+  "properties": {
+    "id": {
+      "$ref": "common.schema.json#/$defs/sessionId"
+    },
+    "courseId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "title": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 200
+    },
+    "state": {
+      "$ref": "common.schema.json#/$defs/sessionState"
+    },
+    "startedAt": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "stoppedAt": {
+      "oneOf": [
+        {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "lastSeq": {
+      "$ref": "common.schema.json#/$defs/seq"
+    },
+    "consent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "textVersion",
+        "acknowledgedAt"
+      ],
+      "properties": {
+        "textVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "acknowledgedAt": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        }
+      }
+    },
+    "etag": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    }
+  }
+}

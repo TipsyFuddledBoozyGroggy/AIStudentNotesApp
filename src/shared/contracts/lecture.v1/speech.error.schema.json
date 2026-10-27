@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/speech.error.schema.json",
+  "title": "speech.error",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "code"
+  ],
+  "properties": {
+    "type": {
+      "const": "error"
+    },
+    "code": {
+      "$ref": "common.schema.json#/$defs/errorCode"
+    }
+  }
+}

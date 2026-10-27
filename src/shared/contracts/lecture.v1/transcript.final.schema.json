@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/transcript.final.schema.json",
+  "title": "transcript.final",
+  "description": "Persisted event: seq is non-null.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "v",
+    "type",
+    "sessionId",
+    "seq",
+    "ts",
+    "payload"
+  ],
+  "properties": {
+    "v": {
+      "type": "integer",
+      "const": 1
+    },
+    "type": {
+      "const": "transcript.final"
+    },
+    "sessionId": {
+      "$ref": "common.schema.json#/$defs/sessionId"
+    },
+    "seq": {
+      "$ref": "common.schema.json#/$defs/seq"
+    },
+    "ts": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "segmentId",
+        "startMs",
+        "endMs",
+        "text",
+        "provider"
+      ],
+      "properties": {
+        "segmentId": {
+          "$ref": "common.schema.json#/$defs/segmentId"
+        },
+        "startMs": {
+          "$ref": "common.schema.json#/$defs/ms"
+        },
+        "endMs": {
+          "$ref": "common.schema.json#/$defs/ms"
+        },
+        "text": {
+          "$ref": "common.schema.json#/$defs/text",
+          "minLength": 1
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "speaker": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      }
+    }
+  }
+}

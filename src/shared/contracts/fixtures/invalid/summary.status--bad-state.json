@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "type": "summary.status",
+  "sessionId": "ses_01HZX",
+  "seq": null,
+  "ts": "2026-10-27T14:03:05.250Z",
+  "payload": {
+    "state": "Idle",
+    "lagSeconds": 0
+  }
+}

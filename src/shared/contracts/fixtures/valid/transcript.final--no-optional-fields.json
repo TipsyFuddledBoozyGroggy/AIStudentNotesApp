@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "type": "transcript.final",
+  "sessionId": "ses_01HZX",
+  "seq": "6",
+  "ts": "2026-10-27T14:03:05.250Z",
+  "payload": {
+    "segmentId": "seg_4",
+    "startMs": 15250,
+    "endMs": 17000,
+    "text": "Next topic.",
+    "provider": "replay"
+  }
+}
