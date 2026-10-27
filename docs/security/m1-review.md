@@ -107,3 +107,20 @@ Verdict on sufficiency:
 3. F-06, F-07 and F-05 hardening, small changes.
 4. F-04 second CSRF layer, plus an Origin check on hub and WebSocket upgrades as an M2 gate.
 5. F-08 canary test and audit log events before transcripts are stored.
+
+## Appendix: remediation status (backend-engineer, after commit 66a09e3)
+
+Each fix was written test-first: tests were added, run red (21 failed / 69 passed of 90), then the code changed and the suite run green (7/7 architecture, 90/90 integration, then 8/8 after one guard test was added). Tests are in `src/api/tests/CollegeCompanion.IntegrationTests/SecurityHardeningTests.cs` and `RaceTests.cs`. Not independently re-reviewed by security-engineer yet.
+
+| Finding | Status | Evidence / notes |
+|---|---|---|
+| F-01 session revocation (ADR-016) | Fixed | `identity.sessions` (migration `M003_Sessions`), `cc:sid` claim, PK lookup per request in `OnValidatePrincipal`; rejects missing, revoked, expired sessions and soft-deleted users; logout revokes only that session. Tests `ServerSideSessionTests`. |
+| F-02 absolute lifetime | Fixed | `expires_at` is set once at sign-in; test with a controllable `TimeProvider` refreshes the cookie every 5h and proves the session dies at 14 days (`AbsoluteSessionLifetimeTests`). The cookie handler now uses the injected `TimeProvider`. |
+| F-03 rate limiting / forwarded headers | Fixed, with residuals | Global per-user limiter, stricter per-user write bucket, per-IP anonymous limiter (covers `/health/ready`), configurable; `ForwardedHeaders` only from `Security:TrustedProxies`/`TrustedProxyNetworks`, ForwardLimit 1, otherwise middleware absent. Residuals: authentication now runs before the limiter, so a flood of bogus cookies costs one DB read each (upstream/proxy limits still advised); SEC-005 lockout/back-off still not built (needs Google auth). |
+| F-04 Origin/CSRF | Deferred | Not in this task. ADR-017 remains an M2 gate (WebSocket/SignalR Origin check). |
+| F-05 ETag leaks xmin | Fixed | Weak HMAC-SHA256 tag over (id, xmin), truncated; If-Match semantics kept (428, 412, `*`). Needs `Security:ETagKey` for multi-instance; otherwise random per process (warning logged). |
+| F-06 headers | Fixed, with residuals | Permissions-Policy added; all headers set in `OnStarting` so they appear on 500/429; HSTS over https outside Development; Kestrel `Server` banner off (not testable under TestServer). Residual: `AllowedHosts: "*"` unchanged, require explicit hosts in production config (devops). No HTTPS redirect added (TLS terminates at the proxy). |
+| F-07 cookie / data-protection keys | Fixed, with residuals | `__Host-cc.session` outside Development (Development keeps `cc.session`: `__Host-` needs `Secure`, and dev runs over http). `DataProtection:KeysPath` persists keys (test checks key file is written); warning when unset in non-Development. Residual: keys are not encrypted at rest and compose has no volume yet (devops: mount a volume or use a certificate/KMS). |
+| F-08 log leakage / audit log | Deferred | M2 gate (ADR-017). Not touched. |
+| F-09 dev login gating | No change | Verified OK in review. |
+| Expired session cleanup | Deferred | Expired or revoked `identity.sessions` rows are never deleted. Add a retention job later. |

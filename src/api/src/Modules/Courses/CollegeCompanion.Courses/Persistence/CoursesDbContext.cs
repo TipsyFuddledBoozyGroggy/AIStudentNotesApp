@@ -22,7 +22,7 @@ internal sealed class CoursesDbContext(DbContextOptions<CoursesDbContext> option
             b.ToTable("courses", t => t.HasCheckConstraint("ck_courses_name_not_blank", "length(btrim(name)) > 0"));
             b.HasKey(x => x.Id);
             b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
-            b.Property(x => x.UserId).HasColumnName("user_id").IsRequired(); // soft reference to identity.users
+            b.Property(x => x.UserId).HasColumnName("user_id").IsRequired(); // DB-only FK to identity.users (ADR-014, migration M004); no EF navigation
             b.Property(x => x.Name).HasColumnName("name").HasMaxLength(120).IsRequired();
             b.Property(x => x.Code).HasColumnName("code").HasMaxLength(32);
             b.Property(x => x.Term).HasColumnName("term").HasMaxLength(64);

@@ -22,7 +22,16 @@ public static class CoursesModule
             .UseNpgsql(cs, n => n.MigrationsHistoryTable("__ef_migrations_history", CoursesDbContext.Schema))
             .AddInterceptors(sp.GetRequiredService<OwnershipSaveChangesInterceptor>()));
         builder.Services.AddScoped<ICourseOwnership, CourseOwnership>();
+        builder.Services.AddSingleton(new ETagService(ETagKey(builder.Configuration)));
         return builder;
+    }
+
+    /// <summary>Optional base64 secret (>= 32 bytes) shared by all instances; otherwise random per process.</summary>
+    private static byte[] ETagKey(IConfiguration config)
+    {
+        if (config["Security:ETagKey"] is not { Length: > 0 } b64) return System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+        var key = Convert.FromBase64String(b64);
+        return key.Length >= 32 ? key : throw new InvalidOperationException("Security:ETagKey must decode to at least 32 bytes.");
     }
 
     public static IEndpointRouteBuilder MapCoursesEndpoints(this IEndpointRouteBuilder api)

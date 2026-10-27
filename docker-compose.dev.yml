@@ -30,6 +30,8 @@ services:
       DOTNET_NOLOGO: "1"
       ASPNETCORE_ENVIRONMENT: Development
       Security__AllowedOrigins__0: "http://localhost:3000"
+      # Dev only: lets repeat E2E runs sign in without waiting out the 10/min login limit.
+      RateLimiting__AuthPermitPerMinute: "1000"
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-college_companion_dev};Username=${POSTGRES_USER:-cc_dev};Password=${POSTGRES_PASSWORD:-cc_dev_only_password}"
     depends_on:
       postgres:

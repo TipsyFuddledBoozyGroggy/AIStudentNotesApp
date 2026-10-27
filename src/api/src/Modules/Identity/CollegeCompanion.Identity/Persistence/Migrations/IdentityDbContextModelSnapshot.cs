@@ -23,6 +23,36 @@ namespace CollegeCompanion.Identity.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("CollegeCompanion.Identity.Domain.Session", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_sessions_user_id");
+
+                    b.ToTable("sessions", "identity");
+                });
+
             modelBuilder.Entity("CollegeCompanion.Identity.Domain.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -67,6 +97,16 @@ namespace CollegeCompanion.Identity.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_users_email_lower", "email = lower(email)");
                         });
+                });
+
+            modelBuilder.Entity("CollegeCompanion.Identity.Domain.Session", b =>
+                {
+                    b.HasOne("CollegeCompanion.Identity.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_sessions_user_id");
                 });
 #pragma warning restore 612, 618
         }

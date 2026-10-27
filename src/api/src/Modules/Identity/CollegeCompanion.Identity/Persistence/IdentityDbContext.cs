@@ -8,6 +8,7 @@ internal sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> opti
 {
     public const string Schema = "identity";
     public DbSet<User> Users => Set<User>();
+    public DbSet<Session> Sessions => Set<Session>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -24,6 +25,19 @@ internal sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> opti
             b.Property(x => x.DeletedAt).HasColumnName("deleted_at");
             b.HasIndex(x => x.ExternalSubject).IsUnique();
             b.HasIndex(x => x.Email).IsUnique();
+        });
+        modelBuilder.Entity<Session>(b =>
+        {
+            b.ToTable("sessions");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            b.Property(x => x.UserId).HasColumnName("user_id").IsRequired();
+            b.Property(x => x.CreatedAt).HasColumnName("created_at");
+            b.Property(x => x.ExpiresAt).HasColumnName("expires_at");
+            b.Property(x => x.RevokedAt).HasColumnName("revoked_at");
+            // Same schema, so a real FK: purging a user removes their sessions.
+            b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).HasConstraintName("fk_sessions_user_id").OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => x.UserId).HasDatabaseName("ix_sessions_user_id");
         });
     }
 }

@@ -27,8 +27,15 @@ internal static partial class IdentityEndpoints
         api.MapGet("/me", GetMe);
 
         // Idempotent and safe when signed out; still subject to the Origin check.
-        api.MapPost("/auth/logout", async (HttpContext ctx) =>
+        api.MapPost("/auth/logout", async (HttpContext ctx, IdentityDbContext db, TimeProvider clock) =>
         {
+            // Revoke server-side first so a copied cookie dies too (F-01); only this device's session.
+            if (SessionPolicy.SessionId(ctx.User) is { } sid)
+            {
+                var now = clock.GetUtcNow();
+                await db.Sessions.Where(s => s.Id == sid && s.RevokedAt == null)
+                    .ExecuteUpdateAsync(u => u.SetProperty(s => s.RevokedAt, now), ctx.RequestAborted);
+            }
             await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             return Results.NoContent();
         }).AllowAnonymous();
@@ -66,15 +73,20 @@ internal static partial class IdentityEndpoints
             await db.SaveChangesAsync(ct);
         }
         if (user.DeletedAt is not null) return Problems.Validation("email", "Enter a valid email.");
-        await SignInAsync(ctx, user);
+        await SignInAsync(ctx, db, clock, user);
         return Results.NoContent();
     }
 
-    internal static Task SignInAsync(HttpContext ctx, User user)
+    /// <summary>Creates the server-side session row (ADR-016), then issues the cookie that points at it.</summary>
+    internal static async Task SignInAsync(HttpContext ctx, IdentityDbContext db, TimeProvider clock, User user)
     {
-        var identity = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())],
+        var session = SessionPolicy.Create(user.Id, clock);
+        db.Sessions.Add(session);
+        await db.SaveChangesAsync(ctx.RequestAborted);
+        var identity = new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()), new Claim(SessionPolicy.SessionIdClaim, session.Id.ToString())],
             CookieAuthenticationDefaults.AuthenticationScheme);
-        return ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity),
+        await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity),
             new AuthenticationProperties { IsPersistent = false });
     }
 

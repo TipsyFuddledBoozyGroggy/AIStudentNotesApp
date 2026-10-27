@@ -32,9 +32,9 @@ internal static class CourseEndpoints
         return new DateTimeOffset(t.Ticks - t.Ticks % 10, TimeSpan.Zero);
     }
 
-    private static string ETag(Course c) => $"\"{c.Version}\"";
 
-    private static async Task<IResult> Create(CourseRequest? body, CoursesDbContext db, TimeProvider clock,
+
+    private static async Task<IResult> Create(CourseRequest? body, CoursesDbContext db, TimeProvider clock, ETagService etags,
         HttpContext http, CancellationToken ct)
     {
         var (v, errors) = CourseValidator.Validate(body);
@@ -49,7 +49,7 @@ internal static class CourseEndpoints
         };
         db.Courses.Add(course);
         await db.SaveChangesAsync(ct);
-        http.Response.Headers.ETag = ETag(course);
+        http.Response.Headers.ETag = etags.For(course);
         return Results.Created($"/api/v1/courses/{course.Id}", CourseResponse.From(course));
     }
 
@@ -79,16 +79,16 @@ internal static class CourseEndpoints
         return Results.Ok(new CourseListResponse(rows.Select(CourseResponse.From).ToList(), next));
     }
 
-    private static async Task<IResult> Get(Guid id, CoursesDbContext db, HttpContext http, CancellationToken ct)
+    private static async Task<IResult> Get(Guid id, CoursesDbContext db, ETagService etags, HttpContext http, CancellationToken ct)
     {
         // Query filter scopes to the caller: foreign and missing ids are indistinguishable (ADR-002).
         var course = await db.Courses.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, ct);
         if (course is null) return Problems.NotFound("Course not found.");
-        http.Response.Headers.ETag = ETag(course);
+        http.Response.Headers.ETag = etags.For(course);
         return Results.Ok(CourseResponse.From(course));
     }
 
-    private static async Task<IResult> Update(Guid id, CourseRequest? body, CoursesDbContext db, TimeProvider clock,
+    private static async Task<IResult> Update(Guid id, CourseRequest? body, CoursesDbContext db, TimeProvider clock, ETagService etags,
         HttpContext http, CancellationToken ct)
     {
         var course = await db.Courses.FirstOrDefaultAsync(c => c.Id == id, ct);
@@ -100,22 +100,22 @@ internal static class CourseEndpoints
         var (v, errors) = CourseValidator.Validate(body);
         if (v is null) return Problems.Validation(errors!);
 
-        if (!TryParseIfMatch(ifMatch, course.Version, out var expected)) return Problems.PreconditionFailed();
+        if (!etags.Matches(ifMatch, course)) return Problems.PreconditionFailed();
 
         course.Name = v.Name; course.Code = v.Code; course.Term = v.Term;
         course.Instructor = v.Instructor; course.Color = v.Color;
         course.UpdatedAt = Now(clock);
         // Make the UPDATE itself conditional on the version the client saw (closes the read-write race).
-        db.Entry(course).Property(c => c.Version).OriginalValue = expected;
+        db.Entry(course).Property(c => c.Version).OriginalValue = course.Version;
         try
         {
             await db.SaveChangesAsync(ct);
         }
         catch (DbUpdateConcurrencyException)
         {
-            return Problems.ConcurrencyConflict();
+            return await ConflictOrGoneAsync(db, id, ct);
         }
-        http.Response.Headers.ETag = ETag(course);
+        http.Response.Headers.ETag = etags.For(course);
         return Results.Ok(CourseResponse.From(course));
     }
 
@@ -135,17 +135,23 @@ internal static class CourseEndpoints
             course.ArchivedAt = Now(clock);
             course.UpdatedAt = course.ArchivedAt.Value;
         }
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Raced with another update (409) or delete (404). Never a 500.
+            return await ConflictOrGoneAsync(db, id, ct);
+        }
         return Results.NoContent();
     }
 
-    private static bool TryParseIfMatch(string header, uint current, out uint expected)
+    /// <summary>After a lost optimistic-concurrency race: 404 if the row is gone, otherwise 409.</summary>
+    private static async Task<IResult> ConflictOrGoneAsync(CoursesDbContext db, Guid id, CancellationToken ct)
     {
-        expected = current;
-        var v = header.Trim();
-        if (v == "*") return true;
-        if (v.StartsWith("W/", StringComparison.Ordinal)) v = v[2..];
-        v = v.Trim('"');
-        return uint.TryParse(v, out expected) && expected == current;
+        db.ChangeTracker.Clear();
+        var stillThere = await db.Courses.AsNoTracking().AnyAsync(c => c.Id == id, ct);
+        return stillThere ? Problems.ConcurrencyConflict() : Problems.NotFound("Course not found.");
     }
 }

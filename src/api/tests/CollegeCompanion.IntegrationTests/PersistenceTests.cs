@@ -25,6 +25,14 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return new CoursesDbContext(options, fake);
     }
 
+    /// <summary>ADR-014: courses.user_id has a database FK, so owners must exist as identity.users rows.</summary>
+    private async Task<Guid> UserAsync()
+    {
+        var id = Ids.New();
+        await factory.ExecAsync($"insert into identity.users (id, external_subject, email, display_name, created_at) values ('{id}', 'test:{id}', '{id:N}@test.local', 'T', now())");
+        return id;
+    }
+
     private static Course NewCourse(string name, Guid? owner = null) => new()
     {
         Id = Ids.New(), Name = name, UserId = owner ?? Guid.Empty,
@@ -44,7 +52,7 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
     public async Task Interceptor_stamps_owner_on_insert()
     {
         _ = factory.CreateClient();
-        var alice = Guid.NewGuid();
+        var alice = await UserAsync();
         var course = NewCourse("stamped");
         await using (var ctx = Ctx(alice)) { ctx.Courses.Add(course); await ctx.SaveChangesAsync(); }
         await using (var ctx = Ctx(alice)) Assert.Equal(alice, (await ctx.Courses.SingleAsync(c => c.Id == course.Id)).UserId);
@@ -70,7 +78,7 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
     public async Task Interceptor_rejects_reassigning_ownership()
     {
         _ = factory.CreateClient();
-        var alice = Guid.NewGuid();
+        var alice = await UserAsync();
         var course = NewCourse("mine");
         await using (var ctx = Ctx(alice)) { ctx.Courses.Add(course); await ctx.SaveChangesAsync(); }
         await using (var ctx = Ctx(alice))
@@ -85,7 +93,7 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
     public async Task Query_filter_scopes_every_query_to_the_current_user_and_anonymous_sees_nothing()
     {
         _ = factory.CreateClient();
-        var alice = Guid.NewGuid(); var bob = Guid.NewGuid();
+        var alice = await UserAsync(); var bob = await UserAsync();
         var a = NewCourse("a-only"); var b = NewCourse("b-only");
         await using (var ctx = Ctx(alice)) { ctx.Courses.Add(a); await ctx.SaveChangesAsync(); }
         await using (var ctx = Ctx(bob)) { ctx.Courses.Add(b); await ctx.SaveChangesAsync(); }
@@ -138,5 +146,73 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         await courses.GetService<IMigrator>().MigrateAsync();
         Assert.Empty(await courses.Database.GetPendingMigrationsAsync());
         Assert.Empty(await identity.Database.GetPendingMigrationsAsync());
+    }
+
+    // ---- ADR-014: the one allow-listed cross-schema FK ----
+
+    [Fact]
+    public async Task Cross_schema_foreign_keys_are_exactly_the_allow_listed_set()
+    {
+        _ = factory.CreateClient();
+        await using var conn = new NpgsqlConnection(factory.ConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand("""
+            select con.conname, ns.nspname, rns.nspname, con.confdeltype::text
+            from pg_constraint con
+            join pg_class c on c.oid = con.conrelid join pg_namespace ns on ns.oid = c.relnamespace
+            join pg_class rc on rc.oid = con.confrelid join pg_namespace rns on rns.oid = rc.relnamespace
+            where con.contype = 'f' and ns.nspname <> rns.nspname
+            order by con.conname
+            """, conn);
+        var found = new List<(string, string, string, string)>();
+        await using (var r = await cmd.ExecuteReaderAsync())
+            while (await r.ReadAsync()) found.Add((r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3)));
+
+        // Allow-list (docs/architecture/backend-foundation.md): courses.user_id -> identity.users, ON DELETE CASCADE ('c').
+        Assert.Equal([("fk_courses_user_id", "courses", "identity", "c")], found);
+    }
+
+    [Fact]
+    public async Task Database_rejects_a_course_for_an_unknown_user()
+    {
+        _ = factory.CreateClient();
+        await Assert.ThrowsAsync<PostgresException>(() => factory.ExecAsync(
+            $"insert into courses.courses (id, user_id, name, created_at, updated_at) values ('{Ids.New()}', '{Ids.New()}', 'orphan', now(), now())"));
+    }
+
+    [Fact]
+    public async Task Hard_deleting_a_user_cascades_to_their_courses_and_only_theirs()
+    {
+        _ = factory.CreateClient();
+        var gone = await UserAsync(); var kept = await UserAsync();
+        await using (var ctx = Ctx(gone)) { ctx.Courses.Add(NewCourse("g1")); ctx.Courses.Add(NewCourse("g2")); await ctx.SaveChangesAsync(); }
+        await using (var ctx = Ctx(kept)) { ctx.Courses.Add(NewCourse("k1")); await ctx.SaveChangesAsync(); }
+        await factory.ExecAsync($"delete from identity.users where id = '{gone}'");
+        Assert.Equal(0, await factory.ScalarAsync($"select count(*) from courses.courses where user_id = '{gone}'"));
+        Assert.Equal(1, await factory.ScalarAsync($"select count(*) from courses.courses where user_id = '{kept}'"));
+    }
+
+    // ---- item 9: full rollback is complete. The schemas themselves cannot be dropped by Down: each schema hosts its
+    // own __ef_migrations_history table, which EF still needs after Down runs (DROP SCHEMA fails with 2BP01, verified). ----
+
+    [Fact]
+    public async Task Rolling_back_every_migration_leaves_no_module_tables_behind()
+    {
+        _ = factory.CreateClient();
+        using var scope = factory.Services.CreateScope();
+        var courses = scope.ServiceProvider.GetRequiredService<CoursesDbContext>();
+        var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        try
+        {
+            await courses.GetService<IMigrator>().MigrateAsync("0");
+            await identity.GetService<IMigrator>().MigrateAsync("0");
+            Assert.Equal(0, await factory.ScalarAsync(
+                "select count(*) from pg_tables where schemaname in ('identity','courses') and tablename <> '__ef_migrations_history'"));
+        }
+        finally
+        {
+            await identity.GetService<IMigrator>().MigrateAsync();
+            await courses.GetService<IMigrator>().MigrateAsync();
+        }
     }
 }

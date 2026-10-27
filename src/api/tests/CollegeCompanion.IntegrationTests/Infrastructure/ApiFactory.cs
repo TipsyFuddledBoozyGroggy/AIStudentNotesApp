@@ -5,6 +5,9 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 
 namespace CollegeCompanion.IntegrationTests.Infrastructure;
@@ -21,6 +24,9 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         ?? throw new InvalidOperationException("ConnectionStrings__Default must point at the compose postgres.");
     public string DbName { get; } = "cc_test_" + Guid.NewGuid().ToString("N");
 
+    /// <summary>Controllable clock injected as the app TimeProvider (starts at real time).</summary>
+    public TestClock Clock { get; } = new();
+
     protected virtual string EnvironmentName => "Development";
     protected virtual IEnumerable<KeyValuePair<string, string?>> Settings => [];
 
@@ -33,7 +39,16 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("ConnectionStrings:Default", ConnectionString);
         builder.UseSetting("Security:AllowedOrigins:0", Origin);
         builder.UseSetting("RateLimiting:AuthPermitPerMinute", "100000");
+        builder.UseSetting("RateLimiting:ApiPermitPerMinute", "100000");
+        builder.UseSetting("RateLimiting:WritePermitPerMinute", "100000");
+        builder.UseSetting("RateLimiting:AnonymousPermitPerMinute", "100000");
         foreach (var (k, v) in Settings) builder.UseSetting(k, v);
+        builder.ConfigureTestServices(s =>
+        {
+            s.RemoveAll<TimeProvider>();
+            s.AddSingleton<TimeProvider>(Clock);
+            s.AddSingleton<IStartupFilter, TestRemoteIpStartupFilter>();
+        });
     }
 
     public async Task InitializeAsync()
@@ -68,13 +83,41 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         return c;
     }
 
+    public static bool IsSessionCookie(string setCookie) =>
+        setCookie.StartsWith("cc.session=", StringComparison.Ordinal)
+        || setCookie.StartsWith("__Host-cc.session=", StringComparison.Ordinal);
+
+    public async Task<long> ScalarAsync(string sql)
+    {
+        await using var conn = new NpgsqlConnection(ConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        return Convert.ToInt64(await cmd.ExecuteScalarAsync());
+    }
+
+    public async Task<string?> TextAsync(string sql)
+    {
+        await using var conn = new NpgsqlConnection(ConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        return Convert.ToString(await cmd.ExecuteScalarAsync());
+    }
+
+    public async Task ExecAsync(string sql)
+    {
+        await using var conn = new NpgsqlConnection(ConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     /// <summary>Signs in via the dev login and returns a client carrying the session cookie.</summary>
     public async Task<HttpClient> LoginAsync(string email)
     {
         var c = NewClient();
         var res = await c.PostAsJsonAsync("/api/v1/dev/login", new { email });
         Assert.Equal(HttpStatusCode.NoContent, res.StatusCode);
-        var setCookie = res.Headers.GetValues("Set-Cookie").Single(h => h.StartsWith("cc.session=", StringComparison.Ordinal));
+        var setCookie = res.Headers.GetValues("Set-Cookie").Single(IsSessionCookie);
         c.DefaultRequestHeaders.Add("Cookie", setCookie.Split(';')[0]);
         return c;
     }
@@ -97,4 +140,26 @@ public static class Json
         var raw = b.GetRawText();
         Assert.DoesNotContain("StackTrace", raw, StringComparison.OrdinalIgnoreCase);
     }
+}
+
+public sealed class TestClock : TimeProvider
+{
+    private DateTimeOffset _now = DateTimeOffset.UtcNow;
+    public override DateTimeOffset GetUtcNow() => _now;
+    public void Advance(TimeSpan by) => _now += by;
+}
+
+/// <summary>Lets a test choose the connection's remote IP (TestServer has none) via the X-Test-Remote-Ip header.</summary>
+internal sealed class TestRemoteIpStartupFilter : IStartupFilter
+{
+    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+    {
+        app.Use(async (ctx, nxt) =>
+        {
+            if (ctx.Request.Headers.TryGetValue("X-Test-Remote-Ip", out var ip))
+                ctx.Connection.RemoteIpAddress = IPAddress.Parse(ip.ToString());
+            await nxt();
+        });
+        next(app);
+    };
 }

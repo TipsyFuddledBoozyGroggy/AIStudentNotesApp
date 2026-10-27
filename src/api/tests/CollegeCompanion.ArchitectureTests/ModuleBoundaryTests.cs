@@ -114,4 +114,21 @@ public class ModuleBoundaryTests
             .ToList();
         Assert.True(offenders.Count == 0, "Raw SQL APIs used in: " + string.Join(", ", offenders));
     }
+
+    [Fact]
+    public void Migrations_never_try_to_create_the_xmin_system_column()
+    {
+        // EF scaffolds `xmin = table.Column<uint>(type: "xid", rowVersion: true)` for IsRowVersion(); PostgreSQL rejects
+        // it because xmin is a system column. See src/api/README.md "Re-scaffolding migrations".
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "CollegeCompanion.slnx"))) dir = dir.Parent;
+        var offenders = Directory.EnumerateFiles(Path.Combine(dir!.FullName, "src"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => f.Contains($"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}")
+                        && !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                        && !f.EndsWith("ModelSnapshot.cs", StringComparison.Ordinal)
+                        && !f.EndsWith(".Designer.cs", StringComparison.Ordinal))
+            .Where(f => File.ReadAllText(f).Contains("type: \"xid\"", StringComparison.Ordinal))
+            .ToList();
+        Assert.True(offenders.Count == 0, "Migrations create an xmin column: " + string.Join(", ", offenders));
+    }
 }

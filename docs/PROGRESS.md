@@ -30,3 +30,10 @@
 **Known issues / open findings:** security F-01..F-08 (`docs/security/m1-review.md`; F-01, F-02, F-03 block non-dev use); DB review items (`docs/data/m1-review.md`: FK migration, delete-race 500, Down leaves schemas, schema doc drift incl. semesters/quiet_mode/purge_after not in code). Dev login limited to 10/min/IP slows repeat E2E runs. Not covered: Firefox/WebKit, mobile reflow, screen-reader pass.
 **Decided:** PO-1 resolved: .NET 10 via Docker. ADR-014..017 in DECISIONS.md.
 **Next:** backend fix pass for F-01..F-03, F-05..F-07, ADR-014 migration, delete race, Down cleanup; then API_CONTRACTS.md and Milestone 2 start (mock STT/AI).
+
+## Iteration 2 — M1 security/DB fix pass (2026-10-27)
+**Fixed (test-first; verified by Lead Architect re-run):** F-01 server-side sessions (M003), F-02 absolute lifetime, F-03 rate limiting + trusted-proxy forwarded headers, F-05 opaque ETag, F-06 headers on 500/429 + Permissions-Policy + HSTS outside Dev, F-07 `__Host-` cookie + persisted key path, ADR-014 FK (M004), delete-race handling.
+**Results:** build 0 warnings; 8 architecture + 90 integration tests pass; Playwright 11/11 on the hardened API.
+**Not independently re-reviewed:** security-engineer has not yet re-reviewed these fixes.
+**Open:** F-04 and F-08 (M2 gates); SEC-005 lockout; session-row retention job; cookie keys not encrypted at rest and no compose volume for them; deploy needs `Security:ETagKey` and trusted-proxy config; EF history tables prevent dropping schemas in `Down` (decision: shared history schema?); schema doc drift (semesters, quiet_mode, purge_after).
+**Next:** security re-review; API_CONTRACTS.md; Milestone 2 against mock STT/AI.

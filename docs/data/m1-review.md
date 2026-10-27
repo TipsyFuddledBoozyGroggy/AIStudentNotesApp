@@ -97,3 +97,18 @@ Blockers or decisions for M003 (consent and lecture sessions):
 - Concurrent update-vs-delete on a course returns 409/204, not 500.
 - Re-scaffold probe: `migrations add` yields an empty migration (guards snapshot drift), then `remove`.
 - Two-user isolation per endpoint (the existing `CourseTests` and `AuthBoundaryTests` presumably cover Courses; not run).
+
+## Appendix: remediation status (backend-engineer, after commit 66a09e3)
+
+Tests written first and run red, then green (see `docs/security/m1-review.md` appendix for run counts).
+
+| Item | Status | Evidence / notes |
+|---|---|---|
+| 1. FK `courses.user_id` -> `identity.users` (ADR-014) | Fixed | Migration `M004_CoursesUserFk`, raw SQL, `ON DELETE CASCADE`, Down drops the constraint. Tests: `pg_constraint` allow-list (exactly one cross-schema FK), DB rejects unknown user, hard-deleting a user cascades only their courses. `PersistenceTests` fixtures now insert real `identity.users` rows. Dev DB had 0 orphan courses. Allow-list documented in `backend-foundation.md`. |
+| 3. xmin ETag | Fixed | Opaque HMAC weak ETag (see security appendix F-05). |
+| 3. Archive/purge race | Fixed | `DbUpdateConcurrencyException` in archive, purge and update now reloads: row gone -> 404, row changed -> 409. Deterministic tests inject a competing write via an EF command interceptor (`RaceTests`). Note: the global exception handler already mapped the exception to 409, so update-vs-archive races were never a 500; the new behaviour fixes the delete-vs-delete case (was 409, now 404). |
+| 4. Hand-edited migrations / re-scaffolding | Fixed (documented + guarded) | Procedure in `src/api/README.md`; architecture test `Migrations_never_try_to_create_the_xmin_system_column`; public-surface test already guards `internal`. New migrations follow the `internal` rule. Index naming: new objects use `ix_/fk_`; M001 `IX_users_*`/`PK_*` unchanged (not renamed to avoid a risky migration). |
+| 5. Down drops schema | Deferred (not feasible as asked) | `DROP SCHEMA identity` in Down fails with 2BP01 because each schema contains its own `__ef_migrations_history` table that EF still needs after Down. Verified by running it. Replaced by a test that full rollback leaves no tables except the history table. Fix would require moving history tables to a shared schema, a larger change needing a decision. |
+| 7. Drift from schema-m1-m2.md (semesters, quiet_mode, etc.), RLS, citext doc update | Deferred | Out of scope for this task. |
+| Timestamp / `Guid.CreateVersion7` | No change | `Ids.New()` already uses `Guid.CreateVersion7()`. |
+| New table `identity.sessions` | Added | Same-schema FK to `users` with cascade, index `ix_sessions_user_id`. |
