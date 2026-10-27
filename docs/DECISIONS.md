@@ -48,4 +48,4 @@ Deferred: row-level security (ADR-013), revisited at M003 start with security-en
 
 | ID | Decision | Source |
 |---|---|---|
-| ADR-018 | M2 wire contract is `docs/API_CONTRACTS.md` (draft v1, not yet frozen): audio is server-relayed over a ticketed WebSocket, transcript events go only over SignalR `lecture.v1`, `seq` is gap-free for persisted events only (partials carry `seq: null`), field name `revision`, event `catchup.ready`. Supersedes conflicting parts of backend-foundation.md and speech-pipeline.md. Awaiting PO confirmation of server-relay. | docs/API_CONTRACTS.md |
+| ADR-018 | M2 wire contract is `docs/API_CONTRACTS.md` (draft v1, not yet frozen): audio is server-relayed over a ticketed WebSocket, transcript events go only over SignalR `lecture.v1`, `seq` is gap-free for persisted events only (partials carry `seq: null`), field name `revision`, event `catchup.ready`. Supersedes conflicting parts of backend-foundation.md and speech-pipeline.md. PO confirmed server-relay (option A) for M2 on 2026-10-27; direct-to-vendor may be revisited as a second adapter after G1/G2. | docs/API_CONTRACTS.md |

@@ -85,7 +85,7 @@ Timecodes: `startMs`/`endMs` are offsets from session start **excluding paused t
 
 ## 7. Open items for the Product Owner
 - Consent text and `textVersion` content (G1, decisions D1/D2/D8/D10); M2 uses clearly labeled DRAFT text.
-- Confirm server-relayed audio (this file's default).
+- ~~Confirm server-relayed audio~~ CONFIRMED by PO 2026-10-27.
 - Session auto-stop timing and hard cap defaults (10 min heartbeat, 3 h).
 
 ## 8. Security requirements folded in from review (docs/security/m2-contract-review.md)
