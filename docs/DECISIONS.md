@@ -24,7 +24,7 @@ Status: **Proposed** = Lead Architect decision within existing authority, revers
 
 | ID | Item | Blocks |
 |---|---|---|
-| PO-1 | Install .NET SDK: local `winget install Microsoft.DotNet.SDK.10` **or** build in Docker SDK image. Recommended target: .NET 10 LTS, fallback .NET 8. | All backend build/test |
+| PO-1 | ~~Install .NET SDK~~ RESOLVED: .NET 10 via Docker SDK image (`docker-compose.dev.yml`). | — |
 | PO-2 | Recording-rules policy and legal wording (D1); third-party voice obligations. | Any real recording |
 | PO-3 | STT vendor and spend cap (D3). Proposal: prototype Deepgram, Azure Speech as compliance alternative. Vendor facts in the speech doc are unverified. | Real transcription |
 | PO-4 | Claude API key, per-session/user/day budgets, behavior at cap (D5). | Real Claude calls |
@@ -32,3 +32,14 @@ Status: **Proposed** = Lead Architect decision within existing authority, revers
 | PO-6 | Google OAuth client creation; identity provider; token key management. | Real sign-in, Docs |
 | PO-7 | Minimum age / under-18 handling (D8); hosting region, pilot scope (D10). | Production |
 | PO-8 | Latency targets (transcript <2 s, Lost Track <5 s p95): proposals only. | Perf gates |
+
+## Added after Milestone 1 reviews (2026-10-27)
+
+| ID | Decision | Source |
+|---|---|---|
+| ADR-014 | `courses.user_id` gets a DB-level FK to `identity.users` with `ON DELETE CASCADE`, added by a new Courses migration using raw SQL. EF gets no navigation, so no Courses->Identity assembly reference. Allow-listed in backend-foundation.md and guarded by a `pg_constraint` test. | docs/data/m1-review.md |
+| ADR-015 | The Lectures module owns `consent_records` (consent exists to gate a recording session). | docs/data/m1-review.md |
+| ADR-016 | Server-side session revocation via an `identity.sessions` table (session-id claim, one PK lookup per request); no user-wide epoch. Must land before any non-dev sign-in. | docs/security/m1-review.md F-01 |
+| ADR-017 | Hard M2 gates: Origin/CSRF check must cover WebSocket/SignalR upgrades (F-04); log-canary test and no `LogError(ex)` with row values once transcripts exist (F-08). | docs/security/m1-review.md |
+
+Deferred: row-level security (ADR-013), revisited at M003 start with security-engineer.
