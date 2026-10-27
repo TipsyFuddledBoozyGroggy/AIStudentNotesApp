@@ -1,0 +1,98 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.d.outputs.web }}
+      api: ${{ steps.d.outputs.api }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: d
+        run: |
+          [ -f src/web/package.json ] && echo "web=true" >> "$GITHUB_OUTPUT" || echo "web=false" >> "$GITHUB_OUTPUT"
+          if ls src/api/*.sln src/api/*.slnx src/api/*.csproj >/dev/null 2>&1 || [ -n "$(find src/api -name '*.csproj' 2>/dev/null | head -1)" ]; then
+            echo "api=true" >> "$GITHUB_OUTPUT"; else echo "api=false" >> "$GITHUB_OUTPUT"; fi
+
+  web:
+    needs: detect
+    if: needs.detect.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test --if-present
+      - run: npm run build
+
+  api:
+    needs: detect
+    if: needs.detect.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x   # PO-1: fallback 8.0.x if .NET 10 is not adopted
+      - run: dotnet restore
+      - run: dotnet build --no-restore -c Release
+      - run: dotnet test --no-build -c Release
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history (SEC-019)
+      - name: gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar -xz gitleaks
+          ./gitleaks detect --source . --redact --verbose
+
+  dependency-audit:
+    needs: detect
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - if: needs.detect.outputs.web == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: npm audit (fails on high/critical)
+        if: needs.detect.outputs.web == 'true'
+        working-directory: src/web
+        run: npm audit --audit-level=high
+      - if: needs.detect.outputs.api == 'true'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: dotnet vulnerable packages
+        if: needs.detect.outputs.api == 'true'
+        working-directory: src/api
+        run: |
+          dotnet restore
+          dotnet list package --vulnerable --include-transitive 2>&1 | tee audit.txt
+          ! grep -qE "High|Critical" audit.txt
+      - name: Skipped notice
+        if: needs.detect.outputs.web != 'true' && needs.detect.outputs.api != 'true'
+        run: echo "No src/web or src/api yet; audit skipped."

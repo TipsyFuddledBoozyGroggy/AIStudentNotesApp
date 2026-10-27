@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  /* Sticky header must not hide focused elements (WCAG 2.4.11). */
+  scroll-padding-top: 5rem;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+:focus-visible {
+  outline: 3px solid #1e3a8a;
+  outline-offset: 2px;
+}
+
+/* Programmatic focus targets (headings) do not need a ring. */
+[tabindex="-1"]:focus {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (forced-colors: active) {
+  :focus-visible {
+    outline-color: Highlight;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex min-h-[44px] items-center justify-center rounded-lg px-5 py-2 text-base font-semibold;
+  }
+  .btn-primary {
+    @apply btn bg-blue-900 text-white hover:bg-blue-800;
+  }
+  .btn-secondary {
+    @apply btn border-2 border-slate-600 bg-white text-slate-900 hover:bg-slate-100;
+  }
+  .btn-disabled {
+    @apply btn cursor-not-allowed border-2 border-dashed border-slate-500 bg-slate-100 text-slate-700;
+  }
+  .field {
+    @apply mt-1 block min-h-[44px] w-full rounded-lg border-2 border-slate-600 bg-white px-3 py-2 text-base;
+  }
+  .card {
+    @apply rounded-xl border border-slate-300 bg-white p-5 shadow-sm;
+  }
+}

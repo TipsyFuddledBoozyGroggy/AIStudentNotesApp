@@ -1,0 +1,40 @@
+# Secrets / env (SEC-019). Only .env.example is tracked.
+.env
+.env.*
+!.env.example
+*.pem
+*.pfx
+*.key
+secrets/
+appsettings.*.local.json
+secrets.json
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+playwright-report/
+test-results/
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+*.log
+publish/
+
+# Editor / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings
+.claude/settings.local.json

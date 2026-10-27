@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <ProjectReference Include="..\CollegeCompanion.SharedKernel\CollegeCompanion.SharedKernel.csproj" />
+    <ProjectReference Include="..\Modules\Identity\CollegeCompanion.Identity\CollegeCompanion.Identity.csproj" />
+    <ProjectReference Include="..\Modules\Courses\CollegeCompanion.Courses\CollegeCompanion.Courses.csproj" />
+  </ItemGroup>
+</Project>

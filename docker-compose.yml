@@ -1,0 +1,24 @@
+# Local development only. Not a deployment definition.
+# Credentials default to DEV-ONLY values; override via .env (gitignored).
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cc-postgres-dev
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cc_dev}                      # DEV ONLY default
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cc_dev_only_password} # DEV ONLY default, never reuse
+      POSTGRES_DB: ${POSTGRES_DB:-college_companion_dev}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"   # loopback only
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  pgdata:
