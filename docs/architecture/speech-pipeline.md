@@ -1,4 +1,5 @@
 # Speech Pipeline Design (v0 PROPOSAL, not implemented)
+> **WARNING (2026-10-27):** vendor prices, limits and terms in this document are superseded where they conflict with `docs/vendors/verification-report.md` (see `docs/RELEASE_GATES.md`, gate G2). Reconcile before implementation.
 
 Status: design only. No code written or executed. Vendor facts below come from general knowledge and are NOT verified; re-check pricing, retention and DPA terms before any decision. Claude does not transcribe audio; it only consumes finalized transcript text downstream.
 

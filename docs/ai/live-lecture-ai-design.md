@@ -1,4 +1,5 @@
 # Live Lecture AI Pipeline Design (v0.1, DESIGN ONLY — nothing implemented)
+> **WARNING (2026-10-27):** vendor prices, limits and terms in this document are superseded where they conflict with `docs/vendors/verification-report.md` (see `docs/RELEASE_GATES.md`, gate G2). Reconcile before implementation.
 
 Status: proposal for Lead Architect review. Model IDs: claude-opus-5-5, claude-sonnet-5-5, claude-haiku-5-5. Verify pricing and limits against the claude-api reference before setting budgets; numbers below are placeholders to be measured.
 
