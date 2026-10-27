@@ -134,3 +134,10 @@ Resolved from the schema pass (`src/shared/contracts/README.md` lists all 13 ite
 5. `supersedes < revision`, `toMs >= fromMs` and `endMs >= startMs` cannot be expressed in the schema and need server-side tests. Length limits in the schemas (text 4000, tldr 2000, bullets 20x500, citations 50) are proposals.
 6. `error.detail` is the constant server title for its code. Backend must define fixed strings for `consent_required`, `invalid_state` and `provider_unavailable`.
 Items 4-13 of the README (id format, nullable fields, free-string `reason`) are accepted as written and remain editable until the first consumer ships.
+
+## 12. Decisions from the M2 UX pass (Lead Architect, 2026-10-27)
+1. `session.state.reason` vocabulary (v1, additive): `user`, `auto_pause_no_audio`, `auto_stop_paused_timeout`, `hard_cap`, `abandoned`. Clients treat unknown values as "ended by the system".
+2. The replay provider is visible: `Session` responses and the status bar carry a "Demo source" indication while `ReplaySttProvider`/`MockAi` is active, so mock transcripts can never be mistaken for a real recording. (Schema field to be added to `session.json` by backend in B2; until then the web app derives it from configuration.)
+3. No summary-retry endpoint in M2. The Failed state keeps the last good revision and shows no Try again button.
+4. Typed-notes fallback after mic denial is out of M2 scope; the denied state offers instructions and a way back only.
+5. The `Alt+L`, `Alt+P`, `Alt+J` shortcuts are unverified against screen-reader and browser conflicts: ship them off by default until device testing (G3) says otherwise.
