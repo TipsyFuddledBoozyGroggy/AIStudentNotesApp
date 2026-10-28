@@ -19,6 +19,50 @@ public class OutputSanitizerTests
         Assert.True(changed);
     }
 
+    // N-04: several rules were quadratic on hostile text (20k chars took ~1 s, 100k took 11 to 22 s). Whatever the input, cleaning
+    // finishes quickly and the result is still inert (it either cleaned properly or failed closed to a placeholder).
+    public static TheoryData<string> Hostile => new()
+    {
+        string.Concat(Enumerable.Repeat("a-", 50_000)),            // bare-domain backtracking
+        string.Concat(Enumerable.Repeat("a.", 50_000)),
+        string.Concat(Enumerable.Repeat("<a", 50_000)),            // unclosed tags
+        string.Concat(Enumerable.Repeat("[", 100_000)),            // unclosed links
+        string.Concat(Enumerable.Repeat("![x](", 20_000)),         // unclosed images
+        string.Concat(Enumerable.Repeat("a1.", 33_000)) + "x",
+    };
+
+    [Theory]
+    [MemberData(nameof(Hostile))]
+    public void A_100k_character_hostile_input_is_cleaned_or_rejected_within_a_second_or_two(string hostile)
+    {
+        Assert.True(hostile.Length >= 60_000);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var cleaned = OutputSanitizer.Clean(hostile, out var changed);
+        sw.Stop();
+
+        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(3), $"took {sw.Elapsed.TotalSeconds:0.0} s");
+        Assert.DoesNotMatch(@"<[A-Za-z!?/]", cleaned); // no tag-like text survives
+        Assert.DoesNotContain("://", cleaned);
+        _ = changed;
+    }
+
+    [Fact]
+    public void When_cleaning_times_out_the_text_fails_closed_to_the_fixed_placeholder()
+    {
+        var cleaned = OutputSanitizer.Clean(string.Concat(Enumerable.Repeat("a-", 50_000)), out var changed);
+        Assert.Equal(OutputSanitizer.TimedOutPlaceholder, cleaned);
+        Assert.True(changed);
+    }
+
+    [Fact]
+    public void The_prompt_side_redactor_also_has_a_timeout_and_fails_closed()
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var redacted = Redactor.Redact(new string('a', 200_000)); // the e-mail rule is quadratic without an '@'
+        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(3), $"took {sw.Elapsed.TotalSeconds:0.0} s");
+        Assert.DoesNotContain(new string('a', 40), redacted); // placeholder, or the long-token rule redacted it; never passed through
+    }
+
     [Fact]
     public void Plain_text_is_untouched()
     {

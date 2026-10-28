@@ -19,9 +19,9 @@ internal static class SessionEndpoints
 
         var g = api.MapGroup("/sessions");
         g.MapGet("/{id:guid}", Get);
-        g.MapPost("/{id:guid}/pause", (Guid id, SessionService svc, SessionETag e, CancellationToken ct) => DoTransition(id, Transition.Pause, svc, e, ct));
+        g.MapPost("/{id:guid}/pause", (Guid id, SessionService svc, SessionETag e, CancellationToken ct) => DoTransition(id, Transition.Pause, svc, e, ct)).AsConsentReversal();
         g.MapPost("/{id:guid}/resume", (Guid id, SessionService svc, SessionETag e, CancellationToken ct) => DoTransition(id, Transition.Resume, svc, e, ct));
-        g.MapPost("/{id:guid}/stop", (Guid id, SessionService svc, SessionETag e, CancellationToken ct) => DoTransition(id, Transition.Stop, svc, e, ct));
+        g.MapPost("/{id:guid}/stop", (Guid id, SessionService svc, SessionETag e, CancellationToken ct) => DoTransition(id, Transition.Stop, svc, e, ct)).AsConsentReversal();
         g.MapDelete("/{id:guid}", (Guid id, SessionService svc, CancellationToken ct) => svc.DeleteAsync(id, ct));
         g.MapPost("/{id:guid}/audio-ticket", IssueTicket).RequireRateLimiting(AudioTicketPolicy);
 

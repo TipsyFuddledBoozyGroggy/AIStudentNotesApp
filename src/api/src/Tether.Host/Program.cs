@@ -65,6 +65,18 @@ var authPermits = limits.GetValue("AuthPermitPerMinute", 10);
 var apiPermits = limits.GetValue("ApiPermitPerMinute", 120);
 var writePermits = limits.GetValue("WritePermitPerMinute", 30);
 var anonPermits = limits.GetValue("AnonymousPermitPerMinute", 60);
+// N-03: Pause and Stop (consent reversal, ADR-019b) are exempt from the budgets above but not from every limit. They get their own
+// generous per-user bucket: far more than a student ever needs, so write/api exhaustion can never lock them out, yet finite.
+var reversalPermits = limits.GetValue("ConsentReversalPermitPerMinute", 600);
+// N-05: every permit must be positive, and anything above the shipped default outside Development is logged at startup.
+var permitDefaults = new (string Key, int Value, int Default)[]
+{
+    ("AuthPermitPerMinute", authPermits, 10), ("ApiPermitPerMinute", apiPermits, 120), ("WritePermitPerMinute", writePermits, 30),
+    ("AnonymousPermitPerMinute", anonPermits, 60), ("ConsentReversalPermitPerMinute", reversalPermits, 600),
+    ("AudioTicketPermitPerMinute", limits.GetValue("AudioTicketPermitPerMinute", 6), 6),
+};
+foreach (var p in permitDefaults)
+    if (p.Value <= 0) throw new InvalidOperationException($"RateLimiting:{p.Key} must be a positive number (was {p.Value}).");
 static FixedWindowRateLimiterOptions PerMinute(int permits) =>
     new() { PermitLimit = permits, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 };
 // SignalR negotiate is a POST that changes nothing. Reconnect attempts (two per page) must not spend the write budget, or a
@@ -72,10 +84,11 @@ static FixedWindowRateLimiterOptions PerMinute(int permits) =>
 // bucket, the hub's per-user connection cap and its own Origin and cookie checks.
 static bool IsHubNegotiate(HttpContext ctx) =>
     ctx.Request.Path.StartsWithSegments("/hubs") && ctx.Request.Path.Value!.EndsWith("/negotiate", StringComparison.OrdinalIgnoreCase);
-// ADR-019b: consent must stay reversible, so a signed-in user's own Pause and Stop are never answered 429 by the global budgets
-// (the E2E flake: a Stop refused with 429 left the lecture "Not recording" but not stopped). Both are cheap, scoped to the
-// caller's own session and still need the session cookie and a matching Origin.
-static bool IsConsentReversal(HttpContext ctx) => HttpMethods.IsPost(ctx.Request.Method) && System.Text.RegularExpressions.Regex.IsMatch(ctx.Request.Path.Value ?? "", "^/api/v1/sessions/[0-9a-fA-F-]{36}/(pause|stop)/?$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+// ADR-019b: consent must stay reversible, so a signed-in user's Pause and Stop are never answered 429 by the general or write
+// budgets (the E2E flake: a Stop refused with 429 left the lecture "Not recording" but not stopped). The routes carry
+// ConsentReversalMetadata (SessionEndpoints); they still need the session cookie and a matching Origin and are counted in the
+// separate per-user "rev:" bucket (ConsentReversalPermitPerMinute), so the exemption is wide but not unlimited (N-03).
+static bool IsConsentReversal(HttpContext ctx) => ctx.IsConsentReversal();
 static string? UserKey(HttpContext ctx) =>
     ctx.User.Identity?.IsAuthenticated == true ? ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) : null;
 builder.Services.AddRateLimiter(o =>
@@ -83,7 +96,9 @@ builder.Services.AddRateLimiter(o =>
     o.RejectionStatusCode = 429;
     o.GlobalLimiter = PartitionedRateLimiter.CreateChained(
         PartitionedRateLimiter.Create<HttpContext, string>(ctx => UserKey(ctx) is { } uid
-            ? (IsConsentReversal(ctx) ? RateLimitPartition.GetNoLimiter("reversal") : RateLimitPartition.GetFixedWindowLimiter("u:" + uid, _ => PerMinute(apiPermits)))
+            ? (IsConsentReversal(ctx)
+                ? RateLimitPartition.GetFixedWindowLimiter("rev:" + uid, _ => PerMinute(reversalPermits))
+                : RateLimitPartition.GetFixedWindowLimiter("u:" + uid, _ => PerMinute(apiPermits)))
             : RateLimitPartition.GetFixedWindowLimiter("ip:" + ClientIpKey.For(ctx.Connection.RemoteIpAddress),
                 _ => PerMinute(anonPermits))),
         PartitionedRateLimiter.Create<HttpContext, string>(ctx => UserKey(ctx) is { } uid && !HttpMethods.IsGet(ctx.Request.Method)
@@ -105,6 +120,9 @@ var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())
 {
+    var raised = permitDefaults.Where(p => p.Value > p.Default).Select(p => $"RateLimiting:{p.Key}={p.Value} (default {p.Default})").ToList();
+    if (raised.Count > 0)
+        app.Logger.LogWarning("RateLimiting overrides above the shipped defaults outside Development: {Overrides}. The raised values belong in the dev overlay only.", string.Join(", ", raised));
     if (string.IsNullOrEmpty(app.Configuration["DataProtection:KeysPath"]))
         app.Logger.LogWarning("DataProtection:KeysPath is not set: cookie keys are ephemeral, so every restart signs everyone out and instances cannot share sessions.");
     if (string.IsNullOrEmpty(app.Configuration["Security:ETagKey"]))

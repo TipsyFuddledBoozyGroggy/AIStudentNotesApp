@@ -1,6 +1,6 @@
 import { HttpError, HttpTransportType, HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from "@microsoft/signalr";
 import type { HubEvent, JoinRequest, JoinResponse, Seq, TranscriptPage } from "../types";
-import { isHubEvent, isJoinResponse, isTranscriptPage } from "./eventGuard";
+import { parseHubEvent, isJoinResponse, isTranscriptPage } from "./eventGuard";
 
 /** Error whose `code` is a contract ErrorCode (or "connection_failed"). Never carries server text. */
 export class LectureHubError extends Error {
@@ -65,8 +65,9 @@ export class HubTransport {
       .configureLogging(LogLevel.None)
       .build();
     conn.on("event", (e: unknown) => {
-      if (!isHubEvent(e) || e.sessionId !== this.o.sessionId) return;
-      for (const h of [...this.handlers]) h(e);
+      const ev = parseHubEvent(e);
+      if (!ev || ev.sessionId !== this.o.sessionId) return;
+      for (const h of [...this.handlers]) h(ev);
     });
     conn.onclose(() => {
       if (this.conn !== conn) return;

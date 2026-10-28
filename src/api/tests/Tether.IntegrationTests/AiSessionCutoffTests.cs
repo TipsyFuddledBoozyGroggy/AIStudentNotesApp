@@ -109,6 +109,62 @@ public class AiSessionCutoffTests(BlockingAiFactory factory) : AiRouteTestBase(f
         await tick.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
+    // ---------- N-01: no zombie scheduler state after Stop or Delete ----------
+
+    [Theory]
+    [InlineData("stop")]
+    [InlineData("delete")]
+    public async Task A_final_committed_just_before_stop_or_delete_cannot_recreate_scheduler_state_when_its_observer_runs_late(string action)
+    {
+        var (a, id) = await LiveSessionAsync();
+        var sid = Guid.Parse(id);
+        AssertActed(await ActAsync(a.Client, id, action), action); // the observer has already run and found no state to remove
+
+        for (var n = 1; n <= 8; n++) Scheduler.OnFinalPersisted(a.UserId, sid, n); // the final's own observer call arrives afterwards
+
+        Assert.Equal(0, Scheduler.PendingFor(sid));
+        Assert.False(Scheduler.IsTracked(sid));
+        var before = Mock.Calls;
+        await Scheduler.TickAsync(default);
+        Assert.Equal(before, Mock.Calls);
+        Assert.Equal(0, await F.ScalarAsync($"select count(*) from ai.ai_usage where user_id = '{a.UserId}'")); // not even a reserve and settle pair
+    }
+
+    [Fact]
+    public async Task A_tracked_session_that_is_found_closed_is_dropped_and_makes_no_reservation_on_later_ticks()
+    {
+        var (a, id) = await LiveSessionAsync();
+        var sid = Guid.Parse(id);
+        await SeedFinalsAsync(id, a.UserId, 8);
+        FeedScheduler(a.UserId, id);
+        Assert.True(Scheduler.IsTracked(sid));
+        // Stopped behind the observers' back (the race the review describes): no notification reaches the scheduler.
+        await F.ExecAsync($"update lectures.lecture_sessions set state = 'Stopped', stopped_at = now() where id = '{id}'");
+        var before = Mock.Calls;
+
+        await Scheduler.TickAsync(default);
+        await Scheduler.TickAsync(default);
+
+        Assert.False(Scheduler.IsTracked(sid));
+        Assert.Equal(before, Mock.Calls);
+        Assert.Equal(0, await F.ScalarAsync($"select count(*) from ai.ai_usage where user_id = '{a.UserId}'"));
+    }
+
+    [Fact]
+    public async Task A_paused_session_stays_tracked_so_a_resume_still_summarises()
+    {
+        var (a, id) = await LiveSessionAsync();
+        var sid = Guid.Parse(id);
+        await SeedFinalsAsync(id, a.UserId, 8);
+        FeedScheduler(a.UserId, id);
+        AssertActed(await ActAsync(a.Client, id, "pause"), "pause");
+        await Scheduler.TickAsync(default);
+        Assert.True(Scheduler.IsTracked(sid));
+        Assert.Equal(HttpStatusCode.OK, (await PostAsync(a.Client, $"/sessions/{id}/resume")).StatusCode);
+        Assert.True(Scheduler.IsTracked(sid));
+        AssertActed(await ActAsync(a.Client, id, "stop"), "stop");
+    }
+
     // ---------- the gateway re-check (every provider call, for every workflow) ----------
 
     private async Task<GatewayOutcome<CatchUpResult>> GatewayAsync(Guid userId, string sessionId)

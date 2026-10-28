@@ -13,21 +13,32 @@ internal sealed record RenderedPrompt(string System, string User, string Tag);
 /// </summary>
 internal static partial class Redactor
 {
-    [GeneratedRegex(@"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")] private static partial Regex Email();
-    [GeneratedRegex(@"\b(?:sk|pk|rk)-[A-Za-z0-9_\-]{16,}")] private static partial Regex KeyLike();
-    [GeneratedRegex(@"(?i)\bbearer\s+[A-Za-z0-9._\-]{20,}")] private static partial Regex Bearer();
-    [GeneratedRegex(@"\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]*")] private static partial Regex Jwt();
-    [GeneratedRegex(@"\b[A-Za-z0-9+/_\-]{40,}={0,2}")] private static partial Regex LongToken();
-    [GeneratedRegex(@"(?:\+?1[\s.\-]?)?(?:\(\d{3}\)|\b\d{3})[\s.\-]\d{3}[\s.\-]\d{4}\b")] private static partial Regex Phone();
+    // N-04: a match timeout on every rule; on a timeout the text is replaced by a fixed placeholder (fail closed: nothing unredacted is sent).
+    private const int MatchTimeoutMs = 200;
+    public const string TimedOutPlaceholder = "[redacted]";
+
+    [GeneratedRegex(@"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}", RegexOptions.None, MatchTimeoutMs)] private static partial Regex Email();
+    [GeneratedRegex(@"\b(?:sk|pk|rk)-[A-Za-z0-9_\-]{16,}", RegexOptions.None, MatchTimeoutMs)] private static partial Regex KeyLike();
+    [GeneratedRegex(@"(?i)\bbearer\s+[A-Za-z0-9._\-]{20,}", RegexOptions.None, MatchTimeoutMs)] private static partial Regex Bearer();
+    [GeneratedRegex(@"\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]*", RegexOptions.None, MatchTimeoutMs)] private static partial Regex Jwt();
+    [GeneratedRegex(@"\b[A-Za-z0-9+/_\-]{40,}={0,2}", RegexOptions.None, MatchTimeoutMs)] private static partial Regex LongToken();
+    [GeneratedRegex(@"(?:\+?1[\s.\-]?)?(?:\(\d{3}\)|\b\d{3})[\s.\-]\d{3}[\s.\-]\d{4}\b", RegexOptions.None, MatchTimeoutMs)] private static partial Regex Phone();
 
     public static string Redact(string s)
     {
-        s = Email().Replace(s, "[email]");
-        s = Bearer().Replace(s, "[secret]");
-        s = KeyLike().Replace(s, "[secret]");
-        s = Jwt().Replace(s, "[secret]");
-        s = LongToken().Replace(s, "[secret]");
-        return Phone().Replace(s, "[phone]");
+        try
+        {
+            s = Email().Replace(s, "[email]");
+            s = Bearer().Replace(s, "[secret]");
+            s = KeyLike().Replace(s, "[secret]");
+            s = Jwt().Replace(s, "[secret]");
+            s = LongToken().Replace(s, "[secret]");
+            return Phone().Replace(s, "[phone]");
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return TimedOutPlaceholder;
+        }
     }
 }
 

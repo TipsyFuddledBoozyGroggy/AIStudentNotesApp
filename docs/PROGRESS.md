@@ -82,3 +82,10 @@ Pause/Stop/Delete cancel in-flight AI calls (`SessionCutoff`), and the gateway r
 **Verified by Lead re-run:** 116 contract + 105 AI + 15 architecture + 356 integration pass; web 325 unit tests; Playwright full serial run 19/20 before the courses fix, `courses.spec.ts` 11/11 after it (dev limits raised).
 **Caveats:** E2E has not been run at production rate limits; the two new rate-limit regression tests were not shown failing on the old code; the TL;DR E2E takes ~1.6 min (waits for the 90s summary flush); `lecture.spec.ts` `beforeAll` lists all of alice's courses and grows each run.
 **UX:** AI specialist review `docs/ux/m2-lost-track-review.md`; must-fixes M1-M7 implemented (commit cbfb38b). Not human-validated.
+
+## Iteration 8 — B3 re-review fixes (2026-10-28)
+Security re-review `docs/security/m2-b3-rereview.md`: 0 Critical/High, 1 Medium (N-03), 4 Low, 5 Info; earlier B3 fixes confirmed (B3-05 partial).
+**Fixed:** N-03 own Pause/Stop get a separate per-user bucket (`RateLimiting:ConsentReversalPermitPerMinute`, default 600) via endpoint metadata instead of a path regex; N-01 tombstones stop late summary events re-creating scheduler state; N-02 settle-on-every-exit plus `ReservationReaper` (`Ai:Reaper:IntervalSeconds`, `GraceSeconds`; startup sweep assumes single instance, ADR-020d); N-04 regex timeouts and 1s deadline in sanitizer and redactor (fail closed to "[content removed]"); N-05 startup warning for raised rate limits outside Development, zero permits rejected; N-06 hub `summary.revision`/`catchup.ready` go through strict parsers.
+**Verified by Lead re-run:** 116 contract + 113 AI + 15 architecture + 370 integration pass; web 336 unit tests; Playwright full serial run 20/20 against the recreated API (dev-only raised rate limits).
+**Not red-first:** N-02 reaper tests (compile error only). **Deferred:** partial index on `ai_usage` for reaper sweeps (needs migration A003, database-architect); N-07 prompt-side Cf/tag characters; N-08 `AiSource.Of`; N-10 B3-05 leftovers. Fixes not independently re-reviewed.
+**For G1 consent copy:** a request already sent to a vendor when a student pauses cannot be recalled.

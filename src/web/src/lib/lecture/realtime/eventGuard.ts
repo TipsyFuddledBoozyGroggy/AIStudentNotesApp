@@ -1,3 +1,4 @@
+import { parseCatchUp, parseSummary } from "../aiPayloads";
 import type { HubEvent, JoinResponse, PersistedEvent, TranscriptPage } from "../types";
 
 // Structural guard for data arriving from the network. The JSON Schemas under src/shared/contracts remain the
@@ -47,6 +48,24 @@ export function isHubEvent(v: unknown): v is HubEvent {
   if (!isObj(v) || v.v !== 1 || !isStr(v.type) || !isStr(v.sessionId) || !isStr(v.ts) || !isObj(v.payload)) return false;
   if (PERSISTED.has(v.type) ? !isSeq(v.seq) : v.seq !== null) return false;
   return payloadOk(v.type, v.payload);
+}
+
+/**
+ * Network entry point for hub events. Runs the structural guard, then re-parses AI payloads (summary.revision,
+ * catchup.ready) with the strict parsers used for REST: unknown fields are dropped and a malformed nested field
+ * makes the whole event null, so the caller ignores it silently (no state change, no announcement).
+ */
+export function parseHubEvent(v: unknown): HubEvent | null {
+  if (!isHubEvent(v)) return null;
+  if (v.type === "summary.revision") {
+    const payload = parseSummary(v.payload);
+    return payload ? { ...v, payload } : null;
+  }
+  if (v.type === "catchup.ready") {
+    const payload = parseCatchUp(v.payload);
+    return payload ? { ...v, payload } : null;
+  }
+  return v;
 }
 
 export function isPersistedEvent(v: unknown): v is PersistedEvent {

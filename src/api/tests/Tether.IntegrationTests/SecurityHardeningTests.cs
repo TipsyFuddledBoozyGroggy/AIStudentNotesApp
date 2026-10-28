@@ -127,6 +127,13 @@ public sealed class WriteLimitFactory : ApiFactory
     protected override IEnumerable<KeyValuePair<string, string?>> Settings => [new("RateLimiting:WritePermitPerMinute", "2")];
 }
 
+/// <summary>N-03: write and general budgets are tiny so they are spent at once; the consent-reversal bucket is small so abuse hits it.</summary>
+public sealed class ReversalCapFactory : ApiFactory
+{
+    protected override IEnumerable<KeyValuePair<string, string?>> Settings =>
+        [new("RateLimiting:WritePermitPerMinute", "2"), new("RateLimiting:ConsentReversalPermitPerMinute", "4")];
+}
+
 public sealed class AnonLimitFactory : ApiFactory
 {
     protected override IEnumerable<KeyValuePair<string, string?>> Settings => [new("RateLimiting:AnonymousPermitPerMinute", "3")];
@@ -196,6 +203,37 @@ public class ApiRateLimitTests
             await (await c.PostAsJsonAsync("/api/v1/courses", new { name = "r3" })).AssertProblemAsync(HttpStatusCode.TooManyRequests, "rate_limited"); // control: budget is spent
             Assert.Equal(HttpStatusCode.OK, (await c.PostAsync($"/api/v1/sessions/{id}/pause", null)).StatusCode);
             Assert.Equal(HttpStatusCode.OK, (await c.PostAsync($"/api/v1/sessions/{id}/stop", null)).StatusCode);
+        }
+    }
+
+    public class ConsentReversalCap(ReversalCapFactory factory) : IClassFixture<ReversalCapFactory>
+    {
+        // N-03: the exemption from the global budgets is not "no limit". An authenticated user who hammers Pause/Stop (here on ids that are
+        // not theirs, each costing a DB lookup) hits their own generous bucket, while other users and other routes are unaffected.
+        [Fact]
+        public async Task Pause_and_stop_have_their_own_per_user_cap_that_other_users_do_not_share()
+        {
+            var abuser = await factory.LoginAsync("rl-rev-abuser@dev.local");
+            var other = await factory.LoginAsync("rl-rev-other@dev.local");
+            for (var i = 0; i < 4; i++)
+            {
+                var path = $"/api/v1/sessions/{Guid.NewGuid()}/{(i % 2 == 0 ? "pause" : "stop")}";
+                Assert.Equal(HttpStatusCode.NotFound, (await abuser.PostAsync(path, null)).StatusCode); // reaches the handler, nothing owned
+            }
+            var limited = await abuser.PostAsync($"/api/v1/sessions/{Guid.NewGuid()}/stop", null);
+            await limited.AssertProblemAsync(HttpStatusCode.TooManyRequests, "rate_limited");
+            Assert.True(limited.Headers.Contains("Retry-After"));
+            Assert.Equal(HttpStatusCode.NotFound, (await other.PostAsync($"/api/v1/sessions/{Guid.NewGuid()}/stop", null)).StatusCode);
+        }
+
+        [Fact]
+        public async Task The_reversal_bucket_does_not_spend_the_write_or_general_budgets_and_resume_is_not_exempt()
+        {
+            var c = await factory.LoginAsync("rl-rev-budgets@dev.local");
+            for (var i = 0; i < 4; i++) await c.PostAsync($"/api/v1/sessions/{Guid.NewGuid()}/pause", null);
+            for (var i = 0; i < 2; i++)
+                Assert.Equal(HttpStatusCode.Created, (await c.PostAsJsonAsync("/api/v1/courses", new { name = "rv" + i })).StatusCode); // write budget of 2 intact
+            await (await c.PostAsync($"/api/v1/sessions/{Guid.NewGuid()}/resume", null)).AssertProblemAsync(HttpStatusCode.TooManyRequests, "rate_limited"); // resume is an ordinary write
         }
     }
 

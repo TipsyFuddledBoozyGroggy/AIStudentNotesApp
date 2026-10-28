@@ -24,7 +24,8 @@ internal sealed record BreakerOptions(int FailuresToOpen, TimeSpan OpenFor, Time
 /// </summary>
 internal sealed record AiOptions(
     bool Enabled, string Provider, TimeSpan CallTimeout, BudgetOptions Budget, TierPrice Fast, TierPrice Balanced,
-    SummaryOptions Summary, CatchUpOptions CatchUp, BreakerOptions Breaker, MockFault MockFault, TimeSpan MockLatency)
+    SummaryOptions Summary, CatchUpOptions CatchUp, BreakerOptions Breaker, MockFault MockFault, TimeSpan MockLatency,
+    Tether.Ai.Budget.ReaperOptions? Reaper = null)
 {
     public TierPrice Price(AiTier tier) => tier == AiTier.Fast ? Fast : Balanced;
 
@@ -68,7 +69,8 @@ internal sealed record AiOptions(
             CallTimeout: Secs(c, "Ai:CallTimeoutSeconds", 20), Budget: budget,
             Fast: Price("Fast", 100_000, 10_000, 500_000, "claude-haiku-5-5"),
             Balanced: Price("Balanced", 2_000_000, 100_000, 10_000_000, "claude-sonnet-5-5"),
-            Summary: summary, CatchUp: catchUp, Breaker: breaker, MockFault: fault, MockLatency: TimeSpan.FromMilliseconds(c.GetValue("Ai:Mock:LatencyMs", 0)));
+            Summary: summary, CatchUp: catchUp, Breaker: breaker, MockFault: fault, MockLatency: TimeSpan.FromMilliseconds(c.GetValue("Ai:Mock:LatencyMs", 0)),
+            Reaper: new Tether.Ai.Budget.ReaperOptions(Secs(c, "Ai:Reaper:IntervalSeconds", 60), Secs(c, "Ai:Reaper:GraceSeconds", 180)));
     }
 }
 

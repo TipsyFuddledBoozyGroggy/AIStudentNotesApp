@@ -88,6 +88,10 @@ internal sealed class AiGateway(
 
             var req = request with { RepairHint = repairCode };
 
+            // N-01: a cheap read first, so a closed session never costs a reserve and settle pair (a scheduler that still tracks one would
+            // otherwise write two ledger rows every interval). The check after the reservation below stays: it is the last gate before the vendor.
+            if (!await IsActiveAsync(req, ct)) return new(null, AiFailure.SessionClosed, model, repaired);
+
             // Hold the estimated cost against every cap BEFORE the call (B3-02). A ledger that cannot be written fails closed.
             ReserveOutcome held;
             try { held = await budget.ReserveAsync(req.UserId, req.SessionId, req.Workflow, req.PromptVersion, options.Price(req.Tier).Model, EstimateMicro(req), ct); }
@@ -105,68 +109,79 @@ internal sealed class AiGateway(
             if (held.Decision.ForceTier is { } forced) req = req with { Tier = forced };
             var price = options.Price(req.Tier);
 
+            var settled = false;
             async Task Settle(string m, AiTokenUsage usage, long cost, int latency, string outcome)
             {
+                settled = true; // attempted; SettleAsync keeps the hold counted if it cannot finish, and the reaper settles what is left
                 if (!await ledger.SettleAsync(reservation, m, usage, cost, latency, outcome)) health.RecordLedgerFault(); // reservation stays counted; stop calling
             }
 
-            // B3-06: the last gate before the vendor. Owned by this user and Active, or no call, no spend (the hold is given back).
-            if (!await IsActiveAsync(req, ct))
-            {
-                await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, 0, Outcomes.Error);
-                return new(null, AiFailure.SessionClosed, model, repaired);
-            }
-
-            AiResponse response;
-            var sw = Stopwatch.StartNew();
+            // N-02: from here on every exit settles the hold exactly once. The paths below settle explicitly; this catches the rest (an exception
+            // from the validator, the host shutting down during the Active check, a cancellation we did not anticipate).
             try
             {
-                using var cts = CancellationTokenSource.CreateLinkedTokenSource(sct);
-                cts.CancelAfter(req.Timeout);
-                response = await client.CompleteAsync(req, cts.Token);
-            }
-            catch (OperationCanceledException) when (!sct.IsCancellationRequested)
-            {
-                health.RecordFailure(AiFailureKind.Timeout);
-                await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, (int)sw.ElapsedMilliseconds, Outcomes.Timeout);
-                return new(null, AiFailure.Timeout, price.Model, repaired);
-            }
-            catch (OperationCanceledException)
-            {
-                await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, (int)sw.ElapsedMilliseconds, Outcomes.Error); // release the hold
-                if (!ct.IsCancellationRequested) return new(null, AiFailure.SessionClosed, price.Model, repaired); // cut off by pause, stop or delete (B3-06)
-                throw; // shutting down
-            }
-            catch (AiClientException ex)
-            {
-                health.RecordFailure(ex.Kind);
-                var rate = ex.Kind is AiFailureKind.RateLimited or AiFailureKind.ProviderCap;
-                await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, (int)sw.ElapsedMilliseconds,
-                    ex.Kind == AiFailureKind.Timeout ? Outcomes.Timeout : rate ? Outcomes.RateLimited : Outcomes.Error);
-                log.LogWarning("AI call failed {Workflow} {Kind}", req.Workflow, ex.Kind);
-                return new(null, ex.Kind == AiFailureKind.Timeout ? AiFailure.Timeout : rate ? AiFailure.RateLimited : AiFailure.Unavailable, price.Model, repaired);
-            }
-            catch (Exception)
-            {
-                await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, (int)sw.ElapsedMilliseconds, Outcomes.Error);
-                throw;
-            }
-            health.RecordSuccess();
-            model = response.Model;
+                // B3-06: the last gate before the vendor. Owned by this user and Active, or no call, no spend (the hold is given back).
+                if (!await IsActiveAsync(req, ct))
+                {
+                    await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, 0, Outcomes.Error);
+                    return new(null, AiFailure.SessionClosed, model, repaired);
+                }
 
-            var validated = response.StopReason == "max_tokens" ? Validated<T>.Fail(ValidationCodes.Truncated) : validate(response.Json);
-            var cost = Pricing.CostMicro(response.Usage, price);
-            if (validated.Ok)
-            {
-                await Settle(response.Model, response.Usage, cost, response.LatencyMs, repaired ? Outcomes.Repaired : Outcomes.Ok);
-                return new(validated.Value, null, response.Model, repaired);
+                AiResponse response;
+                var sw = Stopwatch.StartNew();
+                try
+                {
+                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(sct);
+                    cts.CancelAfter(req.Timeout);
+                    response = await client.CompleteAsync(req, cts.Token);
+                }
+                catch (OperationCanceledException) when (!sct.IsCancellationRequested)
+                {
+                    health.RecordFailure(AiFailureKind.Timeout);
+                    await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, (int)sw.ElapsedMilliseconds, Outcomes.Timeout);
+                    return new(null, AiFailure.Timeout, price.Model, repaired);
+                }
+                catch (OperationCanceledException)
+                {
+                    await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, (int)sw.ElapsedMilliseconds, Outcomes.Error); // release the hold
+                    if (!ct.IsCancellationRequested) return new(null, AiFailure.SessionClosed, price.Model, repaired); // cut off by pause, stop or delete (B3-06)
+                    throw; // shutting down
+                }
+                catch (AiClientException ex)
+                {
+                    health.RecordFailure(ex.Kind);
+                    var rate = ex.Kind is AiFailureKind.RateLimited or AiFailureKind.ProviderCap;
+                    await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, (int)sw.ElapsedMilliseconds,
+                        ex.Kind == AiFailureKind.Timeout ? Outcomes.Timeout : rate ? Outcomes.RateLimited : Outcomes.Error);
+                    log.LogWarning("AI call failed {Workflow} {Kind}", req.Workflow, ex.Kind);
+                    return new(null, ex.Kind == AiFailureKind.Timeout ? AiFailure.Timeout : rate ? AiFailure.RateLimited : AiFailure.Unavailable, price.Model, repaired);
+                }
+                catch (Exception)
+                {
+                    await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, (int)sw.ElapsedMilliseconds, Outcomes.Error);
+                    throw;
+                }
+                health.RecordSuccess();
+                model = response.Model;
+
+                var validated = response.StopReason == "max_tokens" ? Validated<T>.Fail(ValidationCodes.Truncated) : validate(response.Json);
+                var cost = Pricing.CostMicro(response.Usage, price);
+                if (validated.Ok)
+                {
+                    await Settle(response.Model, response.Usage, cost, response.LatencyMs, repaired ? Outcomes.Repaired : Outcomes.Ok);
+                    return new(validated.Value, null, response.Model, repaired);
+                }
+                await Settle(response.Model, response.Usage, cost, response.LatencyMs, Outcomes.Invalid);
+                log.LogInformation("AI output rejected {Workflow} {Code} attempt {Attempt}", req.Workflow, validated.Error, attempt + 1);
+                // A stale base cannot be repaired by asking again with the same base; everything else gets one repair attempt (a code, never content).
+                if (validated.Error == ValidationCodes.StaleBase) break;
+                repaired = true;
+                repairCode = validated.Error;
             }
-            await Settle(response.Model, response.Usage, cost, response.LatencyMs, Outcomes.Invalid);
-            log.LogInformation("AI output rejected {Workflow} {Code} attempt {Attempt}", req.Workflow, validated.Error, attempt + 1);
-            // A stale base cannot be repaired by asking again with the same base; everything else gets one repair attempt (a code, never content).
-            if (validated.Error == ValidationCodes.StaleBase) break;
-            repaired = true;
-            repairCode = validated.Error;
+            finally
+            {
+                if (!settled) await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, 0, Outcomes.Error);
+            }
         }
         return new(null, AiFailure.InvalidOutput, model, repaired);
     }

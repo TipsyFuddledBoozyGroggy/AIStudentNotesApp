@@ -56,6 +56,8 @@ public static class AiModule
         services.AddSingleton<CatchUpQueue>();
         services.AddSingleton<CatchUpLimiter>();
         services.AddSingleton<CatchUpRunner>();
+        services.AddSingleton<ReservationReaper>();
+        services.AddHostedService(sp => sp.GetRequiredService<ReservationReaper>());
         services.AddHostedService<SummaryWorker>();
         services.AddHostedService(sp => sp.GetRequiredService<CatchUpRunner>());
         return builder;

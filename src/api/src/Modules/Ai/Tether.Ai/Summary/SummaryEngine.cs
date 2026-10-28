@@ -42,10 +42,33 @@ internal sealed class SummaryScheduler(AiOptions options, TimeProvider clock, Su
 
     public int PendingFor(Guid sessionId) => _states.TryGetValue(sessionId, out var s) ? s.Pending : 0;
     public int TrackedSessions => _states.Count;
+    public bool IsTracked(Guid sessionId) => _states.ContainsKey(sessionId);
+
+    // N-01: sessions seen stopped, failed or deleted. A final's observer call runs AFTER its commit, so it can arrive after the Stop or
+    // Delete notification already removed the state; without this it would re-create the state and tick (reserve, find the session
+    // closed, settle) every MinInterval until the process restarts. A stopped or deleted session never becomes Active again, so the
+    // entry never needs to be undone; old ones are pruned (a late observer call lags its commit by milliseconds, not an hour).
+    private readonly ConcurrentDictionary<Guid, DateTimeOffset> _closed = new();
+    private static readonly TimeSpan ClosedKeep = TimeSpan.FromHours(1);
+    private const int ClosedSoftCap = 256, ClosedHardCap = 20_000;
+
+    private void MarkClosedAndDrop(Guid sessionId)
+    {
+        _states.TryRemove(sessionId, out _);
+        var now = clock.GetUtcNow();
+        if (_closed.Count >= ClosedSoftCap)
+            foreach (var kv in _closed)
+                if (now - kv.Value > ClosedKeep) _closed.TryRemove(kv.Key, out _);
+        if (_closed.Count < ClosedHardCap) _closed[sessionId] = now; // beyond the cap the engine's own closed-session check still drops a zombie
+    }
+
+    /// <summary>The engine found the session closed for good (stopped, failed or gone): stop tracking it for good.</summary>
+    public void Forget(Guid sessionId) => MarkClosedAndDrop(sessionId);
 
     public void OnFinalPersisted(Guid userId, Guid sessionId, long seq)
     {
         if (!options.Enabled) return;
+        if (_closed.ContainsKey(sessionId)) return;
         if (!_states.TryGetValue(sessionId, out var st))
         {
             if (_states.Count >= options.Summary.MaxTrackedSessions) return; // bounded memory: beyond the cap new sessions simply get no TL;DR
@@ -64,19 +87,24 @@ internal sealed class SummaryScheduler(AiOptions options, TimeProvider clock, Su
         // Counters only; never awaits AI, so a pause or stop is never slowed by it (ADR-019b).
         // B3-06 (Product Owner): nothing is sent to the vendor once the student paused or stopped. Pause used to request a flush and
         // Stop a final pass; neither exists now. In-flight calls are cancelled by SessionCutoff, and the gateway re-checks the state.
+        if (change.State is LectureState.Stopped or LectureState.Failed)
+        {
+            // Even when no state exists yet: a final of this session may still be on its way to OnFinalPersisted (N-01).
+            if (!_states.TryGetValue(change.SessionId, out var closing) || closing.UserId == change.UserId) MarkClosedAndDrop(change.SessionId);
+            return Task.CompletedTask;
+        }
         if (!_states.TryGetValue(change.SessionId, out var st) || st.UserId != change.UserId) return Task.CompletedTask;
         switch (change.State)
         {
             case LectureState.Paused: lock (st.Lock) st.Suspended = true; break;
             case LectureState.Active: lock (st.Lock) st.Suspended = false; break;
-            default: _states.TryRemove(change.SessionId, out _); break; // Stopped or Failed
         }
         return Task.CompletedTask;
     }
 
     public Task OnDeletedAsync(Guid userId, Guid sessionId, CancellationToken ct)
     {
-        _states.TryRemove(sessionId, out _);
+        if (!_states.TryGetValue(sessionId, out var st) || st.UserId == userId) MarkClosedAndDrop(sessionId);
         return Task.CompletedTask;
     }
 
@@ -104,7 +132,7 @@ internal sealed class SummaryScheduler(AiOptions options, TimeProvider clock, Su
         await _concurrency.WaitAsync(ct);
         try
         {
-            await engine.RunAsync(st, ct);
+            if (await engine.RunAsync(st, ct)) Forget(st.SessionId); // closed for good: no zombie state (N-01)
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -141,7 +169,8 @@ internal sealed class SummaryEngine(IServiceScopeFactory scopes, AiOptions optio
 {
     private enum Step { Done, Nothing, Failed, Gone }
 
-    public async Task RunAsync(SessionSummaryState st, CancellationToken ct)
+    /// <summary>Runs one update. Returns true when the session turned out to be stopped, failed or gone (not merely paused), so the scheduler should forget it.</summary>
+    public async Task<bool> RunAsync(SessionSummaryState st, CancellationToken ct)
     {
         int startPending; DateTimeOffset? firstPending;
         lock (st.Lock)
@@ -163,7 +192,7 @@ internal sealed class SummaryEngine(IServiceScopeFactory scopes, AiOptions optio
             var (step, fail, more) = await DeltaAsync(st, sp, publisher, ct);
             backlog = more;
             failure = fail;
-            if (step == Step.Gone) return;
+            if (step == Step.Gone) return true;
             var store = sp.GetRequiredService<SummaryStore>();
             if (failure is null)
             {
@@ -192,7 +221,7 @@ internal sealed class SummaryEngine(IServiceScopeFactory scopes, AiOptions optio
                 if (backlog) { st.Pending += options.Summary.FlushSegments; st.FirstPendingAt ??= clock.GetUtcNow(); }
             }
             await PublishStatusAsync(publisher, st, "Pending", 0, null, always: false, ct);
-            return;
+            return false;
         }
 
         if (failure == AiFailure.SessionClosed)
@@ -204,7 +233,7 @@ internal sealed class SummaryEngine(IServiceScopeFactory scopes, AiOptions optio
                 st.Pending += startPending;
                 st.FirstPendingAt = firstPending ?? clock.GetUtcNow();
             }
-            return;
+            return await IsClosedForGoodAsync(sp, st, ct);
         }
 
         int failures;
@@ -216,6 +245,25 @@ internal sealed class SummaryEngine(IServiceScopeFactory scopes, AiOptions optio
         }
         var state = failure == AiFailure.BudgetLimited || failures >= 3 ? "Failed" : "Delayed";
         await PublishStatusAsync(publisher, st, state, lag, AiFailure.ToWireReason(failure), always: false, ct);
+        return false;
+    }
+
+    /// <summary>
+    /// After a SessionClosed outcome: is the session stopped, failed or gone (so tracking it only produces churn), as opposed to paused (it
+    /// resumes) or Active again (a pause and quick resume)? Any lookup problem keeps the state: it is dropped only when positively closed.
+    /// </summary>
+    private async Task<bool> IsClosedForGoodAsync(IServiceProvider sp, SessionSummaryState st, CancellationToken ct)
+    {
+        try
+        {
+            var info = await sp.GetRequiredService<ISessionDirectory>().FindAsync(st.UserId, st.SessionId, ct);
+            return info is null || info.State is LectureState.Stopped or LectureState.Failed;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            log.LogWarning("Summary closed-session check failed: {ExceptionType}", ex.GetType().Name);
+            return false;
+        }
     }
 
     private async Task<(Step Step, string? Failure, bool MoreBacklog)> DeltaAsync(SessionSummaryState st, IServiceProvider sp, ILiveEventPublisher publisher, CancellationToken ct)
