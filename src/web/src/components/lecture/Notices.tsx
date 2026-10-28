@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, type Ref } from "react";
 import {
+  AUDIO_NOTE_COPY,
   BLOCKED_COPY,
+  DEMO_NOTICE_COPY,
+  FATAL_COPY,
   MISMATCH_COPY as M,
   OFFLINE_COPY as O,
   PAUSED_COPY as P,
@@ -204,5 +207,47 @@ export function SettingsPanel({ settings, onChange }: { settings: LectureSetting
         <p className="text-sm">{ST.shortcutList}</p>
       </div>
     </details>
+  );
+}
+
+export function DemoNotice() {
+  return (
+    <section data-testid="demo-notice" aria-labelledby="demo-notice-h2" className="mx-3 mt-3 rounded border-2 border-amber-800 bg-white p-3">
+      <h2 id="demo-notice-h2" className="font-bold">
+        {DEMO_NOTICE_COPY.heading}
+      </h2>
+      <p className="mt-1">{DEMO_NOTICE_COPY.body}</p>
+    </section>
+  );
+}
+
+export function FatalPanel(props: { kind: "signed_out" | "unavailable"; onBack(): void; headingRef: Ref<HTMLHeadingElement> }) {
+  const signedOut = props.kind === "signed_out";
+  return (
+    <section data-testid="fatal-panel" aria-labelledby="fatal-h2" className="mx-3 mt-3 rounded border-2 border-slate-700 bg-white p-4">
+      <h2 id="fatal-h2" ref={props.headingRef} tabIndex={-1} className="text-xl font-bold">
+        {signedOut ? FATAL_COPY.signedOutHeading : FATAL_COPY.unavailableHeading}
+      </h2>
+      <p className="mt-2">{signedOut ? FATAL_COPY.signedOutBody : FATAL_COPY.unavailableBody}</p>
+      <div className="mt-3 flex flex-wrap gap-3">
+        {signedOut ? (
+          <a className="btn-primary min-h-[48px]" href="/signin">
+            {FATAL_COPY.signIn}
+          </a>
+        ) : (
+          <button type="button" className="btn-primary min-h-[48px]" onClick={props.onBack}>
+            {FATAL_COPY.back}
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+export function AudioSkippedNote({ ms }: { ms: number }) {
+  return (
+    <p data-testid="audio-skipped" className="mx-3 mt-3 rounded border-2 border-slate-600 bg-white p-3">
+      {AUDIO_NOTE_COPY.skipped(Math.max(1, Math.round(ms / 1000)))}
+    </p>
   );
 }

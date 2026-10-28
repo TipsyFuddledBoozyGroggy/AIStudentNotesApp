@@ -9,10 +9,7 @@ interface Props {
   justAdded?: boolean;
 }
 
-/**
- * Course detail placeholder. The lecture entry is intentionally inert: no
- * microphone access, no consent flow, no handler. Lecture capture is Milestone 2.
- */
+/** Course detail. The lecture entry is a plain link: nothing starts, and no microphone is touched, until the consent screen's Start button. */
 export function CourseDetailView({ course, justAdded }: Props) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -39,10 +36,10 @@ export function CourseDetailView({ course, justAdded }: Props) {
         <h2 id="lecture-heading" className="text-xl font-bold">
           Lecture
         </h2>
-        <p className="mt-1 text-slate-700">Live lecture notes are coming next. Nothing is recorded in this version.</p>
-        <button type="button" disabled className="btn-disabled mt-4">
-          Start a lecture (coming next)
-        </button>
+        <p className="mt-1 text-slate-700">Nothing is recorded until you choose to start.</p>
+        <Link href={`/courses/${encodeURIComponent(course.id)}/lecture`} className="btn-primary mt-4">
+          Start a lecture
+        </Link>
       </section>
 
       <Link href="/" className="btn-secondary">

@@ -11,9 +11,13 @@ const nextConfig = {
     return config;
   },
   // Real backend: same-origin proxy (ADR-006). Only active when a target is configured.
+  // /hubs (SignalR lecture.v1) and /ingest (speech.v1 audio WebSocket) must be same-origin too: the API checks the
+  // Origin header against its allow-list and the session cookie is SameSite=Strict. The proxy must pass WebSocket upgrades.
   async rewrites() {
     const target = process.env.API_PROXY_TARGET;
-    return target ? [{ source: "/api/:path*", destination: `${target}/api/:path*` }] : [];
+    return target
+      ? ["api", "hubs", "ingest"].map((p) => ({ source: `/${p}/:path*`, destination: `${target}/${p}/:path*` }))
+      : [];
   },
 };
 export default nextConfig;

@@ -13,6 +13,7 @@ import {
 } from "@/lib/lecture";
 import { useAnnouncer } from "./Announcer";
 import { FinalsBatcher, TLDR_INTERVAL_MS } from "./announcerQueue";
+import type { AudioEndReason } from "@/lib/lecture/realtime/audioStreamer";
 import { ANNOUNCE } from "./copy";
 import type { MicFailure, MicSource, MicTrack } from "./micSource";
 import type { LectureRuntime } from "./ports";
@@ -58,7 +59,9 @@ export function useLectureSession(opts: UseLectureSessionOptions) {
   const lectureRef = useRef(lecture);
   lectureRef.current = lecture;
 
-  const [snap, setSnap] = useState<{ status: string }>({ status: "idle" });
+  const [snap, setSnap] = useState<{ status: string; lastError: string | null }>({ status: "idle", lastError: null });
+  const [audioEnd, setAudioEnd] = useState<AudioEndReason | null>(null);
+  const [audioSkippedMs, setAudioSkippedMs] = useState(0);
   const rcRef = useRef<ResumeController | null>(null);
 
   const [track, setTrackState] = useState<MicTrack | null>(opts.track);
@@ -82,9 +85,64 @@ export function useLectureSession(opts: UseLectureSessionOptions) {
   const [pauses, setPauses] = useState<PauseRecord[]>([]);
 
   const stopTrack = useCallback(() => {
+    runtime.audio?.end("teardown"); // no more frames leave this page once capture is off
     trackRef.current?.stop();
     bump();
-  }, []);
+  }, [runtime]);
+
+  // Leaving the screen while recording must turn the microphone off. Deferred one tick so a StrictMode
+  // simulated unmount (cleanup then immediate re-run) does not kill a live recording.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      setTimeout(() => {
+        if (mountedRef.current) return;
+        runtime.audio?.end("teardown");
+        trackRef.current?.stop();
+      }, 0);
+    };
+  }, [runtime]);
+
+  // --- upstream audio: starts only for a live track the student just obtained from a press --------------
+  useEffect(() => {
+    if (track && track.readyState === "live") runtime.audio?.start(track);
+  }, [track, runtime]);
+
+  useEffect(() => {
+    const audio = runtime.audio;
+    if (!audio) return;
+    let conflictTimer: ReturnType<typeof setTimeout> | null = null;
+    const off = audio.subscribe((e) => {
+      if (e.kind === "dropped") setAudioSkippedMs((m) => m + e.ms);
+      else if (e.kind === "ended" && e.reason !== "stopped") {
+        setAudioEnd(e.reason);
+        if (e.reason === "auth" || e.reason === "rejected") {
+          trackRef.current?.stop();
+          bump();
+        } else if (e.reason === "conflict") {
+          // The server cut the stream: usually a pause/stop/auto-pause whose session.state is about to arrive.
+          // If it still says Active shortly after, the screen and the server disagree: turn the mic off.
+          conflictTimer = setTimeout(() => {
+            if (lectureRef.current.sessionState === "Active") {
+              trackRef.current?.stop();
+              bump();
+            }
+          }, 3000);
+        }
+      } else if (e.kind === "offline_timeout" && lectureRef.current.sessionState === "Active") {
+        trackRef.current?.stop();
+        bump();
+        announcerRef.current.alert("offline-pause", ANNOUNCE.offlinePaused);
+        void runtime.actions.pause().catch(() => undefined);
+      }
+    });
+    return () => {
+      off();
+      if (conflictTimer) clearTimeout(conflictTimer);
+    };
+  }, [runtime]);
 
   // --- transport / resume ---------------------------------------------------------------------
   useEffect(() => {
@@ -98,7 +156,7 @@ export function useLectureSession(opts: UseLectureSessionOptions) {
       onJoined: (response, lastSeqSent) => dispatch({ kind: "joined", response, lastSeqSent }),
       onEvents: (events) => dispatch({ kind: "events", events }),
       onFastForward: (throughSeq) => dispatch({ kind: "fastForward", throughSeq }),
-      onStatus: (s) => setSnap({ status: s.status }),
+      onStatus: (s) => setSnap({ status: s.status, lastError: s.lastError }),
       setTimeout: (fn, ms) => setTimeout(fn, ms),
       clearTimeout: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
       random: Math.random,
@@ -111,10 +169,23 @@ export function useLectureSession(opts: UseLectureSessionOptions) {
       unsub();
       unDrop();
       rc.stop();
+      runtime.dispose?.();
     };
   }, [runtime]);
 
   const connection = snap.status === "connected" ? "connected" : "disconnected";
+  // Signed out (audio ticket 401 or hub unauthenticated) or the session is gone: nothing here can recover by retrying.
+  const fatal: null | "signed_out" | "unavailable" =
+    audioEnd === "auth" || snap.lastError === "unauthenticated" || snap.lastError === "csrf_failed"
+      ? "signed_out"
+      : snap.status === "failed"
+        ? "unavailable"
+        : null;
+  useEffect(() => {
+    if (fatal === null) return;
+    if (trackRef.current?.readyState === "live") stopTrack();
+    announcerRef.current.alert("fatal", fatal === "signed_out" ? ANNOUNCE.signedOut : ANNOUNCE.unavailable);
+  }, [fatal, stopTrack]);
   const trackSnap = track ? { readyState: track.readyState, enabled: track.enabled, muted: track.muted } : null;
   // A server-initiated end with a documented system reason (contract 12.1) is expected: the hot track is
   // stopped below, and the indicator is derived as if it were already off so no false mismatch flashes.
@@ -307,11 +378,11 @@ export function useLectureSession(opts: UseLectureSessionOptions) {
   }, [lecture.summary?.revision, settings.announceTldr]);
 
   // --- actions --------------------------------------------------------------------------------
-  const fail = useCallback(() => {
+  const fail = useCallback((message: string = ANNOUNCE.actionFailed) => {
     setPending(null);
     setFocusIntent(null);
-    setActionError(ANNOUNCE.actionFailed);
-    announcerRef.current.status(ANNOUNCE.actionFailed);
+    setActionError(message);
+    announcerRef.current.status(message);
   }, [setPending]);
 
   const pause = useCallback(async () => {
@@ -319,6 +390,7 @@ export function useLectureSession(opts: UseLectureSessionOptions) {
     setActionError(null);
     setPending("pausing");
     setFocusIntent("resume-in-panel");
+    runtime.audio?.end("pause"); // tells the server socket, then closes it
     stopTrack(); // local track first (contract section 9)
     try {
       await runtime.actions.pause();
@@ -335,8 +407,10 @@ export function useLectureSession(opts: UseLectureSessionOptions) {
     setFocusIntent("pause-button");
     try {
       await runtime.actions.resume();
-    } catch {
-      fail();
+    } catch (e) {
+      // 429 applies to Resume only (pause and stop are never refused): say so calmly and leave the session as it was.
+      const limited = typeof e === "object" && e !== null && ((e as { status?: number }).status === 429 || (e as { code?: string }).code === "rate_limited");
+      fail(limited ? ANNOUNCE.resumeBusy : ANNOUNCE.actionFailed);
       setFocusIntent(null);
       return;
     }
@@ -355,6 +429,7 @@ export function useLectureSession(opts: UseLectureSessionOptions) {
 
   const stop = useCallback(async () => {
     if (pendingRef.current === "stopping") return;
+    runtime.audio?.end("stop");
     stopTrack(); // mic off immediately, even offline
     setFocusIntent("stopped-heading");
     if (rcRef.current?.snapshot().status !== "connected") {
@@ -396,6 +471,9 @@ export function useLectureSession(opts: UseLectureSessionOptions) {
     elapsedMs,
     micLost,
     micIssue,
+    fatal,
+    audioSkippedMs,
+    audioEnd,
     actionError,
     stopQueued,
     pauses,

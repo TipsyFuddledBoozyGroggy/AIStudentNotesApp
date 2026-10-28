@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { PlainText } from "@/lib/lecture";
 import { useAnnouncer } from "./Announcer";
-import { CONSENT_COPY as C } from "./copy";
+import { CONSENT_COPY as C, DEMO_NOTICE_COPY } from "./copy";
 import type { StartError } from "./ports";
 
 export interface ConsentStartProps {
@@ -17,9 +17,11 @@ export interface ConsentStartProps {
   /** Link target for the invalid_state error. */
   runningLectureHref?: string;
   busy?: boolean;
+  /** The backend reports demoSource only after a session exists; the real route sets this while only the demo provider ships. */
+  demoExpected?: boolean;
 }
 
-export function ConsentStart({ courseName, onStart, onCancel, attestation, error, runningLectureHref, busy }: ConsentStartProps) {
+export function ConsentStart({ courseName, onStart, onCancel, attestation, error, runningLectureHref, busy, demoExpected }: ConsentStartProps) {
   const announcer = useAnnouncer();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const checkRef = useRef<HTMLInputElement>(null);
@@ -64,6 +66,7 @@ export function ConsentStart({ courseName, onStart, onCancel, attestation, error
         {C.bullets.map((b) => (
           <li key={b}>{b}</li>
         ))}
+        {demoExpected ? <li data-testid="consent-demo-bullet">{DEMO_NOTICE_COPY.consentBullet}</li> : null}
       </ul>
 
       <details className="mt-4">

@@ -10,6 +10,8 @@ export interface MicTrack extends TrackLike {
   stop(): void;
   /** Fires when the device ends the track on its own (unplugged, permission revoked). Not fired by stop(). */
   onEnded(cb: () => void): () => void;
+  /** The live capture stream (browser only). The audio pipeline reads it; nothing else may. */
+  readonly stream?: MediaStream;
 }
 
 export type MicFailure = "denied" | "no_device" | "unavailable";
@@ -82,6 +84,7 @@ export class BrowserMicSource implements MicSource {
 
 function wrapTrack(stream: MediaStream, track: MediaStreamTrack): MicTrack {
   return {
+    stream,
     get readyState() {
       return track.readyState;
     },

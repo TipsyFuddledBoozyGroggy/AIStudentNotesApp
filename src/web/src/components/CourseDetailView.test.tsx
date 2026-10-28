@@ -12,13 +12,14 @@ describe("CourseDetailView", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("lecture entry is disabled and never touches the microphone", () => {
+  it("lecture entry is a link to the consent screen and never touches the microphone", () => {
     const getUserMedia = vi.fn();
     Object.defineProperty(navigator, "mediaDevices", { value: { getUserMedia }, configurable: true });
     render(<CourseDetailView course={course} />);
-    const btn = screen.getByRole("button", { name: /coming next/i });
-    expect(btn).toBeDisabled();
-    btn.click();
+    const link = screen.getByRole("link", { name: "Start a lecture" });
+    expect(link).toHaveAttribute("href", "/courses/c1/lecture");
+    link.addEventListener("click", (e) => e.preventDefault());
+    link.click();
     expect(getUserMedia).not.toHaveBeenCalled();
   });
 });

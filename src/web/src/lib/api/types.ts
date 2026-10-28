@@ -46,3 +46,31 @@ export interface ProblemDetails {
   traceId?: string;
   errors?: Record<string, string[]>;
 }
+
+/** Mirrors src/shared/contracts/lecture.v1/session.schema.json. `lastSeq` is a decimal string. */
+export interface LectureSessionDto {
+  id: string;
+  courseId: string;
+  title: string | null;
+  state: "Active" | "Paused" | "Stopped" | "Failed";
+  startedAt: string;
+  stoppedAt?: string | null;
+  lastSeq: string;
+  consent: { textVersion: string; acknowledgedAt: string };
+  etag: string;
+  /** True while the replay/mock speech source is active (API_CONTRACTS section 12.2). */
+  demoSource?: boolean;
+}
+
+export interface CreateSessionInput {
+  courseId: string;
+  title?: string;
+  consent: { acknowledged: true; textVersion: string };
+  /** Sent as Idempotency-Key so a retried start never creates a second session. */
+  idempotencyKey: string;
+}
+
+export interface AudioTicket {
+  ticket: string;
+  expiresAt: string;
+}

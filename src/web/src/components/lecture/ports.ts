@@ -1,4 +1,5 @@
 import type { HubEvent, JoinRequest, JoinResponse, Seq, TranscriptPage } from "@/lib/lecture";
+import type { AudioLink } from "@/lib/lecture/realtime/audioStreamer";
 
 /** Hub + REST-paging transport. The harness wraps MockLectureSource to satisfy this; the real hub comes later. */
 export interface LectureTransport {
@@ -24,6 +25,10 @@ export interface LectureRuntime {
   actions: SessionActions;
   /** True while a replay/mock provider is active (contract section 12.2). */
   demoSource: boolean;
+  /** Upstream audio (real stack only). Absent in the harness. */
+  audio?: AudioLink;
+  /** Releases the transport and audio. Called when the screen unmounts. */
+  dispose?(): void;
 }
 
 export type StartError = "consent_required" | "invalid_state" | "network";

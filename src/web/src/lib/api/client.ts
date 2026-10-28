@@ -1,5 +1,5 @@
 import { ApiError } from "./errors";
-import type { Course, CourseList, CreateCourseInput, ProblemDetails, UserProfile } from "./types";
+import type { AudioTicket, Course, CourseList, CreateCourseInput, CreateSessionInput, LectureSessionDto, ProblemDetails, UserProfile } from "./types";
 
 /**
  * The only module that knows how to talk HTTP to the backend. UI code depends on
@@ -14,6 +14,15 @@ export interface ApiClient {
   listCourses(): Promise<CourseList>;
   createCourse(input: CreateCourseInput): Promise<Course>;
   getCourse(id: string): Promise<Course>;
+  createSession(input: CreateSessionInput): Promise<LectureSessionDto>;
+  getSession(id: string): Promise<LectureSessionDto>;
+  /** Pause and stop are never refused by the server. Resume can be 429 `rate_limited`. */
+  pauseSession(id: string): Promise<LectureSessionDto>;
+  resumeSession(id: string): Promise<LectureSessionDto>;
+  stopSession(id: string): Promise<LectureSessionDto>;
+  createAudioTicket(id: string): Promise<AudioTicket>;
+  /** Raw page; the caller validates it. */
+  getTranscriptPage(id: string, afterSeq: string | null, limit: number): Promise<unknown>;
 }
 
 export interface ApiClientOptions {
@@ -75,6 +84,34 @@ export function createApiClient({ baseUrl, fetchImpl }: ApiClientOptions): ApiCl
     },
     async getCourse(id) {
       return (await request(`/courses/${encodeURIComponent(id)}`)).json() as Promise<Course>;
+    },
+    async createSession(input) {
+      const body = { consent: input.consent, ...(input.title ? { title: input.title } : {}) };
+      const res = await request(`/courses/${encodeURIComponent(input.courseId)}/sessions`, {
+        method: "POST",
+        headers: { "Idempotency-Key": input.idempotencyKey },
+        body: JSON.stringify(body),
+      });
+      return res.json() as Promise<LectureSessionDto>;
+    },
+    async getSession(id) {
+      return (await request(`/sessions/${encodeURIComponent(id)}`)).json() as Promise<LectureSessionDto>;
+    },
+    async pauseSession(id) {
+      return (await request(`/sessions/${encodeURIComponent(id)}/pause`, { method: "POST" })).json() as Promise<LectureSessionDto>;
+    },
+    async resumeSession(id) {
+      return (await request(`/sessions/${encodeURIComponent(id)}/resume`, { method: "POST" })).json() as Promise<LectureSessionDto>;
+    },
+    async stopSession(id) {
+      return (await request(`/sessions/${encodeURIComponent(id)}/stop`, { method: "POST" })).json() as Promise<LectureSessionDto>;
+    },
+    async createAudioTicket(id) {
+      return (await request(`/sessions/${encodeURIComponent(id)}/audio-ticket`, { method: "POST" })).json() as Promise<AudioTicket>;
+    },
+    async getTranscriptPage(id, afterSeq, limit) {
+      const q = new URLSearchParams({ afterSeq: afterSeq ?? "0", limit: String(limit) });
+      return (await request(`/sessions/${encodeURIComponent(id)}/transcript?${q}`)).json();
     },
   };
 }

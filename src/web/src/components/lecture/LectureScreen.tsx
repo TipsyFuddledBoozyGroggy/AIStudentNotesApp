@@ -5,7 +5,18 @@ import type { LectureState } from "@/lib/lecture";
 import { OFFLINE_COPY, TRANSCRIPT_COPY as T } from "./copy";
 import { formatMs } from "./format";
 import type { MicSource, MicTrack } from "./micSource";
-import { MismatchPanel, OfflineBanner, PausedPanel, SettingsPanel, StopDialog, StoppedPanel, type PausedVariant } from "./Notices";
+import {
+  AudioSkippedNote,
+  DemoNotice,
+  FatalPanel,
+  MismatchPanel,
+  OfflineBanner,
+  PausedPanel,
+  SettingsPanel,
+  StopDialog,
+  StoppedPanel,
+  type PausedVariant,
+} from "./Notices";
 import type { LectureRuntime } from "./ports";
 import { useLectureSettings, type LectureSettings } from "./settings";
 import { StatusBar } from "./StatusBar";
@@ -43,6 +54,7 @@ export function LectureScreen(props: LectureScreenProps) {
   const pauseRef = useRef<HTMLButtonElement>(null);
   const resumeRef = useRef<HTMLButtonElement>(null);
   const stoppedRef = useRef<HTMLHeadingElement>(null);
+  const fatalRef = useRef<HTMLHeadingElement>(null);
 
   const kind = s.raw.kind;
   const serverState = s.lecture.sessionState;
@@ -95,12 +107,14 @@ export function LectureScreen(props: LectureScreenProps) {
 
   const lastPause = s.pauses.at(-1);
   const sinceLabel = serverState === "Paused" && lastPause && lastPause.resumedWallMs === null ? formatMs(lastPause.atMs) : null;
-  const offline = s.connection === "disconnected" && serverState !== "Stopped" && serverState !== "Failed" && serverState !== null;
+  const offline = s.fatal === null && s.connection === "disconnected" && serverState !== "Stopped" && serverState !== "Failed" && serverState !== null;
   const stopped = kind === "Stopped";
   const variant: PausedVariant = s.micLost ? "mic-stopped" : s.reason === "auto_pause_no_audio" ? "auto" : "user";
 
   let notice: React.ReactNode = null;
-  if (kind === "Mismatch" && !(s.micLost && s.raw.kind === "Mismatch" && s.raw.reason === "server-active-without-live-track") && !s.pending) {
+  if (s.fatal) {
+    notice = <FatalPanel kind={s.fatal} onBack={props.onBackToCourse} headingRef={fatalRef} />;
+  } else if (kind === "Mismatch" && !(s.micLost && s.raw.kind === "Mismatch" && s.raw.reason === "server-active-without-live-track") && !s.pending) {
     notice = <MismatchPanel micOff={!s.raw.stopCapture} onCheck={s.checkAgain} onStop={() => setStopOpen(true)} />;
   } else if (stopped) {
     notice = <StoppedPanel reason={s.reason} failed={serverState === "Failed"} onBack={props.onBackToCourse} headingRef={stoppedRef} />;
@@ -142,6 +156,8 @@ export function LectureScreen(props: LectureScreenProps) {
           {s.actionError}
         </p>
       ) : null}
+      {props.runtime.demoSource ? <DemoNotice /> : null}
+      {s.audioSkippedMs > 0 ? <AudioSkippedNote ms={s.audioSkippedMs} /> : null}
       {offline ? <OfflineBanner stopQueued={s.stopQueued} /> : null}
       {notice}
       <div className="mt-3 grid gap-4 px-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">

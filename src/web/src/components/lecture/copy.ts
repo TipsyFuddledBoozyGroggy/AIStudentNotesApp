@@ -8,6 +8,25 @@ export const CONSENT_TEXT_VERSION = "draft-1";
 
 export const DEMO_SOURCE_TAG = "Demo source: replayed test audio";
 
+export const DEMO_NOTICE_COPY = {
+  heading: "Demo source: these words are not from your microphone",
+  body: "The transcript is a fixed test script that plays as audio arrives. No real speech service is listening, so what you say is not turned into text. Audio is only used to time the script and is not kept. (Draft wording.)",
+  consentBullet: "Draft: while Tether runs on its demo source, the transcript is a fixed test script, not what your microphone hears.",
+} as const;
+
+export const FATAL_COPY = {
+  signedOutHeading: "You were signed out",
+  signedOutBody: "The microphone is off and nothing more is being recorded. Lines already saved are kept, but the last moments may be missing. Sign in to see the lecture again.",
+  signIn: "Sign in",
+  unavailableHeading: "This lecture can not be reached",
+  unavailableBody: "The microphone is off. We could not confirm what was saved, so the last moments may be missing. Go back to the course and open the lecture again.",
+  back: "Back to course",
+} as const;
+
+export const AUDIO_NOTE_COPY = {
+  skipped: (seconds: number) => `Some audio could not be sent in time and was skipped (about ${seconds} seconds). Those moments may be missing from the transcript.`,
+} as const;
+
 export const CONSENT_COPY = {
   heading: (courseName: string) => `Start lecture: ${courseName}`,
   draftTag: "Draft",
@@ -67,6 +86,10 @@ export const ANNOUNCE = {
   autoStopped: "The lecture was stopped automatically. Your transcript is saved.",
   tldrUpdated: "TL;DR updated",
   actionFailed: "That did not work. The status bar shows what is true now.",
+  resumeBusy: "Give it a moment, then try Resume again. Nothing was changed.",
+  offlinePaused: "No connection for a minute, so recording was paused. The microphone is off.",
+  signedOut: "You were signed out. The microphone is off and nothing more is being recorded.",
+  unavailable: "This lecture can not be reached. The microphone is off.",
 } as const;
 
 export const PAUSED_COPY = {

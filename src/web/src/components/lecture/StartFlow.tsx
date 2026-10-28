@@ -16,6 +16,7 @@ export interface StartFlowProps {
   mic: MicSource;
   onBackToCourse: () => void;
   attestation?: { dateLabel: string };
+  demoExpected?: boolean;
 }
 
 type Phase =
@@ -36,7 +37,7 @@ export function StartFlow(props: StartFlowProps) {
   );
 }
 
-function StartFlowInner({ courseId, courseName, backend, mic, onBackToCourse, attestation }: StartFlowProps) {
+function StartFlowInner({ courseId, courseName, backend, mic, onBackToCourse, attestation, demoExpected }: StartFlowProps) {
   const [phase, setPhase] = useState<Phase>({ name: "consent", error: null });
   const busy = useRef(false);
 
@@ -76,6 +77,7 @@ function StartFlowInner({ courseId, courseName, backend, mic, onBackToCourse, at
         <ConsentStart
           courseName={courseName}
           attestation={attestation}
+          demoExpected={demoExpected}
           error={phase.name === "consent" ? phase.error : null}
           busy={phase.name === "starting"}
           onStart={() => void start()}

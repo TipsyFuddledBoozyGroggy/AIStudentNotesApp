@@ -125,8 +125,9 @@ export interface JoinResponse {
   replay: { fromSeq: Seq | null; toSeq: Seq | null; truncated: boolean };
 }
 
+/** GET /sessions/{id}/transcript returns every persisted event after afterSeq (API_CONTRACTS section 13.1). */
 export interface TranscriptPage {
-  events: TranscriptFinalEvent[];
+  events: PersistedEvent[];
   hasMore: boolean;
 }
 
