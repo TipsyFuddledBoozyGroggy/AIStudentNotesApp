@@ -45,7 +45,7 @@
   "etag": "W/\"s1\"",
   "createdAt": "2026-10-28T12:00:00.000Z",
   "updatedAt": "2026-10-28T12:00:00.000Z",
-  "batchApproveAllowed": true,
+  "batchApproveAllowed": false,
   "notice": {
     "version": "draft-2026-10",
     "attested": true,

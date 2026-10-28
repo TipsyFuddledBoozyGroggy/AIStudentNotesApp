@@ -670,6 +670,33 @@
           }
         }
       }
+    },
+    {
+      "description": "R3-01: after the retention purge there is no snippet for the student to read, so batch approve is never allowed.",
+      "if": {
+        "properties": {
+          "retention": {
+            "properties": {
+              "canonicalTextPurged": {
+                "const": true
+              }
+            },
+            "required": [
+              "canonicalTextPurged"
+            ]
+          }
+        },
+        "required": [
+          "retention"
+        ]
+      },
+      "then": {
+        "properties": {
+          "batchApproveAllowed": {
+            "const": false
+          }
+        }
+      }
     }
   ]
 }

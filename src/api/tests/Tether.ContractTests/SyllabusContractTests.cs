@@ -220,8 +220,9 @@ public sealed class SyllabusContractTests
         var docPath = FindDoc();
         Assert.True(docPath is not null, "docs/API_CONTRACTS_P2.md was not found; mount the repository root (this test must not pass vacuously).");
         var doc = File.ReadAllText(docPath!);
-        Assert.Contains("DRAFT v1", doc);
-        Assert.Contains("not frozen", doc, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("FROZEN v1 for mock-only implementation (conditional), real documents NO-GO", doc);
+        Assert.Contains("additive changes only", doc, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("not frozen", doc, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("provisional", doc, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Reconciliation", doc);
         Assert.Contains("Open decisions", doc);
@@ -382,7 +383,7 @@ public sealed class SyllabusContractTests
             @"(?![\s\S])", "general category", "ZWNJ", "365 days", "AllowDuplicateProperties", "canonical form", "NFC", "no longer", "cancelled",
             "canceled", "postponed", "rescheduled", "trusted orchestrator", "global cap on bytes in flight", "no database credentials",
             "syllabus write bucket", "syllabus AI budget pool", "idempotency lookup", "syllabus_deleted", "sync_failed", "please_check",
-            "R2-04", "Idempotency-Key header",
+            "R2-04", "Idempotency-Key header", "fresh sandbox", "memory-backed tmpfs", "HMAC-SHA-256", "ingest worker", "never mounted into the API container", "log driver", "One concurrent streaming upload per user", "R3-07", "ajv", "server's receipt time", "Must be done before any real document",
         };
         foreach (var r in required) Assert.Contains(r, doc, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("calendarEvents=", doc);

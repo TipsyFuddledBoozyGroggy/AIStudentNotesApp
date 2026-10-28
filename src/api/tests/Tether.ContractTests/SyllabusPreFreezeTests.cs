@@ -264,7 +264,7 @@ public sealed class SyllabusPreFreezeTests
             "syllabus-item-create-request--redteam-braille-blank-title.json", "syllabus-item-create-request--redteam-musical-format-control-title.json",
             "syllabus-item-create-request--redteam-nbsp-whole-title.json", "syllabus-item-create-request--redteam-ideographic-space-whole-title.json",
             "syllabus-item-create-request--redteam-orphan-combining-mark-title.json", "syllabus-item-create-request--redteam-zwj-doubled-title.json",
-            "syllabus--hidden-removed-not-dropped.json", "syllabus--hidden-removed-batch-allowed.json",
+            "syllabus--hidden-removed-not-dropped.json", "syllabus--purged-batch-allowed.json", "syllabus--hidden-removed-batch-allowed.json",
             "syllabus-item--snippet-text-null-context-present.json", "syllabus-item--sync-failed-not-approved.json",
             "syllabus-item--synced-null-revision.json", "syllabus-item--ai-edited-date-probably-right.json",
             "syllabus-decision-batch-request--non-canonical-id-uppercase.json", "syllabus-calendar-sync-request--revision-over-int32.json",
