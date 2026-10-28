@@ -142,7 +142,7 @@ internal sealed class CatchUpService(
 
         string aiState;
         if (slice.Segments.Count == 0) aiState = "NotNeeded";
-        else if (!options.Enabled || health.IsOpen) aiState = "Unavailable";
+        else if (!options.Enabled || health.IsOpen || session.State != LectureState.Active) aiState = "Unavailable"; // paused: the extractive answer only, no text to the vendor (B3-06)
         else aiState = (await budget.CheckAsync(sessionId, AiWorkflow.LostTrack, 0, ct)).Decision.Allowed ? "Pending" : "BudgetLimited";
 
         var id = Ids.New();

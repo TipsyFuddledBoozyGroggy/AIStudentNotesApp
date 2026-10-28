@@ -3,6 +3,7 @@ using Tether.Ai.Budget;
 using Tether.Ai.Domain;
 using Tether.Ai.Prompts;
 using Tether.Ai.Validation;
+using Tether.Lectures.Contracts;
 using Microsoft.Extensions.Logging;
 
 namespace Tether.Ai.Provider;
@@ -16,6 +17,8 @@ internal static class AiFailure
     public const string RateLimited = "rate_limited";
     public const string InvalidOutput = "invalid_output";
     public const string Disabled = "disabled";
+    /// <summary>The student paused, stopped or deleted the session (B3-06). Not a fault: nothing is shown, counted against the breaker or retried.</summary>
+    public const string SessionClosed = "session_closed";
 
     /// <summary>Wire <c>summary.status.reason</c> values (rate limiting is reported as the provider being unavailable).</summary>
     public static string ToWireReason(string failure) => failure switch
@@ -66,17 +69,22 @@ internal sealed class AiHealth(AiOptions options, TimeProvider clock)
 /// repair attempt, and a ledger row per call. No retry on 429 or 5xx (the next scheduled attempt is the retry), so a provider that
 /// is refusing us is never hammered. Scoped: run it inside the owning user's scope.
 /// </summary>
-internal sealed class AiGateway(IAiClient client, UsageLedger ledger, BudgetGate budget, AiHealth health, AiOptions options, ILogger<AiGateway> log)
+internal sealed class AiGateway(
+    IAiClient client, UsageLedger ledger, BudgetGate budget, AiHealth health, AiOptions options, SessionCutoff cutoff, ISessionDirectory directory, ILogger<AiGateway> log)
 {
     public async Task<GatewayOutcome<T>> RunAsync<T>(AiRequest request, Func<string, Validated<T>> validate, CancellationToken ct) where T : class
     {
         if (!options.Enabled) return new(null, AiFailure.Disabled, "", false);
+        // Taken before any state check: a pause that commits after the check below still cancels the call (see SessionCutoff).
+        using var lease = cutoff.Acquire(request.SessionId, ct);
+        var sct = lease.Token;
         var repaired = false;
         string? repairCode = null;
         var model = "";
         for (var attempt = 0; attempt < 2; attempt++)
         {
             if (health.IsOpen) return new(null, AiFailure.Unavailable, model, repaired);
+            if (sct.IsCancellationRequested && !ct.IsCancellationRequested) return new(null, AiFailure.SessionClosed, model, repaired);
 
             var req = request with { RepairHint = repairCode };
 
@@ -102,15 +110,22 @@ internal sealed class AiGateway(IAiClient client, UsageLedger ledger, BudgetGate
                 if (!await ledger.SettleAsync(reservation, m, usage, cost, latency, outcome)) health.RecordLedgerFault(); // reservation stays counted; stop calling
             }
 
+            // B3-06: the last gate before the vendor. Owned by this user and Active, or no call, no spend (the hold is given back).
+            if (!await IsActiveAsync(req, ct))
+            {
+                await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, 0, Outcomes.Error);
+                return new(null, AiFailure.SessionClosed, model, repaired);
+            }
+
             AiResponse response;
             var sw = Stopwatch.StartNew();
             try
             {
-                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(sct);
                 cts.CancelAfter(req.Timeout);
                 response = await client.CompleteAsync(req, cts.Token);
             }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            catch (OperationCanceledException) when (!sct.IsCancellationRequested)
             {
                 health.RecordFailure(AiFailureKind.Timeout);
                 await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, (int)sw.ElapsedMilliseconds, Outcomes.Timeout);
@@ -118,8 +133,9 @@ internal sealed class AiGateway(IAiClient client, UsageLedger ledger, BudgetGate
             }
             catch (OperationCanceledException)
             {
-                await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, (int)sw.ElapsedMilliseconds, Outcomes.Error); // shutting down: release the hold
-                throw;
+                await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, (int)sw.ElapsedMilliseconds, Outcomes.Error); // release the hold
+                if (!ct.IsCancellationRequested) return new(null, AiFailure.SessionClosed, price.Model, repaired); // cut off by pause, stop or delete (B3-06)
+                throw; // shutting down
             }
             catch (AiClientException ex)
             {
@@ -153,6 +169,17 @@ internal sealed class AiGateway(IAiClient client, UsageLedger ledger, BudgetGate
             repairCode = validated.Error;
         }
         return new(null, AiFailure.InvalidOutput, model, repaired);
+    }
+
+    /// <summary>Fails closed: a session that cannot be confirmed Active for this user (missing, someone else's, paused, stopped, or a lookup error) gets no vendor call.</summary>
+    private async Task<bool> IsActiveAsync(AiRequest req, CancellationToken ct)
+    {
+        try { return await directory.FindAsync(req.UserId, req.SessionId, ct) is { State: LectureState.Active }; }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            log.LogWarning("AI session state check failed: {ExceptionType}", ex.GetType().Name);
+            return false;
+        }
     }
 
     private long EstimateMicro(AiRequest r)

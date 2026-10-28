@@ -30,9 +30,14 @@ public abstract class AiBudgetTestBase(ApiFactory factory) : LectureTestBase(fac
         return o.Reservation is not null;
     }
 
-    internal async Task<GatewayOutcome<CatchUpResult>> RunGatewayAsync(Guid userId)
+    private readonly Dictionary<Guid, Guid> _sessions = new();
+
+    /// <summary>Runs one catch-up call through the gateway for a real, Active session of the actor (the gateway refuses any other, B3-06). One session per actor, reused.</summary>
+    private protected async Task<GatewayOutcome<CatchUpResult>> RunGatewayAsync(Actor a)
     {
-        var sid = Guid.NewGuid();
+        var userId = a.UserId;
+        if (!_sessions.TryGetValue(userId, out var sid))
+            _sessions[userId] = sid = Guid.Parse((await StartOkAsync(a.Client, await CourseAsync(a.Client))).GetProperty("id").GetString()!);
         await using var scope = Scopes.CreateUserScope(userId);
         var opts = F.Services.GetRequiredService<AiOptions>();
         var seg = new FinalSegment(sid, 1, 1, 0, 1500, "Mitosis has four phases.", null);
@@ -63,7 +68,7 @@ public class AiBudgetSettleTests(BudgetFactory factory) : AiBudgetTestBase(facto
     public async Task A_completed_call_replaces_its_reservation_with_the_real_cost_in_the_ledger_and_the_global_counter()
     {
         var a = await NewActorAsync();
-        var outcome = await RunGatewayAsync(a.UserId);
+        var outcome = await RunGatewayAsync(a);
         Assert.True(outcome.Ok, outcome.Failure);
         Assert.Equal(0, await F.ScalarAsync($"select count(*) from ai.ai_usage where user_id = '{a.UserId}' and outcome = 'reserved'"));
         var ledger = await F.ScalarAsync($"select coalesce(sum(est_cost_micros),0) from ai.ai_usage where user_id = '{a.UserId}'");
@@ -95,7 +100,7 @@ public class AiBudgetSettleFailureTests(BudgetFactory factory) : AiBudgetTestBas
         await F.ExecAsync(
             "create function ai.t_fail_update() returns trigger language plpgsql as $$ begin raise exception 'boom'; end $$; " +
             "create trigger t_fail before update on ai.ai_usage for each row execute function ai.t_fail_update();");
-        var first = await RunGatewayAsync(a.UserId);
+        var first = await RunGatewayAsync(a);
         Assert.True(first.Ok); // the student still gets the answer
         // spend was not lost: the hold is still in the ledger and in the global counter
         var held = await F.ScalarAsync($"select est_cost_micros from ai.ai_usage where user_id = '{a.UserId}' and outcome = 'reserved'");
@@ -103,7 +108,7 @@ public class AiBudgetSettleFailureTests(BudgetFactory factory) : AiBudgetTestBas
         Assert.Equal(held, await GlobalAsync());
         Assert.True(F.Services.GetRequiredService<AiHealth>().IsOpen); // fail closed
         var rowsBefore = await F.ScalarAsync("select count(*) from ai.ai_usage");
-        var second = await RunGatewayAsync(a.UserId);
+        var second = await RunGatewayAsync(a);
         Assert.Equal(AiFailure.Unavailable, second.Failure);
         Assert.Equal(rowsBefore, await F.ScalarAsync("select count(*) from ai.ai_usage"));
     }
@@ -116,7 +121,7 @@ public class AiBudgetReserveFailureTests(BudgetFactory factory) : AiBudgetTestBa
     {
         var a = await NewActorAsync();
         await F.ExecAsync("alter table ai.ai_usage rename to ai_usage_broken");
-        var outcome = await RunGatewayAsync(a.UserId);
+        var outcome = await RunGatewayAsync(a);
         Assert.False(outcome.Ok);
         Assert.Equal(AiFailure.Unavailable, outcome.Failure);
         Assert.True(F.Services.GetRequiredService<AiHealth>().IsOpen);

@@ -20,7 +20,9 @@ internal sealed class SessionSummaryState(Guid userId, Guid sessionId)
     public int Pending;
     public DateTimeOffset? FirstPendingAt;
     public DateTimeOffset LastRunStart = DateTimeOffset.MinValue;
-    public bool InFlight, FlushRequested, FinalRequested;
+    public bool InFlight;
+    /// <summary>Paused: no provider call until the student resumes (B3-06). Stop and delete remove the state instead.</summary>
+    public bool Suspended;
     public double IntervalMultiplier = 1;
     public int ConsecutiveFailures;
     public string? LastStatusKey;
@@ -60,12 +62,15 @@ internal sealed class SummaryScheduler(AiOptions options, TimeProvider clock, Su
     public Task OnStateChangedAsync(SessionStateChange change, CancellationToken ct)
     {
         // Counters only; never awaits AI, so a pause or stop is never slowed by it (ADR-019b).
-        if (_states.TryGetValue(change.SessionId, out var st) && st.UserId == change.UserId)
-            lock (st.Lock)
-            {
-                if (change.State == LectureState.Paused) st.FlushRequested = true;
-                if (change.State is LectureState.Stopped or LectureState.Failed) st.FinalRequested = true;
-            }
+        // B3-06 (Product Owner): nothing is sent to the vendor once the student paused or stopped. Pause used to request a flush and
+        // Stop a final pass; neither exists now. In-flight calls are cancelled by SessionCutoff, and the gateway re-checks the state.
+        if (!_states.TryGetValue(change.SessionId, out var st) || st.UserId != change.UserId) return Task.CompletedTask;
+        switch (change.State)
+        {
+            case LectureState.Paused: lock (st.Lock) st.Suspended = true; break;
+            case LectureState.Active: lock (st.Lock) st.Suspended = false; break;
+            default: _states.TryRemove(change.SessionId, out _); break; // Stopped or Failed
+        }
         return Task.CompletedTask;
     }
 
@@ -84,11 +89,8 @@ internal sealed class SummaryScheduler(AiOptions options, TimeProvider clock, Su
         foreach (var st in _states.Values)
             lock (st.Lock)
             {
-                if (st.InFlight) continue;
-                var spaced = now - st.LastRunStart >= options.Summary.MinInterval;
-                var isDue = st.FinalRequested
-                    || (st.FlushRequested && st.Pending > 0 && spaced)
-                    || FlushPolicy.IsDue(st.Pending, st.FirstPendingAt, st.LastRunStart, now, options.Summary, st.IntervalMultiplier);
+                if (st.InFlight || st.Suspended) continue;
+                var isDue = FlushPolicy.IsDue(st.Pending, st.FirstPendingAt, st.LastRunStart, now, options.Summary, st.IntervalMultiplier);
                 if (!isDue) continue;
                 st.InFlight = true;
                 st.LastRunStart = now;
@@ -100,13 +102,9 @@ internal sealed class SummaryScheduler(AiOptions options, TimeProvider clock, Su
     private async Task RunOneAsync(SessionSummaryState st, CancellationToken ct)
     {
         await _concurrency.WaitAsync(ct);
-        var finished = false;
         try
         {
-            bool final;
-            lock (st.Lock) final = st.FinalRequested;
             await engine.RunAsync(st, ct);
-            finished = final;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -116,7 +114,6 @@ internal sealed class SummaryScheduler(AiOptions options, TimeProvider clock, Su
         {
             _concurrency.Release();
             lock (st.Lock) st.InFlight = false;
-            if (finished) _states.TryRemove(st.SessionId, out _); // the stop pass is the last one for a session
         }
     }
 }
@@ -146,11 +143,11 @@ internal sealed class SummaryEngine(IServiceScopeFactory scopes, AiOptions optio
 
     public async Task RunAsync(SessionSummaryState st, CancellationToken ct)
     {
-        int startPending; DateTimeOffset? firstPending; bool final;
+        int startPending; DateTimeOffset? firstPending;
         lock (st.Lock)
         {
-            startPending = st.Pending; firstPending = st.FirstPendingAt; final = st.FinalRequested;
-            st.Pending = 0; st.FirstPendingAt = null; st.FlushRequested = false; st.FinalRequested = false;
+            startPending = st.Pending; firstPending = st.FirstPendingAt;
+            st.Pending = 0; st.FirstPendingAt = null;
         }
 
         await using var scope = scopes.CreateUserScope(st.UserId);
@@ -172,10 +169,10 @@ internal sealed class SummaryEngine(IServiceScopeFactory scopes, AiOptions optio
             {
                 var latest = await store.LatestAsync(st.SessionId, ct);
                 var due = latest is not null && step == Step.Done && latest.Revision % options.Summary.CompactEveryRevisions == 0;
-                if (latest is not null && (due || final))
+                if (latest is not null && due)
                 {
-                    var cf = await CompactAsync(st, sp, publisher, final, ct);
-                    if (cf is AiFailure.BudgetLimited && final) { /* final pass degrades to the last Draft; no error shown */ }
+                    var cf = await CompactAsync(st, sp, publisher, ct);
+                    if (cf == AiFailure.SessionClosed) failure = cf;
                 }
             }
             var pressure = await sp.GetRequiredService<BudgetGate>().PressureAsync(st.SessionId, ct);
@@ -195,6 +192,18 @@ internal sealed class SummaryEngine(IServiceScopeFactory scopes, AiOptions optio
                 if (backlog) { st.Pending += options.Summary.FlushSegments; st.FirstPendingAt ??= clock.GetUtcNow(); }
             }
             await PublishStatusAsync(publisher, st, "Pending", 0, null, always: false, ct);
+            return;
+        }
+
+        if (failure == AiFailure.SessionClosed)
+        {
+            // The student paused, stopped or deleted (B3-06). Not a fault: nothing is counted against the session, shown as an error or retried now.
+            // The segments stay pending, so a resume summarises them.
+            lock (st.Lock)
+            {
+                st.Pending += startPending;
+                st.FirstPendingAt = firstPending ?? clock.GetUtcNow();
+            }
             return;
         }
 
@@ -264,7 +273,7 @@ internal sealed class SummaryEngine(IServiceScopeFactory scopes, AiOptions optio
     /// Compaction (design section 3 step 4): re-derives the summary from the SOURCE transcript in bounded chunks so accumulated drift is
     /// reset. If the transcript is longer than the chunk budget, the oldest part is carried over from the existing summary.
     /// </summary>
-    private async Task<string?> CompactAsync(SessionSummaryState st, IServiceProvider sp, ILiveEventPublisher publisher, bool final, CancellationToken ct)
+    private async Task<string?> CompactAsync(SessionSummaryState st, IServiceProvider sp, ILiveEventPublisher publisher, CancellationToken ct)
     {
         var store = sp.GetRequiredService<SummaryStore>();
         var reader = sp.GetRequiredService<ITranscriptSegmentReader>();
@@ -318,7 +327,7 @@ internal sealed class SummaryEngine(IServiceScopeFactory scopes, AiOptions optio
         var all = chunks.SelectMany(c => c).ToList();
         var row = new SummaryRevisionRow
         {
-            SessionId = st.SessionId, UserId = st.UserId, Revision = latest.Revision + 1, Kind = "Compaction", Status = final ? "Final" : "Draft",
+            SessionId = st.SessionId, UserId = st.UserId, Revision = latest.Revision + 1, Kind = "Compaction", Status = "Draft",
             BasedOnSeq = all.Max(s => s.Seq), SourceFromSeq = carriedOver ? latest.SourceFromSeq : all.Min(s => s.Seq), SourceToSeq = all.Max(s => s.Seq),
             CoveredFromMs = carriedOver ? latest.CoveredFromMs : all.Min(s => s.StartMs), CoveredToMs = Math.Max(latest.CoveredToMs, all.Max(s => s.EndMs)),
             Tldr = tldr, TopicsJson = SummaryJson.Write(topics), TermsJson = SummaryJson.Write(terms.Distinct(StringComparer.OrdinalIgnoreCase).TakeLast(30).ToList()),

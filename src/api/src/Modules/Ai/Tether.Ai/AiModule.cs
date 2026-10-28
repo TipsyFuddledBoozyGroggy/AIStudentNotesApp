@@ -47,6 +47,8 @@ public static class AiModule
         services.AddScoped<ISummaryJoinSource, SummaryJoinSource>();
 
         services.AddSingleton<AiHealth>();
+        services.AddSingleton<SessionCutoff>();
+        services.AddSingleton<ISessionLifecycleObserver>(sp => sp.GetRequiredService<SessionCutoff>());
         services.AddSingleton<SummaryEngine>();
         services.AddSingleton<SummaryScheduler>();
         services.AddSingleton<ITranscriptFinalObserver>(sp => sp.GetRequiredService<SummaryScheduler>());

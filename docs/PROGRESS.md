@@ -69,3 +69,8 @@
 **Known gaps:** sanitizer turns "ASP.NET" into "[link removed]"; no NFKC normalisation; `catchup.schema.json` does not describe the real catch-up wire; hub Join summary replay untested; fixes not independently re-reviewed.
 **Open for Product Owner:** B3-06 (AI work after Pause/Stop/Delete), B3-12 (PII redaction before vendor calls). Open for backend: audio-socket cap/reconnect flake (see Iteration 5).
 **Next:** frontend calls to summary / lost-track / catch-up, socket reaping fix, independent re-review, then commit once the Product Owner agrees.
+
+## Iteration 6 — B3-06 (2026-10-28, PO decision: cancel and re-check)
+Pause/Stop/Delete cancel in-flight AI calls (`SessionCutoff`), and the gateway re-checks the session is Active and owned right before each provider call. Verified by Lead re-run: 107 contract + 105 AI + 15 architecture + 353 integration pass.
+**Behaviour change:** no provider call after Pause or Stop, so the "Final" summary on Stop is no longer produced (the spec was silent; the DB still allows the value). Lost Track on a Paused session returns the extractive answer only. A final summary after Stop needs a spec and a PO decision.
+**Not yet re-reviewed** by security-engineer; tests were written alongside the code, not shown red first.
