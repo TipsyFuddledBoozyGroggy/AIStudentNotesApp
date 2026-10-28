@@ -44,3 +44,12 @@
 **Caveats:** silencing EF save-failure loggers reduces diagnosability; N-09 scan is textual. F-04 (WebSocket Origin) still open until the hub exists. Playwright not re-run this iteration. Nothing committed at time of writing.
 **Open PO decisions:** server-relayed audio, `speaker` labels in M2, auto-stop timings (C-17), in-flight audio wording (G1).
 **Next:** triage mediums, freeze contract, write `src/shared/contracts` schemas, then M2 backend/frontend against mocks.
+
+## Iteration 4 — M2 contract freeze, Lectures B1, first lecture UI (2026-10-27, reconstructed from git history after a session restart)
+**Commits since iteration 3** (messages only; not re-reviewed line by line by the Lead in this session): contract v1 frozen with all contract-review findings folded in (`283c5b0`), `lecture.v1`/`speech.v1` JSON schemas + fixtures + contract tests (`660fb08`), M2 UX spec (`cfc35c4`), `lecture.v1` client library with validators, reducer, resume controller and mock source (`e5d2791`), Lectures module B1: sessions, consent registry, REST state machine, audio tickets (`0dbbcca`), B1 security review (`c2d96d7`, no Critical/High; 4 Medium) and fixes (`003c545`: cascade FKs, composite FKs, append-only evidence, safe idempotency), first live-lecture screens + dev harness (`587eaab`).
+**Verified by Lead Architect at HEAD 587eaab (re-run after restart):** API build 0 warnings; 12 architecture + 99 contract + 199 integration tests pass; web 250 unit tests pass, lint and typecheck clean, `npm audit` 0 vulnerabilities; production `next build` succeeds.
+**Not verified this session:** Playwright E2E not re-run since the M2 UI landed; CI has never been confirmed passing on GitHub (13+ commits unpushed); the B1 fixes were not independently re-reviewed.
+**Known issue:** production build includes `/dev/lecture-harness/*` test fixture pages (being gated).
+**Still no real capability:** no hub, no audio socket, no transcript persistence, no AI summaries, no real STT. Everything lecture-related is mock-backed or UI-only. All 5 release gates remain unpassed.
+**In progress:** B2 (SignalR hub, ticketed audio WebSocket relay, replay STT with "Demo source" flag, transcript persistence, B1 deferrals incl. F-04 WebSocket Origin).
+**Next:** B3 AI summaries (TL;DR, I Lost Track) on MockAi; frontend wiring to the hub; Opus security review of B2 before the audio socket is treated as done.
