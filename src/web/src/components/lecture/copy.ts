@@ -186,3 +186,58 @@ export const SETTINGS_COPY = {
   shortcuts: "Enable Alt+ keyboard shortcuts (experimental, off until tested with screen readers)",
   shortcutList: "Alt+P pauses or resumes. Alt+J jumps to the live transcript.",
 } as const;
+
+/** Shown wherever text came from the deterministic mock (source === "mock"), never hidden or dismissible. */
+export const DEMO_SUMMARY_COPY = {
+  tag: "Demo summary",
+  note: "Made by a test routine, not an AI model.",
+} as const;
+
+export const SUMMARY_STATUS_COPY = {
+  delayed: "The summary is a little behind. The transcript is not affected.",
+  failed: "The summary is paused for now. The transcript is not affected.",
+  draft: "Draft",
+  asOf: (t: string) => `As of ${t}`,
+} as const;
+
+export const LOST_TRACK_COPY = {
+  heading: "I lost track",
+  hint: "Pick how far back to catch up. The lecture keeps going.",
+  groupLabel: "How far back",
+  window: (m: number) => `Last ${m} min`,
+  windowLabel: (m: number) => `Catch up on the last ${m} minutes`,
+  covers: (m: number) => `Covers the last ${m} minutes`,
+  working: "Getting what was said...",
+  resultHeading: "Here's where you are",
+  said: "What was said",
+  saidNote: "This is the lecture text itself, not a summary.",
+  rightNow: "Right now",
+  pending: "A short recap is being written. What was said is below in the meantime.",
+  slow: "The recap is taking longer than expected. What was said is below.",
+  unavailable: "Summary isn't available right now. Here's what was said.",
+  budget: "The recap limit for this lecture has been reached. Here's what was said.",
+  recapReady: "Recap ready.",
+  catchUpReady: "Here's where you are. What was said is ready.",
+  showDetail: "Show more detail",
+  hideDetail: "Show less detail",
+  done: "Got it, back to lecture",
+  moreHeading: "More detail",
+  whyItMatters: "Why it matters",
+  keyTerms: "Key terms",
+  questions: "Questions you could ask",
+  gaps: "Worth knowing",
+  confidence: (c: string) => `Confidence: ${c}`,
+  basis: {
+    lecture: null,
+    general_knowledge: "Not from your lecture",
+    uncertain: "Not sure about this",
+  },
+  from: (t: string) => `From ${t}`,
+  errors: {
+    invalid_state: "This lecture has ended, so there is nothing new to catch up on. Your transcript is saved.",
+    rate_limited: "That is a lot of catch-ups at once. Wait a minute, then try again. Nothing was lost.",
+    not_found: "We can't find this lecture. Go back to the course and open it again.",
+    network: "We could not reach the server. Nothing was lost. Try again when you are ready.",
+    generic: "That did not work. Nothing was lost. You can try again when you are ready.",
+  },
+} as const;

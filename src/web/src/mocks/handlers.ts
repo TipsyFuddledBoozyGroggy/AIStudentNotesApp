@@ -61,4 +61,64 @@ export const handlers = [
     // ADR-002: missing and not-owned are both 404.
     return course ? HttpResponse.json(course) : problem(404, "not_found", "Course not found.");
   }),
+
+  // --- AI routes (wire shapes from AiEndpoints.cs / CatchUpWire.cs). Session ids pick the scenario:
+  // ses_missing -> 404, ses_ended -> 409 on lost-track, ses_limited -> 429, ses_nosummary -> 404 on summary.
+  http.get(`${P}/sessions/:id/summary`, ({ params }) => {
+    if (!db.currentUser()) return unauth();
+    if (params.id === "ses_missing") return problem(404, "not_found", "Session not found.");
+    if (params.id === "ses_nosummary") return problem(404, "not_found", "No summary yet.");
+    return HttpResponse.json({
+      revision: 2,
+      basedOnSeq: "9",
+      tldr: "The lecture is about derivatives.",
+      bullets: ["A derivative is a rate of change."],
+      coveredFromMs: 0,
+      coveredToMs: 60000,
+      status: "Draft",
+      citations: [{ segmentId: "seg_1", startMs: 1000 }],
+      source: "mock",
+    });
+  }),
+
+  http.post(`${P}/sessions/:id/lost-track`, async ({ params, request }) => {
+    if (!db.currentUser()) return unauth();
+    if (params.id === "ses_missing") return problem(404, "not_found", "Session not found.");
+    if (params.id === "ses_ended") return problem(409, "invalid_state", "The session is not running.");
+    if (params.id === "ses_limited") return problem(429, "rate_limited", "Too many requests.");
+    const body = (await request.json().catch(() => ({}))) as { windowMinutes?: number };
+    return HttpResponse.json({
+      catchUpId: "cu_0123456789abcdef0123456789abcdef",
+      windowMinutes: body.windowMinutes ?? 5,
+      text: "[00:01] First line.\n[00:05] Second line.",
+      citations: [{ segmentId: "seg_1", startMs: 1000 }],
+      kind: "Extractive",
+      aiState: "Pending",
+      coveredFromMs: 0,
+      coveredToMs: 60000,
+    });
+  }),
+
+  http.get(`${P}/sessions/:id/catch-ups/:catchUpId`, ({ params }) => {
+    if (!db.currentUser()) return unauth();
+    if (params.id === "ses_missing" || params.catchUpId === "cu_missing") return problem(404, "not_found", "Catch-up not found.");
+    return HttpResponse.json({
+      catchUpId: params.catchUpId,
+      windowMinutes: 5,
+      text: "Right now: derivatives.",
+      citations: [{ segmentId: "seg_1", startMs: 1000 }],
+      kind: "Ai",
+      aiState: "Ready",
+      coveredFromMs: 0,
+      coveredToMs: 60000,
+      source: "mock",
+      nowDiscussing: { text: "Derivatives.", basis: "lecture", citations: [{ segmentId: "seg_1", startMs: 1000 }] },
+      shortCatchUp: [{ text: "A derivative is a rate of change.", basis: "lecture", citations: [{ segmentId: "seg_1", startMs: 1000 }] }],
+      detail: [],
+      keyTerms: [],
+      clarifyingQuestions: [],
+      confidence: "low",
+      gaps: [],
+    });
+  }),
 ];

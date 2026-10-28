@@ -1,9 +1,10 @@
 import { ApiError, type ApiClient, type LectureSessionDto } from "@/lib/api";
+import { parseCatchUp, parseSummary } from "@/lib/lecture";
 import { HubTransport } from "@/lib/lecture/realtime/hubTransport";
 import { AudioStreamer, type AudioLink, type AudioLinkEvent, type AudioLinkState, type SocketLike } from "@/lib/lecture/realtime/audioStreamer";
 import { startWorkletCapture } from "@/lib/lecture/realtime/capture";
 import type { MicTrack } from "./micSource";
-import type { LectureBackend, LectureRuntime, StartError } from "./ports";
+import type { LectureAi, LectureBackend, LectureRuntime, StartError } from "./ports";
 
 /** Restartable audio port: every start() after an end() builds a fresh streamer (new socket, new single-use ticket). */
 export class AudioController implements AudioLink {
@@ -48,6 +49,39 @@ export interface RealRuntimeDeps {
   createSocket?: (path: string) => SocketLike;
 }
 
+const badBody = () => new ApiError(502, "bad_response", "The server sent something we could not read.");
+
+/** AI routes over the real API client. 404 is "nothing there" for reads; everything else rejects with ApiError. */
+export function createRealAi(api: ApiClient, sessionId: string): LectureAi {
+  return {
+    async getSummary() {
+      try {
+        const body = parseSummary(await api.getSummary(sessionId));
+        if (!body) throw badBody();
+        return body;
+      } catch (e) {
+        if (e instanceof ApiError && e.isNotFound) return null;
+        throw e;
+      }
+    },
+    async startLostTrack(windowMinutes, key) {
+      const body = parseCatchUp(await api.postLostTrack(sessionId, windowMinutes, key));
+      if (!body) throw badBody();
+      return body;
+    },
+    async getCatchUp(catchUpId) {
+      try {
+        const body = parseCatchUp(await api.getCatchUp(sessionId, catchUpId));
+        if (!body) throw badBody();
+        return body;
+      } catch (e) {
+        if (e instanceof ApiError && e.isNotFound) return null;
+        throw e;
+      }
+    },
+  };
+}
+
 export function createRealRuntime(deps: RealRuntimeDeps, session: Pick<LectureSessionDto, "id" | "demoSource">): LectureRuntime {
   const { api } = deps;
   const sessionId = session.id;
@@ -90,6 +124,7 @@ export function createRealRuntime(deps: RealRuntimeDeps, session: Pick<LectureSe
       resume: async () => void (await api.resumeSession(sessionId)),
       stop: async () => void (await api.stopSession(sessionId)),
     },
+    ai: createRealAi(api, sessionId),
     audio,
     // Hub only: the screen ends audio and the mic itself after a deferred unmount check (StrictMode safe).
     dispose: () => void hub.dispose(),

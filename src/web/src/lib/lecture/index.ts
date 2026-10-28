@@ -7,5 +7,6 @@ export * from "./reducer";
 export * from "./resume";
 export * from "./indicator";
 export * from "./plainText";
+export * from "./aiPayloads";
 export { PlainText } from "./PlainTextSpan";
 export * from "./mockSource";

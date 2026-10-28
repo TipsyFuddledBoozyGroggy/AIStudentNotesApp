@@ -20,6 +20,7 @@ import {
 import type { LectureRuntime } from "./ports";
 import { useLectureSettings, type LectureSettings } from "./settings";
 import { StatusBar } from "./StatusBar";
+import { LostTrackPanel } from "./LostTrackPanel";
 import { TldrPanel } from "./TldrPanel";
 import { Transcript, type TranscriptHandle } from "./Transcript";
 import { useLectureSession } from "./useLectureSession";
@@ -168,7 +169,15 @@ export function LectureScreen(props: LectureScreenProps) {
           announceLines={settings.announceLines}
           handleRef={transcript}
         />
-        <TldrPanel summary={s.lecture.summary} onCite={(id) => transcript.current?.focusSegment(id)} />
+        <div className="min-w-0 space-y-4">
+          <LostTrackPanel
+            ai={props.runtime.ai}
+            hubCatchUps={s.lecture.catchUps}
+            onCite={(id) => transcript.current?.focusSegment(id)}
+            onDone={() => document.getElementById("lecture-transcript")?.focus()}
+          />
+          <TldrPanel summary={s.lecture.summary} status={s.lecture.summaryStatus} onCite={(id) => transcript.current?.focusSegment(id)} />
+        </div>
       </div>
       <StopDialog
         open={stopOpen}

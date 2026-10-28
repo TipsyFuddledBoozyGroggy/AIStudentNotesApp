@@ -186,6 +186,25 @@ export function useLectureSession(opts: UseLectureSessionOptions) {
     if (trackRef.current?.readyState === "live") stopTrack();
     announcerRef.current.alert("fatal", fatal === "signed_out" ? ANNOUNCE.signedOut : ANNOUNCE.unavailable);
   }, [fatal, stopTrack]);
+  // Catch up the TL;DR over REST each time the hub (re)connects: the hub only pushes new revisions. Stale ones are
+  // ignored by the reducer. A 404 (no summary yet) or any failure is silent: the hub will deliver the next revision.
+  useEffect(() => {
+    const ai = runtime.ai;
+    if (connection !== "connected" || !ai) return;
+    let cancelled = false;
+    ai.getSummary()
+      .then((payload) => {
+        if (cancelled || !payload) return;
+        dispatch({
+          kind: "event",
+          event: { v: 1, type: "summary.revision", sessionId: runtime.sessionId, seq: null, ts: new Date().toISOString(), payload },
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [connection, runtime]);
   const trackSnap = track ? { readyState: track.readyState, enabled: track.enabled, muted: track.muted } : null;
   // A server-initiated end with a documented system reason (contract 12.1) is expected: the hot track is
   // stopped below, and the indicator is derived as if it were already off so no false mismatch flashes.

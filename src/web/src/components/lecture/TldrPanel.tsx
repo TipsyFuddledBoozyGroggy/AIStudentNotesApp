@@ -1,17 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { PlainText, type SummaryRevisionPayload } from "@/lib/lecture";
-import { TLDR_COPY as C } from "./copy";
+import { PlainText, type SummaryJobState, type SummaryRevisionPayload } from "@/lib/lecture";
+import { SUMMARY_STATUS_COPY as S, TLDR_COPY as C } from "./copy";
 import { formatMs } from "./format";
+import { DemoSummaryTag } from "./LostTrackPanel";
 
 export interface TldrPanelProps {
   summary: SummaryRevisionPayload | null;
+  /** Job state from summary.status. Only Delayed and Failed are mentioned, calmly. */
+  status?: { state: SummaryJobState; lagSeconds: number } | null;
   onCite(segmentId: string): void;
 }
 
 /** Placeholder TL;DR panel fed by summary.revision. Plain text only (C-28). aria-live stays off. */
-export function TldrPanel({ summary, onCite }: TldrPanelProps) {
+export function TldrPanel({ summary, status, onCite }: TldrPanelProps) {
   const [hold, setHold] = useState(false);
   const [frozen, setFrozen] = useState<SummaryRevisionPayload | null>(null);
   const [more, setMore] = useState(false);
@@ -26,6 +29,13 @@ export function TldrPanel({ summary, onCite }: TldrPanelProps) {
       <h2 id="tldr-h2" className="text-lg font-bold">
         {C.heading}
       </h2>
+      {shown?.source === "mock" ? <DemoSummaryTag className="mt-2" /> : null}
+      {status?.state === "Delayed" || status?.state === "Failed" ? (
+        <p data-testid="summary-status" className="mt-2 text-sm">
+          {status.state === "Delayed" ? S.delayed : S.failed}
+          {shown ? ` ${S.asOf(formatMs(shown.coveredToMs))}.` : ""}
+        </p>
+      ) : null}
       {shown ? (
         <>
           <p className="mt-2 font-semibold">

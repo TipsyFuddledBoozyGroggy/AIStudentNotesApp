@@ -47,6 +47,27 @@ export interface SummaryRevisionPayload {
   coveredToMs: number;
   status: "Draft" | "Final";
   citations: Citation[];
+  /** mock = deterministic demo text, not a language model. Absent on older servers. */
+  source?: AiSource;
+}
+
+export type AiSource = "mock" | "model";
+export type ClaimBasis = "lecture" | "general_knowledge" | "uncertain";
+export type CatchUpAiState = "Pending" | "Ready" | "NotNeeded" | "Unavailable" | "BudgetLimited";
+
+export interface CatchUpClaim {
+  text: string;
+  basis: ClaimBasis;
+  citations: Citation[];
+}
+export interface CatchUpDetail extends CatchUpClaim {
+  whyItMatters?: string;
+}
+export interface CatchUpTerm {
+  term: string;
+  definition?: string;
+  basis: ClaimBasis;
+  citations: Citation[];
 }
 
 export interface CatchUpPayload {
@@ -55,6 +76,19 @@ export interface CatchUpPayload {
   text: string;
   citations: Citation[];
   kind: "Extractive" | "Ai";
+  /** Only on kind=Ai. */
+  source?: AiSource;
+  /** Server fields beyond catchup.schema.json (reported to the Lead Architect); optional and checked before use. */
+  aiState?: CatchUpAiState;
+  coveredFromMs?: number;
+  coveredToMs?: number;
+  nowDiscussing?: CatchUpClaim;
+  shortCatchUp?: CatchUpClaim[];
+  detail?: CatchUpDetail[];
+  keyTerms?: CatchUpTerm[];
+  clarifyingQuestions?: string[];
+  confidence?: "low" | "medium" | "high";
+  gaps?: string[];
 }
 
 export type SessionStateEvent = Envelope<"session.state", Seq, { state: SessionState; reason?: string }>;

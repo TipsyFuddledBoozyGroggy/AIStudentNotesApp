@@ -9,7 +9,7 @@ import {
   type Seq,
 } from "@/lib/lecture";
 import { sessionStateEvent } from "@/lib/lecture/builders";
-import type { LectureRuntime } from "./ports";
+import type { LectureAi, LectureRuntime } from "./ports";
 
 export interface HarnessRuntimeOptions {
   sessionId?: string;
@@ -23,6 +23,8 @@ export interface HarnessRuntimeOptions {
   failActions?: { pause?: boolean; resume?: boolean; stop?: boolean };
   /** When true, REST succeeds but the matching session.state event is never delivered (mismatch tests). */
   swallowStateEvents?: boolean;
+  /** AI routes stand-in. Absent: no Lost Track panel. */
+  ai?: LectureAi;
 }
 
 export interface HarnessControls {
@@ -74,6 +76,7 @@ export function createHarnessRuntime(o: HarnessRuntimeOptions): { runtime: Lectu
         return () => dropListeners.delete(cb);
       },
     },
+    ai: o.ai,
     actions: {
       pause: async () => {
         if (o.failActions?.pause) throw new Error("fail");

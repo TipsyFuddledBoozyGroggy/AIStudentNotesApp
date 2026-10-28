@@ -1,4 +1,4 @@
-import type { HubEvent, JoinRequest, JoinResponse, Seq, TranscriptPage } from "@/lib/lecture";
+import type { CatchUpPayload, HubEvent, JoinRequest, JoinResponse, Seq, SummaryRevisionPayload, TranscriptPage, WindowMinutes } from "@/lib/lecture";
 import type { AudioLink } from "@/lib/lecture/realtime/audioStreamer";
 
 /** Hub + REST-paging transport. The harness wraps MockLectureSource to satisfy this; the real hub comes later. */
@@ -19,10 +19,25 @@ export interface SessionActions {
   stop(): Promise<void>;
 }
 
+/**
+ * REST AI surface (summary, I Lost Track, catch-up poll). Failures reject with ApiError (status 0 = network).
+ * Results are already parsed and plain-data only; the UI renders them as text nodes.
+ */
+export interface LectureAi {
+  /** Latest summary revision; null when there is none yet (404). */
+  getSummary(): Promise<SummaryRevisionPayload | null>;
+  /** One press = one idempotencyKey. */
+  startLostTrack(windowMinutes: WindowMinutes, idempotencyKey: string): Promise<CatchUpPayload>;
+  /** null when the catch-up is unknown (404). */
+  getCatchUp(catchUpId: string): Promise<CatchUpPayload | null>;
+}
+
 export interface LectureRuntime {
   sessionId: string;
   transport: LectureTransport;
   actions: SessionActions;
+  /** AI routes. Absent: the Lost Track panel is not shown and no summary is fetched over REST. */
+  ai?: LectureAi;
   /** True while a replay/mock provider is active (contract section 12.2). */
   demoSource: boolean;
   /** Upstream audio (real stack only). Absent in the harness. */

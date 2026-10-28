@@ -185,3 +185,81 @@ test("another user cannot read, join or stream into someone else's lecture", asy
   await expect(page.getByTestId("state-label")).toHaveText("Recording"); // alice's lecture was untouched
   await stopLecture(page);
 });
+
+// --- AI routes (demo mode: the backend's deterministic mock AI, not a language model) --------------------------
+
+const catchUpButton = (page: Page, minutes: number) => page.getByRole("button", { name: `Catch up on the last ${minutes} minutes` });
+
+test("I Lost Track: one press posts once with an Idempotency-Key, shows what was said, then the Demo summary recap; citation opens the transcript line", async ({ page }) => {
+  await spyMic(page);
+  const posts: { key: string | null; body: string | null }[] = [];
+  page.on("request", (r) => {
+    if (r.method() === "POST" && /\/sessions\/[^/]+\/lost-track$/.test(r.url())) posts.push({ key: r.headers()["idempotency-key"] ?? null, body: r.postData() });
+  });
+  await openConsent(page, `LostTrack ${uid()}`);
+  await checkAndStart(page);
+  await expect(transcript(page)).toContainText(DEMO_LINE_1);
+  await expect(page.locator("[data-segment-id]").first()).toBeVisible(); // a saved (final) line, not only a partial
+
+  // Three windows, no confirm step.
+  await expect(page.getByRole("button", { name: /^Catch up on the last/ })).toHaveCount(3);
+  await catchUpButton(page, 5).click();
+  const result = page.getByTestId("catchup-result");
+  await expect(result).toBeVisible();
+  await expect(result.getByRole("heading", { name: "Here's where you are" })).toBeFocused();
+  expect(posts).toHaveLength(1);
+  expect(posts[0]!.key).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
+  expect(JSON.parse(posts[0]!.body!)).toEqual({ windowMinutes: 5 });
+
+  // The AI version (hub catchup.ready or the bounded poll) replaces the excerpt, labelled as a demo.
+  await expect(result).toHaveAttribute("data-kind", "Ai", { timeout: 30_000 });
+  await expect(result.getByTestId("demo-summary-tag")).toContainText("Demo summary");
+  const cite = result.getByRole("button", { name: /go to transcript line$/ }).first();
+  await cite.click();
+  await expect(page.locator("[data-segment-id]:focus")).toHaveCount(1);
+
+  await result.getByRole("button", { name: "Got it, back to lecture" }).click();
+  await expect(result).toHaveCount(0);
+  await expect(transcript(page)).toBeFocused();
+  expect(posts).toHaveLength(1);
+  await stopLecture(page);
+});
+
+test("TL;DR: the live summary arrives labelled as a Demo summary and is fetched again with GET when the lecture is reopened", async ({ page }) => {
+  test.setTimeout(180_000); // the summary job flushes after 90 s (or 8 lines); the demo script has 4
+  await spyMic(page);
+  await openConsent(page, `Tldr ${uid()}`);
+  const sid = await checkAndStart(page);
+  await expect(transcript(page)).toContainText(DEMO_LINE_1);
+  const tldr = page.locator("#lecture-tldr");
+  await expect(tldr.getByTestId("demo-summary-tag")).toContainText("Demo summary", { timeout: 140_000 });
+  await expect(tldr).not.toContainText("The summary will appear here");
+  await stopLecture(page);
+
+  const summaryGet = page.waitForResponse((r) => new RegExp(`/sessions/${sid}/summary$`).test(r.url()));
+  await page.goto(`/lectures/${sid}`);
+  expect((await summaryGet).status()).toBe(200);
+  await expect(page.locator("#lecture-tldr").getByTestId("demo-summary-tag")).toBeVisible();
+});
+
+test("I Lost Track on an ended lecture and under a rate limit: calm message, one request each, no retry", async ({ page }) => {
+  await spyMic(page);
+  await openConsent(page, `LtErr ${uid()}`);
+  await checkAndStart(page);
+  await expect(transcript(page)).toContainText(DEMO_LINE_1);
+
+  let limited = 0;
+  await page.route(/\/sessions\/[^/]+\/lost-track$/, (route) => {
+    limited++;
+    return route.fulfill({ status: 429, contentType: "application/problem+json", body: JSON.stringify({ status: 429, code: "rate_limited", title: "Too many requests." }) });
+  });
+  await catchUpButton(page, 2).click();
+  await expect(page.getByTestId("lt-error")).toContainText("That is a lot of catch-ups at once");
+  await page.waitForTimeout(2500);
+  expect(limited).toBe(1);
+  await page.unroute(/\/sessions\/[^/]+\/lost-track$/);
+
+  await stopLecture(page);
+  await catchUpButton(page, 2).click();
+  await expect(page.getByTestId("lt-error")).toContainText("This lecture has ended");
+});

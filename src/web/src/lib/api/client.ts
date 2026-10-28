@@ -23,6 +23,15 @@ export interface ApiClient {
   createAudioTicket(id: string): Promise<AudioTicket>;
   /** Raw page; the caller validates it. */
   getTranscriptPage(id: string, afterSeq: string | null, limit: number): Promise<unknown>;
+  /** Latest summary revision (or a specific one). 404 `not_found` means no summary yet. Raw body; the caller parses it. */
+  getSummary(id: string, revision?: number): Promise<unknown>;
+  /**
+   * I Lost Track. One Idempotency-Key per press (reused only to retry the same press after a network failure).
+   * Errors: 400 validation_failed, 404, 409 invalid_state (not Active/Paused), 429 rate_limited. Raw body.
+   */
+  postLostTrack(id: string, windowMinutes: 2 | 5 | 10, idempotencyKey: string): Promise<unknown>;
+  /** Poll fallback for catchup.ready. 404 when unknown. Raw body. */
+  getCatchUp(id: string, catchUpId: string): Promise<unknown>;
 }
 
 export interface ApiClientOptions {
@@ -112,6 +121,21 @@ export function createApiClient({ baseUrl, fetchImpl }: ApiClientOptions): ApiCl
     async getTranscriptPage(id, afterSeq, limit) {
       const q = new URLSearchParams({ afterSeq: afterSeq ?? "0", limit: String(limit) });
       return (await request(`/sessions/${encodeURIComponent(id)}/transcript?${q}`)).json();
+    },
+    async getSummary(id, revision) {
+      const q = revision === undefined ? "" : `?revision=${revision}`;
+      return (await request(`/sessions/${encodeURIComponent(id)}/summary${q}`)).json();
+    },
+    async postLostTrack(id, windowMinutes, idempotencyKey) {
+      const res = await request(`/sessions/${encodeURIComponent(id)}/lost-track`, {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify({ windowMinutes }),
+      });
+      return res.json();
+    },
+    async getCatchUp(id, catchUpId) {
+      return (await request(`/sessions/${encodeURIComponent(id)}/catch-ups/${encodeURIComponent(catchUpId)}`)).json();
     },
   };
 }
