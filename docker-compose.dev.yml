@@ -32,6 +32,10 @@ services:
       Security__AllowedOrigins__0: "http://localhost:3000"
       # Dev only: lets repeat E2E runs sign in without waiting out the 10/min login limit.
       RateLimiting__AuthPermitPerMinute: "1000"
+      # Dev only: the serial real-stack E2E starts many lectures per minute (the defaults of 6 audio tickets, 30 writes and 120 requests per minute per user otherwise 429 it).
+      RateLimiting__AudioTicketPermitPerMinute: "600"
+      RateLimiting__WritePermitPerMinute: "300"
+      RateLimiting__ApiPermitPerMinute: "1200"
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-college_companion_dev};Username=${POSTGRES_USER:-cc_dev};Password=${POSTGRES_PASSWORD:-cc_dev_only_password}"
     depends_on:
       postgres:

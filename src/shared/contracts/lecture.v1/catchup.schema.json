@@ -9,7 +9,10 @@
     "windowMinutes",
     "text",
     "citations",
-    "kind"
+    "kind",
+    "aiState",
+    "coveredFromMs",
+    "coveredToMs"
   ],
   "properties": {
     "catchUpId": {
@@ -41,6 +44,154 @@
         "mock",
         "model"
       ]
+    },
+    "aiState": {
+      "description": "Pending: AI still running (poll GET catch-ups/{id}); Ready: AI result stored; NotNeeded: empty window; Unavailable/BudgetLimited: extractive fallback only.",
+      "type": "string",
+      "enum": [
+        "Pending",
+        "Ready",
+        "NotNeeded",
+        "Unavailable",
+        "BudgetLimited"
+      ]
+    },
+    "coveredFromMs": {
+      "$ref": "common.schema.json#/$defs/ms"
+    },
+    "coveredToMs": {
+      "$ref": "common.schema.json#/$defs/ms"
+    },
+    "nowDiscussing": {
+      "$ref": "#/$defs/claim"
+    },
+    "shortCatchUp": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/claim"
+      }
+    },
+    "detail": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/detail"
+      }
+    },
+    "keyTerms": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/term"
+      }
+    },
+    "clarifyingQuestions": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "$ref": "common.schema.json#/$defs/text"
+      }
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "gaps": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "$ref": "common.schema.json#/$defs/text"
+      }
+    }
+  },
+  "description": "REST CatchUp DTO and catchup.ready payload (identical). Mirrors CatchUpWire.cs; null fields are omitted on the wire. Rich fields appear only when kind=Ai.",
+  "$defs": {
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "basis",
+        "citations"
+      ],
+      "properties": {
+        "text": {
+          "$ref": "common.schema.json#/$defs/text"
+        },
+        "basis": {
+          "type": "string",
+          "enum": [
+            "lecture",
+            "general_knowledge",
+            "uncertain"
+          ]
+        },
+        "citations": {
+          "$ref": "common.schema.json#/$defs/citations"
+        }
+      }
+    },
+    "detail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "basis",
+        "citations"
+      ],
+      "properties": {
+        "text": {
+          "$ref": "common.schema.json#/$defs/text"
+        },
+        "basis": {
+          "type": "string",
+          "enum": [
+            "lecture",
+            "general_knowledge",
+            "uncertain"
+          ]
+        },
+        "citations": {
+          "$ref": "common.schema.json#/$defs/citations"
+        },
+        "whyItMatters": {
+          "$ref": "common.schema.json#/$defs/text"
+        }
+      }
+    },
+    "term": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "term",
+        "basis",
+        "citations"
+      ],
+      "properties": {
+        "term": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "definition": {
+          "$ref": "common.schema.json#/$defs/text"
+        },
+        "basis": {
+          "type": "string",
+          "enum": [
+            "lecture",
+            "general_knowledge",
+            "uncertain"
+          ]
+        },
+        "citations": {
+          "$ref": "common.schema.json#/$defs/citations"
+        }
+      }
     }
   }
 }

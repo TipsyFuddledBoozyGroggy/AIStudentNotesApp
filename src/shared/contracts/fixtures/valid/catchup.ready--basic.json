@@ -14,6 +14,9 @@
         "startMs": 12000
       }
     ],
-    "kind": "Ai"
+    "kind": "Ai",
+    "aiState": "Ready",
+    "coveredFromMs": 0,
+    "coveredToMs": 60000
   }
 }

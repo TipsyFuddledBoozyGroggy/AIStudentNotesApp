@@ -67,6 +67,15 @@ var writePermits = limits.GetValue("WritePermitPerMinute", 30);
 var anonPermits = limits.GetValue("AnonymousPermitPerMinute", 60);
 static FixedWindowRateLimiterOptions PerMinute(int permits) =>
     new() { PermitLimit = permits, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 };
+// SignalR negotiate is a POST that changes nothing. Reconnect attempts (two per page) must not spend the write budget, or a
+// network blip would leave the student's own Pause/Stop/Resume answered 429. It still counts against the general per-user
+// bucket, the hub's per-user connection cap and its own Origin and cookie checks.
+static bool IsHubNegotiate(HttpContext ctx) =>
+    ctx.Request.Path.StartsWithSegments("/hubs") && ctx.Request.Path.Value!.EndsWith("/negotiate", StringComparison.OrdinalIgnoreCase);
+// ADR-019b: consent must stay reversible, so a signed-in user's own Pause and Stop are never answered 429 by the global budgets
+// (the E2E flake: a Stop refused with 429 left the lecture "Not recording" but not stopped). Both are cheap, scoped to the
+// caller's own session and still need the session cookie and a matching Origin.
+static bool IsConsentReversal(HttpContext ctx) => HttpMethods.IsPost(ctx.Request.Method) && System.Text.RegularExpressions.Regex.IsMatch(ctx.Request.Path.Value ?? "", "^/api/v1/sessions/[0-9a-fA-F-]{36}/(pause|stop)/?$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 static string? UserKey(HttpContext ctx) =>
     ctx.User.Identity?.IsAuthenticated == true ? ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) : null;
 builder.Services.AddRateLimiter(o =>
@@ -74,11 +83,11 @@ builder.Services.AddRateLimiter(o =>
     o.RejectionStatusCode = 429;
     o.GlobalLimiter = PartitionedRateLimiter.CreateChained(
         PartitionedRateLimiter.Create<HttpContext, string>(ctx => UserKey(ctx) is { } uid
-            ? RateLimitPartition.GetFixedWindowLimiter("u:" + uid, _ => PerMinute(apiPermits))
+            ? (IsConsentReversal(ctx) ? RateLimitPartition.GetNoLimiter("reversal") : RateLimitPartition.GetFixedWindowLimiter("u:" + uid, _ => PerMinute(apiPermits)))
             : RateLimitPartition.GetFixedWindowLimiter("ip:" + ClientIpKey.For(ctx.Connection.RemoteIpAddress),
                 _ => PerMinute(anonPermits))),
         PartitionedRateLimiter.Create<HttpContext, string>(ctx => UserKey(ctx) is { } uid && !HttpMethods.IsGet(ctx.Request.Method)
-            && !HttpMethods.IsHead(ctx.Request.Method) && !HttpMethods.IsOptions(ctx.Request.Method)
+            && !HttpMethods.IsHead(ctx.Request.Method) && !HttpMethods.IsOptions(ctx.Request.Method) && !IsHubNegotiate(ctx) && !IsConsentReversal(ctx)
             ? RateLimitPartition.GetFixedWindowLimiter("w:" + uid, _ => PerMinute(writePermits))
             : RateLimitPartition.GetNoLimiter("none")));
     o.AddPolicy("auth", ctx => RateLimitPartition.GetFixedWindowLimiter(

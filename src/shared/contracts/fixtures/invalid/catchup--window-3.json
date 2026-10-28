@@ -3,5 +3,8 @@
   "windowMinutes": 3,
   "text": "x",
   "citations": [],
-  "kind": "Extractive"
+  "kind": "Extractive",
+  "aiState": "Ready",
+  "coveredFromMs": 0,
+  "coveredToMs": 60000
 }

@@ -9,6 +9,7 @@ export const USERS = {
   bob: "bob@dev.local",
   empty: `e2e-empty-${id}@dev.local`,
   signout: `e2e-signout-${id}@dev.local`,
+  lostSession: `e2e-lost-${id}@dev.local`,
   keyboard: `e2e-kbd-${id}@dev.local`,
   reload: `e2e-reload-${id}@dev.local`,
   axe: `e2e-axe-${id}@dev.local`,

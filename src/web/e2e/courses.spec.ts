@@ -47,12 +47,16 @@ test.describe("session end", () => {
     await expect(page).toHaveURL(/\/signin$/);
   });
 
+  test.describe("lost session", () => {
+  // Own user: the sign-out test above revokes the server session that "signout" shares through storageState.
+  asUser("lostSession");
   test("lost session (401) redirects to /signin", async ({ page, context }) => {
     await page.goto("/");
     await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
     await context.clearCookies();
     await page.goto("/courses/new");
     await expect(page).toHaveURL(/\/signin$/);
+  });
   });
 });
 

@@ -1,0 +1,67 @@
+{
+  "catchUpId": "cu_3",
+  "windowMinutes": 5,
+  "text": "Mitosis has four phases.\n- Prophase first.",
+  "citations": [
+    {
+      "segmentId": "seg_3",
+      "startMs": 12000
+    }
+  ],
+  "kind": "Ai",
+  "aiState": "Ready",
+  "coveredFromMs": 0,
+  "coveredToMs": 300000,
+  "source": "mock",
+  "nowDiscussing": {
+    "text": "Mitosis has four phases.",
+    "basis": "lecture",
+    "citations": [
+      {
+        "segmentId": "seg_3",
+        "startMs": 12000
+      }
+    ]
+  },
+  "shortCatchUp": [
+    {
+      "text": "Prophase first.",
+      "basis": "lecture",
+      "citations": [
+        {
+          "segmentId": "seg_3",
+          "startMs": 12000
+        }
+      ],
+      "extra": 1
+    }
+  ],
+  "detail": [
+    {
+      "text": "Chromosomes condense.",
+      "basis": "lecture",
+      "citations": [
+        {
+          "segmentId": "seg_3",
+          "startMs": 12000
+        }
+      ],
+      "whyItMatters": "Exam topic."
+    }
+  ],
+  "keyTerms": [
+    {
+      "term": "Mitosis",
+      "definition": "Cell division.",
+      "basis": "general_knowledge",
+      "citations": []
+    }
+  ],
+  "clarifyingQuestions": [
+    "What happens in metaphase?"
+  ],
+  "confidence": "medium",
+  "gaps": [
+    "Some statements could not be matched to the transcript and are marked uncertain."
+  ]
+}

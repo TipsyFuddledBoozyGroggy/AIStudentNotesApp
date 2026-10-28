@@ -307,6 +307,29 @@ public class AiRouteTests(ApiFactory factory) : AiRouteTestBase(factory), IClass
         Assert.Equal("mock", final.GetProperty("source").GetString());
     }
 
+    [Fact]
+    public async Task Real_catch_up_responses_validate_against_the_catchup_schema_before_and_after_the_ai_finishes()
+    {
+        var (a, id) = await LiveSessionAsync();
+        await SeedFinalsAsync(id, a.UserId);
+        var created = await (await LostTrackAsync(a.Client, id)).BodyAsync();
+        ContractSchemas.AssertValid("catchup", created); // POST body (extractive, aiState Pending)
+        var cuId = created.GetProperty("catchUpId").GetString()!;
+        JsonElement final = default;
+        for (var i = 0; i < 100; i++)
+        {
+            final = await (await a.Client.GetAsync($"/api/v1/sessions/{id}/catch-ups/{cuId}")).BodyAsync();
+            if (final.GetProperty("aiState").GetString() != "Pending") break;
+            await Task.Delay(50);
+        }
+        Assert.Equal("Ready", final.GetProperty("aiState").GetString());
+        Assert.True(final.TryGetProperty("nowDiscussing", out _) && final.TryGetProperty("keyTerms", out _) && final.TryGetProperty("confidence", out _)); // the rich fields are really on the wire
+        ContractSchemas.AssertValid("catchup", final);
+        var bogus = System.Text.Json.Nodes.JsonNode.Parse(final.GetRawText())!.AsObject();
+        bogus["aiState"] = "Bogus";
+        Assert.False(ContractSchemas.IsValid("catchup", bogus.ToJsonString())); // negative control: the validator is live
+    }
+
     // ---------- B3-04 ----------
 
     [Fact]

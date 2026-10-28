@@ -1,0 +1,15 @@
+{
+  "catchUpId": "cu_4",
+  "windowMinutes": 2,
+  "text": "[00:02] x",
+  "citations": [
+    {
+      "segmentId": "seg_3",
+      "startMs": 12000
+    }
+  ],
+  "kind": "Extractive",
+  "aiState": "Pending",
+  "coveredFromMs": 0,
+  "coveredToMs": 120000
+}

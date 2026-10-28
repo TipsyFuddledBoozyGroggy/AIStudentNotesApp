@@ -74,3 +74,11 @@
 Pause/Stop/Delete cancel in-flight AI calls (`SessionCutoff`), and the gateway re-checks the session is Active and owned right before each provider call. Verified by Lead re-run: 107 contract + 105 AI + 15 architecture + 353 integration pass.
 **Behaviour change:** no provider call after Pause or Stop, so the "Final" summary on Stop is no longer produced (the spec was silent; the DB still allows the value). Lost Track on a Paused session returns the extractive answer only. A final summary after Stop needs a spec and a PO decision.
 **Not yet re-reviewed** by security-engineer; tests were written alongside the code, not shown red first.
+
+## Iteration 7 — E2E flake root cause, catch-up schema, UX must-fixes (2026-10-28)
+**Flake root cause (supersedes the socket-cap hypothesis in Iteration 5):** per-user rate limits, not `RelayRegistry.TryAdd` (zero refusals logged over ~10 runs). Serial E2E exhausted audio tickets (6/min), writes (30/min; SignalR `negotiate` counted as a write) and the general 120/min bucket, so ticket/negotiate calls got 429 and the clients backed off 10-18s. Real bug found: the student's own Pause/Stop could be answered 429, against ADR-019b. Fixed in `Tether.Host/Program.cs` (own `POST /sessions/{id}/pause|stop` exempt from global limiters; hub negotiate exempt from the write bucket). Production limits otherwise unchanged; `docker-compose.dev.yml` raises dev-only limits for the serial E2E.
+**Second, unrelated E2E bug:** `courses.spec.ts` "lost session (401)" shared the `signout` user with the sign-out test, which revokes that server session; gave it its own user.
+**Schema:** `catchup.schema.json` now describes the real wire; 9 fixtures added; real-response validation test added.
+**Verified by Lead re-run:** 116 contract + 105 AI + 15 architecture + 356 integration pass; web 325 unit tests; Playwright full serial run 19/20 before the courses fix, `courses.spec.ts` 11/11 after it (dev limits raised).
+**Caveats:** E2E has not been run at production rate limits; the two new rate-limit regression tests were not shown failing on the old code; the TL;DR E2E takes ~1.6 min (waits for the 90s summary flush); `lecture.spec.ts` `beforeAll` lists all of alice's courses and grows each run.
+**UX:** AI specialist review `docs/ux/m2-lost-track-review.md`; must-fixes M1-M7 implemented (commit cbfb38b). Not human-validated.

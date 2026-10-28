@@ -167,6 +167,36 @@ public class ApiRateLimitTests
                 .AssertProblemAsync(HttpStatusCode.TooManyRequests, "rate_limited");
             Assert.Equal(HttpStatusCode.OK, (await c.GetAsync("/api/v1/courses")).StatusCode);
         }
+
+        // Regression (E2E flake): hub negotiate POSTs used to spend the write budget, so reconnects/page loads made the next
+        // audio-ticket, Pause or session create answer 429 and the transcript stayed empty.
+        [Fact]
+        public async Task Hub_negotiate_does_not_spend_the_write_budget_but_is_still_limited_by_the_general_per_user_bucket()
+        {
+            var c = await factory.LoginAsync("rl-negotiate@dev.local");
+            for (var i = 0; i < 8; i++)
+                Assert.Equal(HttpStatusCode.OK, (await c.PostAsync("/hubs/lecture/negotiate?negotiateVersion=1", null)).StatusCode);
+            for (var i = 0; i < 2; i++)
+                Assert.Equal(HttpStatusCode.Created, (await c.PostAsJsonAsync("/api/v1/courses", new { name = "n" + i })).StatusCode); // budget of 2 still intact
+            await (await c.PostAsJsonAsync("/api/v1/courses", new { name = "n3" })).AssertProblemAsync(HttpStatusCode.TooManyRequests, "rate_limited"); // control: other writes still limited
+        }
+    }
+
+    public class ConsentReversal(WriteLimitFactory factory) : IClassFixture<WriteLimitFactory>
+    {
+        // Regression (E2E flake): with the write budget spent, Stop came back 429 and the lecture stayed live (ADR-019b).
+        [Fact]
+        public async Task Own_pause_and_stop_are_never_429_even_when_the_write_and_general_budgets_are_spent()
+        {
+            var c = await factory.LoginAsync("rl-reversal@dev.local");
+            var course = (await (await c.PostAsJsonAsync("/api/v1/courses", new { name = "r" })).BodyAsync()).GetProperty("id").GetString();
+            var start = await c.PostAsJsonAsync($"/api/v1/courses/{course}/sessions", new { title = "t", consent = new { acknowledged = true, textVersion = "draft-1" } });
+            Assert.Equal(HttpStatusCode.Created, start.StatusCode);
+            var id = (await start.BodyAsync()).GetProperty("id").GetString();
+            await (await c.PostAsJsonAsync("/api/v1/courses", new { name = "r3" })).AssertProblemAsync(HttpStatusCode.TooManyRequests, "rate_limited"); // control: budget is spent
+            Assert.Equal(HttpStatusCode.OK, (await c.PostAsync($"/api/v1/sessions/{id}/pause", null)).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await c.PostAsync($"/api/v1/sessions/{id}/stop", null)).StatusCode);
+        }
     }
 
     public class Anonymous(AnonLimitFactory factory) : IClassFixture<AnonLimitFactory>
