@@ -8,7 +8,7 @@ namespace Tether.Identity;
 /// <summary>Lifetimes and the per-request server-side session check (ADR-016).</summary>
 internal static class SessionPolicy
 {
-    public const string SessionIdClaim = "cc:sid";
+    public const string SessionIdClaim = Tether.SharedKernel.AuthClaims.SessionId;
     public static readonly TimeSpan SlidingLifetime = TimeSpan.FromHours(8);
     public static readonly TimeSpan AbsoluteLifetime = TimeSpan.FromDays(14);
 
@@ -20,6 +20,15 @@ internal static class SessionPolicy
 
     public static Guid? SessionId(ClaimsPrincipal? p) =>
         Guid.TryParse(p?.FindFirstValue(SessionIdClaim), out var id) ? id : null;
+
+    /// <summary>Validity check for callers that hold ids rather than a principal (hub and socket revalidation, C-06).</summary>
+    public static Task<bool> IsValidAsync(Guid userId, Guid sessionId, IdentityDbContext db, TimeProvider clock, CancellationToken ct)
+    {
+        var now = clock.GetUtcNow();
+        return db.Sessions.AsNoTracking().AnyAsync(s =>
+            s.Id == sessionId && s.UserId == userId && s.RevokedAt == null && s.ExpiresAt > now
+            && db.Users.Any(u => u.Id == s.UserId && u.DeletedAt == null), ct);
+    }
 
     /// <summary>
     /// One indexed read per request: the session must exist, belong to the claimed user, not be revoked or past

@@ -55,12 +55,14 @@ internal sealed class AudioTicketService(LecturesDbContext db, ICurrentUser curr
         {
             var now = clock.GetUtcNow();
             var since = now - RejectAuditWindow;
+            // One row per user, per session that exists for that user (or per "no such session"), per minute.
+            var owned = await db.Sessions.AsNoTracking().AnyAsync(s => s.Id == sessionId, ct);
+            Guid? auditSession = owned ? sessionId : null;
             var recent = await db.AuditEvents.AsNoTracking()
-                .AnyAsync(a => a.Action == AuditActions.TicketRejected && a.OccurredAt > since, ct);
+                .AnyAsync(a => a.Action == AuditActions.TicketRejected && a.OccurredAt > since && a.SessionId == auditSession, ct);
             if (!recent)
             {
-                var owned = await db.Sessions.AsNoTracking().AnyAsync(s => s.Id == sessionId, ct);
-                db.AuditEvents.Add(new AuditEvent { Id = Ids.New(), SessionId = owned ? sessionId : null, Action = AuditActions.TicketRejected, OccurredAt = now });
+                db.AuditEvents.Add(new AuditEvent { Id = Ids.New(), SessionId = auditSession, Action = AuditActions.TicketRejected, OccurredAt = now });
                 await db.SaveChangesAsync(ct);
             }
         }

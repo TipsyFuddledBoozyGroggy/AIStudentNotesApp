@@ -72,6 +72,10 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 128
+    },
+    "demoSource": {
+      "description": "True while the transcript source is the deterministic demo provider (API_CONTRACTS section 12.2). Additive in B2; optional so older fixtures stay valid.",
+      "type": "boolean"
     }
   }
 }

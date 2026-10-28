@@ -552,7 +552,7 @@ public class LectureSessionTests(ApiFactory factory) : LectureTestBase(factory),
         await (await a.Client.DeleteAsync($"/api/v1/sessions/{id}")).AssertProblemAsync(HttpStatusCode.NotFound, "not_found");
     }
 
-    // ---------------- placeholders until B2 ----------------
+    // ---------------- placeholders for later increments (summary, catch-ups, notes) ----------------
 
     [Fact]
     public async Task Transcript_summary_catchups_and_notes_have_defined_empty_behaviour_for_the_owner()
@@ -564,7 +564,10 @@ public class LectureSessionTests(ApiFactory factory) : LectureTestBase(factory),
         var t = await a.Client.GetAsync($"/api/v1/sessions/{id}/transcript?afterSeq=0&limit=50");
         Assert.Equal(HttpStatusCode.OK, t.StatusCode);
         var tb = await t.BodyAsync();
-        Assert.Empty(tb.GetProperty("events").EnumerateArray());
+        // B2: the transcript endpoint returns every persisted event, including the session.state events (section 13.1).
+        ContractSchemas.AssertValid("transcript-page", tb);
+        Assert.Equal("session.state", tb.GetProperty("events")[0].GetProperty("type").GetString());
+        Assert.Single(tb.GetProperty("events").EnumerateArray());
         Assert.False(tb.GetProperty("hasMore").GetBoolean());
 
         await (await a.Client.GetAsync($"/api/v1/sessions/{id}/summary")).AssertProblemAsync(HttpStatusCode.NotFound, "not_found");

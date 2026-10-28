@@ -10,8 +10,6 @@ internal static class SessionEndpoints
     public const string AudioTicketPolicy = "audio-ticket";
     public const int DefaultLimit = 25;
     public const int MaxLimit = 100;           // server maximum for list endpoints (C-26)
-    public const int DefaultTranscriptLimit = 100;
-    public const int MaxTranscriptLimit = 500; // replay cap (section 10, C-27)
 
     public static void Map(IEndpointRouteBuilder api)
     {
@@ -28,7 +26,6 @@ internal static class SessionEndpoints
         g.MapPost("/{id:guid}/audio-ticket", IssueTicket).RequireRateLimiting(AudioTicketPolicy);
 
         // Present so the routes, auth boundary and 404 rules exist now; content arrives with B2 (transcript, AI).
-        g.MapGet("/{id:guid}/transcript", GetTranscript);
         g.MapGet("/{id:guid}/summary", GetSummary);
         g.MapGet("/{id:guid}/catch-ups/{catchUpId}", GetCatchUp);
         g.MapGet("/{id:guid}/notes", GetNotes);
@@ -105,18 +102,6 @@ internal static class SessionEndpoints
     }
 
     // ---- placeholders until B2: ownership is enforced, content does not exist yet ----
-
-    private static async Task<IResult> GetTranscript(Guid id, string? afterSeq, int? limit, SessionService svc, CancellationToken ct)
-    {
-        var errors = new Dictionary<string, string[]>();
-        var take = limit ?? DefaultTranscriptLimit;
-        if (take is < 1 or > MaxTranscriptLimit) errors["limit"] = [$"Limit must be between 1 and {MaxTranscriptLimit}."];
-        if (afterSeq is not null && !(long.TryParse(afterSeq, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out _)))
-            errors["afterSeq"] = ["Must be a non-negative integer."];
-        if (errors.Count > 0) return Problems.Validation(errors);
-        if (!await svc.ExistsAsync(id, ct)) return Problems.NotFound("Session not found.");
-        return Results.Ok(new TranscriptPageResponse([], false));
-    }
 
     private static async Task<IResult> GetSummary(Guid id, int? revision, SessionService svc, CancellationToken ct)
     {

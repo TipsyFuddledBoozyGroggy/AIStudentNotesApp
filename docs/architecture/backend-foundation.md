@@ -170,3 +170,6 @@ Not run: nothing has been executed; no SDK present.
 
 ## Addendum (2026-10-27): cross-schema FK allow-list and sweeper
 The allow-list of DB-level cross-schema FKs (ADR-014, ADR-019) is now exactly three entries, all `ON DELETE CASCADE`: `courses.courses.user_id -> identity.users` (`fk_courses_user_id`), `lectures.lecture_sessions.user_id -> identity.users` (`fk_lecture_sessions_user_id`) and `lectures.lecture_sessions.course_id -> courses.courses` (`fk_lecture_sessions_course_id`). This supersedes any earlier "one entry" wording above. Lectures also runs a hosted `ExpiredRowSweeper` (config `Lectures:SweepIntervalSeconds`, default 300, minimum 30) that deletes expired audio tickets and idempotency rows. `consent_events` and `audit_events` are append-only in the DB; deletion is only possible through `lectures.purge_evidence(user_id)`. Retention of those rows is an open Product Owner/counsel decision (gate G1).
+
+## Addendum (2026-10-28, M2 B2)
+The cross-schema FK allow-list is now five entries: the three above plus fk_transcript_events_session_user and fk_audio_progress_session_user (transcript to lectures, ON DELETE CASCADE). See docs/architecture/m2-b2-realtime.md. The Transcript module exists and owns schema transcript.

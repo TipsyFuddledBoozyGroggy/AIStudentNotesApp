@@ -9,6 +9,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<OwnershipSaveChangesInterceptor>();
+        services.AddScoped<UserScope>();
         return services;
     }
 }

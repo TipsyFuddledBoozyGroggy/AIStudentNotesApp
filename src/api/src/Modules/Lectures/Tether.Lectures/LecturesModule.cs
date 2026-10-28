@@ -31,6 +31,17 @@ public static class LecturesModule
         var sweepSeconds = Math.Max(30, builder.Configuration.GetValue("Lectures:SweepIntervalSeconds", 300));
         builder.Services.AddHostedService(sp => new ExpiredRowSweeperService(
             sp.GetRequiredService<IServiceScopeFactory>(), sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ExpiredRowSweeperService>>(), TimeSpan.FromSeconds(sweepSeconds)));
+        builder.Services.AddSingleton(LectureLimits.From(builder.Configuration));
+        builder.Services.AddSingleton<SessionActivityTracker>();
+        builder.Services.AddSingleton<ISessionActivity>(sp => sp.GetRequiredService<SessionActivityTracker>());
+        builder.Services.AddScoped<SessionPortsService>();
+        builder.Services.AddScoped<ISessionDirectory>(sp => sp.GetRequiredService<SessionPortsService>());
+        builder.Services.AddScoped<ISessionEventReader>(sp => sp.GetRequiredService<SessionPortsService>());
+        builder.Services.AddScoped<ISessionSequencer>(sp => sp.GetRequiredService<SessionPortsService>());
+        builder.Services.AddScoped<SessionLifecycleJob>();
+        var jobSeconds = Math.Max(1, builder.Configuration.GetValue("Lectures:LifecycleJobSeconds", 30));
+        builder.Services.AddHostedService(sp => new SessionLifecycleService(
+            sp.GetRequiredService<IServiceScopeFactory>(), sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SessionLifecycleService>>(), TimeSpan.FromSeconds(jobSeconds)));
         builder.Services.AddScoped<AudioTicketService>();
         builder.Services.AddScoped<IAudioTicketConsumer>(sp => sp.GetRequiredService<AudioTicketService>());
 

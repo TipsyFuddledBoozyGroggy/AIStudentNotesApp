@@ -4,6 +4,7 @@ using Tether.Courses.Contracts;
 using Tether.Identity;
 using Tether.Lectures;
 using Tether.Lectures.Contracts;
+using Tether.Transcript;
 using Tether.SharedKernel;
 
 namespace Tether.ArchitectureTests;
@@ -22,7 +23,9 @@ public class ModuleBoundaryTests
     private static readonly Assembly LecturesContracts = typeof(IAudioTicketConsumer).Assembly;
     private static readonly Assembly SharedKernel = typeof(ICurrentUser).Assembly;
 
-    private static readonly string[] ModuleImplementations = ["Tether.Identity", "Tether.Courses", "Tether.Lectures"];
+    private static readonly Assembly Transcript = typeof(TranscriptModule).Assembly;
+
+    private static readonly string[] ModuleImplementations = ["Tether.Identity", "Tether.Courses", "Tether.Lectures", "Tether.Transcript"];
 
     private static IEnumerable<string> ProjectRefs(Assembly a) =>
         a.GetReferencedAssemblies().Select(r => r.Name!).Where(n => n.StartsWith("Tether.", StringComparison.Ordinal));
@@ -30,7 +33,7 @@ public class ModuleBoundaryTests
     [Fact]
     public void Module_implementations_do_not_reference_other_module_implementations()
     {
-        foreach (var asm in new[] { Identity, Courses, Lectures })
+        foreach (var asm in new[] { Identity, Courses, Lectures, Transcript })
         {
             var self = asm.GetName().Name!;
             var illegal = ProjectRefs(asm).Where(n => ModuleImplementations.Contains(n) && n != self).ToList();
@@ -46,8 +49,9 @@ public class ModuleBoundaryTests
             ["Tether.Identity"] = ["Tether.SharedKernel"],
             ["Tether.Courses"] = ["Tether.SharedKernel", "Tether.Courses.Contracts"],
             ["Tether.Lectures"] = ["Tether.SharedKernel", "Tether.Courses.Contracts", "Tether.Lectures.Contracts"],
+            ["Tether.Transcript"] = ["Tether.SharedKernel", "Tether.Lectures.Contracts"],
         };
-        foreach (var asm in new[] { Identity, Courses, Lectures })
+        foreach (var asm in new[] { Identity, Courses, Lectures, Transcript })
         {
             var self = asm.GetName().Name!;
             var extra = ProjectRefs(asm).Except(allowed[self]).ToList();
@@ -71,7 +75,9 @@ public class ModuleBoundaryTests
         AssertPublicSurface(Identity, "IdentityModule");
         AssertPublicSurface(Courses, "CoursesModule");
         AssertPublicSurface(Lectures, "LecturesModule");
-        AssertPublicSurface(LecturesContracts, "IAudioTicketConsumer");
+        AssertPublicSurface(Transcript, "TranscriptModule");
+        AssertPublicSurface(LecturesContracts, "IAudioTicketConsumer", "LectureState", "SessionInfo", "SessionStateRecord", "SessionStateChange",
+            "ISessionDirectory", "ISessionEventReader", "ISessionSequencer", "ISessionLifecycleObserver", "ISessionActivity", "IDemoSourceIndicator");
     }
 
     private static void AssertPublicSurface(Assembly asm, params string[] allowed)
@@ -93,6 +99,7 @@ public class ModuleBoundaryTests
         Assert.Contains("Tether.Identity", refs);
         Assert.Contains("Tether.Courses", refs);
         Assert.Contains("Tether.Lectures", refs);
+        Assert.Contains("Tether.Transcript", refs);
     }
 
     [Fact]
@@ -199,7 +206,7 @@ public class OwnershipConventionTests
     [Fact]
     public void Every_entity_in_Courses_and_Lectures_domain_namespaces_is_user_owned()
     {
-        foreach (var asm in new[] { typeof(CoursesModule).Assembly, typeof(LecturesModule).Assembly })
+        foreach (var asm in new[] { typeof(CoursesModule).Assembly, typeof(LecturesModule).Assembly, typeof(TranscriptModule).Assembly })
         {
             var entities = asm.GetTypes()
                 .Where(t => t.IsClass && !t.IsAbstract && !t.IsNested && !t.Name.StartsWith('<')
@@ -218,5 +225,48 @@ public class OwnershipConventionTests
         var refs = typeof(LecturesModule).Assembly.GetReferencedAssemblies().Select(r => r.Name);
         Assert.DoesNotContain("Tether.Courses", refs);
         Assert.DoesNotContain("Tether.Identity", refs);
+    }
+}
+
+/// <summary>B2: Transcript depends on Lectures only through its Contracts, never on Courses or Identity, and never on the Host.</summary>
+public class TranscriptBoundaryTests
+{
+    [Fact]
+    public void Transcript_never_references_Lectures_implementation_Courses_Identity_or_the_host()
+    {
+        var refs = typeof(TranscriptModule).Assembly.GetReferencedAssemblies().Select(r => r.Name).ToList();
+        foreach (var banned in new[] { "Tether.Lectures", "Tether.Courses", "Tether.Courses.Contracts", "Tether.Identity", "Tether.Host" })
+            Assert.DoesNotContain(banned, refs);
+        Assert.Contains("Tether.Lectures.Contracts", refs);
+    }
+
+    [Fact]
+    public void No_speech_vendor_code_or_keys_exist_in_the_source_tree()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Tether.slnx"))) dir = dir.Parent;
+        var sep = Path.DirectorySeparatorChar;
+        var vendors = new[] { "deepgram", "assemblyai", "speech.microsoft", "cognitiveservices", "api.openai", "amazonaws", "transcribestreaming", "speechmatics" };
+        var hits = Directory.EnumerateFiles(Path.Combine(dir!.FullName, "src"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{sep}obj{sep}") && !f.Contains($"{sep}bin{sep}"))
+            .Where(f => { var t = File.ReadAllText(f); return vendors.Any(v => t.Contains(v, StringComparison.OrdinalIgnoreCase)); })
+            .ToList();
+        Assert.True(hits.Count == 0, "Vendor references found (M2 is mock-backed only): " + string.Join(", ", hits));
+    }
+
+    [Fact]
+    public void Raw_audio_is_never_written_to_disk_by_the_relay()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Tether.slnx"))) dir = dir.Parent;
+        var relay = Directory.EnumerateFiles(Path.Combine(dir!.FullName, "src", "Modules", "Transcript"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") && !f.Contains($"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}"));
+        foreach (var f in relay)
+        {
+            var t = File.ReadAllText(f);
+            Assert.DoesNotContain("File.Write", t);
+            Assert.DoesNotContain("FileStream", t);
+            Assert.DoesNotContain("Path.GetTempFileName", t);
+        }
     }
 }

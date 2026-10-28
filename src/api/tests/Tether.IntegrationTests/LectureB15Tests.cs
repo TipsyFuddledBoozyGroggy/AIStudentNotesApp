@@ -113,7 +113,8 @@ public class LectureB15Tests(ApiFactory factory) : LectureTestBase(factory), ICl
         var options = new DbContextOptionsBuilder<LecturesDbContext>()
             .UseNpgsql(F.ConnectionString, n => n.MigrationsHistoryTable("__ef_migrations_history", LecturesDbContext.Schema))
             .AddInterceptors(new OwnershipSaveChangesInterceptor(fake)).Options;
-        return new SessionService(new LecturesDbContext(options, fake), fake, courses, new ConsentTextRegistry(), F.Clock);
+        return new SessionService(new LecturesDbContext(options, fake), fake, courses, new ConsentTextRegistry(), F.Clock,
+            new LectureLimits(12, 200, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(30), TimeSpan.FromHours(3)), new SessionActivityTracker(F.Clock), [], F.Services, Microsoft.Extensions.Logging.Abstractions.NullLogger<SessionService>.Instance);
     }
 
     [Fact]

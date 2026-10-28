@@ -8,6 +8,9 @@ using Tether.SharedKernel.Http;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Tether.Lectures.Contracts;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Tether.Lectures.Application;
 
@@ -26,7 +29,9 @@ internal readonly record struct SessionOutcome(SessionRow? Row, IResult? Problem
 /// All reads go through the user-scoped query filter, so a foreign id behaves exactly like a missing one.
 /// </summary>
 internal sealed class SessionService(
-    LecturesDbContext db, ICurrentUser currentUser, ICourseOwnership courses, ConsentTextRegistry registry, TimeProvider clock)
+    LecturesDbContext db, ICurrentUser currentUser, ICourseOwnership courses, ConsentTextRegistry registry, TimeProvider clock,
+    LectureLimits limits, SessionActivityTracker activity, IEnumerable<ISessionLifecycleObserver> observers, IServiceProvider services,
+    ILogger<SessionService> log)
 {
     public const int MaxTitleLength = 200;
     public static readonly TimeSpan IdempotencyWindow = TimeSpan.FromHours(24);
@@ -51,8 +56,10 @@ internal sealed class SessionService(
         join k in db.Counters.AsNoTracking() on s.Id equals k.SessionId
         select new SessionRow(s, c.TextVersion, c.AcknowledgedAt, k.LastSeq);
 
-    public Task<SessionRow?> GetAsync(Guid id, CancellationToken ct) =>
-        Rows(db.Sessions.AsNoTracking().Where(s => s.Id == id)).FirstOrDefaultAsync(ct);
+    private bool Demo => services.GetService<IDemoSourceIndicator>()?.IsDemoSource ?? false;
+
+    public async Task<SessionRow?> GetAsync(Guid id, CancellationToken ct) =>
+        await Rows(db.Sessions.AsNoTracking().Where(s => s.Id == id)).FirstOrDefaultAsync(ct) is { } r ? r with { DemoSource = Demo } : null;
 
     public async Task<bool> ExistsAsync(Guid id, CancellationToken ct) => await db.Sessions.AsNoTracking().AnyAsync(s => s.Id == id, ct);
 
@@ -62,7 +69,8 @@ internal sealed class SessionService(
         // Ids are UUIDv7 (time ordered), so id order is creation order and a stable keyset.
         if (after is { } a) q = q.Where(s => s.Id.CompareTo(a) < 0);
         var page = q.OrderByDescending(s => s.Id).Take(take + 1);
-        var rows = (await Rows(page).ToListAsync(ct)).OrderByDescending(r => r.Session.Id).ToList();
+        var demo = Demo;
+        var rows = (await Rows(page).ToListAsync(ct)).Select(r => r with { DemoSource = demo }).OrderByDescending(r => r.Session.Id).ToList();
         Guid? next = null;
         if (rows.Count > take) { rows.RemoveAt(rows.Count - 1); next = rows[^1].Session.Id; }
         return (rows, next);
@@ -156,7 +164,8 @@ internal sealed class SessionService(
 
     // ---------- pause / resume / stop ----------
 
-    public async Task<SessionOutcome> TransitionAsync(Guid id, Transition t, CancellationToken ct)
+    /// <param name="systemReason">Set only by server jobs (auto-pause, auto-stop, hard cap); user commands pass null and are subject to the transition caps.</param>
+    public async Task<SessionOutcome> TransitionAsync(Guid id, Transition t, CancellationToken ct, string? systemReason = null)
     {
         for (var attempt = 0; attempt < MaxAttempts; attempt++)
         {
@@ -182,8 +191,10 @@ internal sealed class SessionService(
             }
 
             var now = Now();
+            if (systemReason is null && t != Transition.Stop && await OverTransitionCapAsync(id, now, ct))
+                return SessionOutcome.Fail(Problems.ForStatus(429)); // B1-06
             var consent = await db.Consents.AsNoTracking().FirstAsync(c => c.Id == s.ConsentRecordId, ct);
-            await ApplyStateAsync(s, target, kind, action, consent, now, ct);
+            await ApplyStateAsync(s, target, kind, action, consent, now, systemReason, ct);
             try
             {
                 await db.SaveChangesAsync(ct);
@@ -194,20 +205,24 @@ internal sealed class SessionService(
                 db.ChangeTracker.Clear(); // another writer got there first; re-read and re-evaluate (idempotent)
                 continue;
             }
-            return SessionOutcome.Ok((await GetAsync(id, ct))!);
+            var result = (await GetAsync(id, ct))!;
+            if (target != SessionState.Active) activity.Forget(id);
+            await NotifyStateAsync(result, systemReason ?? "user", now, ct);
+            return SessionOutcome.Ok(result);
         }
         return SessionOutcome.Fail(Problems.ConcurrencyConflict());
     }
 
     /// <summary>Writes state, seq, events and ticket invalidation (pause/stop) into the current unit of work.</summary>
     private async Task ApplyStateAsync(LectureSession s, SessionState target, ConsentEventKind kind, string action,
-        ConsentRecord consent, DateTimeOffset now, CancellationToken ct)
+        ConsentRecord consent, DateTimeOffset now, string? systemReason, CancellationToken ct)
     {
         var counter = await db.Counters.FirstAsync(c => c.SessionId == s.Id, ct);
         counter.LastSeq++;
         s.State = target;
         s.StoppedAt = target == SessionState.Stopped ? now : null;
-        db.SessionEvents.Add(new SessionEvent { SessionId = s.Id, Seq = counter.LastSeq, State = target, OccurredAt = now });
+        // reason vocabulary (section 12.1): user, auto_pause_no_audio, auto_stop_paused_timeout, hard_cap, abandoned
+        db.SessionEvents.Add(new SessionEvent { SessionId = s.Id, Seq = counter.LastSeq, State = target, Reason = systemReason ?? "user", OccurredAt = now });
         AddConsentEvent(consent.Id, s.Id, kind, consent.TextVersion, now);
         AddAudit(action, s.Id, now);
         if (target != SessionState.Active) // C-01: pause and stop invalidate the outstanding ticket
@@ -240,6 +255,8 @@ internal sealed class SessionService(
             try
             {
                 await db.SaveChangesAsync(ct);
+                activity.Forget(id);
+                await NotifyDeletedAsync(s.UserId, id, ct);
                 return Results.NoContent();
             }
             catch (DbUpdateConcurrencyException)
@@ -297,6 +314,35 @@ internal sealed class SessionService(
     }
 
     // ---------- helpers ----------
+
+    /// <summary>B1-06: at most MaxTransitionsPerMinute pause/resume in the last minute, and MaxTransitionsPerSession events in total.</summary>
+    private async Task<bool> OverTransitionCapAsync(Guid sessionId, DateTimeOffset now, CancellationToken ct)
+    {
+        var total = await db.SessionEvents.CountAsync(e => e.SessionId == sessionId, ct);
+        if (total >= limits.MaxTransitionsPerSession) return true;
+        var since = now - TimeSpan.FromMinutes(1);
+        var recent = await db.SessionEvents.CountAsync(e => e.SessionId == sessionId && e.Seq > 1 && e.OccurredAt > since && e.State != SessionState.Stopped, ct);
+        return recent >= limits.MaxTransitionsPerMinute;
+    }
+
+    private async Task NotifyStateAsync(SessionRow row, string reason, DateTimeOffset at, CancellationToken ct)
+    {
+        var change = new SessionStateChange(row.Session.UserId, row.Session.Id, row.Session.State.ToContract(), reason, row.LastSeq, at);
+        foreach (var o in observers)
+        {
+            try { await o.OnStateChangedAsync(change, ct); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { log.LogWarning("Lifecycle observer failed: {ExceptionType}", ex.GetType().Name); }
+        }
+    }
+
+    private async Task NotifyDeletedAsync(Guid userId, Guid sessionId, CancellationToken ct)
+    {
+        foreach (var o in observers)
+        {
+            try { await o.OnDeletedAsync(userId, sessionId, ct); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { log.LogWarning("Lifecycle observer failed: {ExceptionType}", ex.GetType().Name); }
+        }
+    }
 
     private void AddConsentEvent(Guid consentRecordId, Guid sessionId, ConsentEventKind kind, string textVersion, DateTimeOffset now) =>
         db.ConsentEvents.Add(new ConsentEvent

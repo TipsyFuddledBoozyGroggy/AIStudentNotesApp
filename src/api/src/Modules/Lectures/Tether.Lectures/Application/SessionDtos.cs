@@ -19,20 +19,23 @@ internal sealed record SessionResponse(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? StoppedAt,
     string LastSeq,
     ConsentView Consent,
-    string Etag);
+    string Etag,
+    bool DemoSource);
 
 internal sealed record SessionListResponse(IReadOnlyList<SessionResponse> Items, string? NextCursor);
 
 internal sealed record AudioTicketResponse(string Ticket, DateTimeOffset ExpiresAt);
-
-internal sealed record TranscriptPageResponse(IReadOnlyList<object> Events, bool HasMore);
 
 internal sealed record ConsentRequest(bool? Acknowledged, string? TextVersion);
 
 internal sealed record CreateSessionRequest(string? Title, ConsentRequest? Consent);
 
 /// <summary>Row projection used to build <see cref="SessionResponse"/>.</summary>
-internal sealed record SessionRow(LectureSession Session, string TextVersion, DateTimeOffset AcknowledgedAt, long LastSeq);
+internal sealed record SessionRow(LectureSession Session, string TextVersion, DateTimeOffset AcknowledgedAt, long LastSeq)
+{
+    /// <summary>True while the transcript source is the deterministic replay provider (API_CONTRACTS 12.2).</summary>
+    public bool DemoSource { get; init; }
+}
 
 /// <summary>
 /// Opaque weak ETags (F-05): HMAC-SHA256(secret, id | xmin) truncated. Uses the same optional <c>Security:ETagKey</c> as
@@ -52,5 +55,5 @@ internal static class SessionMapping
     public static SessionResponse ToResponse(this SessionRow r, SessionETag etags) => new(
         r.Session.Id.ToString(), r.Session.CourseId.ToString(), r.Session.Title, r.Session.State.ToString(),
         r.Session.StartedAt, r.Session.StoppedAt, r.LastSeq.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        new ConsentView(r.TextVersion, r.AcknowledgedAt), etags.For(r.Session));
+        new ConsentView(r.TextVersion, r.AcknowledgedAt), etags.For(r.Session), r.DemoSource);
 }

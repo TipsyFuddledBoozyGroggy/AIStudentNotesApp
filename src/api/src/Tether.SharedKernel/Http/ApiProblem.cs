@@ -69,3 +69,21 @@ public static class Problems
         _ => new ApiProblemResult(status, "error", "The request could not be completed."),
     };
 }
+
+/// <summary>Fixed detail text per error code for hub and socket error events (contract section 11.6, C-24).</summary>
+public static class ErrorVocabulary
+{
+    public static string DetailFor(string code) => code switch
+    {
+        "unauthenticated" => "Please sign in.",
+        "csrf_failed" => "Request origin was not accepted.",
+        "validation_failed" => "The request was invalid.",
+        "not_found" => "Resource not found.",
+        "consent_required" => Problems.ConsentRequiredText,
+        "invalid_state" => Problems.InvalidStateText,
+        "provider_unavailable" => Problems.ProviderUnavailableText,
+        "rate_limited" => "Too many requests. Please slow down.",
+        "concurrency_conflict" => "The resource was changed by another request.",
+        _ => "The request could not be completed.",
+    };
+}

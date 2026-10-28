@@ -37,6 +37,7 @@ public static class IdentityModule
         services.AddSingleton(new IdentityOptions(devLogin));
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
+        services.AddScoped<IAuthSessionValidator, AuthSessionValidator>();
         services.AddSingleton<IExternalIdentityProvider, UnconfiguredGoogleIdentityProvider>();
         services.AddDbContext<IdentityDbContext>((sp, o) => o
             .UseNpgsql(cs, n => n.MigrationsHistoryTable("__ef_migrations_history", IdentityDbContext.Schema))
@@ -127,3 +128,9 @@ public static class IdentityModule
 }
 
 internal sealed record IdentityOptions(bool DevLoginEnabled);
+
+internal sealed class AuthSessionValidator(IdentityDbContext db, TimeProvider clock) : IAuthSessionValidator
+{
+    public Task<bool> IsValidAsync(Guid userId, Guid authSessionId, CancellationToken ct = default) =>
+        SessionPolicy.IsValidAsync(userId, authSessionId, db, clock, ct);
+}

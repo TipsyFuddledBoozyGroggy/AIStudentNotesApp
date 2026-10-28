@@ -1,0 +1,9 @@
+{
+  "events": [
+    { "v": 1, "type": "session.state", "sessionId": "ses_01HZX", "seq": "1", "ts": "2026-10-27T14:03:05.250Z", "payload": { "state": "Active" } },
+    { "v": 1, "type": "transcript.final", "sessionId": "ses_01HZX", "seq": "2", "ts": "2026-10-27T14:03:08.250Z", "payload": { "segmentId": "seg_1", "startMs": 0, "endMs": 2500, "text": "Demo replay segment one.", "provider": "replay-demo" } },
+    { "v": 1, "type": "gap", "sessionId": "ses_01HZX", "seq": "3", "ts": "2026-10-27T14:03:12.250Z", "payload": { "fromMs": 3000, "toMs": 4000, "reason": "provider" } },
+    { "v": 1, "type": "transcript.correction", "sessionId": "ses_01HZX", "seq": "4", "ts": "2026-10-27T14:03:15.250Z", "payload": { "segmentId": "seg_1", "revision": 2, "text": "Demo replay segment one, corrected.", "supersedes": 1 } }
+  ],
+  "hasMore": false
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/transcript-page.schema.json",
+  "title": "transcript-page",
+  "description": "GET /sessions/{id}/transcript?afterSeq&limit (API_CONTRACTS section 13.1): all persisted events after afterSeq in seq order.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "events",
+    "hasMore"
+  ],
+  "properties": {
+    "events": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "oneOf": [
+          { "$ref": "session.state.schema.json" },
+          { "$ref": "transcript.final.schema.json" },
+          { "$ref": "transcript.correction.schema.json" },
+          { "$ref": "gap.schema.json" }
+        ]
+      }
+    },
+    "hasMore": {
+      "type": "boolean"
+    }
+  }
+}

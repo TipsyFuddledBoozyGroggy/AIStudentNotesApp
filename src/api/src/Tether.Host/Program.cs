@@ -9,6 +9,7 @@ using Tether.Lectures;
 using Tether.SharedKernel;
 using Tether.SharedKernel.Http;
 using Tether.SharedKernel.Persistence;
+using Tether.Transcript;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
@@ -30,6 +31,7 @@ builder.Services.AddSharedKernel();
 builder.AddIdentityModule(); // fails startup if dev login is enabled outside Development
 builder.AddCoursesModule();
 builder.AddLecturesModule();
+builder.AddTranscriptModule();
 
 var allowedOrigins = builder.Configuration.GetSection("Security:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddSingleton(new OriginPolicy(allowedOrigins));
@@ -151,6 +153,8 @@ app.UseStatusCodePages(ctx => Problems.ForStatus(ctx.HttpContext.Response.Status
 
 // SEC-031 / SEC-030: state-changing requests must come from an allow-listed Origin.
 app.UseMiddleware<OriginCheckMiddleware>();
+app.UseMiddleware<RealtimeOriginMiddleware>(); // F-04: GET upgrades of the hub and audio socket too
+app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
 
 app.UseRouting();
 app.UseAuthentication(); // before the limiter so it can key on the user
@@ -164,12 +168,15 @@ var api = app.MapGroup("/api/v1");
 api.MapIdentityEndpoints(app.Services);
 api.MapCoursesEndpoints();
 api.MapLecturesEndpoints();
+api.MapTranscriptEndpoints();
+app.MapRealtimeEndpoints();
 
 if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 {
     await app.Services.MigrateIdentityAsync();
     await app.Services.MigrateCoursesAsync();
     await app.Services.MigrateLecturesAsync();
+    await app.Services.MigrateTranscriptAsync(); // after Lectures: FKs to lectures.lecture_sessions
     await app.Services.SeedDevUsersAsync(); // no-op unless Development and dev login enabled
 }
 
