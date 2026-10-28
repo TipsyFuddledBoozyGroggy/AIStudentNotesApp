@@ -67,9 +67,42 @@ public class LectureB2LimitsTests(LectureB2LimitsTests.Factory f) : LectureTestB
             ok++;
         }
         Assert.Equal(HttpStatusCode.TooManyRequests, last);
-        Assert.Equal(12, ok);
+        // ADR-019b: Pause is never capped, so the 13th call (a Pause) succeeds and the first refusal is the Resume after it.
+        Assert.Equal(13, ok);
 
         // Stop is never blocked by the cap (the student can always end a session).
+        Assert.Equal(HttpStatusCode.OK, (await PostAsync(a.Client, $"/sessions/{id}/stop")).StatusCode);
+    }
+
+    // ADR-019b / B2-01: consent must be reversible, so Pause and Stop are never rate limited, capped or refused.
+    [Fact]
+    public async Task Pause_and_Stop_succeed_after_12_plus_transitions_and_while_rate_limited_and_only_Resume_is_capped()
+    {
+        var a = await NewActorAsync();
+        var id = (await StartOkAsync(a.Client, await CourseAsync(a.Client))).GetProperty("id").GetString()!;
+        for (var i = 0; i < 12; i++) Assert.Equal(HttpStatusCode.OK, (await PostAsync(a.Client, $"/sessions/{id}/{(i % 2 == 0 ? "pause" : "resume")}")).StatusCode);
+        // 12 transitions in the minute, session Active (B2-01 reproduction: the 13th call, a Pause, used to get 429)
+        var pause = await PostAsync(a.Client, $"/sessions/{id}/pause");
+        Assert.Equal(HttpStatusCode.OK, pause.StatusCode);
+        Assert.Equal("Paused", (await pause.BodyAsync()).GetProperty("state").GetString());
+        Assert.Equal("Paused", await F.TextAsync($"select state from lectures.lecture_sessions where id = '{id}'"));
+
+        // Resume is the only user transition that is capped (and start, which has its own one-live-session rule).
+        await (await PostAsync(a.Client, $"/sessions/{id}/resume")).AssertProblemAsync(HttpStatusCode.TooManyRequests, "rate_limited");
+        Assert.Equal("Paused", await F.TextAsync($"select state from lectures.lecture_sessions where id = '{id}'"));
+
+        // Stop works while rate limited, from Paused, and is idempotent.
+        Assert.Equal(HttpStatusCode.OK, (await PostAsync(a.Client, $"/sessions/{id}/stop")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await PostAsync(a.Client, $"/sessions/{id}/stop")).StatusCode);
+        Assert.Equal(1, await CountAsync("consent_events", $"session_id = '{id}' and kind = 'Stop'"));
+    }
+
+    [Fact]
+    public async Task Stop_from_Active_succeeds_while_the_resume_cap_is_hit()
+    {
+        var a = await NewActorAsync();
+        var id = (await StartOkAsync(a.Client, await CourseAsync(a.Client))).GetProperty("id").GetString()!;
+        for (var i = 0; i < 12; i++) Assert.Equal(HttpStatusCode.OK, (await PostAsync(a.Client, $"/sessions/{id}/{(i % 2 == 0 ? "pause" : "resume")}")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await PostAsync(a.Client, $"/sessions/{id}/stop")).StatusCode);
     }
 
@@ -79,9 +112,11 @@ public class LectureB2LimitsTests(LectureB2LimitsTests.Factory f) : LectureTestB
         var a = await NewActorAsync();
         var id = (await StartOkAsync(a.Client, await CourseAsync(a.Client))).GetProperty("id").GetString()!;
         for (var i = 0; i < 12; i++) Assert.Equal(HttpStatusCode.OK, (await PostAsync(a.Client, $"/sessions/{id}/{(i % 2 == 0 ? "pause" : "resume")}")).StatusCode);
-        Assert.Equal(HttpStatusCode.TooManyRequests, (await PostAsync(a.Client, $"/sessions/{id}/pause")).StatusCode);
-        F.Clock.Advance(TimeSpan.FromSeconds(61));
+        // 12 transitions in the minute and the session is Active: Pause is never capped (ADR-019b), the Resume after it is.
         Assert.Equal(HttpStatusCode.OK, (await PostAsync(a.Client, $"/sessions/{id}/pause")).StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, (await PostAsync(a.Client, $"/sessions/{id}/resume")).StatusCode);
+        F.Clock.Advance(TimeSpan.FromSeconds(61));
+        Assert.Equal(HttpStatusCode.OK, (await PostAsync(a.Client, $"/sessions/{id}/resume")).StatusCode);
     }
 
     [Fact]

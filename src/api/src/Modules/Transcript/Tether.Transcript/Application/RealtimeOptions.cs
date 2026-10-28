@@ -9,7 +9,8 @@ namespace Tether.Transcript.Application;
 internal sealed record RealtimeOptions(
     TimeSpan HubRevalidate, TimeSpan RelayCheck, TimeSpan MaxHubConnectionAge, int MaxHubConnectionsPerUser, int MaxSocketsPerUser,
     int ReplayCap, int JoinPermitPerMinute, TimeSpan HelloTimeout, int UpgradePermitPerMinute, int FailedHelloPerMinute,
-    int ChannelFrames, TimeSpan Backpressure, double MaxRateFactor, int EventsPerSecond, TimeSpan SilenceGap, double RateBurstSeconds)
+    int ChannelFrames, TimeSpan Backpressure, double MaxRateFactor, int EventsPerSecond, TimeSpan SilenceGap, double RateBurstSeconds,
+    int JoinPermitPerUserPerMinute, int HubInvocationsPerMinute)
 {
     public const int MaxHelloBytes = 1024;
     public const int MaxTextBytes = 4096;
@@ -35,5 +36,7 @@ internal sealed record RealtimeOptions(
         MaxRateFactor: c.GetValue("Realtime:MaxRateFactor", 1.1),
         EventsPerSecond: c.GetValue("Realtime:EventsPerSecond", 50),
         SilenceGap: TimeSpan.FromSeconds(c.GetValue("Realtime:SilenceGapSeconds", 60)),
-        RateBurstSeconds: c.GetValue("Realtime:RateBurstSeconds", 5.0));
+        RateBurstSeconds: c.GetValue("Realtime:RateBurstSeconds", 5.0),
+        JoinPermitPerUserPerMinute: c.GetValue("Realtime:JoinPermitPerUserPerMinute", 30),
+        HubInvocationsPerMinute: c.GetValue("Realtime:HubInvocationsPerMinute", 120));
 }

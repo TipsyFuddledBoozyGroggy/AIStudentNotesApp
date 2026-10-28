@@ -18,6 +18,8 @@ internal sealed class LectureSession : IUserOwned
     public DateTimeOffset StartedAt { get; set; }
     public DateTimeOffset? StoppedAt { get; set; }
     public Guid ConsentRecordId { get; set; }
+    /// <summary>True if the transcript source was the demo/replay provider when the session was created (B2-09). Never recomputed.</summary>
+    public bool DemoSource { get; set; }
     /// <summary>PostgreSQL xmin; optimistic concurrency token and ETag source.</summary>
     public uint Version { get; set; }
 }

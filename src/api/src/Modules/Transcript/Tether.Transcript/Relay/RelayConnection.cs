@@ -93,6 +93,10 @@ internal sealed class RelayConnection
         {
             await using (var scope = _s.Scopes.CreateUserScope(UserId, AuthSessionId))
             {
+                // B2-04: the relay is registered now, so any later pause/stop/delete reaches it through the observer. A pause that
+                // committed before registration did not, so read the state once, before a provider stream exists.
+                var info = await scope.ServiceProvider.GetRequiredService<ISessionDirectory>().FindAsync(UserId, SessionId, ct);
+                if (info is null || info.State != LectureState.Active) { await CutoffAndCloseAsync(CloseCodes.InvalidState); return; }
                 var writer = scope.ServiceProvider.GetRequiredService<TranscriptWriter>();
                 _acceptedMs = await writer.LoadAcceptedMsAsync(SessionId, ct);
                 _segmentBase = await writer.MaxSegmentNoAsync(SessionId, ct);
@@ -121,14 +125,26 @@ internal sealed class RelayConnection
             _cut = true;
             _audio.Writer.TryComplete();
             _events.Writer.TryComplete();
+            await ReleaseAsync(); // save progress, then leave the registry BEFORE draining workers so a quick reconnect is not refused (B2-05)
             _cts.Cancel();
             try { await Task.WhenAll(workers).WaitAsync(TimeSpan.FromSeconds(5)); } catch (Exception) { /* workers log their own type-only failures */ }
             if (_stream is not null) await _stream.DisposeAsync();
             _s.Partials.Clear(UserId, SessionId);
-            await SaveProgressAsync();
-            _s.Registry.Remove(this);
             if (_ws.State is WebSocketState.Open or WebSocketState.CloseReceived) await CloseAsync(CloseCodes.Normal);
         }
+    }
+
+    private int _released;
+
+    /// <summary>
+    /// Saves the accepted-audio position, then removes this relay from the registry. Order matters: a new relay for the same
+    /// session loads that position, and may register the moment this one is gone. Runs once.
+    /// </summary>
+    private async Task ReleaseAsync()
+    {
+        if (Interlocked.Exchange(ref _released, 1) == 1) return;
+        await SaveProgressAsync();
+        _s.Registry.Remove(this);
     }
 
     private async Task SaveProgressAsync()
@@ -149,12 +165,14 @@ internal sealed class RelayConnection
         while (_audio.Reader.TryRead(out _)) { /* discard unsent audio; the client ring buffer is never replayed */ }
         _s.Partials.Clear(UserId, SessionId);
         if (_stream is not null) { try { await _stream.CompleteAsync(CancellationToken.None); } catch (Exception) { /* closing anyway */ } }
+        await ReleaseAsync(); // gone from the registry before the client can see the close
         await CloseAsync(code);
     }
 
     public async Task CloseAsync(int code)
     {
         if (Interlocked.Exchange(ref _closing, 1) == 1) return;
+        await ReleaseAsync();
         try
         {
             if (!await _send.WaitAsync(TimeSpan.FromSeconds(2))) { _ws.Abort(); return; }
@@ -475,10 +493,15 @@ internal sealed class RelayConnection
 /// <summary>Internal marker: ask the pump to report a pending rate-overflow gap.</summary>
 internal sealed record FlushOverflow : SttEvent;
 
-/// <summary>Live audio sockets by session. One socket per session and a per-user cap (C-18).</summary>
+/// <summary>Live audio sockets by session. One socket per session and a per-user cap (C-18). In process: single instance only.</summary>
 internal sealed class RelayRegistry(RealtimeOptions options)
 {
     private readonly ConcurrentDictionary<Guid, RelayConnection> _bySession = new();
+
+    /// <summary>Test seam: awaited after a ticket was consumed and before the relay is registered (B2-04). Always null in production.</summary>
+    internal Func<Guid, Task>? AfterTicketConsumed { get; set; }
+
+    public bool Contains(Guid sessionId) => _bySession.ContainsKey(sessionId);
 
     public bool TryAdd(RelayConnection c)
     {
@@ -490,4 +513,8 @@ internal sealed class RelayRegistry(RealtimeOptions options)
 
     public Task CloseSessionAsync(Guid sessionId, int code) =>
         _bySession.TryGetValue(sessionId, out var c) ? c.CutoffAndCloseAsync(code) : Task.CompletedTask;
+
+    /// <summary>B2-03: closes every audio socket opened with the revoked login session.</summary>
+    public Task CloseAuthSessionAsync(Guid userId, Guid authSessionId, int code) =>
+        Task.WhenAll(_bySession.Values.Where(c => c.UserId == userId && c.AuthSessionId == authSessionId).Select(c => c.CutoffAndCloseAsync(code)));
 }

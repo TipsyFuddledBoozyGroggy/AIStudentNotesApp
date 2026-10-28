@@ -63,7 +63,10 @@ internal static class AudioIngestEndpoint
             }
         }
 
-        // 3. One socket per session and a per-user cap.
+        // 3. One socket per session and a per-user cap. A pause that commits between the consume above and TryAdd below finds no
+        // relay to cut (B2-04); RunAsync therefore re-reads the session state once the relay is registered, before any provider
+        // stream exists, so no audio can be accepted for a session that was paused before registration.
+        if (s.Registry.AfterTicketConsumed is { } hook) await hook(id); // test seam only; null in production
         var relay = new RelayConnection(ws, s, userId.Value, authSid.Value, id);
         if (!s.Registry.TryAdd(relay)) { await CloseQuietly(ws, CloseCodes.InvalidState); return Results.Empty; }
         await relay.RunAsync(buffer, http.RequestAborted);
@@ -109,37 +112,42 @@ internal static class AudioIngestEndpoint
     }
 }
 
-/// <summary>Failed hellos per user and per client IP in the last minute (C-04). Only counts; stores no ticket or content.</summary>
-internal sealed class FailedHelloLimiter(RealtimeOptions options, TimeProvider clock)
+/// <summary>
+/// Failed hellos per user and per client address in the last minute (C-04). Only counts; stores no ticket or content. IPv6 clients
+/// are keyed by their /64 (N-04). Bounded memory: idle keys are swept and the tables are capped (B2-02).
+/// </summary>
+internal sealed class FailedHelloLimiter
 {
-    private readonly ConcurrentDictionary<string, Queue<DateTimeOffset>> _hits = new();
+    public const int MaxTrackedKeys = 20000;
+    private readonly RealtimeOptions _options;
+    private readonly SlidingWindowCounter<string> _users, _ips;
 
-    private static string UserKey(Guid u) => "u:" + u.ToString("N");
-    private static string IpKey(string ip) => "ip:" + ip;
+    public FailedHelloLimiter(RealtimeOptions options, TimeProvider clock)
+    {
+        _options = options;
+        var window = TimeSpan.FromMinutes(1);
+        _users = new(int.MaxValue, window, clock, MaxTrackedKeys / 2);
+        _ips = new(int.MaxValue, window, clock, MaxTrackedKeys / 2);
+    }
+
+    public int TrackedKeys => _users.TrackedKeys + _ips.TrackedKeys;
 
     public void Record(Guid userId, string ip)
     {
-        Add(UserKey(userId));
-        Add(IpKey(ip));
+        _users.Record(userId.ToString("N"));
+        _ips.Record(IpKey(ip));
     }
 
-    public bool IsBlocked(Guid userId, string ip) => Count(UserKey(userId)) >= options.FailedHelloPerMinute || Count(IpKey(ip)) >= options.FailedHelloPerMinute * 5;
+    public bool IsBlocked(Guid userId, string ip) =>
+        _users.Count(userId.ToString("N")) >= _options.FailedHelloPerMinute || _ips.Count(IpKey(ip)) >= _options.FailedHelloPerMinute * 5;
 
-    private void Add(string key)
+    /// <summary>IPv4 as is; IPv4-mapped IPv6 as IPv4; other IPv6 reduced to its /64 so a client cannot dodge the limit by rotating addresses.</summary>
+    internal static string IpKey(string ip)
     {
-        var q = _hits.GetOrAdd(key, _ => new());
-        lock (q) { Prune(q); q.Enqueue(clock.GetUtcNow()); }
-    }
-
-    private int Count(string key)
-    {
-        if (!_hits.TryGetValue(key, out var q)) return 0;
-        lock (q) { Prune(q); return q.Count; }
-    }
-
-    private void Prune(Queue<DateTimeOffset> q)
-    {
-        var now = clock.GetUtcNow();
-        while (q.Count > 0 && now - q.Peek() >= TimeSpan.FromMinutes(1)) q.Dequeue();
+        if (!System.Net.IPAddress.TryParse(ip, out var addr)) return "x:" + (ip.Length <= 64 ? ip : ip[..64]);
+        if (addr.IsIPv4MappedToIPv6) addr = addr.MapToIPv4();
+        if (addr.AddressFamily != System.Net.Sockets.AddressFamily.InterNetworkV6) return addr.ToString();
+        var b = addr.GetAddressBytes();
+        return Convert.ToHexString(b.AsSpan(0, 8)) + "/64";
     }
 }

@@ -34,6 +34,12 @@ internal sealed class HubConnections
     public IReadOnlyList<Guid> SessionsOf(string id) => _all.TryGetValue(id, out var c) ? c.Sessions.Keys.ToList() : [];
     public IReadOnlyList<HubConnection> Snapshot() => _all.Values.ToList();
 
+    /// <summary>Aborts every connection opened with the revoked login session (B2-03).</summary>
+    public void AbortAuthSession(Guid userId, Guid authSessionId)
+    {
+        foreach (var c in _all.Values.Where(c => c.UserId == userId && c.AuthSessionId == authSessionId)) c.Abort();
+    }
+
     /// <summary>Aborts every connection of the user that joined the session (session or course deleted).</summary>
     public void AbortSession(Guid userId, Guid sessionId)
     {

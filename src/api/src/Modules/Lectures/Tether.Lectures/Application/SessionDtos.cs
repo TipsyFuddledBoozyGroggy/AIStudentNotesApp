@@ -33,8 +33,8 @@ internal sealed record CreateSessionRequest(string? Title, ConsentRequest? Conse
 /// <summary>Row projection used to build <see cref="SessionResponse"/>.</summary>
 internal sealed record SessionRow(LectureSession Session, string TextVersion, DateTimeOffset AcknowledgedAt, long LastSeq)
 {
-    /// <summary>True while the transcript source is the deterministic replay provider (API_CONTRACTS 12.2).</summary>
-    public bool DemoSource { get; init; }
+    /// <summary>True if the transcript source was the deterministic replay provider when the session was created (API_CONTRACTS 12.2, B2-09).</summary>
+    public bool DemoSource => Session.DemoSource;
 }
 
 /// <summary>

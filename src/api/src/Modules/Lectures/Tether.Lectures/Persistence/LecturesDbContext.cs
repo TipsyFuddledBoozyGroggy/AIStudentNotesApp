@@ -41,6 +41,7 @@ internal sealed class LecturesDbContext(DbContextOptions<LecturesDbContext> opti
             b.Property(x => x.StartedAt).HasColumnName("started_at");
             b.Property(x => x.StoppedAt).HasColumnName("stopped_at");
             b.Property(x => x.ConsentRecordId).HasColumnName("consent_record_id").IsRequired();
+            b.Property(x => x.DemoSource).HasColumnName("demo_source");
             b.Property(x => x.Version).IsRowVersion(); // xmin
             b.HasOne<ConsentRecord>().WithMany().HasForeignKey(x => x.ConsentRecordId)
                 .HasConstraintName("fk_lecture_sessions_consent_record_id").OnDelete(DeleteBehavior.Restrict);

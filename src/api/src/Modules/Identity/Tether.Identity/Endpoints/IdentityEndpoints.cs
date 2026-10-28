@@ -11,6 +11,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Tether.Identity.Endpoints;
 
@@ -31,11 +33,7 @@ internal static partial class IdentityEndpoints
         {
             // Revoke server-side first so a copied cookie dies too (F-01); only this device's session.
             if (SessionPolicy.SessionId(ctx.User) is { } sid)
-            {
-                var now = clock.GetUtcNow();
-                await db.Sessions.Where(s => s.Id == sid && s.RevokedAt == null)
-                    .ExecuteUpdateAsync(u => u.SetProperty(s => s.RevokedAt, now), ctx.RequestAborted);
-            }
+                await RevokeAsync(ctx, db, clock, sid);
             await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             return Results.NoContent();
         }).AllowAnonymous();
@@ -43,6 +41,27 @@ internal static partial class IdentityEndpoints
         if (devLoginEnabled)
         {
             api.MapPost("/dev/login", DevLogin).AllowAnonymous().RequireRateLimiting("auth");
+        }
+    }
+
+    /// <summary>
+    /// Revokes the login session in the database first, then pushes the revocation to live-connection holders (B2-03) so open
+    /// audio sockets and hub connections bound to it close now rather than at their next poll. Observer failures never block logout.
+    /// </summary>
+    private static async Task RevokeAsync(HttpContext ctx, IdentityDbContext db, TimeProvider clock, Guid sid)
+    {
+        var now = clock.GetUtcNow();
+        await db.Sessions.Where(s => s.Id == sid && s.RevokedAt == null)
+            .ExecuteUpdateAsync(u => u.SetProperty(s => s.RevokedAt, now), ctx.RequestAborted);
+        if (AuthClaims.UserIdOf(ctx.User) is not { } userId) return;
+        foreach (var o in ctx.RequestServices.GetServices<IAuthSessionRevocationObserver>())
+        {
+            try { await o.OnRevokedAsync(userId, sid, CancellationToken.None); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                ctx.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Tether.Identity")
+                    .LogWarning("Revocation observer failed: {ExceptionType}", ex.GetType().Name); // type only
+            }
         }
     }
 
@@ -82,11 +101,7 @@ internal static partial class IdentityEndpoints
     {
         // N-03: a new login ends the session this browser already carries, whoever it belonged to.
         if (SessionPolicy.SessionId(ctx.User) is { } oldSid)
-        {
-            var now = clock.GetUtcNow();
-            await db.Sessions.Where(s => s.Id == oldSid && s.RevokedAt == null)
-                .ExecuteUpdateAsync(u => u.SetProperty(s => s.RevokedAt, now), ctx.RequestAborted);
-        }
+            await RevokeAsync(ctx, db, clock, oldSid);
         var session = SessionPolicy.Create(user.Id, clock);
         db.Sessions.Add(session);
         await db.SaveChangesAsync(ctx.RequestAborted);

@@ -22,7 +22,7 @@ namespace Tether.Transcript.Hub;
 [Authorize]
 internal sealed class LectureHub(
     ISessionDirectory directory, TranscriptReader reader, PartialStore partials, HubConnections connections, JoinLimiter joins,
-    ISessionActivity activity, RealtimeOptions options, TimeProvider clock) : Microsoft.AspNetCore.SignalR.Hub
+    ISessionActivity activity, RealtimeOptions options, TimeProvider clock, HubInvocationLimiter invocations) : Microsoft.AspNetCore.SignalR.Hub
 {
     public const string ClientMethod = "event";
     public const string Protocol = "lecture.v1";
@@ -50,6 +50,7 @@ internal sealed class LectureHub(
     public override Task OnDisconnectedAsync(Exception? exception)
     {
         connections.Remove(Context.ConnectionId);
+        invocations.Forget(Context.ConnectionId);
         return base.OnDisconnectedAsync(exception);
     }
 
@@ -143,11 +144,13 @@ internal sealed record ReplayInfo(string? FromSeq, string? ToSeq, bool Truncated
 internal sealed record JoinResponse(string State, string CurrentSeq, int? CurrentSummaryRevision, ReplayInfo Replay);
 
 /// <summary>Runs every hub invocation inside the caller's identity and keeps failures content free.</summary>
-internal sealed class HubUserFilter(ILogger<HubUserFilter> log) : IHubFilter
+internal sealed class HubUserFilter(ILogger<HubUserFilter> log, HubInvocationLimiter invocations) : IHubFilter
 {
     public async ValueTask<object?> InvokeMethodAsync(HubInvocationContext context, Func<HubInvocationContext, ValueTask<object?>> next)
     {
         context.ServiceProvider.GetRequiredService<UserScope>().Set(context.Context.User);
+        // B2-02: every invocation counts, before the method runs and so before any database access.
+        if (!invocations.TryAcquire(context.Context.ConnectionId)) throw new HubException("rate_limited");
         try
         {
             return await next(context);
@@ -168,21 +171,32 @@ internal sealed class HubUserFilter(ILogger<HubUserFilter> log) : IHubFilter
     }
 }
 
-/// <summary>C-26: at most N Joins per minute per (user, session).</summary>
-internal sealed class JoinLimiter(RealtimeOptions options, TimeProvider clock)
+/// <summary>
+/// C-26 and B2-02: at most N Joins per minute per (user, session) and M per user across all session ids, checked before any
+/// database access, so random ids cannot be used to hammer the database. Bounded memory (idle keys are swept, the tables are capped).
+/// </summary>
+internal sealed class JoinLimiter
 {
-    private readonly ConcurrentDictionary<(Guid, Guid), Queue<DateTimeOffset>> _hits = new();
+    public const int MaxTrackedKeys = 20000;
+    private readonly SlidingWindowCounter<(Guid, Guid)> _pairs;
+    private readonly SlidingWindowCounter<Guid> _users;
 
-    public bool TryAcquire(Guid userId, Guid sessionId)
+    public JoinLimiter(RealtimeOptions options, TimeProvider clock)
     {
-        var now = clock.GetUtcNow();
-        var q = _hits.GetOrAdd((userId, sessionId), _ => new());
-        lock (q)
-        {
-            while (q.Count > 0 && now - q.Peek() >= TimeSpan.FromMinutes(1)) q.Dequeue();
-            if (q.Count >= options.JoinPermitPerMinute) return false;
-            q.Enqueue(now);
-            return true;
-        }
+        _pairs = new(options.JoinPermitPerMinute, TimeSpan.FromMinutes(1), clock, MaxTrackedKeys * 3 / 4);
+        _users = new(options.JoinPermitPerUserPerMinute, TimeSpan.FromMinutes(1), clock, MaxTrackedKeys / 4);
     }
+
+    public int TrackedKeys => _pairs.TrackedKeys + _users.TrackedKeys;
+
+    public bool TryAcquire(Guid userId, Guid sessionId) => _users.TryAcquire(userId) && _pairs.TryAcquire((userId, sessionId));
+}
+
+/// <summary>B2-02: caps every hub invocation per connection (Join, Leave, Ping) before the hub method, and so before any database access.</summary>
+internal sealed class HubInvocationLimiter(RealtimeOptions options, TimeProvider clock)
+{
+    private readonly SlidingWindowCounter<string> _perConnection = new(options.HubInvocationsPerMinute, TimeSpan.FromMinutes(1), clock, 10000);
+    public int TrackedKeys => _perConnection.TrackedKeys;
+    public bool TryAcquire(string connectionId) => _perConnection.TryAcquire(connectionId);
+    public void Forget(string connectionId) => _perConnection.Forget(connectionId);
 }

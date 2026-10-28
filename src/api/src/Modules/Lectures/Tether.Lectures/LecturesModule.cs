@@ -27,6 +27,7 @@ public static class LecturesModule
         builder.Services.AddSingleton<ConsentTextRegistry>();
         builder.Services.AddSingleton(new SessionETag(ETagKey(builder.Configuration)));
         builder.Services.AddScoped<SessionService>();
+        builder.Services.AddScoped<Tether.Courses.Contracts.ICourseLifecycleHandler, CourseLifecycleHandler>();
         builder.Services.AddScoped<ExpiredRowSweeper>();
         var sweepSeconds = Math.Max(30, builder.Configuration.GetValue("Lectures:SweepIntervalSeconds", 300));
         builder.Services.AddHostedService(sp => new ExpiredRowSweeperService(

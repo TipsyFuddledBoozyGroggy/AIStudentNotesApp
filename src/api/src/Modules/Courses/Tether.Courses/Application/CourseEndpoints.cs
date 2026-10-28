@@ -1,3 +1,4 @@
+using Tether.Courses.Contracts;
 using Tether.Courses.Domain;
 using Tether.Courses.Persistence;
 using Tether.SharedKernel;
@@ -121,14 +122,21 @@ internal static class CourseEndpoints
 
     /// <summary>DELETE archives (soft delete). <c>?purge=true</c> permanently deletes the course.</summary>
     private static async Task<IResult> Delete(Guid id, bool? purge, CoursesDbContext db, TimeProvider clock,
-        CancellationToken ct)
+        [Microsoft.AspNetCore.Mvc.FromServices] IEnumerable<ICourseLifecycleHandler> lifecycle, CancellationToken ct)
     {
         var course = await db.Courses.FirstOrDefaultAsync(c => c.Id == id, ct);
         if (course is null) return Problems.NotFound("Course not found.");
 
+        // B2-06/B2-07: recording must end, and the consent evidence must be complete, before the course disappears or is hidden.
+        foreach (var h in lifecycle)
+        {
+            if (purge == true) await h.OnPurgingAsync(course.UserId, course.Id, ct);
+            else await h.OnArchivingAsync(course.UserId, course.Id, ct);
+        }
+
         if (purge == true)
         {
-            db.Courses.Remove(course); // M2: cascade to sessions/transcripts via the Lectures module
+            db.Courses.Remove(course); // sessions, transcripts and tickets cascade by FK (ADR-019/020)
         }
         else if (course.ArchivedAt is null)
         {

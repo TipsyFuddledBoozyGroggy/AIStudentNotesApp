@@ -27,3 +27,17 @@ internal sealed class RealtimeLifecycleObserver(LiveFanout fanout, PartialStore 
         hubs.AbortSession(userId, sessionId);
     }
 }
+
+/// <summary>
+/// B2-03: closes the audio socket (4401) and aborts hub connections bound to a login session the moment Identity revokes it,
+/// so audio stops flowing to the provider and no further Join or replay is served after logout. The periodic revalidation stays
+/// as a safety net (revocations that bypass Identity, such as a direct database change or user deletion).
+/// </summary>
+internal sealed class RealtimeRevocationObserver(RelayRegistry relays, HubConnections hubs) : Tether.SharedKernel.IAuthSessionRevocationObserver
+{
+    public async Task OnRevokedAsync(Guid userId, Guid authSessionId, CancellationToken ct)
+    {
+        hubs.AbortAuthSession(userId, authSessionId);
+        await relays.CloseAuthSessionAsync(userId, authSessionId, CloseCodes.Unauthorized);
+    }
+}

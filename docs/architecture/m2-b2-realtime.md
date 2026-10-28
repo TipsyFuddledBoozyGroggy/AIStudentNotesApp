@@ -24,3 +24,17 @@ The cross-schema FK allow-list is now five entries (all `ON DELETE CASCADE`): th
 - Single instance only for M2 (see contract section 15, "Deferred").
 - Tests need the `Microsoft.AspNetCore.SignalR.Client` NuGet package (test project only).
 - New configuration keys are listed in `src/api/README.md`.
+
+## Single-instance limits (B2 security review, ADR-020d)
+**Run exactly one API instance.** Nothing below is shared between processes: hub connections and groups (`HubConnections`, SignalR groups), the live partial store, `RelayRegistry`, `SessionActivityTracker`, `JoinLimiter`, `HubInvocationLimiter`, `FailedHelloLimiter`, and the ASP.NET rate limiters. With two instances:
+- Events from the instance that holds the audio socket do not reach hub clients on the other one.
+- A pause, delete or logout handled by instance B does not close a socket on A until A's polling (`Realtime:RelayCheckSeconds`, default 5 s; hub 60 s). The push added in the B2 fix pass is also in process.
+- Instance B's lifecycle job sees no activity for a session streaming on A and auto-pauses it after 5 minutes.
+- Every limit is multiplied by the instance count, and `HubReaper` cannot abort connections that live elsewhere.
+
+Before scale-out: a SignalR backplane, shared activity/limiter/relay state (or sticky sessions plus leader election for the job), and a cross-instance revocation and cutoff channel. Deployment configuration must pin the replica count to 1; no automated check enforces it.
+
+## Pause, stop and push closure (after the B2 review)
+- `RelayRegistry.CloseSessionAsync` (state change, delete, archive, purge) and `CloseAuthSessionAsync` (revocation) are the push paths. They set the relay's cut flag first, so no later frame is acked, then complete the provider stream, save the audio position, leave the registry, and only then send the close frame.
+- `RelayConnection.RunAsync` re-reads the session after registration and before opening the provider stream (B2-04). The only test seam is `RelayRegistry.AfterTicketConsumed`, always null in production.
+- Limiters share `SlidingWindowCounter<TKey>`: idle keys are swept every half window and each table has a hard key cap (`JoinLimiter` and `FailedHelloLimiter` 20000 in total, `HubInvocationLimiter` 10000). When a table is full a new key is refused for Join and hub invocations (fail closed) and dropped for failed-hello counting. IPv6 clients are keyed by /64.

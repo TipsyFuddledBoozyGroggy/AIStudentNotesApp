@@ -28,6 +28,7 @@ Integration tests create a throwaway `cc_test_*` database on the compose Postgre
 | `Realtime:RevalidateSeconds` / `RelayCheckSeconds` | 60 / 5 | Hub and audio-socket watchdog intervals (login session, session still exists, Active) |
 | `Realtime:MaxConnectionSeconds` / `MaxHubConnectionsPerUser` | 3600 / 3 | Hub connection lifetime and per-user cap |
 | `Realtime:ReplayCap` / `JoinPermitPerMinute` | 500 / 10 | Join replay cap and per (user, session) Join limit |
+| `Realtime:JoinPermitPerUserPerMinute` / `HubInvocationsPerMinute` | 30 / 120 | Join limit per user across all session ids; all hub invocations per connection (B2-02) |
 | `Realtime:HelloTimeoutMs` / `FailedHelloPerMinute` / `UpgradePermitPerMinute` | 5000 / 10 / 10 | Audio socket pre-auth limits (per user; failed hellos also per IP) |
 | `Realtime:ChannelFrames` / `BackpressureMs` / `MaxRateFactor` / `RateBurstSeconds` / `EventsPerSecond` / `SilenceGapSeconds` | 20 / 1000 / 1.1 / 5 / 50 / 60 | Audio relay buffers, backpressure, byte-rate cap, persisted-event rate cap, silence gap |
 | `Lectures:MaxTransitionsPerMinute` / `MaxTransitionsPerSession` | 12 / 200 | Pause/resume caps per session (429) |

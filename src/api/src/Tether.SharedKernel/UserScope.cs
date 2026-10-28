@@ -51,3 +51,13 @@ public static class UserScopeExtensions
         return scope;
     }
 }
+
+/// <summary>
+/// Pushed by Identity right after a login session is revoked (logout, or a new login that replaces it, N-03). Holders of live
+/// connections bound to that login session (hub, audio relay) close them at once instead of waiting for their next poll (B2-03).
+/// Implementations must not throw for ordinary failures.
+/// </summary>
+public interface IAuthSessionRevocationObserver
+{
+    Task OnRevokedAsync(Guid userId, Guid authSessionId, CancellationToken ct);
+}

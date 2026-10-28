@@ -59,7 +59,7 @@ internal sealed class SessionService(
     private bool Demo => services.GetService<IDemoSourceIndicator>()?.IsDemoSource ?? false;
 
     public async Task<SessionRow?> GetAsync(Guid id, CancellationToken ct) =>
-        await Rows(db.Sessions.AsNoTracking().Where(s => s.Id == id)).FirstOrDefaultAsync(ct) is { } r ? r with { DemoSource = Demo } : null;
+        await Rows(db.Sessions.AsNoTracking().Where(s => s.Id == id)).FirstOrDefaultAsync(ct);
 
     public async Task<bool> ExistsAsync(Guid id, CancellationToken ct) => await db.Sessions.AsNoTracking().AnyAsync(s => s.Id == id, ct);
 
@@ -69,8 +69,7 @@ internal sealed class SessionService(
         // Ids are UUIDv7 (time ordered), so id order is creation order and a stable keyset.
         if (after is { } a) q = q.Where(s => s.Id.CompareTo(a) < 0);
         var page = q.OrderByDescending(s => s.Id).Take(take + 1);
-        var demo = Demo;
-        var rows = (await Rows(page).ToListAsync(ct)).Select(r => r with { DemoSource = demo }).OrderByDescending(r => r.Session.Id).ToList();
+        var rows = (await Rows(page).ToListAsync(ct)).OrderByDescending(r => r.Session.Id).ToList();
         Guid? next = null;
         if (rows.Count > take) { rows.RemoveAt(rows.Count - 1); next = rows[^1].Session.Id; }
         return (rows, next);
@@ -111,7 +110,7 @@ internal sealed class SessionService(
         });
         db.Sessions.Add(new LectureSession
         {
-            Id = sessionId, CourseId = courseId, Title = title, State = SessionState.Active, StartedAt = now, ConsentRecordId = consentId,
+            Id = sessionId, CourseId = courseId, Title = title, State = SessionState.Active, StartedAt = now, ConsentRecordId = consentId, DemoSource = Demo,
         });
         db.Counters.Add(new SessionCounter { SessionId = sessionId, LastSeq = 1 });
         db.SessionEvents.Add(new SessionEvent { SessionId = sessionId, Seq = 1, State = SessionState.Active, OccurredAt = now });
@@ -164,7 +163,7 @@ internal sealed class SessionService(
 
     // ---------- pause / resume / stop ----------
 
-    /// <param name="systemReason">Set only by server jobs (auto-pause, auto-stop, hard cap); user commands pass null and are subject to the transition caps.</param>
+    /// <param name="systemReason">Set by server jobs and course lifecycle (auto-pause, auto-stop, hard cap, course_archived, course_deleted). User commands pass null. Only a user Resume is subject to the transition caps: Pause and Stop are never rate limited, capped or refused, because consent must stay reversible (ADR-019b, B2-01).</param>
     public async Task<SessionOutcome> TransitionAsync(Guid id, Transition t, CancellationToken ct, string? systemReason = null)
     {
         for (var attempt = 0; attempt < MaxAttempts; attempt++)
@@ -191,7 +190,7 @@ internal sealed class SessionService(
             }
 
             var now = Now();
-            if (systemReason is null && t != Transition.Stop && await OverTransitionCapAsync(id, now, ct))
+            if (systemReason is null && t == Transition.Resume && await OverTransitionCapAsync(id, now, ct))
                 return SessionOutcome.Fail(Problems.ForStatus(429)); // B1-06
             var consent = await db.Consents.AsNoTracking().FirstAsync(c => c.Id == s.ConsentRecordId, ct);
             await ApplyStateAsync(s, target, kind, action, consent, now, systemReason, ct);
@@ -227,6 +226,36 @@ internal sealed class SessionService(
         AddAudit(action, s.Id, now);
         if (target != SessionState.Active) // C-01: pause and stop invalidate the outstanding ticket
             db.AudioTickets.RemoveRange(await db.AudioTickets.Where(x => x.SessionId == s.Id).ToListAsync(ct));
+    }
+
+    // ---------- course archive / purge (B2-06, B2-07) ----------
+
+    public const string ReasonCourseArchived = "course_archived";
+    public const string ReasonCourseDeleted = "course_deleted";
+
+    /// <summary>
+    /// Stops every Active or Paused session of the course through the normal state machine (consent Stop event, audit, seq,
+    /// ticket invalidation, observers close sockets), then for a purge also audits the deletion of each session the FK cascade
+    /// is about to remove and drops live hub connections. Stop is never refused (ADR-019b).
+    /// </summary>
+    public async Task EndSessionsForCourseAsync(Guid courseId, bool purge, CancellationToken ct)
+    {
+        var reason = purge ? ReasonCourseDeleted : ReasonCourseArchived;
+        var live = await db.Sessions.AsNoTracking()
+            .Where(s => s.CourseId == courseId && (s.State == SessionState.Active || s.State == SessionState.Paused))
+            .Select(s => s.Id).ToListAsync(ct);
+        foreach (var id in live) await TransitionAsync(id, Transition.Stop, ct, reason);
+        if (!purge) return;
+
+        var now = Now();
+        foreach (var id in await db.Sessions.AsNoTracking().Where(s => s.CourseId == courseId).Select(s => s.Id).ToListAsync(ct))
+            AddAudit(AuditActions.SessionDelete, id, now);
+        await db.SaveChangesAsync(ct);
+        foreach (var id in live)
+        {
+            activity.Forget(id);
+            await NotifyDeletedAsync(UserId, id, ct);
+        }
     }
 
     // ---------- delete ----------
@@ -315,7 +344,7 @@ internal sealed class SessionService(
 
     // ---------- helpers ----------
 
-    /// <summary>B1-06: at most MaxTransitionsPerMinute pause/resume in the last minute, and MaxTransitionsPerSession events in total.</summary>
+    /// <summary>B1-06 / ADR-019b: applies to RESUME only. At most MaxTransitionsPerMinute pause/resume in the last minute, and MaxTransitionsPerSession events in total.</summary>
     private async Task<bool> OverTransitionCapAsync(Guid sessionId, DateTimeOffset now, CancellationToken ct)
     {
         var total = await db.SessionEvents.CountAsync(e => e.SessionId == sessionId, ct);

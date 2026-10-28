@@ -270,6 +270,10 @@ namespace Tether.Lectures.Persistence.Migrations
                         .HasColumnType("character varying(16)")
                         .HasColumnName("state");
 
+                    b.Property<bool>("DemoSource")
+                        .HasColumnType("boolean")
+                        .HasColumnName("demo_source");
+
                     b.Property<DateTimeOffset?>("StoppedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("stopped_at");
