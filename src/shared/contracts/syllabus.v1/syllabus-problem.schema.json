@@ -30,7 +30,8 @@
     "detail": {
       "type": "string",
       "maxLength": 200,
-      "pattern": "^[^\\u0000-\\u001f]*$"
+      "pattern": "^[^\\u0000-\\u001f]*$",
+      "description": "Fixed string per code; never exception text, detected file type, filename or content."
     },
     "instance": {
       "type": "string",
@@ -54,7 +55,13 @@
           "type": "string",
           "maxLength": 200
         }
-      }
+      },
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z][A-Za-z0-9_.\\[\\]]{0,63}$",
+        "description": "Field names only, never values."
+      },
+      "description": "Keys are field names; values come from a fixed vocabulary of messages and never echo the rejected value, a filename or parser text."
     },
     "retryAfterSeconds": {
       "type": "integer",

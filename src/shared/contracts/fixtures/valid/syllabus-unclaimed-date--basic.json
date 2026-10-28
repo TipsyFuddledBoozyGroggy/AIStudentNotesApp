@@ -5,6 +5,11 @@
     "start": 5120,
     "end": 5126,
     "page": 3,
-    "precision": "exact"
+    "precision": "exact",
+    "context": {
+      "text": "Oct 14",
+      "start": 5120,
+      "end": 5126
+    }
   }
 }

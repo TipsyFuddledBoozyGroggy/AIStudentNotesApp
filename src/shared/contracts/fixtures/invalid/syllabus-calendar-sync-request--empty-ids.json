@@ -1,7 +1,7 @@
 {
-  "itemIds": [],
   "confirm": {
     "provider": "mock",
     "acknowledgedDemo": true
-  }
+  },
+  "itemRevisions": {}
 }

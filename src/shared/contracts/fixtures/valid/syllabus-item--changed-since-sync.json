@@ -39,7 +39,12 @@
     "start": 4600,
     "end": 4660,
     "page": 3,
-    "precision": "exact"
+    "precision": "exact",
+    "context": {
+      "text": "Midterm exam, Wednesday, October 14, 2026, 10:00 AM in class",
+      "start": 4600,
+      "end": 4660
+    }
   },
   "edited": true,
   "decision": "approved",

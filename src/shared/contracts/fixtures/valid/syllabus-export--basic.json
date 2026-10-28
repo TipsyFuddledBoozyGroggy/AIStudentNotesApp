@@ -20,7 +20,8 @@
       "charCount": 12840,
       "unreadablePages": [],
       "hiddenContentRemoved": 0,
-      "injectionSuspect": false
+      "injectionSuspect": false,
+      "hiddenContentDropped": false
     },
     "unprocessedRanges": [],
     "context": {
@@ -46,7 +47,17 @@
     },
     "etag": "W/\"s1\"",
     "createdAt": "2026-10-28T12:00:00.000Z",
-    "updatedAt": "2026-10-28T12:00:00.000Z"
+    "updatedAt": "2026-10-28T12:00:00.000Z",
+    "batchApproveAllowed": true,
+    "notice": {
+      "version": "draft-2026-10",
+      "attested": true,
+      "attestedAt": "2026-10-28T12:00:00.000Z"
+    },
+    "retention": {
+      "canonicalTextPurged": false,
+      "canonicalTextPurgeAt": "2027-04-26T12:00:00.000Z"
+    }
   },
   "items": [
     {
@@ -93,7 +104,12 @@
         "start": 4102,
         "end": 4131,
         "page": 2,
-        "precision": "exact"
+        "precision": "exact",
+        "context": {
+          "text": "PS3 due Mon Sept 14, 11:59 PM",
+          "start": 4102,
+          "end": 4131
+        }
       },
       "edited": false,
       "decision": "undecided",
@@ -145,7 +161,12 @@
         "start": 4600,
         "end": 4660,
         "page": 3,
-        "precision": "exact"
+        "precision": "exact",
+        "context": {
+          "text": "Midterm exam, Wednesday, October 14, 2026, 10:00 AM in class",
+          "start": 4600,
+          "end": 4660
+        }
       },
       "edited": false,
       "decision": "undecided",
@@ -188,7 +209,12 @@
         "start": 900,
         "end": 928,
         "page": 1,
-        "precision": "exact"
+        "precision": "exact",
+        "context": {
+          "text": "Late work loses 10% per day.",
+          "start": 900,
+          "end": 928
+        }
       },
       "edited": false,
       "decision": "undecided",
@@ -208,7 +234,12 @@
         "start": 5120,
         "end": 5126,
         "page": 3,
-        "precision": "exact"
+        "precision": "exact",
+        "context": {
+          "text": "Oct 14",
+          "start": 5120,
+          "end": 5126
+        }
       }
     }
   ],

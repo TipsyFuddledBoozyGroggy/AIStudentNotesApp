@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.tether.invalid/syllabus.v1/syllabus.schema.json",
   "title": "syllabus",
-  "description": "One uploaded or pasted syllabus and its extraction status. The original file is NOT retained (originalRetained is always false, provisional PO decision D4).",
+  "description": "One uploaded or pasted syllabus and its extraction status. The original file is NOT retained (originalRetained is always false, provisional PO decision D4). The canonical extracted text is retained until deletion or the retention purge (section 5.3).",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -26,7 +26,10 @@
     "counts",
     "etag",
     "createdAt",
-    "updatedAt"
+    "updatedAt",
+    "batchApproveAllowed",
+    "notice",
+    "retention"
   ],
   "properties": {
     "id": {
@@ -119,7 +122,8 @@
         "charCount",
         "unreadablePages",
         "hiddenContentRemoved",
-        "injectionSuspect"
+        "injectionSuspect",
+        "hiddenContentDropped"
       ],
       "properties": {
         "pageCount": {
@@ -154,6 +158,10 @@
           "minimum": 0
         },
         "injectionSuspect": {
+          "type": "boolean"
+        },
+        "hiddenContentDropped": {
+          "description": "True when hidden content (invisible/tiny/off-page/background-colored text, DOCX vanish runs, comments) was removed before any AI saw the text. The count is hiddenContentRemoved.",
           "type": "boolean"
         }
       }
@@ -278,32 +286,32 @@
         "total": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 1000
+          "maximum": 300
         },
         "undecided": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 1000
+          "maximum": 300
         },
         "approved": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 1000
+          "maximum": 300
         },
         "skipped": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 1000
+          "maximum": 300
         },
         "needsDate": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 1000
+          "maximum": 300
         },
         "synced": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 1000
+          "maximum": 300
         },
         "droppedInvalid": {
           "type": "integer",
@@ -313,7 +321,7 @@
         "unclaimedDates": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 1000
+          "maximum": 200
         }
       }
     },
@@ -325,6 +333,55 @@
     },
     "updatedAt": {
       "$ref": "syllabus-common.schema.json#/$defs/timestamp"
+    },
+    "batchApproveAllowed": {
+      "description": "False when document.injectionSuspect, hiddenContentDropped or any item has low_text_quality: batch approve then returns batch_not_eligible for every item (API_CONTRACTS_P2 section 6.1).",
+      "type": "boolean"
+    },
+    "notice": {
+      "description": "Record that the notice was shown and attested at creation (content-free). Wording is a DRAFT placeholder.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "attested",
+        "attestedAt"
+      ],
+      "properties": {
+        "version": {
+          "$ref": "syllabus-common.schema.json#/$defs/noticeVersion"
+        },
+        "attested": {
+          "const": true
+        },
+        "attestedAt": {
+          "$ref": "syllabus-common.schema.json#/$defs/timestamp"
+        }
+      }
+    },
+    "retention": {
+      "description": "Canonical text retention (provisional 180 days after last student activity, PO-owned D4/D11). canonicalTextPurgeAt is null once the text has been purged.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonicalTextPurged",
+        "canonicalTextPurgeAt"
+      ],
+      "properties": {
+        "canonicalTextPurged": {
+          "type": "boolean"
+        },
+        "canonicalTextPurgeAt": {
+          "oneOf": [
+            {
+              "$ref": "syllabus-common.schema.json#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
     }
   },
   "allOf": [
@@ -455,6 +512,96 @@
         "properties": {
           "demoSource": {
             "const": true
+          }
+        }
+      }
+    },
+    {
+      "description": "P2-08: a suspect or hidden-content document never allows batch approve.",
+      "if": {
+        "anyOf": [
+          {
+            "properties": {
+              "document": {
+                "properties": {
+                  "injectionSuspect": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "injectionSuspect"
+                ]
+              }
+            },
+            "required": [
+              "document"
+            ]
+          },
+          {
+            "properties": {
+              "document": {
+                "properties": {
+                  "hiddenContentDropped": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "hiddenContentDropped"
+                ]
+              }
+            },
+            "required": [
+              "document"
+            ]
+          }
+        ]
+      },
+      "then": {
+        "properties": {
+          "batchApproveAllowed": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "description": "A purged canonical text has no purge date; an unpurged one has.",
+      "if": {
+        "properties": {
+          "retention": {
+            "properties": {
+              "canonicalTextPurged": {
+                "const": true
+              }
+            },
+            "required": [
+              "canonicalTextPurged"
+            ]
+          }
+        },
+        "required": [
+          "retention"
+        ]
+      },
+      "then": {
+        "properties": {
+          "retention": {
+            "properties": {
+              "canonicalTextPurgeAt": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "retention": {
+            "properties": {
+              "canonicalTextPurgeAt": {
+                "$ref": "syllabus-common.schema.json#/$defs/timestamp"
+              }
+            }
           }
         }
       }

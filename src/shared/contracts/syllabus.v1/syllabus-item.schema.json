@@ -97,7 +97,8 @@
                   "oneOf": [
                     {
                       "type": "string",
-                      "maxLength": 100
+                      "maxLength": 100,
+                      "pattern": "^(?! )(?!.* $)(?!.*[\\u0300-\\u036f]{5})(?!.*\\uDB40[\\uDC00-\\uDC7F])[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]+$"
                     },
                     {
                       "type": "null"
@@ -108,7 +109,8 @@
                   "oneOf": [
                     {
                       "type": "string",
-                      "maxLength": 50
+                      "maxLength": 50,
+                      "pattern": "^(?! )(?!.* $)(?!.*[\\u0300-\\u036f]{5})(?!.*\\uDB40[\\uDC00-\\uDC7F])[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]+$"
                     },
                     {
                       "type": "null"
@@ -526,7 +528,7 @@
       "$ref": "syllabus-common.schema.json#/$defs/confidence"
     },
     "confidenceReason": {
-      "type": "string",
+      "$ref": "syllabus-common.schema.json#/$defs/textLine",
       "minLength": 1,
       "maxLength": 200
     },
@@ -749,6 +751,62 @@
         "properties": {
           "snippet": {
             "$ref": "syllabus-common.schema.json#/$defs/snippet"
+          }
+        }
+      }
+    },
+    {
+      "description": "P2-08/P2-19: hostile-document, supersession flags and low text quality cap the item at please_check.",
+      "if": {
+        "properties": {
+          "flags": {
+            "contains": {
+              "enum": [
+                "injection_suspect",
+                "supersession_cue",
+                "low_text_quality"
+              ]
+            }
+          }
+        },
+        "required": [
+          "flags"
+        ]
+      },
+      "then": {
+        "properties": {
+          "confidence": {
+            "const": "please_check"
+          }
+        }
+      }
+    },
+    {
+      "description": "P2-19c: a student-entered date is never looks_right.",
+      "if": {
+        "properties": {
+          "when": {
+            "properties": {
+              "derivation": {
+                "const": "student_entered"
+              }
+            },
+            "required": [
+              "derivation"
+            ]
+          }
+        },
+        "required": [
+          "when"
+        ]
+      },
+      "then": {
+        "properties": {
+          "confidence": {
+            "enum": [
+              "probably_right",
+              "please_check"
+            ]
           }
         }
       }

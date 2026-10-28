@@ -30,7 +30,12 @@
     "start": 1,
     "end": 2,
     "page": 2,
-    "precision": "exact"
+    "precision": "exact",
+    "context": {
+      "text": "x",
+      "start": 1,
+      "end": 2
+    }
   },
   "edited": false,
   "decision": "undecided",

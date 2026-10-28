@@ -1,10 +1,10 @@
 {
-  "itemIds": [
-    "itm_03"
-  ],
   "confirm": {
     "provider": "mock",
     "acknowledgedDemo": true
   },
-  "reminders": "none"
+  "reminders": "none",
+  "itemRevisions": {
+    "itm_03": 1
+  }
 }

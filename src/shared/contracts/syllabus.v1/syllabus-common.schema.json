@@ -23,9 +23,9 @@
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
     },
     "localDate": {
-      "description": "Wall-clock calendar date YYYY-MM-DD (shape only; calendar validity such as Feb 30 is a server test).",
+      "description": "Wall-clock calendar date YYYY-MM-DD, years 2000-2100 only (shape and window; calendar validity such as Feb 30 and the term window are server rules, section 2.3).",
       "type": "string",
-      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+      "pattern": "^(20[0-9]{2}|2100)-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
     },
     "localTime": {
       "description": "Wall-clock time HH:MM, 24 hour, no seconds, no offset.",
@@ -196,7 +196,9 @@
         "low_text_quality",
         "duplicate_candidate",
         "outside_term",
-        "dst_ambiguous"
+        "dst_ambiguous",
+        "injection_suspect",
+        "supersession_cue"
       ]
     },
     "precision": {
@@ -207,14 +209,17 @@
       ]
     },
     "title": {
+      "description": "TextPolicy single-line text (API_CONTRACTS_P2 section 2.2): no C0/C1 controls (so no CR, LF, NUL, tab), no U+2028/2029, no bidi marks/overrides/isolates, no zero-width or other format characters, no tag characters, no leading/trailing space, at most 4 consecutive combining marks, at most 200 code points. Stored as plain text; escaped at each sink.",
       "type": "string",
       "minLength": 1,
       "maxLength": 200,
-      "pattern": "^[^\\u0000-\\u001f]*$"
+      "pattern": "^(?! )(?!.* $)(?!.*[\\u0300-\\u036f]{5})(?!.*\\uDB40[\\uDC00-\\uDC7F])[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]+$"
     },
     "notes": {
+      "description": "TextPolicy multi-line text: LF only (CR rejected), at most 10 lines, same forbidden characters as title otherwise, at most 500 code points. Stored as plain text; escaped at each sink.",
       "type": "string",
-      "maxLength": 500
+      "maxLength": 500,
+      "pattern": "^(?!(?:[^\\n]*\\n){10})(?![\\s\\S]*[\\u0300-\\u036f]{5})(?![\\s\\S]*\\uDB40[\\uDC00-\\uDC7F])[^\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]*$"
     },
     "snippet": {
       "type": "object",
@@ -224,18 +229,21 @@
         "start",
         "end",
         "page",
-        "precision"
+        "precision",
+        "context"
       ],
       "properties": {
         "text": {
-          "description": "Sliced by the server from the stored canonical text, never the model string. Untrusted plain text: render as a text node.",
+          "description": "Sliced by the server from the stored canonical text (TextPolicy applied before storage), never the model string. Untrusted plain text: render as a text node. start/end are UTF-16 code unit offsets.",
           "type": "string",
           "minLength": 1,
-          "maxLength": 600
+          "maxLength": 600,
+          "pattern": "^(?![\\s\\S]*\\uDB40[\\uDC00-\\uDC7F])[^\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]+$"
         },
         "start": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "description": "UTF-16 code unit offset (.NET string index) into the canonical text. Never a code point or byte offset; slicing is done in .NET, never in SQL."
         },
         "end": {
           "type": "integer",
@@ -255,6 +263,39 @@
         },
         "precision": {
           "$ref": "#/$defs/precision"
+        },
+        "context": {
+          "description": "Server-sliced context window around the snippet (the full line or paragraph, up to 1500 UTF-16 code units, never model text), so the student can judge a verbatim snippet without the original file. Offsets are UTF-16 code units in the same canonical text and context.start <= snippet.start, snippet.end <= context.end. null only after the canonical text has been purged (retention).",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "text",
+                "start",
+                "end"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1500,
+                  "pattern": "^(?![\\s\\S]*\\uDB40[\\uDC00-\\uDC7F])[^\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]+$"
+                },
+                "start": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "end": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -297,8 +338,24 @@
         "precondition_failed",
         "not_found",
         "provider_unavailable",
-        "invalid_state"
+        "invalid_state",
+        "event_limit_reached"
       ]
+    },
+    "textLine": {
+      "description": "TextPolicy single-line text for short document-derived or server-written strings (confidenceReason, written.dateText/timeText).",
+      "type": "string",
+      "pattern": "^(?! )(?!.* $)(?!.*[\\u0300-\\u036f]{5})(?!.*\\uDB40[\\uDC00-\\uDC7F])[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]+$"
+    },
+    "noticeVersion": {
+      "description": "Id of the DRAFT upload notice shown to the student (wording is a Product Owner / counsel placeholder, P2-D5). Opaque; the server checks it against the notice versions it knows.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,64}$"
+    },
+    "idempotencyKey": {
+      "description": "Idempotency-Key header value: 8-128 URL-safe characters. Anything else is 400 validation_failed.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{8,128}$"
     }
   }
 }

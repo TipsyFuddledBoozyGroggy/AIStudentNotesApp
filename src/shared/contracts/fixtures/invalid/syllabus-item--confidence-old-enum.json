@@ -42,7 +42,12 @@
     "start": 4102,
     "end": 4131,
     "page": 2,
-    "precision": "exact"
+    "precision": "exact",
+    "context": {
+      "text": "PS3 due Mon Sept 14, 11:59 PM",
+      "start": 4102,
+      "end": 4131
+    }
   },
   "edited": false,
   "decision": "undecided",

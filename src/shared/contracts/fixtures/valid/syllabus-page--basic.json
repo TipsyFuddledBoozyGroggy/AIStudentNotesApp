@@ -19,7 +19,8 @@
         "charCount": 12840,
         "unreadablePages": [],
         "hiddenContentRemoved": 0,
-        "injectionSuspect": false
+        "injectionSuspect": false,
+        "hiddenContentDropped": false
       },
       "unprocessedRanges": [],
       "context": {
@@ -45,7 +46,17 @@
       },
       "etag": "W/\"s1\"",
       "createdAt": "2026-10-28T12:00:00.000Z",
-      "updatedAt": "2026-10-28T12:00:00.000Z"
+      "updatedAt": "2026-10-28T12:00:00.000Z",
+      "batchApproveAllowed": true,
+      "notice": {
+        "version": "draft-2026-10",
+        "attested": true,
+        "attestedAt": "2026-10-28T12:00:00.000Z"
+      },
+      "retention": {
+        "canonicalTextPurged": false,
+        "canonicalTextPurgeAt": "2027-04-26T12:00:00.000Z"
+      }
     },
     {
       "id": "syl_01J9Z8K2",
@@ -73,7 +84,8 @@
           6
         ],
         "hiddenContentRemoved": 0,
-        "injectionSuspect": false
+        "injectionSuspect": false,
+        "hiddenContentDropped": false
       },
       "unprocessedRanges": [],
       "context": {
@@ -99,7 +111,17 @@
       },
       "etag": "W/\"s1\"",
       "createdAt": "2026-10-28T12:00:00.000Z",
-      "updatedAt": "2026-10-28T12:00:00.000Z"
+      "updatedAt": "2026-10-28T12:00:00.000Z",
+      "batchApproveAllowed": true,
+      "notice": {
+        "version": "draft-2026-10",
+        "attested": true,
+        "attestedAt": "2026-10-28T12:00:00.000Z"
+      },
+      "retention": {
+        "canonicalTextPurged": false,
+        "canonicalTextPurgeAt": "2027-04-26T12:00:00.000Z"
+      }
     }
   ],
   "nextCursor": null

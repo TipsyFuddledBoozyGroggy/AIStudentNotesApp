@@ -1,0 +1,11 @@
+{
+  "title": "BIO 101",
+  "text": "Week 1: Introduction. Quiz 1 due Sept 14.",
+  "termStart": "2026-08-24",
+  "termEnd": "2026-12-11",
+  "defaultTimezone": "America/New_York",
+  "attestation": {
+    "accepted": true,
+    "acceptedAt": "2026-10-28T11:59:00.000Z"
+  }
+}

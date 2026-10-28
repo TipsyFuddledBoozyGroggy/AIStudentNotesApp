@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.tether.invalid/syllabus.v1/syllabus-calendar-remove-request.schema.json",
   "title": "calendar remove request",
-  "description": "Removes mock events only; items return to approved/not_synced. Naturally idempotent, no key needed.",
+  "description": "Removes mock events only; items return to approved/not_synced. Naturally idempotent, no key needed. Ids must belong to the path syllabus and owner (others: per-item not_found).",
   "type": "object",
   "additionalProperties": false,
   "required": [

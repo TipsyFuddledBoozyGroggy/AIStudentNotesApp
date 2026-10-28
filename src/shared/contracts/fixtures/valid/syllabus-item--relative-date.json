@@ -41,7 +41,12 @@
     "start": 2210,
     "end": 2238,
     "page": 2,
-    "precision": "exact"
+    "precision": "exact",
+    "context": {
+      "text": "Paper 1 due Friday of Week 4",
+      "start": 2210,
+      "end": 2238
+    }
   },
   "edited": false,
   "decision": "undecided",

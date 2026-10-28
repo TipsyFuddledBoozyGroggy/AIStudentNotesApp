@@ -41,7 +41,12 @@
     "start": 5120,
     "end": 5147,
     "page": 3,
-    "precision": "exact"
+    "precision": "exact",
+    "context": {
+      "text": "Midterm: in class, date TBA",
+      "start": 5120,
+      "end": 5147
+    }
   },
   "edited": false,
   "decision": "undecided",

@@ -1,8 +1,5 @@
 {
-  "itemIds": [
-    "itm_03",
-    "itm_03"
-  ],
+  "itemRevisions": {},
   "confirm": {
     "provider": "mock",
     "acknowledgedDemo": true

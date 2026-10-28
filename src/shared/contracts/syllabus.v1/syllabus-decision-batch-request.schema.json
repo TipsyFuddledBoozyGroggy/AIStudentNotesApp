@@ -2,12 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.tether.invalid/syllabus.v1/syllabus-decision-batch-request.schema.json",
   "title": "batch decision request",
-  "description": "Explicit ids only; there is no \"all\" form. approve is accepted only for resolved looks_right items (server rule batch_not_eligible). Duplicate itemIds are a server 400.",
+  "description": "Explicit ids only; there is no \"all\" form. itemEtags is a JSON object keyed by itemId, so a duplicate id cannot be expressed (the server rejects duplicate member names with 400). Every id must belong to the path syllabus and owner; others yield per-item not_found. approve is accepted only for resolved looks_right items of a document with batchApproveAllowed (batch_not_eligible).",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "action",
-    "items"
+    "itemEtags"
   ],
   "properties": {
     "action": {
@@ -18,26 +18,16 @@
         "undecide"
       ]
     },
-    "items": {
-      "type": "array",
-      "maxItems": 100,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "itemId",
-          "etag"
-        ],
-        "properties": {
-          "itemId": {
-            "$ref": "syllabus-common.schema.json#/$defs/id"
-          },
-          "etag": {
-            "$ref": "syllabus-common.schema.json#/$defs/etag"
-          }
-        }
+    "itemEtags": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 100,
+      "propertyNames": {
+        "$ref": "syllabus-common.schema.json#/$defs/id"
       },
-      "minItems": 1
+      "additionalProperties": {
+        "$ref": "syllabus-common.schema.json#/$defs/etag"
+      }
     }
   }
 }

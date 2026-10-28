@@ -1,5 +1,10 @@
 {
   "text": "x",
   "defaultTimezone": "America/New_York",
-  "reminders": "1_day_before"
+  "reminders": "1_day_before",
+  "noticeVersion": "draft-2026-10",
+  "attestation": {
+    "accepted": true,
+    "acceptedAt": "2026-10-28T11:59:00.000Z"
+  }
 }

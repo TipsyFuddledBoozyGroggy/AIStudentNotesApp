@@ -54,7 +54,12 @@
     "start": 700,
     "end": 735,
     "page": 1,
-    "precision": "exact"
+    "precision": "exact",
+    "context": {
+      "text": "Office hours: Tuesdays 2:00-3:00 PM",
+      "start": 700,
+      "end": 735
+    }
   },
   "edited": false,
   "decision": "undecided",

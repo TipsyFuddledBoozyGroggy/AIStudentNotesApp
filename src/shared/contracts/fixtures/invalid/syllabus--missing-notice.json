@@ -7,8 +7,8 @@
   "status": "ready",
   "statusReason": null,
   "pollAfterSeconds": null,
-  "aiSource": "model",
-  "demoSource": false,
+  "aiSource": "mock",
+  "demoSource": true,
   "demoCalendar": true,
   "originalRetained": false,
   "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -17,7 +17,8 @@
     "charCount": 12840,
     "unreadablePages": [],
     "hiddenContentRemoved": 0,
-    "injectionSuspect": false
+    "injectionSuspect": false,
+    "hiddenContentDropped": false
   },
   "unprocessedRanges": [],
   "context": {
@@ -29,7 +30,7 @@
     "extractorVersion": "1.0",
     "promptVersion": "syllabus-extract.v1",
     "schemaVersion": "syllabus.extract.v1",
-    "model": "claude-haiku-5-5"
+    "model": "mock"
   },
   "counts": {
     "total": 9,
@@ -43,5 +44,10 @@
   },
   "etag": "W/\"s1\"",
   "createdAt": "2026-10-28T12:00:00.000Z",
-  "updatedAt": "2026-10-28T12:00:00.000Z"
+  "updatedAt": "2026-10-28T12:00:00.000Z",
+  "batchApproveAllowed": true,
+  "retention": {
+    "canonicalTextPurged": false,
+    "canonicalTextPurgeAt": "2027-04-26T12:00:00.000Z"
+  }
 }

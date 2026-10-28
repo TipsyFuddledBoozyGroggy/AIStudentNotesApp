@@ -1,4 +1,9 @@
 {
   "text": "x",
-  "defaultTimezone": "EST"
+  "defaultTimezone": "EST",
+  "noticeVersion": "draft-2026-10",
+  "attestation": {
+    "accepted": true,
+    "acceptedAt": "2026-10-28T11:59:00.000Z"
+  }
 }

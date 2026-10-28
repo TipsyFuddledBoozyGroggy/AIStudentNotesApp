@@ -1,9 +1,9 @@
 {
-  "itemIds": [
-    "itm_03"
-  ],
   "confirm": {
     "provider": "google",
     "acknowledgedDemo": true
+  },
+  "itemRevisions": {
+    "itm_03": 1
   }
 }

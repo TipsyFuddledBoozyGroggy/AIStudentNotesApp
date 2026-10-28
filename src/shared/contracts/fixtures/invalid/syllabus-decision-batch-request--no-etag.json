@@ -1,8 +1,6 @@
 {
   "action": "approve",
-  "items": [
-    {
-      "itemId": "itm_01"
-    }
-  ]
+  "itemEtags": {
+    "itm_01": 5
+  }
 }

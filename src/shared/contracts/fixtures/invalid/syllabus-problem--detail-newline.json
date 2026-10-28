@@ -1,0 +1,8 @@
+{
+  "type": "https://errors.tether.invalid/unsupported_type",
+  "title": "Unsupported",
+  "status": 415,
+  "code": "unsupported_type",
+  "traceId": "t1",
+  "detail": "line1\nline2"
+}

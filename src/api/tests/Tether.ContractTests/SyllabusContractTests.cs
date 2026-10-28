@@ -245,4 +245,154 @@ public sealed class SyllabusContractTests
             Assert.DoesNotContain("google", text, StringComparison.OrdinalIgnoreCase);
         }
     }
+
+    // ---- security-review fold-in (docs/security/p2-contract-review.md) ----
+
+    private static string DocText() => FindDoc() is { } p ? File.ReadAllText(p) : "";
+
+    [Fact]
+    public void Snippet_and_context_offsets_are_utf16_code_units_including_a_non_bmp_character()
+    {
+        var checkedSnippets = 0;
+        foreach (var (file, node) in Fixtures("valid")) Walk(file, node);
+        Assert.True(checkedSnippets >= 5, $"checked {checkedSnippets}");
+
+        void Walk(string file, JsonNode? n)
+        {
+            switch (n)
+            {
+                case JsonObject o:
+                    if (o["text"] is JsonValue t && o["start"] is JsonValue s && o["precision"] is JsonValue && o["context"] is JsonObject ctx)
+                    {
+                        var text = t.GetValue<string>(); var start = s.GetValue<int>(); var end = o["end"]!.GetValue<int>();
+                        var ctext = ctx["text"]!.GetValue<string>(); var cs = ctx["start"]!.GetValue<int>(); var ce = ctx["end"]!.GetValue<int>();
+                        Assert.True(cs <= start && end <= ce, $"{file}: context must contain the snippet");
+                        Assert.Equal(ctext.Length, ce - cs);           // string.Length = UTF-16 code units
+                        if (o["precision"]!.GetValue<string>() == "exact")
+                            Assert.Equal(text, ctext.Substring(start - cs, text.Length));
+                        checkedSnippets++;
+                    }
+                    foreach (var kv in o) Walk(file, kv.Value);
+                    break;
+                case JsonArray a:
+                    foreach (var i in a) Walk(file, i);
+                    break;
+            }
+        }
+
+        // The emoji fixture must really diverge between code points and UTF-16 units, or it proves nothing.
+        var emoji = Fixtures("valid").Single(f => f.File == "syllabus-item--snippet-emoji-before.json").Node["snippet"]!;
+        var ctxText = emoji["context"]!["text"]!.GetValue<string>();
+        Assert.NotEqual(ctxText.Length, ctxText.EnumerateRunes().Count());
+        var before = ctxText[..(emoji["start"]!.GetValue<int>() - emoji["context"]!["start"]!.GetValue<int>())];
+        Assert.Equal(3, before.Length);                     // emoji (2 units) + space
+        Assert.Equal(2, before.EnumerateRunes().Count());   // a code-point implementation would be off by one
+    }
+
+    [Fact]
+    public void Redteam_fixtures_exist_for_every_text_policy_and_hostile_case()
+    {
+        var valid = Fixtures("valid").Select(f => f.File).ToHashSet();
+        var invalid = Fixtures("invalid").Select(f => f.File).ToHashSet();
+        string[] mustBeRejected =
+        {
+            "syllabus-item-create-request--redteam-rlo-title.json", "syllabus-item-create-request--redteam-zero-width-title.json",
+            "syllabus-item-create-request--redteam-crlf-title.json", "syllabus-item-create-request--redteam-nul-title.json",
+            "syllabus-item-create-request--redteam-combining-marks-title.json", "syllabus-item-create-request--redteam-notes-crlf.json",
+            "syllabus-item-create-request--redteam-notes-nul.json", "syllabus-item-update-request--redteam-rlo-title.json",
+            "syllabus-item-create-request--readonly-origin.json", "syllabus-item-update-request--readonly-syncState.json",
+            "syllabus-item-update-request--readonly-userId.json", "syllabus-item-update-request--null-title.json",
+            "syllabus-item--suspect-flag-looks-right.json", "syllabus-item--supersession-probably-right.json",
+            "syllabus--suspect-batch-allowed.json", "syllabus-create-request--missing-attestation.json",
+            "syllabus-create-request--nul-text.json", "syllabus-decision-batch-request--items-array-shape.json",
+            "syllabus-calendar-sync-request--item-ids-shape.json", "syllabus-item-create-request--year-9999.json",
+        };
+        string[] mustBeAccepted =
+        {
+            "syllabus-item-create-request--redteam-formula-title-as-text.json", "syllabus-item-create-request--redteam-html-title-as-text.json",
+            "syllabus-item--redteam-supersession-cue.json", "syllabus-item--redteam-suspect-document.json",
+            "syllabus--redteam-suspect-hidden-dropped.json", "syllabus-item--snippet-emoji-before.json",
+        };
+        foreach (var f in mustBeRejected) Assert.Contains(f, invalid);
+        foreach (var f in mustBeAccepted) Assert.Contains(f, valid);
+    }
+
+    [Fact]
+    public void Batch_and_sync_ids_are_object_keys_so_duplicates_are_unrepresentable_and_the_server_rejects_duplicate_members()
+    {
+        var batch = File.ReadAllText(Path.Combine(SchemaDir, "syllabus-decision-batch-request.schema.json"));
+        var sync = File.ReadAllText(Path.Combine(SchemaDir, "syllabus-calendar-sync-request.schema.json"));
+        Assert.Contains("\"itemEtags\"", batch);
+        Assert.Contains("\"itemRevisions\"", sync);
+        Assert.DoesNotContain("\"itemIds\": {", sync);
+        // The server must parse with duplicate member names disallowed (contract section 2.1).
+        var dup = "{\"action\":\"skip\",\"itemEtags\":{\"itm_1\":\"a\",\"itm_1\":\"b\"}}";
+        Assert.ThrowsAny<Exception>(() =>
+            System.Text.Json.JsonDocument.Parse(dup, new System.Text.Json.JsonDocumentOptions { AllowDuplicateProperties = false }));
+    }
+
+    [Theory]
+    [InlineData("abcdefgh", true)]
+    [InlineData("0f8fad5b-d9cb-469f-a165-70867728950e", true)]
+    [InlineData("short", false)]
+    [InlineData("has space in it", false)]
+    [InlineData("new\nline-key-1", false)]
+    public void Idempotency_key_format(string key, bool ok)
+    {
+        var common = JsonNode.Parse(File.ReadAllText(Path.Combine(SchemaDir, "syllabus-common.schema.json")))!["$defs"]!;
+        var re = new System.Text.RegularExpressions.Regex(common["idempotencyKey"]!["pattern"]!.GetValue<string>());
+        Assert.Equal(ok, re.IsMatch(key));
+    }
+
+    [Fact]
+    public void Caps_in_schemas_match_the_documented_single_set_of_constants()
+    {
+        var export = JsonNode.Parse(File.ReadAllText(Path.Combine(SchemaDir, "syllabus-export.schema.json")))!["properties"]!;
+        Assert.Equal(300, export["items"]!["maxItems"]!.GetValue<int>());
+        Assert.Equal(200, export["unclaimedDates"]!["maxItems"]!.GetValue<int>());
+        Assert.Equal(1000, export["calendarEvents"]!["maxItems"]!.GetValue<int>());
+        var counts = JsonNode.Parse(File.ReadAllText(Path.Combine(SchemaDir, "syllabus.schema.json")))!["properties"]!["counts"]!["properties"]!;
+        Assert.Equal(300, counts["total"]!["maximum"]!.GetValue<int>());
+        Assert.Equal(200, counts["unclaimedDates"]!["maximum"]!.GetValue<int>());
+        var doc = DocText();
+        if (doc.Length == 0) return;
+        Assert.Contains("300 items per syllabus", doc);
+        Assert.Contains("1,000 events per syllabus", doc);
+    }
+
+    [Fact]
+    public void Model_source_fixtures_are_labelled_shape_only()
+    {
+        foreach (var (file, node) in Fixtures("valid"))
+            if (node is JsonObject o && o["aiSource"]?.GetValue<string>() == "model")
+                Assert.Contains("shape-only", file);
+    }
+
+    [Fact]
+    public void Doc_states_the_normative_security_requirements()
+    {
+        var doc = DocText();
+        if (doc.Length == 0) return;
+        string[] required =
+        {
+            "TextPolicy", "UTF-16 code unit", "never in SQL", "calendar.v1", "Idempotency-Replayed", "(user, method, route template, key)",
+            "180 days", "injectionSuspect", "batchApproveAllowed", "noticeVersion", "attestation", "separate budget pool",
+            "Upload and extraction hardening", "no network", "within 1 hour", "no cross-user", "Lead decision, provisional where PO-owned",
+            "XXE", "zip bomb", "Origin", "inclusive", "exclusive", "supersession", "FOR UPDATE", "UNLOGGED",
+        };
+        foreach (var r in required) Assert.Contains(r, doc, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("calendarEvents=", doc);
+        Assert.DoesNotContain("24 h hard", doc);
+    }
+
+    [Fact]
+    public void No_schema_names_google_or_allows_orphaned_events()
+    {
+        foreach (var n in SchemaNames())
+        {
+            var text = File.ReadAllText(Path.Combine(SchemaDir, n + ".schema.json"));
+            Assert.DoesNotContain("google", text, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("orphan", text, StringComparison.OrdinalIgnoreCase);
+        }
+    }
 }
