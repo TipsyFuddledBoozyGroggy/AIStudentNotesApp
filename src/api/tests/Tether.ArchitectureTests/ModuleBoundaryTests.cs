@@ -5,6 +5,7 @@ using Tether.Identity;
 using Tether.Lectures;
 using Tether.Lectures.Contracts;
 using Tether.Transcript;
+using Tether.Ai;
 using Tether.SharedKernel;
 
 namespace Tether.ArchitectureTests;
@@ -24,8 +25,9 @@ public class ModuleBoundaryTests
     private static readonly Assembly SharedKernel = typeof(ICurrentUser).Assembly;
 
     private static readonly Assembly Transcript = typeof(TranscriptModule).Assembly;
+    private static readonly Assembly Ai = typeof(AiModule).Assembly;
 
-    private static readonly string[] ModuleImplementations = ["Tether.Identity", "Tether.Courses", "Tether.Lectures", "Tether.Transcript"];
+    private static readonly string[] ModuleImplementations = ["Tether.Identity", "Tether.Courses", "Tether.Lectures", "Tether.Transcript", "Tether.Ai"];
 
     private static IEnumerable<string> ProjectRefs(Assembly a) =>
         a.GetReferencedAssemblies().Select(r => r.Name!).Where(n => n.StartsWith("Tether.", StringComparison.Ordinal));
@@ -33,7 +35,7 @@ public class ModuleBoundaryTests
     [Fact]
     public void Module_implementations_do_not_reference_other_module_implementations()
     {
-        foreach (var asm in new[] { Identity, Courses, Lectures, Transcript })
+        foreach (var asm in new[] { Identity, Courses, Lectures, Transcript, Ai })
         {
             var self = asm.GetName().Name!;
             var illegal = ProjectRefs(asm).Where(n => ModuleImplementations.Contains(n) && n != self).ToList();
@@ -49,9 +51,10 @@ public class ModuleBoundaryTests
             ["Tether.Identity"] = ["Tether.SharedKernel"],
             ["Tether.Courses"] = ["Tether.SharedKernel", "Tether.Courses.Contracts"],
             ["Tether.Lectures"] = ["Tether.SharedKernel", "Tether.Courses.Contracts", "Tether.Lectures.Contracts"],
-            ["Tether.Transcript"] = ["Tether.SharedKernel", "Tether.Lectures.Contracts"],
+            ["Tether.Transcript"] = ["Tether.SharedKernel", "Tether.Lectures.Contracts", "Tether.Transcript.Contracts"],
+            ["Tether.Ai"] = ["Tether.SharedKernel", "Tether.Lectures.Contracts", "Tether.Transcript.Contracts"],
         };
-        foreach (var asm in new[] { Identity, Courses, Lectures, Transcript })
+        foreach (var asm in new[] { Identity, Courses, Lectures, Transcript, Ai })
         {
             var self = asm.GetName().Name!;
             var extra = ProjectRefs(asm).Except(allowed[self]).ToList();

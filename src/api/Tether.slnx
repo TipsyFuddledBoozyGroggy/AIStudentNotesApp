@@ -15,10 +15,15 @@
     <Project Path="src/Modules/Lectures/Tether.Lectures.Contracts/Tether.Lectures.Contracts.csproj" />
     <Project Path="src/Modules/Lectures/Tether.Lectures/Tether.Lectures.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/Ai/">
+    <Project Path="src/Modules/Ai/Tether.Ai/Tether.Ai.csproj" />
+  </Folder>
   <Folder Name="/src/Modules/Transcript/">
+    <Project Path="src/Modules/Transcript/Tether.Transcript.Contracts/Tether.Transcript.Contracts.csproj" />
     <Project Path="src/Modules/Transcript/Tether.Transcript/Tether.Transcript.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Tether.AiTests/Tether.AiTests.csproj" />
     <Project Path="tests/Tether.ArchitectureTests/Tether.ArchitectureTests.csproj" />
     <Project Path="tests/Tether.ContractTests/Tether.ContractTests.csproj" />
     <Project Path="tests/Tether.IntegrationTests/Tether.IntegrationTests.csproj" />

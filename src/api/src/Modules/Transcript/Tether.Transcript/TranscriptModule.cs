@@ -56,6 +56,7 @@ public static class TranscriptModule
             .AddInterceptors(sp.GetRequiredService<OwnershipSaveChangesInterceptor>()));
         services.AddScoped<TranscriptWriter>();
         services.AddScoped<TranscriptReader>();
+        services.AddScoped<Tether.Transcript.Contracts.ITranscriptSegmentReader, TranscriptSegmentReader>();
 
         var options = RealtimeOptions.From(config);
         services.AddSingleton(options);
@@ -72,6 +73,7 @@ public static class TranscriptModule
         services.AddSingleton<FailedHelloLimiter>();
         services.AddSingleton<RelayRegistry>();
         services.AddSingleton<LiveFanout>();
+        services.AddSingleton<Tether.Transcript.Contracts.ILiveEventPublisher, LiveEventPublisher>();
         services.AddSingleton<RelayServices>();
         services.AddSingleton<ISessionLifecycleObserver, RealtimeLifecycleObserver>();
         services.AddSingleton<Tether.SharedKernel.IAuthSessionRevocationObserver, RealtimeRevocationObserver>();

@@ -48,6 +48,14 @@
     },
     "citations": {
       "$ref": "common.schema.json#/$defs/citations"
+    },
+    "source": {
+      "description": "Where the text came from. mock = deterministic extractive mock, not a language model; absent on older servers.",
+      "type": "string",
+      "enum": [
+        "mock",
+        "model"
+      ]
     }
   }
 }

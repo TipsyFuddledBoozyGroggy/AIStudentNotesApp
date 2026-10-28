@@ -33,6 +33,14 @@
         "Extractive",
         "Ai"
       ]
+    },
+    "source": {
+      "description": "Only on kind=Ai: mock = deterministic mock, not a language model.",
+      "type": "string",
+      "enum": [
+        "mock",
+        "model"
+      ]
     }
   }
 }

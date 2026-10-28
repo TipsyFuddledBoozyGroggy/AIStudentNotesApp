@@ -53,3 +53,19 @@
 **Still no real capability:** no hub, no audio socket, no transcript persistence, no AI summaries, no real STT. Everything lecture-related is mock-backed or UI-only. All 5 release gates remain unpassed.
 **In progress:** B2 (SignalR hub, ticketed audio WebSocket relay, replay STT with "Demo source" flag, transcript persistence, B1 deferrals incl. F-04 WebSocket Origin).
 **Next:** B3 AI summaries (TL;DR, I Lost Track) on MockAi; frontend wiring to the hub; Opus security review of B2 before the audio socket is treated as done.
+
+## Iteration 5 — B3 AI module verification and review (2026-10-27/28, overnight, uncommitted tree)
+**State found:** uncommitted B3 (`src/api/src/Modules/Ai`, `Tether.AiTests`, `Transcript.Contracts`) and frontend realtime wiring, not yet verified.
+**Verified by Lead Architect re-run:** API build 0 warnings; 105 contract + 77 AI + 15 architecture + 303 integration tests pass; web 256 unit tests, typecheck and lint pass (1 unused-var lint warning in `e2e/lecture.spec.ts:64`).
+**Fixed:** architecture and persistence tests did not know the Ai module or `Transcript.Contracts` (module-ref allow-list, rollback order, cross-schema FK allow-list now include `ai`).
+**Playwright (real stack):** 15/16 on the first run. `lecture.spec.ts` "another user cannot read…" intermittently never receives the demo transcript when run after other lecture tests (passes alone and when paired with the denied-mic test). Cause not found; suspect leftover per-user hub/socket limits (`MaxAudioSocketsPerUser=1`) or timing. NOT yet diagnosed.
+**Security review of B3:** `docs/security/m2-b3-review.md` (code reading only): 0 Critical, 0 High, 3 Medium, 5 Low. Fixes delegated to backend-engineer (B3-01..05, 07, 08); B3-06 (queued AI work after Pause/Stop/Delete) and B3-12 (PII redaction) need Product Owner decisions before any real adapter.
+**Still true:** no real STT or Claude adapter; everything runs on mock/replay. All 5 release gates unpassed. Nothing committed.
+**E2E flake lead (not fixed):** after the "pause turns the microphone off" test, "another user cannot read…" took 43s to see its first transcript line (vs ~3s alone), so the next session's audio socket appears to be refused or delayed while the previous socket is still registered. `RelayRegistry.TryAdd` (`Relay/RelayConnection.cs:521`) refuses when the user is at `MaxSocketsPerUser` (1) and the client then backs off. Real-world risk: a reconnect after a network blip may be refused until the old socket is reaped. Needs a backend look (replace-or-cutoff old socket for the same user, or prompt cleanup on client close) plus a regression test.
+
+## Iteration 5b — B3 security fixes (2026-10-28, uncommitted)
+**Fixed by backend-engineer, re-run by Lead Architect:** B3-01 sanitizer (fixpoint, format chars, link forms), B3-02 budget reservation/settle (migration A002), B3-03 HTTP route tests (`AiRoutesTests`, `AiBudgetTests`), B3-04 stale Pending catch-ups, B3-07 prompt id escaping, B3-08 `source: mock|model` on the wire (schemas + fixtures updated). B3-05 partial (no-key dedupe and limiter pruning done; per-user limit, 200-per-session cap, key binding on coalesced response deferred).
+**Results:** build 0 warnings; 107 contract + 105 AI + 15 architecture + 338 integration tests pass (single run; concurrency tests not repeated).
+**Known gaps:** sanitizer turns "ASP.NET" into "[link removed]"; no NFKC normalisation; `catchup.schema.json` does not describe the real catch-up wire; hub Join summary replay untested; fixes not independently re-reviewed.
+**Open for Product Owner:** B3-06 (AI work after Pause/Stop/Delete), B3-12 (PII redaction before vendor calls). Open for backend: audio-socket cap/reconnect flake (see Iteration 5).
+**Next:** frontend calls to summary / lost-track / catch-up, socket reaping fix, independent re-review, then commit once the Product Owner agrees.

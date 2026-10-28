@@ -140,6 +140,8 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var lectures = scope.ServiceProvider.GetRequiredService<LecturesDbContext>();
         var transcript = scope.ServiceProvider.GetRequiredService<Tether.Transcript.Persistence.TranscriptDbContext>();
 
+        var ai = scope.ServiceProvider.GetRequiredService<Tether.Ai.Persistence.AiDbContext>();
+        await ai.GetService<IMigrator>().MigrateAsync("0");
         await transcript.GetService<IMigrator>().MigrateAsync("0");
         await lectures.GetService<IMigrator>().MigrateAsync("0");
         await courses.GetService<IMigrator>().MigrateAsync("0");
@@ -154,6 +156,8 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Empty(await lectures.Database.GetPendingMigrationsAsync());
         await transcript.GetService<IMigrator>().MigrateAsync();
         Assert.Empty(await transcript.Database.GetPendingMigrationsAsync());
+        await ai.GetService<IMigrator>().MigrateAsync();
+        Assert.Empty(await ai.Database.GetPendingMigrationsAsync());
         Assert.Empty(await courses.Database.GetPendingMigrationsAsync());
         Assert.Empty(await identity.Database.GetPendingMigrationsAsync());
     }
@@ -182,10 +186,13 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         // lecture_sessions.user_id -> identity.users / lecture_sessions.course_id -> courses.courses, all ON DELETE CASCADE ('c').
         Assert.Equal(
         [
+            ("fk_ai_usage_user_id", "ai", "identity", "c"),
             ("fk_audio_progress_session_user", "transcript", "lectures", "c"),
+            ("fk_catch_ups_session_user", "ai", "lectures", "c"),
             ("fk_courses_user_id", "courses", "identity", "c"),
             ("fk_lecture_sessions_course_id", "lectures", "courses", "c"),
             ("fk_lecture_sessions_user_id", "lectures", "identity", "c"),
+            ("fk_summary_revisions_session_user", "ai", "lectures", "c"),
             ("fk_transcript_events_session_user", "transcript", "lectures", "c"),
         ], found);
     }
@@ -222,14 +229,16 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var lectures = scope.ServiceProvider.GetRequiredService<LecturesDbContext>();
         var transcript = scope.ServiceProvider.GetRequiredService<Tether.Transcript.Persistence.TranscriptDbContext>();
+        var ai2 = scope.ServiceProvider.GetRequiredService<Tether.Ai.Persistence.AiDbContext>();
         try
         {
+            await ai2.GetService<IMigrator>().MigrateAsync("0");
             await transcript.GetService<IMigrator>().MigrateAsync("0");
             await lectures.GetService<IMigrator>().MigrateAsync("0");
             await courses.GetService<IMigrator>().MigrateAsync("0");
             await identity.GetService<IMigrator>().MigrateAsync("0");
             Assert.Equal(0, await factory.ScalarAsync(
-                "select count(*) from pg_tables where schemaname in ('identity','courses','lectures','transcript') and tablename <> '__ef_migrations_history'"));
+                "select count(*) from pg_tables where schemaname in ('identity','courses','lectures','transcript','ai') and tablename <> '__ef_migrations_history'"));
         }
         finally
         {
@@ -237,6 +246,7 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
             await courses.GetService<IMigrator>().MigrateAsync();
             await lectures.GetService<IMigrator>().MigrateAsync();
             await transcript.GetService<IMigrator>().MigrateAsync();
+            await ai2.GetService<IMigrator>().MigrateAsync();
         }
     }
 }

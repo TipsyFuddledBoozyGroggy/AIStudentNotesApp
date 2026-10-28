@@ -1,0 +1,19 @@
+{
+  "revision": 3,
+  "basedOnSeq": "9",
+  "tldr": "Derivatives measure rate of change.",
+  "bullets": [
+    "Power rule",
+    "Chain rule intro"
+  ],
+  "coveredFromMs": 0,
+  "coveredToMs": 75000,
+  "status": "Draft",
+  "source": "mock",
+  "citations": [
+    {
+      "segmentId": "seg_3",
+      "startMs": 12000
+    }
+  ]
+}

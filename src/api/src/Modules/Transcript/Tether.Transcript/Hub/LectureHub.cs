@@ -22,7 +22,8 @@ namespace Tether.Transcript.Hub;
 [Authorize]
 internal sealed class LectureHub(
     ISessionDirectory directory, TranscriptReader reader, PartialStore partials, HubConnections connections, JoinLimiter joins,
-    ISessionActivity activity, RealtimeOptions options, TimeProvider clock, HubInvocationLimiter invocations) : Microsoft.AspNetCore.SignalR.Hub
+    ISessionActivity activity, RealtimeOptions options, TimeProvider clock, HubInvocationLimiter invocations,
+    IEnumerable<Tether.Transcript.Contracts.ISummaryJoinSource> summaries) : Microsoft.AspNetCore.SignalR.Hub
 {
     public const string ClientMethod = "event";
     public const string Protocol = "lecture.v1";
@@ -56,7 +57,7 @@ internal sealed class LectureHub(
 
     public async Task<object> Join(JsonElement request)
     {
-        var (sessionId, lastSeq) = ParseJoin(request);
+        var (sessionId, lastSeq, lastSummaryRevision) = ParseJoin(request);
         var userId = UserId;
         if (!joins.TryAcquire(userId, sessionId)) throw new HubException("rate_limited");
 
@@ -86,7 +87,19 @@ internal sealed class LectureHub(
         foreach (var p in partials.Snapshot(userId, sessionId)) // seq null, latest per segment only
             await Clients.Caller.SendAsync(ClientMethod, p, Context.ConnectionAborted);
 
-        return new JoinResponse(info.State.ToString(), current.ToString(CultureInfo.InvariantCulture), null,
+        // B3: report the newest summary revision and replay it when the client has not seen it (summary.* events are ephemeral).
+        int? currentSummaryRevision = null;
+        foreach (var source in summaries)
+        {
+            var snapshot = await source.LatestAsync(userId, sessionId, Context.ConnectionAborted);
+            if (snapshot is null) continue;
+            currentSummaryRevision = snapshot.Revision;
+            if (snapshot.Revision > lastSummaryRevision)
+                await Clients.Caller.SendAsync(ClientMethod, Envelope.Ephemeral("summary.revision", sessionId, clock.GetUtcNow(), snapshot.Payload), Context.ConnectionAborted);
+            break;
+        }
+
+        return new JoinResponse(info.State.ToString(), current.ToString(CultureInfo.InvariantCulture), currentSummaryRevision,
             new ReplayInfo(fromSeq, toSeq, truncated));
     }
 
@@ -106,10 +119,10 @@ internal sealed class LectureHub(
 
     // ---- strict parsing (additionalProperties:false on the wire contract) ----
 
-    private static (Guid SessionId, long LastSeq) ParseJoin(JsonElement r)
+    private static (Guid SessionId, long LastSeq, int LastSummaryRevision) ParseJoin(JsonElement r)
     {
         if (r.ValueKind != JsonValueKind.Object) throw new HubException("validation_failed");
-        Guid? sid = null; long lastSeq = 0; var protocolOk = false;
+        Guid? sid = null; long lastSeq = 0; var protocolOk = false; var lastRevision = 0;
         foreach (var p in r.EnumerateObject())
         {
             switch (p.Name)
@@ -119,12 +132,12 @@ internal sealed class LectureHub(
                 case "lastSeq" when p.Value.ValueKind == JsonValueKind.String
                     && long.TryParse(p.Value.GetString(), NumberStyles.None, CultureInfo.InvariantCulture, out var s)
                     && (p.Value.GetString() == "0" || !p.Value.GetString()!.StartsWith('0')): lastSeq = s; break;
-                case "lastSummaryRevision" when p.Value.ValueKind == JsonValueKind.Number && p.Value.TryGetInt32(out var rev) && rev >= 0: break;
+                case "lastSummaryRevision" when p.Value.ValueKind == JsonValueKind.Number && p.Value.TryGetInt32(out var rev) && rev >= 0: lastRevision = rev; break;
                 default: throw new HubException("validation_failed"); // unknown field or wrong type
             }
         }
         if (sid is null || !protocolOk) throw new HubException("validation_failed");
-        return (sid.Value, lastSeq);
+        return (sid.Value, lastSeq, lastRevision);
     }
 
     private static Guid ParseSessionOnly(JsonElement r)

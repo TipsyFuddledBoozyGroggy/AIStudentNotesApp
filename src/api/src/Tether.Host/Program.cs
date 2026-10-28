@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Threading.RateLimiting;
+using Tether.Ai;
 using Tether.Courses;
 using Tether.Host;
 using Tether.Identity;
@@ -32,6 +33,7 @@ builder.AddIdentityModule(); // fails startup if dev login is enabled outside De
 builder.AddCoursesModule();
 builder.AddLecturesModule();
 builder.AddTranscriptModule();
+builder.AddAiModule(); // mock provider only; refuses to start with anything else
 
 var allowedOrigins = builder.Configuration.GetSection("Security:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddSingleton(new OriginPolicy(allowedOrigins));
@@ -169,6 +171,7 @@ api.MapIdentityEndpoints(app.Services);
 api.MapCoursesEndpoints();
 api.MapLecturesEndpoints();
 api.MapTranscriptEndpoints();
+api.MapAiEndpoints();
 app.MapRealtimeEndpoints();
 
 if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
@@ -177,6 +180,7 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Databas
     await app.Services.MigrateCoursesAsync();
     await app.Services.MigrateLecturesAsync();
     await app.Services.MigrateTranscriptAsync(); // after Lectures: FKs to lectures.lecture_sessions
+    await app.Services.MigrateAiAsync(); // after Lectures and Identity: FKs to lectures.lecture_sessions and identity.users
     await app.Services.SeedDevUsersAsync(); // no-op unless Development and dev login enabled
 }
 

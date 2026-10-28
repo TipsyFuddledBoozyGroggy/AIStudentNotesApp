@@ -25,9 +25,7 @@ internal static class SessionEndpoints
         g.MapDelete("/{id:guid}", (Guid id, SessionService svc, CancellationToken ct) => svc.DeleteAsync(id, ct));
         g.MapPost("/{id:guid}/audio-ticket", IssueTicket).RequireRateLimiting(AudioTicketPolicy);
 
-        // Present so the routes, auth boundary and 404 rules exist now; content arrives with B2 (transcript, AI).
-        g.MapGet("/{id:guid}/summary", GetSummary);
-        g.MapGet("/{id:guid}/catch-ups/{catchUpId}", GetCatchUp);
+        // summary, lost-track and catch-ups are served by the AI module (B3). Notes stay a placeholder until their increment.
         g.MapGet("/{id:guid}/notes", GetNotes);
     }
 
@@ -101,20 +99,7 @@ internal static class SessionEndpoints
         return problem ?? Results.Ok(ticket);
     }
 
-    // ---- placeholders until B2: ownership is enforced, content does not exist yet ----
-
-    private static async Task<IResult> GetSummary(Guid id, int? revision, SessionService svc, CancellationToken ct)
-    {
-        if (revision is < 1) return Problems.Validation("revision", "Must be a positive integer.");
-        _ = await svc.ExistsAsync(id, ct);
-        return Problems.NotFound("No summary yet."); // missing session and "none yet" are indistinguishable by design
-    }
-
-    private static async Task<IResult> GetCatchUp(Guid id, string catchUpId, SessionService svc, CancellationToken ct)
-    {
-        _ = await svc.ExistsAsync(id, ct);
-        return Problems.NotFound("Catch-up not found.");
-    }
+    // ---- placeholder until the notes increment: ownership is enforced, content does not exist yet ----
 
     private static async Task<IResult> GetNotes(Guid id, SessionService svc, CancellationToken ct) =>
         await svc.ExistsAsync(id, ct) ? Problems.InvalidState() : Problems.NotFound("Session not found.");

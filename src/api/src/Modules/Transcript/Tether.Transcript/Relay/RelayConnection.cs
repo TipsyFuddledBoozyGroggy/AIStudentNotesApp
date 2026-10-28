@@ -30,7 +30,8 @@ internal static class CloseCodes
 
 internal sealed record RelayServices(
     IServiceScopeFactory Scopes, RealtimeOptions Options, TimeProvider Clock, ISpeechToTextProvider Stt, PartialStore Partials,
-    LiveFanout Fanout, ISessionActivity Activity, RelayRegistry Registry, ILoggerFactory Logs);
+    LiveFanout Fanout, ISessionActivity Activity, RelayRegistry Registry, ILoggerFactory Logs,
+    IEnumerable<Tether.Transcript.Contracts.ITranscriptFinalObserver> FinalObservers);
 
 /// <summary>Ephemeral audio chunk; PCM is held in memory only until the provider has it (no raw audio is persisted or logged).</summary>
 internal sealed record AudioChunk(byte[] Pcm, long StartMs, long EndMs);
@@ -433,6 +434,20 @@ internal sealed class RelayConnection
         }
         if (clearPartialOfSegment is { } seg) _s.Partials.Remove(UserId, SessionId, seg);
         await PublishAsync(env, ct);
+        if (env.Type == "transcript.final") NotifyFinalObservers(long.Parse(env.Seq!, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>
+    /// B3: tells interested modules (the AI summarizer) that a final is committed. Observers only record that work exists and
+    /// return at once; this call can never wait on AI, and an observer fault never reaches the audio path.
+    /// </summary>
+    private void NotifyFinalObservers(long seq)
+    {
+        foreach (var o in _s.FinalObservers)
+        {
+            try { o.OnFinalPersisted(UserId, SessionId, seq); }
+            catch (Exception ex) { _s.Logs.CreateLogger("Relay").LogWarning("Final observer failed: {ExceptionType}", ex.GetType().Name); }
+        }
     }
 
     private Task PublishAsync(Envelope env, CancellationToken ct) => _s.Fanout.PublishAsync(UserId, SessionId, env, ct);
