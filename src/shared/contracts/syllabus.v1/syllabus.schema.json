@@ -1,0 +1,463 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/syllabus.v1/syllabus.schema.json",
+  "title": "syllabus",
+  "description": "One uploaded or pasted syllabus and its extraction status. The original file is NOT retained (originalRetained is always false, provisional PO decision D4).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "courseId",
+    "title",
+    "inputKind",
+    "fileType",
+    "status",
+    "statusReason",
+    "pollAfterSeconds",
+    "aiSource",
+    "demoSource",
+    "demoCalendar",
+    "originalRetained",
+    "contentSha256",
+    "document",
+    "unprocessedRanges",
+    "context",
+    "provenance",
+    "counts",
+    "etag",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "id": {
+      "$ref": "syllabus-common.schema.json#/$defs/id"
+    },
+    "courseId": {
+      "$ref": "syllabus-common.schema.json#/$defs/id"
+    },
+    "title": {
+      "oneOf": [
+        {
+          "$ref": "syllabus-common.schema.json#/$defs/title"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "inputKind": {
+      "type": "string",
+      "enum": [
+        "upload",
+        "paste"
+      ]
+    },
+    "fileType": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "pdf",
+            "docx",
+            "txt"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "$ref": "syllabus-common.schema.json#/$defs/extractionStatus"
+    },
+    "statusReason": {
+      "oneOf": [
+        {
+          "$ref": "syllabus-common.schema.json#/$defs/statusReason"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pollAfterSeconds": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "aiSource": {
+      "type": "string",
+      "enum": [
+        "mock",
+        "model"
+      ]
+    },
+    "demoSource": {
+      "type": "boolean"
+    },
+    "demoCalendar": {
+      "const": true
+    },
+    "originalRetained": {
+      "const": false
+    },
+    "contentSha256": {
+      "$ref": "syllabus-common.schema.json#/$defs/sha256Hex"
+    },
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pageCount",
+        "charCount",
+        "unreadablePages",
+        "hiddenContentRemoved",
+        "injectionSuspect"
+      ],
+      "properties": {
+        "pageCount": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 60
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "charCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 50000
+        },
+        "unreadablePages": {
+          "type": "array",
+          "maxItems": 60,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60
+          },
+          "uniqueItems": true
+        },
+        "hiddenContentRemoved": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "injectionSuspect": {
+          "type": "boolean"
+        }
+      }
+    },
+    "unprocessedRanges": {
+      "type": "array",
+      "maxItems": 60,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "fromPage",
+          "toPage",
+          "reason"
+        ],
+        "properties": {
+          "fromPage": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "toPage": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "$ref": "syllabus-common.schema.json#/$defs/statusReason"
+          }
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "termStart",
+        "termEnd",
+        "defaultTimezone"
+      ],
+      "properties": {
+        "termStart": {
+          "oneOf": [
+            {
+              "$ref": "syllabus-common.schema.json#/$defs/localDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "termEnd": {
+          "oneOf": [
+            {
+              "$ref": "syllabus-common.schema.json#/$defs/localDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "defaultTimezone": {
+          "$ref": "syllabus-common.schema.json#/$defs/ianaZone"
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "extractorVersion",
+        "promptVersion",
+        "schemaVersion",
+        "model"
+      ],
+      "properties": {
+        "extractorVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "promptVersion": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schemaVersion": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "model": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "undecided",
+        "approved",
+        "skipped",
+        "needsDate",
+        "synced",
+        "droppedInvalid",
+        "unclaimedDates"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "undecided": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "approved": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "needsDate": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "synced": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "droppedInvalid": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "unclaimedDates": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        }
+      }
+    },
+    "etag": {
+      "$ref": "syllabus-common.schema.json#/$defs/etag"
+    },
+    "createdAt": {
+      "$ref": "syllabus-common.schema.json#/$defs/timestamp"
+    },
+    "updatedAt": {
+      "$ref": "syllabus-common.schema.json#/$defs/timestamp"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "queued",
+              "extracting",
+              "proposing"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "pollAfterSeconds": {
+            "type": "integer"
+          },
+          "statusReason": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "pollAfterSeconds": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "ready"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "statusReason": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "needs_text"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "statusReason": {
+            "const": "no_text_layer"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "statusReason": {
+            "$ref": "syllabus-common.schema.json#/$defs/statusReason"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "inputKind": {
+            "const": "paste"
+          }
+        },
+        "required": [
+          "inputKind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "fileType": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "aiSource": {
+            "const": "mock"
+          }
+        },
+        "required": [
+          "aiSource"
+        ]
+      },
+      "then": {
+        "properties": {
+          "demoSource": {
+            "const": true
+          }
+        }
+      }
+    }
+  ]
+}

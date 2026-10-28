@@ -1,0 +1,41 @@
+{
+  "syncId": "syn_01",
+  "syllabusId": "syl_01J9Z8K2",
+  "provider": "mock",
+  "demoCalendar": true,
+  "status": "partial",
+  "completedAt": "2026-10-28T12:00:00.000Z",
+  "results": [
+    {
+      "itemId": "itm_03",
+      "itemKey": "ik_OWh1yPwzeoR0AfZ0aMdY1JvsXbgTKDE9",
+      "outcome": "created",
+      "errorCode": null,
+      "eventCount": 1,
+      "syncState": "synced"
+    },
+    {
+      "itemId": "itm_05",
+      "itemKey": "ik__m4YlrExdE0jsbzZkWh6NjZhKpxgY2RB",
+      "outcome": "failed",
+      "errorCode": "provider_unavailable",
+      "eventCount": 0,
+      "syncState": "sync_failed"
+    },
+    {
+      "itemId": "itm_10",
+      "itemKey": "ik_x_jM3310JJz15mg08CTRGLF-izKQb7HV",
+      "outcome": "not_eligible",
+      "errorCode": "item_needs_date",
+      "eventCount": 0,
+      "syncState": "not_synced"
+    }
+  ],
+  "counts": {
+    "created": 1,
+    "updated": 0,
+    "unchanged": 0,
+    "failed": 1,
+    "notEligible": 1
+  }
+}

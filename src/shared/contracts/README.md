@@ -71,3 +71,7 @@ The frontend should validate the same fixtures with a draft 2020-12 validator (f
 10. `error.detail` vocabulary cannot be schema-closed (see above).
 11. The REST `CatchUp` DTO is assumed identical to the `catchup.ready` payload; `SummaryRevision` identical to the `summary.revision` payload.
 12. Socket `error` frame has `code` only; `ack.frameSeq` and `resumeFromFrame` are uint32.
+
+## syllabus.v1 (Phase 2 slice 1, DRAFT, not frozen)
+
+`syllabus.v1/` holds the DRAFT schemas for `docs/API_CONTRACTS_P2.md`; `lecture.v1` stays frozen and is untouched. Every syllabus schema basename starts with `syllabus` so fixtures stay flat in `fixtures/valid` and `fixtures/invalid` with the same `{schema}--{case}.json` naming; `ContractFixtureTests` registers both folders. Extra semantic checks (item key derivation, snippet offsets, approval invariants, doc/schema drift) live in `SyllabusContractTests`. Same strictness policy as above (`additionalProperties: false` everywhere). Same test commands.

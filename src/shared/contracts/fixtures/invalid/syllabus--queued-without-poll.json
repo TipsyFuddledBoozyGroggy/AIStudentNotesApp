@@ -1,0 +1,47 @@
+{
+  "id": "syl_01J9Z8K2",
+  "courseId": "crs_1",
+  "title": "BIO 101 syllabus",
+  "inputKind": "paste",
+  "fileType": null,
+  "status": "queued",
+  "statusReason": null,
+  "pollAfterSeconds": null,
+  "aiSource": "mock",
+  "demoSource": true,
+  "demoCalendar": true,
+  "originalRetained": false,
+  "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "document": {
+    "pageCount": null,
+    "charCount": 0,
+    "unreadablePages": [],
+    "hiddenContentRemoved": 0,
+    "injectionSuspect": false
+  },
+  "unprocessedRanges": [],
+  "context": {
+    "termStart": "2026-08-24",
+    "termEnd": "2026-12-11",
+    "defaultTimezone": "America/New_York"
+  },
+  "provenance": {
+    "extractorVersion": "1.0",
+    "promptVersion": null,
+    "schemaVersion": "syllabus.extract.v1",
+    "model": null
+  },
+  "counts": {
+    "total": 0,
+    "undecided": 0,
+    "approved": 0,
+    "skipped": 0,
+    "needsDate": 0,
+    "synced": 0,
+    "droppedInvalid": 0,
+    "unclaimedDates": 0
+  },
+  "etag": "W/\"s1\"",
+  "createdAt": "2026-10-28T12:00:00.000Z",
+  "updatedAt": "2026-10-28T12:00:00.000Z"
+}

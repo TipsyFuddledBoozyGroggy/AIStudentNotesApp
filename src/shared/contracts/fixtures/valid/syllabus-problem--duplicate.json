@@ -1,0 +1,8 @@
+{
+  "type": "https://errors.tether.invalid/duplicate_syllabus",
+  "title": "This syllabus was already added.",
+  "status": 409,
+  "code": "duplicate_syllabus",
+  "traceId": "00-abc123",
+  "existingSyllabusId": "syl_01J9Z8K2"
+}

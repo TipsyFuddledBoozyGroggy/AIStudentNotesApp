@@ -1,0 +1,7 @@
+{
+  "type": "https://errors.tether.invalid/not_found",
+  "title": "The request was invalid.",
+  "status": 200,
+  "code": "not_found",
+  "traceId": "00-abc123"
+}

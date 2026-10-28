@@ -1,0 +1,8 @@
+{
+  "type": "https://errors.tether.invalid/rate_limited",
+  "title": "The request was invalid.",
+  "status": 429,
+  "code": "rate_limited",
+  "traceId": "00-abc123",
+  "retryAfterSeconds": 30
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/syllabus.v1/syllabus-export.schema.json",
+  "title": "syllabus export",
+  "description": "Owner-scoped, generated on demand. Contains item data and snippets, no original file (not retained). ICS/CSV are deferred.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "exportedAt",
+    "syllabus",
+    "items",
+    "unclaimedDates",
+    "calendarEvents"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "syllabus.v1"
+    },
+    "exportedAt": {
+      "$ref": "syllabus-common.schema.json#/$defs/timestamp"
+    },
+    "syllabus": {
+      "$ref": "syllabus.schema.json"
+    },
+    "items": {
+      "type": "array",
+      "maxItems": 300,
+      "items": {
+        "$ref": "syllabus-item.schema.json"
+      }
+    },
+    "unclaimedDates": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "$ref": "syllabus-unclaimed-date.schema.json"
+      }
+    },
+    "calendarEvents": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "$ref": "syllabus-calendar-event.schema.json"
+      }
+    }
+  }
+}

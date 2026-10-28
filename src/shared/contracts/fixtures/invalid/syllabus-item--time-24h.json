@@ -1,0 +1,55 @@
+{
+  "id": "itm_01",
+  "syllabusId": "syl_01J9Z8K2",
+  "courseId": "crs_1",
+  "itemKey": "ik_uBhGwGpW0VqGUKPKwgyH8l5LJYDu51Gc",
+  "origin": "ai",
+  "kind": "assignment",
+  "title": "Problem Set 3",
+  "notes": null,
+  "when": {
+    "status": "resolved",
+    "written": {
+      "dateText": "Sept 14",
+      "timeText": "11:59 PM",
+      "parts": {
+        "year": null,
+        "month": 9,
+        "day": 14,
+        "weekday": "MO"
+      }
+    },
+    "date": "2026-09-14",
+    "endDate": null,
+    "time": "24:00",
+    "endTime": null,
+    "allDay": false,
+    "timezone": "America/New_York",
+    "timezoneSource": "course_default",
+    "derivation": "year_from_term",
+    "unknownReason": null,
+    "alternatives": []
+  },
+  "recurrence": null,
+  "confidence": "probably_right",
+  "confidenceReason": "Year taken from your term dates.",
+  "flags": [
+    "year_inferred",
+    "timezone_assumed"
+  ],
+  "snippet": {
+    "text": "PS3 due Mon Sept 14, 11:59 PM",
+    "start": 4102,
+    "end": 4131,
+    "page": 2,
+    "precision": "exact"
+  },
+  "edited": false,
+  "decision": "undecided",
+  "syncState": "not_synced",
+  "syncedRevision": null,
+  "revision": 1,
+  "etag": "W/\"i1\"",
+  "createdAt": "2026-10-28T12:00:00.000Z",
+  "updatedAt": "2026-10-28T12:00:00.000Z"
+}

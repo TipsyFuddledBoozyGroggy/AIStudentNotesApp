@@ -1,0 +1,15 @@
+{
+  "items": [
+    {
+      "id": "unc_01",
+      "snippet": {
+        "text": "Oct 14",
+        "start": 5120,
+        "end": 5126,
+        "page": 3,
+        "precision": "exact"
+      }
+    }
+  ],
+  "nextCursor": null
+}

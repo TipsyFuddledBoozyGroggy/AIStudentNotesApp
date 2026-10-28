@@ -1,0 +1,10 @@
+{
+  "itemIds": [
+    "itm_03",
+    "itm_05"
+  ],
+  "confirm": {
+    "provider": "mock",
+    "acknowledgedDemo": true
+  }
+}

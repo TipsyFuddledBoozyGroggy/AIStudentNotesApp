@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/syllabus.v1/syllabus-decision-batch-request.schema.json",
+  "title": "batch decision request",
+  "description": "Explicit ids only; there is no \"all\" form. approve is accepted only for resolved looks_right items (server rule batch_not_eligible). Duplicate itemIds are a server 400.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "action",
+    "items"
+  ],
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "approve",
+        "skip",
+        "undecide"
+      ]
+    },
+    "items": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "itemId",
+          "etag"
+        ],
+        "properties": {
+          "itemId": {
+            "$ref": "syllabus-common.schema.json#/$defs/id"
+          },
+          "etag": {
+            "$ref": "syllabus-common.schema.json#/$defs/etag"
+          }
+        }
+      },
+      "minItems": 1
+    }
+  }
+}

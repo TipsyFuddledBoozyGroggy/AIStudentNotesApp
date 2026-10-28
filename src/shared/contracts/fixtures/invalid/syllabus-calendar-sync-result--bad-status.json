@@ -1,0 +1,16 @@
+{
+  "syncId": "syn_01",
+  "syllabusId": "syl_01J9Z8K2",
+  "provider": "mock",
+  "demoCalendar": true,
+  "status": "success",
+  "completedAt": "2026-10-28T12:00:00.000Z",
+  "results": [],
+  "counts": {
+    "created": 0,
+    "updated": 0,
+    "unchanged": 0,
+    "failed": 0,
+    "notEligible": 0
+  }
+}

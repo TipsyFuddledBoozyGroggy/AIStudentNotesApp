@@ -1,0 +1,15 @@
+{
+  "results": [
+    {
+      "itemId": "itm_01",
+      "outcome": "ok",
+      "errorCode": null,
+      "item": null
+    }
+  ],
+  "counts": {
+    "applied": 1,
+    "unchanged": 0,
+    "rejected": 0
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/syllabus.v1/syllabus-problem.schema.json",
+  "title": "syllabus problem",
+  "description": "RFC 9457 ProblemDetails as in backend-foundation.md section 5, with the syllabus code additions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "title",
+    "status",
+    "code",
+    "traceId"
+  ],
+  "properties": {
+    "type": {
+      "type": "string",
+      "pattern": "^https://errors\\.tether\\.invalid/[a-z_]+$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "status": {
+      "type": "integer",
+      "minimum": 400,
+      "maximum": 599
+    },
+    "detail": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^[^\\u0000-\\u001f]*$"
+    },
+    "instance": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "code": {
+      "$ref": "syllabus-common.schema.json#/$defs/errorCode"
+    },
+    "traceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "errors": {
+      "type": "object",
+      "maxProperties": 20,
+      "additionalProperties": {
+        "type": "array",
+        "maxItems": 10,
+        "items": {
+          "type": "string",
+          "maxLength": 200
+        }
+      }
+    },
+    "retryAfterSeconds": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "existingSyllabusId": {
+      "$ref": "syllabus-common.schema.json#/$defs/id"
+    }
+  }
+}

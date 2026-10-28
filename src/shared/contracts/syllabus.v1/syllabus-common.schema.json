@@ -1,0 +1,304 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/syllabus.v1/syllabus-common.schema.json",
+  "title": "Shared definitions for syllabus.v1",
+  "description": "DRAFT v1 (docs/API_CONTRACTS_P2.md). Not frozen.",
+  "$defs": {
+    "id": {
+      "description": "Opaque server-assigned id, same format as lecture.v1 resources (ses_..., crs_...). Prefixes: syl_, itm_, syn_, evt_, unc_.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "itemKey": {
+      "description": "Stable sync key: \"ik_\" + first 32 chars of base64url(SHA-256(UTF-8(\"tether.syllabus.item.v1\\n\" + syllabusId + \"\\n\" + itemId))). Provider-agnostic; never changes when the item is edited.",
+      "type": "string",
+      "pattern": "^ik_[A-Za-z0-9_-]{32}$"
+    },
+    "timestamp": {
+      "description": "RFC 3339 with offset. Instants only (created/updated/synced); never used for dates the student reads.",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "localDate": {
+      "description": "Wall-clock calendar date YYYY-MM-DD (shape only; calendar validity such as Feb 30 is a server test).",
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    },
+    "localTime": {
+      "description": "Wall-clock time HH:MM, 24 hour, no seconds, no offset.",
+      "type": "string",
+      "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+    },
+    "ianaZone": {
+      "description": "IANA zone id of the Area/Location form. Offsets such as -05:00, abbreviations such as EST and bare UTC are not accepted. Membership in the server allow-list is a server test.",
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2}$"
+    },
+    "etag": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "sha256Hex": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "weekday": {
+      "type": "string",
+      "enum": [
+        "MO",
+        "TU",
+        "WE",
+        "TH",
+        "FR",
+        "SA",
+        "SU"
+      ]
+    },
+    "extractionStatus": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "extracting",
+        "proposing",
+        "ready",
+        "needs_text",
+        "partial",
+        "failed"
+      ]
+    },
+    "statusReason": {
+      "type": "string",
+      "enum": [
+        "no_text_layer",
+        "unreadable_file",
+        "password_protected",
+        "too_long",
+        "budget_limited",
+        "provider_unavailable",
+        "timeout",
+        "invalid_output",
+        "disabled"
+      ]
+    },
+    "itemKind": {
+      "type": "string",
+      "enum": [
+        "assignment",
+        "exam",
+        "reading",
+        "office_hours",
+        "policy",
+        "other"
+      ]
+    },
+    "editableKind": {
+      "description": "Every kind except policy. policy is AI-assigned and informational only.",
+      "type": "string",
+      "enum": [
+        "assignment",
+        "exam",
+        "reading",
+        "office_hours",
+        "other"
+      ]
+    },
+    "confidence": {
+      "description": "Server-derived bucket. There is deliberately no numeric score on the wire.",
+      "type": "string",
+      "enum": [
+        "looks_right",
+        "probably_right",
+        "please_check"
+      ]
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "undecided",
+        "approved",
+        "skipped"
+      ]
+    },
+    "syncState": {
+      "type": "string",
+      "enum": [
+        "not_synced",
+        "synced",
+        "changed_since_sync",
+        "sync_failed"
+      ]
+    },
+    "origin": {
+      "type": "string",
+      "enum": [
+        "ai",
+        "student"
+      ]
+    },
+    "whenStatus": {
+      "type": "string",
+      "enum": [
+        "resolved",
+        "needs_date",
+        "not_applicable"
+      ]
+    },
+    "derivation": {
+      "type": "string",
+      "enum": [
+        "explicit_full",
+        "year_from_term",
+        "relative_to_anchor",
+        "student_entered"
+      ]
+    },
+    "unknownReason": {
+      "type": "string",
+      "enum": [
+        "not_stated",
+        "tba",
+        "relative_unresolvable",
+        "conflicting",
+        "ambiguous_format",
+        "table_unreadable",
+        "date_not_verifiable"
+      ]
+    },
+    "timezoneSource": {
+      "type": "string",
+      "enum": [
+        "stated_in_source",
+        "course_default",
+        "student"
+      ]
+    },
+    "flag": {
+      "type": "string",
+      "enum": [
+        "year_inferred",
+        "relative_date",
+        "timezone_assumed",
+        "time_missing",
+        "conflicting_sources",
+        "tentative_language",
+        "table_layout_risk",
+        "section_ambiguous",
+        "range_end_inferred",
+        "weekday_mismatch",
+        "date_not_verifiable",
+        "until_from_term",
+        "low_text_quality",
+        "duplicate_candidate",
+        "outside_term",
+        "dst_ambiguous"
+      ]
+    },
+    "precision": {
+      "type": "string",
+      "enum": [
+        "exact",
+        "line"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\u0000-\\u001f]*$"
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "snippet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "start",
+        "end",
+        "page",
+        "precision"
+      ],
+      "properties": {
+        "text": {
+          "description": "Sliced by the server from the stored canonical text, never the model string. Untrusted plain text: render as a text node.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 600
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "page": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 60
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "precision": {
+          "$ref": "#/$defs/precision"
+        }
+      }
+    },
+    "errorCode": {
+      "description": "lecture.v1 ProblemDetails codes plus syllabus codes (docs/API_CONTRACTS_P2.md section 9).",
+      "type": "string",
+      "enum": [
+        "validation_failed",
+        "unauthenticated",
+        "csrf_failed",
+        "not_found",
+        "invalid_state",
+        "concurrency_conflict",
+        "precondition_required",
+        "precondition_failed",
+        "rate_limited",
+        "provider_unavailable",
+        "unsupported_type",
+        "too_large",
+        "duplicate_syllabus",
+        "extraction_in_progress",
+        "syllabus_limit_reached",
+        "item_needs_date",
+        "item_not_syncable",
+        "item_not_approved",
+        "acknowledgement_required",
+        "batch_not_eligible",
+        "student_item_only"
+      ]
+    },
+    "itemErrorCode": {
+      "description": "Per-item failure codes inside 200 batch/sync results.",
+      "type": "string",
+      "enum": [
+        "item_needs_date",
+        "item_not_syncable",
+        "item_not_approved",
+        "batch_not_eligible",
+        "acknowledgement_required",
+        "precondition_failed",
+        "not_found",
+        "provider_unavailable",
+        "invalid_state"
+      ]
+    }
+  }
+}

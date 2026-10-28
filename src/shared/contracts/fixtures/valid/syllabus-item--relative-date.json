@@ -1,0 +1,54 @@
+{
+  "id": "itm_06",
+  "syllabusId": "syl_01J9Z8K2",
+  "courseId": "crs_1",
+  "itemKey": "ik_BmIvcom34ZBqIF3x75w9Oej4csJzY9at",
+  "origin": "ai",
+  "kind": "assignment",
+  "title": "Paper 1",
+  "notes": null,
+  "when": {
+    "status": "resolved",
+    "written": {
+      "dateText": "Friday of Week 4",
+      "timeText": null,
+      "parts": {
+        "year": null,
+        "month": null,
+        "day": null,
+        "weekday": "FR"
+      }
+    },
+    "date": "2026-09-18",
+    "endDate": null,
+    "time": null,
+    "endTime": null,
+    "allDay": true,
+    "timezone": "America/New_York",
+    "timezoneSource": "course_default",
+    "derivation": "relative_to_anchor",
+    "unknownReason": null,
+    "alternatives": []
+  },
+  "recurrence": null,
+  "confidence": "probably_right",
+  "confidenceReason": "Calculated from Week 4 and the term start you gave.",
+  "flags": [
+    "relative_date"
+  ],
+  "snippet": {
+    "text": "Paper 1 due Friday of Week 4",
+    "start": 2210,
+    "end": 2238,
+    "page": 2,
+    "precision": "exact"
+  },
+  "edited": false,
+  "decision": "undecided",
+  "syncState": "not_synced",
+  "syncedRevision": null,
+  "revision": 1,
+  "etag": "W/\"i1\"",
+  "createdAt": "2026-10-28T12:00:00.000Z",
+  "updatedAt": "2026-10-28T12:00:00.000Z"
+}

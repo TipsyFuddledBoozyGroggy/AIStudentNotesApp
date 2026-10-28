@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/syllabus.v1/syllabus-decision-batch-result.schema.json",
+  "title": "batch decision result",
+  "description": "200 even when some items are rejected; never claims full success when any item was rejected.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "results",
+    "counts"
+  ],
+  "properties": {
+    "results": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "itemId",
+          "outcome",
+          "errorCode",
+          "item"
+        ],
+        "properties": {
+          "itemId": {
+            "$ref": "syllabus-common.schema.json#/$defs/id"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "unchanged",
+              "rejected"
+            ]
+          },
+          "errorCode": {
+            "oneOf": [
+              {
+                "$ref": "syllabus-common.schema.json#/$defs/itemErrorCode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "item": {
+            "oneOf": [
+              {
+                "$ref": "syllabus-item.schema.json"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "applied",
+        "unchanged",
+        "rejected"
+      ],
+      "properties": {
+        "applied": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unchanged": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rejected": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

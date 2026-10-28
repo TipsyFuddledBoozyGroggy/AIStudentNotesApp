@@ -1,0 +1,54 @@
+{
+  "id": "itm_10",
+  "syllabusId": "syl_01J9Z8K2",
+  "courseId": "crs_1",
+  "itemKey": "ik_x_jM3310JJz15mg08CTRGLF-izKQb7HV",
+  "origin": "ai",
+  "kind": "exam",
+  "title": "Midterm exam",
+  "notes": null,
+  "when": {
+    "status": "needs_date",
+    "written": {
+      "dateText": null,
+      "timeText": null,
+      "parts": {
+        "year": null,
+        "month": null,
+        "day": null,
+        "weekday": null
+      }
+    },
+    "date": "2026-10-14",
+    "endDate": null,
+    "time": null,
+    "endTime": null,
+    "allDay": false,
+    "timezone": null,
+    "timezoneSource": null,
+    "derivation": null,
+    "unknownReason": "tba",
+    "alternatives": []
+  },
+  "recurrence": null,
+  "confidence": "please_check",
+  "confidenceReason": "The syllabus does not give a date.",
+  "flags": [
+    "tentative_language"
+  ],
+  "snippet": {
+    "text": "Midterm: in class, date TBA",
+    "start": 5120,
+    "end": 5147,
+    "page": 3,
+    "precision": "exact"
+  },
+  "edited": false,
+  "decision": "undecided",
+  "syncState": "not_synced",
+  "syncedRevision": null,
+  "revision": 1,
+  "etag": "W/\"i1\"",
+  "createdAt": "2026-10-28T12:00:00.000Z",
+  "updatedAt": "2026-10-28T12:00:00.000Z"
+}

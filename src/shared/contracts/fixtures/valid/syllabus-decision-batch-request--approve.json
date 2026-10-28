@@ -1,0 +1,13 @@
+{
+  "action": "approve",
+  "items": [
+    {
+      "itemId": "itm_01",
+      "etag": "W/\"i1\""
+    },
+    {
+      "itemId": "itm_02",
+      "etag": "W/\"i2\""
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/syllabus.v1/syllabus-create-request.schema.json",
+  "title": "create syllabus request",
+  "description": "JSON body for paste, or the \"metadata\" part of a multipart upload (then text is absent and the \"file\" part carries the document). Exactly one of file part / text must be supplied (server test). Idempotency-Key header is required. No retention, provider or reminder fields exist by design.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "defaultTimezone"
+  ],
+  "properties": {
+    "title": {
+      "oneOf": [
+        {
+          "$ref": "syllabus-common.schema.json#/$defs/title"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50000
+    },
+    "termStart": {
+      "oneOf": [
+        {
+          "$ref": "syllabus-common.schema.json#/$defs/localDate"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "termEnd": {
+      "oneOf": [
+        {
+          "$ref": "syllabus-common.schema.json#/$defs/localDate"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "defaultTimezone": {
+      "$ref": "syllabus-common.schema.json#/$defs/ianaZone"
+    },
+    "allowDuplicate": {
+      "type": "boolean"
+    }
+  }
+}

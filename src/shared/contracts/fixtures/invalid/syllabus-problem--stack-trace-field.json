@@ -1,0 +1,8 @@
+{
+  "type": "https://errors.tether.invalid/provider_unavailable",
+  "title": "The request was invalid.",
+  "status": 500,
+  "code": "provider_unavailable",
+  "traceId": "00-abc123",
+  "stackTrace": "at X"
+}

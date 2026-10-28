@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/syllabus.v1/syllabus-item-decision-request.schema.json",
+  "title": "item decision request",
+  "description": "Approve, skip or undo. If-Match required. acknowledgeCheck must be true to approve a please_check item.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "decision"
+  ],
+  "properties": {
+    "decision": {
+      "$ref": "syllabus-common.schema.json#/$defs/decision"
+    },
+    "acknowledgeCheck": {
+      "type": "boolean"
+    }
+  }
+}

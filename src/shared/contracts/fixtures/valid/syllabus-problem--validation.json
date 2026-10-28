@@ -1,0 +1,12 @@
+{
+  "type": "https://errors.tether.invalid/validation_failed",
+  "title": "The request was invalid.",
+  "status": 400,
+  "code": "validation_failed",
+  "traceId": "00-abc123",
+  "errors": {
+    "text": [
+      "Enter some text."
+    ]
+  }
+}

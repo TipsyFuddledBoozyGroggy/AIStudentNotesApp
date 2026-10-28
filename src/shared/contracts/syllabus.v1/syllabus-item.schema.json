@@ -1,0 +1,757 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/syllabus.v1/syllabus-item.schema.json",
+  "title": "syllabus item",
+  "description": "A proposed (AI) or student-entered course item. When a recurrence is present, when.date is the first occurrence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "syllabusId",
+    "courseId",
+    "itemKey",
+    "origin",
+    "kind",
+    "title",
+    "notes",
+    "when",
+    "recurrence",
+    "confidence",
+    "confidenceReason",
+    "flags",
+    "snippet",
+    "edited",
+    "decision",
+    "syncState",
+    "syncedRevision",
+    "revision",
+    "etag",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "id": {
+      "$ref": "syllabus-common.schema.json#/$defs/id"
+    },
+    "syllabusId": {
+      "$ref": "syllabus-common.schema.json#/$defs/id"
+    },
+    "courseId": {
+      "$ref": "syllabus-common.schema.json#/$defs/id"
+    },
+    "itemKey": {
+      "$ref": "syllabus-common.schema.json#/$defs/itemKey"
+    },
+    "origin": {
+      "$ref": "syllabus-common.schema.json#/$defs/origin"
+    },
+    "kind": {
+      "$ref": "syllabus-common.schema.json#/$defs/itemKind"
+    },
+    "title": {
+      "$ref": "syllabus-common.schema.json#/$defs/title"
+    },
+    "notes": {
+      "oneOf": [
+        {
+          "$ref": "syllabus-common.schema.json#/$defs/notes"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "when": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "written",
+        "date",
+        "endDate",
+        "time",
+        "endTime",
+        "allDay",
+        "timezone",
+        "timezoneSource",
+        "derivation",
+        "unknownReason",
+        "alternatives"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "syllabus-common.schema.json#/$defs/whenStatus"
+        },
+        "written": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "dateText",
+                "timeText",
+                "parts"
+              ],
+              "properties": {
+                "dateText": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "timeText": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 50
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "parts": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "year",
+                    "month",
+                    "day",
+                    "weekday"
+                  ],
+                  "properties": {
+                    "year": {
+                      "oneOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 1900,
+                          "maximum": 2200
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "month": {
+                      "oneOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 12
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "day": {
+                      "oneOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 31
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "weekday": {
+                      "oneOf": [
+                        {
+                          "$ref": "syllabus-common.schema.json#/$defs/weekday"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "date": {
+          "oneOf": [
+            {
+              "$ref": "syllabus-common.schema.json#/$defs/localDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "endDate": {
+          "oneOf": [
+            {
+              "$ref": "syllabus-common.schema.json#/$defs/localDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "time": {
+          "oneOf": [
+            {
+              "$ref": "syllabus-common.schema.json#/$defs/localTime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "endTime": {
+          "oneOf": [
+            {
+              "$ref": "syllabus-common.schema.json#/$defs/localTime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "allDay": {
+          "type": "boolean"
+        },
+        "timezone": {
+          "oneOf": [
+            {
+              "$ref": "syllabus-common.schema.json#/$defs/ianaZone"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timezoneSource": {
+          "oneOf": [
+            {
+              "$ref": "syllabus-common.schema.json#/$defs/timezoneSource"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "derivation": {
+          "oneOf": [
+            {
+              "$ref": "syllabus-common.schema.json#/$defs/derivation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unknownReason": {
+          "oneOf": [
+            {
+              "$ref": "syllabus-common.schema.json#/$defs/unknownReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "alternatives": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "date",
+              "time"
+            ],
+            "properties": {
+              "date": {
+                "$ref": "syllabus-common.schema.json#/$defs/localDate"
+              },
+              "time": {
+                "oneOf": [
+                  {
+                    "$ref": "syllabus-common.schema.json#/$defs/localTime"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "resolved"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "date": {
+                "$ref": "syllabus-common.schema.json#/$defs/localDate"
+              },
+              "timezone": {
+                "$ref": "syllabus-common.schema.json#/$defs/ianaZone"
+              },
+              "timezoneSource": {
+                "$ref": "syllabus-common.schema.json#/$defs/timezoneSource"
+              },
+              "derivation": {
+                "$ref": "syllabus-common.schema.json#/$defs/derivation"
+              },
+              "unknownReason": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "needs_date"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "date": {
+                "type": "null"
+              },
+              "endDate": {
+                "type": "null"
+              },
+              "time": {
+                "type": "null"
+              },
+              "endTime": {
+                "type": "null"
+              },
+              "allDay": {
+                "const": false
+              },
+              "derivation": {
+                "type": "null"
+              },
+              "unknownReason": {
+                "$ref": "syllabus-common.schema.json#/$defs/unknownReason"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "not_applicable"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "written": {
+                "type": "null"
+              },
+              "date": {
+                "type": "null"
+              },
+              "endDate": {
+                "type": "null"
+              },
+              "time": {
+                "type": "null"
+              },
+              "endTime": {
+                "type": "null"
+              },
+              "allDay": {
+                "const": false
+              },
+              "timezone": {
+                "type": "null"
+              },
+              "timezoneSource": {
+                "type": "null"
+              },
+              "derivation": {
+                "type": "null"
+              },
+              "unknownReason": {
+                "type": "null"
+              },
+              "alternatives": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "allDay": {
+                "const": true
+              }
+            },
+            "required": [
+              "allDay"
+            ]
+          },
+          "then": {
+            "properties": {
+              "time": {
+                "type": "null"
+              },
+              "endTime": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "endTime": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "endTime"
+            ]
+          },
+          "then": {
+            "properties": {
+              "time": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "recurrence": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "pattern",
+            "byDay",
+            "startTime",
+            "endTime",
+            "from",
+            "until",
+            "untilSource",
+            "exceptions"
+          ],
+          "properties": {
+            "pattern": {
+              "const": "weekly"
+            },
+            "byDay": {
+              "type": "array",
+              "maxItems": 7,
+              "items": {
+                "$ref": "syllabus-common.schema.json#/$defs/weekday"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "startTime": {
+              "$ref": "syllabus-common.schema.json#/$defs/localTime"
+            },
+            "endTime": {
+              "oneOf": [
+                {
+                  "$ref": "syllabus-common.schema.json#/$defs/localTime"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "from": {
+              "$ref": "syllabus-common.schema.json#/$defs/localDate"
+            },
+            "until": {
+              "$ref": "syllabus-common.schema.json#/$defs/localDate"
+            },
+            "untilSource": {
+              "type": "string",
+              "enum": [
+                "stated",
+                "term_end",
+                "student"
+              ]
+            },
+            "exceptions": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "$ref": "syllabus-common.schema.json#/$defs/localDate"
+              },
+              "uniqueItems": true
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "confidence": {
+      "$ref": "syllabus-common.schema.json#/$defs/confidence"
+    },
+    "confidenceReason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "flags": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "$ref": "syllabus-common.schema.json#/$defs/flag"
+      },
+      "uniqueItems": true
+    },
+    "snippet": {
+      "oneOf": [
+        {
+          "$ref": "syllabus-common.schema.json#/$defs/snippet"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "edited": {
+      "type": "boolean"
+    },
+    "decision": {
+      "$ref": "syllabus-common.schema.json#/$defs/decision"
+    },
+    "syncState": {
+      "$ref": "syllabus-common.schema.json#/$defs/syncState"
+    },
+    "syncedRevision": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "etag": {
+      "$ref": "syllabus-common.schema.json#/$defs/etag"
+    },
+    "createdAt": {
+      "$ref": "syllabus-common.schema.json#/$defs/timestamp"
+    },
+    "updatedAt": {
+      "$ref": "syllabus-common.schema.json#/$defs/timestamp"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "when": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "needs_date",
+                  "not_applicable"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          }
+        },
+        "required": [
+          "when"
+        ]
+      },
+      "then": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "undecided",
+              "skipped"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "syncState": {
+            "enum": [
+              "synced",
+              "changed_since_sync",
+              "sync_failed"
+            ]
+          }
+        },
+        "required": [
+          "syncState"
+        ]
+      },
+      "then": {
+        "properties": {
+          "decision": {
+            "const": "approved"
+          },
+          "syncedRevision": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "syncState": {
+            "const": "not_synced"
+          }
+        },
+        "required": [
+          "syncState"
+        ]
+      },
+      "then": {
+        "properties": {
+          "syncedRevision": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "policy"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "when": {
+            "properties": {
+              "status": {
+                "const": "not_applicable"
+              }
+            }
+          },
+          "recurrence": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "when": {
+            "properties": {
+              "status": {
+                "const": "not_applicable"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          }
+        },
+        "required": [
+          "when"
+        ]
+      },
+      "then": {
+        "properties": {
+          "kind": {
+            "const": "policy"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "origin": {
+            "const": "student"
+          }
+        },
+        "required": [
+          "origin"
+        ]
+      },
+      "then": {
+        "properties": {
+          "snippet": {
+            "type": "null"
+          },
+          "kind": {
+            "$ref": "syllabus-common.schema.json#/$defs/editableKind"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "origin": {
+            "const": "ai"
+          }
+        },
+        "required": [
+          "origin"
+        ]
+      },
+      "then": {
+        "properties": {
+          "snippet": {
+            "$ref": "syllabus-common.schema.json#/$defs/snippet"
+          }
+        }
+      }
+    }
+  ]
+}

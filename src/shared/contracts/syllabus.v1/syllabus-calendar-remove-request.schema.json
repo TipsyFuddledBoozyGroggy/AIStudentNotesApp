@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/syllabus.v1/syllabus-calendar-remove-request.schema.json",
+  "title": "calendar remove request",
+  "description": "Removes mock events only; items return to approved/not_synced. Naturally idempotent, no key needed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "itemIds"
+  ],
+  "properties": {
+    "itemIds": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "syllabus-common.schema.json#/$defs/id"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  }
+}

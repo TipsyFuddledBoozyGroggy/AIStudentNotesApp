@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/syllabus.v1/syllabus-item-update-request.schema.json",
+  "title": "update item request",
+  "description": "JSON merge-patch with If-Match. Absent = unchanged; null clears where the field is nullable. A date cannot be cleared. decision and syncState are not editable here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "kind": {
+      "$ref": "syllabus-common.schema.json#/$defs/editableKind"
+    },
+    "title": {
+      "$ref": "syllabus-common.schema.json#/$defs/title"
+    },
+    "notes": {
+      "oneOf": [
+        {
+          "$ref": "syllabus-common.schema.json#/$defs/notes"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "date": {
+      "$ref": "syllabus-common.schema.json#/$defs/localDate"
+    },
+    "endDate": {
+      "oneOf": [
+        {
+          "$ref": "syllabus-common.schema.json#/$defs/localDate"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "time": {
+      "oneOf": [
+        {
+          "$ref": "syllabus-common.schema.json#/$defs/localTime"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "endTime": {
+      "oneOf": [
+        {
+          "$ref": "syllabus-common.schema.json#/$defs/localTime"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "allDay": {
+      "type": "boolean"
+    },
+    "timezone": {
+      "$ref": "syllabus-common.schema.json#/$defs/ianaZone"
+    }
+  },
+  "minProperties": 1
+}

@@ -1,0 +1,67 @@
+{
+  "id": "itm_07",
+  "syllabusId": "syl_01J9Z8K2",
+  "courseId": "crs_1",
+  "itemKey": "ik_PJHJoSABVfGCJR6iqGusNftlzlrs74QI",
+  "origin": "ai",
+  "kind": "office_hours",
+  "title": "Office hours",
+  "notes": null,
+  "when": {
+    "status": "resolved",
+    "written": {
+      "dateText": "Tuesdays",
+      "timeText": "2:00-3:00 PM",
+      "parts": {
+        "year": null,
+        "month": null,
+        "day": null,
+        "weekday": "TU"
+      }
+    },
+    "date": "2026-08-25",
+    "endDate": null,
+    "time": "14:00",
+    "endTime": "15:00",
+    "allDay": false,
+    "timezone": "America/New_York",
+    "timezoneSource": "stated_in_source",
+    "derivation": "year_from_term",
+    "unknownReason": null,
+    "alternatives": []
+  },
+  "recurrence": {
+    "pattern": "weekly",
+    "byDay": [
+      "TUE"
+    ],
+    "startTime": "14:00",
+    "endTime": "15:00",
+    "from": "2026-08-25",
+    "until": "2026-12-08",
+    "untilSource": "term_end",
+    "exceptions": [
+      "2026-11-24"
+    ]
+  },
+  "confidence": "looks_right",
+  "confidenceReason": "Days and times written in the syllabus.",
+  "flags": [
+    "until_from_term"
+  ],
+  "snippet": {
+    "text": "Office hours: Tuesdays 2:00-3:00 PM",
+    "start": 700,
+    "end": 735,
+    "page": 1,
+    "precision": "exact"
+  },
+  "edited": false,
+  "decision": "undecided",
+  "syncState": "not_synced",
+  "syncedRevision": null,
+  "revision": 1,
+  "etag": "W/\"i1\"",
+  "createdAt": "2026-10-28T12:00:00.000Z",
+  "updatedAt": "2026-10-28T12:00:00.000Z"
+}

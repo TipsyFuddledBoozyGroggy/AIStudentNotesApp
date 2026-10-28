@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/syllabus.v1/syllabus-calendar-remove-result.schema.json",
+  "title": "calendar remove result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "syllabusId",
+    "provider",
+    "status",
+    "results",
+    "counts"
+  ],
+  "properties": {
+    "syllabusId": {
+      "$ref": "syllabus-common.schema.json#/$defs/id"
+    },
+    "provider": {
+      "const": "mock"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "all_succeeded",
+        "partial",
+        "failed",
+        "nothing_to_do"
+      ]
+    },
+    "results": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "itemId",
+          "itemKey",
+          "outcome",
+          "errorCode",
+          "eventCount",
+          "syncState"
+        ],
+        "properties": {
+          "itemId": {
+            "$ref": "syllabus-common.schema.json#/$defs/id"
+          },
+          "itemKey": {
+            "$ref": "syllabus-common.schema.json#/$defs/itemKey"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "removed",
+              "not_present",
+              "failed"
+            ]
+          },
+          "errorCode": {
+            "oneOf": [
+              {
+                "$ref": "syllabus-common.schema.json#/$defs/itemErrorCode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eventCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 200
+          },
+          "syncState": {
+            "$ref": "syllabus-common.schema.json#/$defs/syncState"
+          }
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "removed",
+        "notPresent",
+        "failed"
+      ],
+      "properties": {
+        "removed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notPresent": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "id": "itm_08",
+  "syllabusId": "syl_01J9Z8K2",
+  "courseId": "crs_1",
+  "itemKey": "ik_rOXkcfFpLz3Yu48ulE59nHcYCFyOSD8f",
+  "origin": "ai",
+  "kind": "exam",
+  "title": "Exam 1",
+  "notes": null,
+  "when": {
+    "status": "needs_date",
+    "written": {
+      "dateText": null,
+      "timeText": null,
+      "parts": {
+        "year": null,
+        "month": null,
+        "day": null,
+        "weekday": null
+      }
+    },
+    "date": null,
+    "endDate": null,
+    "time": null,
+    "endTime": null,
+    "allDay": false,
+    "timezone": null,
+    "timezoneSource": null,
+    "derivation": null,
+    "unknownReason": "conflicting",
+    "alternatives": [
+      {
+        "date": "2026-10-11",
+        "time": null
+      },
+      {
+        "date": "2026-10-12",
+        "time": null
+      },
+      {
+        "date": "2026-10-13",
+        "time": null
+      },
+      {
+        "date": "2026-10-14",
+        "time": null
+      }
+    ]
+  },
+  "recurrence": null,
+  "confidence": "please_check",
+  "confidenceReason": "The syllabus gives two different dates.",
+  "flags": [
+    "conflicting_sources"
+  ],
+  "snippet": {
+    "text": "Midterm: in class, date TBA",
+    "start": 5120,
+    "end": 5147,
+    "page": 3,
+    "precision": "exact"
+  },
+  "edited": false,
+  "decision": "undecided",
+  "syncState": "not_synced",
+  "syncedRevision": null,
+  "revision": 1,
+  "etag": "W/\"i1\"",
+  "createdAt": "2026-10-28T12:00:00.000Z",
+  "updatedAt": "2026-10-28T12:00:00.000Z"
+}

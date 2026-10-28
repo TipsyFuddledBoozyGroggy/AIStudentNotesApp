@@ -1,0 +1,23 @@
+{
+  "eventId": "evt_01",
+  "syllabusId": "syl_01J9Z8K2",
+  "itemId": "itm_03",
+  "itemKey": "ik_OWh1yPwzeoR0AfZ0aMdY1JvsXbgTKDE9",
+  "occurrenceDate": null,
+  "title": "Midterm exam",
+  "kind": "exam",
+  "allDay": false,
+  "start": {
+    "date": "2026-10-14",
+    "time": "10:00",
+    "timezone": "America/New_York"
+  },
+  "end": {
+    "date": "2026-10-14",
+    "time": "10:50"
+  },
+  "endDerived": false,
+  "syncedRevision": 1,
+  "syncedAt": "2026-10-28T12:00:00.000Z",
+  "demo": true
+}

@@ -1,0 +1,43 @@
+{
+  "id": "itm_04",
+  "syllabusId": "syl_01J9Z8K2",
+  "courseId": "crs_1",
+  "itemKey": "ik_rn4JqRgtsCYeE7QAKoXR76T7_OeAJUdD",
+  "origin": "ai",
+  "kind": "policy",
+  "title": "Late work loses 10 percent per day",
+  "notes": null,
+  "when": {
+    "status": "not_applicable",
+    "written": null,
+    "date": null,
+    "endDate": null,
+    "time": null,
+    "endTime": null,
+    "allDay": false,
+    "timezone": null,
+    "timezoneSource": null,
+    "derivation": null,
+    "unknownReason": null,
+    "alternatives": []
+  },
+  "recurrence": null,
+  "confidence": "please_check",
+  "confidenceReason": "Informational policy; no date.",
+  "flags": [],
+  "snippet": {
+    "text": "Late work loses 10% per day.",
+    "start": 900,
+    "end": 928,
+    "page": 1,
+    "precision": "exact"
+  },
+  "edited": false,
+  "decision": "undecided",
+  "syncState": "not_synced",
+  "syncedRevision": null,
+  "revision": 1,
+  "etag": "W/\"i1\"",
+  "createdAt": "2026-10-28T12:00:00.000Z",
+  "updatedAt": "2026-10-28T12:00:00.000Z"
+}

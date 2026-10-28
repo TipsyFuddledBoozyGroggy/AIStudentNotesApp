@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/syllabus.v1/syllabus-calendar-event.schema.json",
+  "title": "demo calendar event",
+  "description": "Mock calendar event (database only). Wall-clock time plus IANA zone; no UTC. When endDerived is true the server applied the default 60 minute length.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "eventId",
+    "syllabusId",
+    "itemId",
+    "itemKey",
+    "occurrenceDate",
+    "title",
+    "kind",
+    "allDay",
+    "start",
+    "end",
+    "endDerived",
+    "syncedRevision",
+    "syncedAt",
+    "demo"
+  ],
+  "properties": {
+    "eventId": {
+      "$ref": "syllabus-common.schema.json#/$defs/id"
+    },
+    "syllabusId": {
+      "$ref": "syllabus-common.schema.json#/$defs/id"
+    },
+    "itemId": {
+      "$ref": "syllabus-common.schema.json#/$defs/id"
+    },
+    "itemKey": {
+      "$ref": "syllabus-common.schema.json#/$defs/itemKey"
+    },
+    "occurrenceDate": {
+      "oneOf": [
+        {
+          "$ref": "syllabus-common.schema.json#/$defs/localDate"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "title": {
+      "$ref": "syllabus-common.schema.json#/$defs/title"
+    },
+    "kind": {
+      "$ref": "syllabus-common.schema.json#/$defs/itemKind"
+    },
+    "allDay": {
+      "type": "boolean"
+    },
+    "start": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "date",
+        "time",
+        "timezone"
+      ],
+      "properties": {
+        "date": {
+          "$ref": "syllabus-common.schema.json#/$defs/localDate"
+        },
+        "time": {
+          "oneOf": [
+            {
+              "$ref": "syllabus-common.schema.json#/$defs/localTime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timezone": {
+          "$ref": "syllabus-common.schema.json#/$defs/ianaZone"
+        }
+      }
+    },
+    "end": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "date",
+        "time"
+      ],
+      "properties": {
+        "date": {
+          "$ref": "syllabus-common.schema.json#/$defs/localDate"
+        },
+        "time": {
+          "oneOf": [
+            {
+              "$ref": "syllabus-common.schema.json#/$defs/localTime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "endDerived": {
+      "type": "boolean"
+    },
+    "syncedRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "syncedAt": {
+      "$ref": "syllabus-common.schema.json#/$defs/timestamp"
+    },
+    "demo": {
+      "const": true
+    }
+  }
+}

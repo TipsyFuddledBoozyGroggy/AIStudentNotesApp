@@ -1,0 +1,7 @@
+{
+  "type": "https://errors.tether.invalid/too_large",
+  "title": "That file is too big.",
+  "status": 413,
+  "code": "too_large",
+  "traceId": "00-abc123"
+}

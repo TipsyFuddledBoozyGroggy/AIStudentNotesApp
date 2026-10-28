@@ -1,0 +1,9 @@
+{
+  "action": "sync",
+  "items": [
+    {
+      "itemId": "itm_01",
+      "etag": "W/\"i1\""
+    }
+  ]
+}

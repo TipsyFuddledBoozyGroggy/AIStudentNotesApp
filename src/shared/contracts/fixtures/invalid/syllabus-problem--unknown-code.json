@@ -1,0 +1,7 @@
+{
+  "type": "https://errors.tether.invalid/item_conflict",
+  "title": "The request was invalid.",
+  "status": 409,
+  "code": "item_conflict",
+  "traceId": "00-abc123"
+}

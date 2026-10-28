@@ -1,0 +1,20 @@
+{
+  "syllabusId": "syl_01J9Z8K2",
+  "provider": "mock",
+  "status": "all_succeeded",
+  "results": [
+    {
+      "itemId": "itm_03",
+      "itemKey": "ik_OWh1yPwzeoR0AfZ0aMdY1JvsXbgTKDE9",
+      "outcome": "removed",
+      "errorCode": null,
+      "eventCount": 0,
+      "syncState": "not_synced"
+    }
+  ],
+  "counts": {
+    "removed": 1,
+    "notPresent": 0,
+    "failed": 0
+  }
+}

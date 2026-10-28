@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/syllabus.v1/syllabus-unclaimed-date.schema.json",
+  "title": "unclaimed date",
+  "description": "A date-like span the scanner found that no item covers (\"Dates we noticed but did not turn into items\").",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "snippet"
+  ],
+  "properties": {
+    "id": {
+      "$ref": "syllabus-common.schema.json#/$defs/id"
+    },
+    "snippet": {
+      "$ref": "syllabus-common.schema.json#/$defs/snippet"
+    }
+  }
+}

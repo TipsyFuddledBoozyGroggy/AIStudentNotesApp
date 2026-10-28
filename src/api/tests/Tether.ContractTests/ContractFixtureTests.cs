@@ -30,7 +30,12 @@ public sealed class ContractFixtureTests
     private static EvaluationOptions BuildOptions()
     {
         var options = new EvaluationOptions { OutputFormat = OutputFormat.List, EvaluateAs = SpecVersion.Draft202012 };
-        foreach (var file in Directory.GetFiles(Path.Combine(ContractsDir, "lecture.v1"), "*.schema.json"))
+        // lecture.v1 (frozen) and syllabus.v1 (DRAFT, docs/API_CONTRACTS_P2.md). Schema basenames are unique across both
+        // folders (syllabus schemas are all prefixed "syllabus"), so fixtures stay flat in fixtures/valid and fixtures/invalid.
+        var files = new[] { "lecture.v1", "syllabus.v1" }
+            .Where(d => Directory.Exists(Path.Combine(ContractsDir, d)))
+            .SelectMany(d => Directory.GetFiles(Path.Combine(ContractsDir, d), "*.schema.json"));
+        foreach (var file in files)
         {
             var schema = JsonSchema.FromText(File.ReadAllText(file));
             var name = Path.GetFileName(file)[..^".schema.json".Length];
