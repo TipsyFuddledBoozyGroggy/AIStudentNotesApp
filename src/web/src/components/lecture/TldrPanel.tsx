@@ -73,14 +73,18 @@ export function TldrPanel({ summary, status, onCite }: TldrPanelProps) {
         <button
           type="button"
           className="btn-secondary"
-          aria-pressed={hold}
           onClick={() => {
             setFrozen(summary);
             setHold((h) => !h);
           }}
         >
-          {C.hold}
+          {hold ? C.resume : C.hold}
         </button>
+        {hold ? (
+          <span data-testid="tldr-paused" className="text-sm">
+            {C.paused(frozen ? formatMs(frozen.coveredToMs) : "earlier")}
+          </span>
+        ) : null}
         {newer ? (
           <>
             <span className="text-sm">{C.newer}</span>

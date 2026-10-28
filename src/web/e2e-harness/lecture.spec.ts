@@ -90,7 +90,7 @@ test("UX 2 AC3: scrolling up stops autoscroll and shows Jump to live; the button
 
 test("UX 2 AC5: incoming events do not move focus", async ({ page }) => {
   await page.goto("/dev/lecture-harness/live");
-  const hold = page.getByRole("button", { name: "Hold updates" });
+  const hold = page.getByRole("button", { name: "Pause updates" });
   await hold.focus();
   const step = page.getByRole("button", { name: /Step next event/ });
   // Stepping uses a button elsewhere, so check focus is preserved by dispatching the step via script.

@@ -254,7 +254,7 @@ test("I Lost Track on an ended lecture and under a rate limit: calm message, one
     return route.fulfill({ status: 429, contentType: "application/problem+json", body: JSON.stringify({ status: 429, code: "rate_limited", title: "Too many requests." }) });
   });
   await catchUpButton(page, 2).click();
-  await expect(page.getByTestId("lt-error")).toContainText("That is a lot of catch-ups at once");
+  await expect(page.getByTestId("lt-error")).toContainText("Try again in about a minute");
   await page.waitForTimeout(2500);
   expect(limited).toBe(1);
   await page.unroute(/\/sessions\/[^/]+\/lost-track$/);
@@ -262,4 +262,23 @@ test("I Lost Track on an ended lecture and under a rate limit: calm message, one
   await stopLecture(page);
   await catchUpButton(page, 2).click();
   await expect(page.getByTestId("lt-error")).toContainText("This lecture has ended");
+});
+
+test("I Lost Track stays on screen on a phone while the transcript scrolls, and the skip link reaches it", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await spyMic(page);
+  await openConsent(page, `LtPhone ${uid()}`);
+  await checkAndStart(page);
+  await expect(transcript(page)).toContainText(DEMO_LINE_1);
+  const usual = page.getByRole("button", { name: /^Catch up on the last 5 minutes, your usual choice/ });
+  await expect(usual).toBeInViewport();
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect(usual).toBeInViewport();
+  const box = await usual.boundingBox();
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+  await page.keyboard.press("Tab"); // first stop is a skip link; "Skip to I lost track" is reachable by keyboard
+  await page.getByRole("link", { name: "Skip to I lost track" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(usual).toBeFocused();
+  await stopLecture(page);
 });

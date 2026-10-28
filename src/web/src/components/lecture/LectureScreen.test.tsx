@@ -91,9 +91,11 @@ describe("Live view (UX section 2)", () => {
     await act(async () => void m.controls.step());
     await act(async () => void m.controls.step());
     expect(screen.queryByText("Old rev")).toBeNull();
-    const hold = screen.getByRole("button", { name: "Hold updates" });
+    const hold = screen.getByRole("button", { name: "Pause updates" });
     await userEvent.click(hold);
-    expect(hold).toHaveAttribute("aria-pressed", "true");
+    expect(hold).toHaveTextContent("Resume updates");
+    expect(hold).not.toHaveAttribute("aria-pressed");
+    expect(screen.getByTestId("tldr-paused")).toHaveTextContent("Updates are paused. You are reading the summary from");
     await act(async () => void m.controls.step());
     expect(screen.getByText("Rev two")).toBeInTheDocument();
     expect(screen.getByText("Newer summary available")).toBeInTheDocument();

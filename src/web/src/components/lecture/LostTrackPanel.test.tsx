@@ -9,7 +9,10 @@ import { CATCHUP_POLL_MAX, CATCHUP_POLL_MS } from "./useLostTrack";
 import type { LectureAi } from "./ports";
 import { baseEvents, flush, mountLecture, SID } from "./testUtils";
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  window.localStorage.clear();
+});
 
 const extractive = (over: Partial<CatchUpPayload> = {}): CatchUpPayload => ({
   catchUpId: "cu_1",
@@ -54,7 +57,7 @@ function fakeAi(over: Record<string, unknown> = {}) {
   } as unknown as LectureAi & { startLostTrack: Fn; getCatchUp: Fn; getSummary: Fn };
 }
 
-const press = (m: number) => userEvent.setup().click(screen.getByRole("button", { name: `Catch up on the last ${m} minutes` }));
+const press = (m: number) => userEvent.setup().click(screen.getByRole("button", { name: new RegExp(`^Catch up on the last ${m} minutes`) }));
 
 describe("I Lost Track panel", () => {
   it("is hidden when the runtime has no AI routes", async () => {
@@ -75,7 +78,7 @@ describe("I Lost Track panel", () => {
     expect(heading).toHaveFocus();
     expect(screen.getByTestId("catchup-extract")).toHaveTextContent("First line of the lecture.");
     expect(screen.getByTestId("catchup-notice")).toHaveTextContent("A short recap is being written");
-    expect(m.statusLog.at(-1)).toContain("Here's where you are");
+    expect(m.statusLog).toEqual(["Getting what was said..."]); // one spoken cue when working; the result is announced by the focus move
     expect(m.alertLog).toEqual([]);
     await press(5);
     expect(ai.startLostTrack.mock.calls[1]![1]).not.toBe(key); // new press, new key
@@ -86,8 +89,8 @@ describe("I Lost Track panel", () => {
     const ai = fakeAi({ startLostTrack: vi.fn(() => new Promise<CatchUpPayload>((r) => (release = r))) });
     await mountLecture({ ai });
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Catch up on the last 5 minutes" }));
-    await user.click(screen.getByRole("button", { name: "Catch up on the last 10 minutes" }));
+    await user.click(screen.getByRole("button", { name: /^Catch up on the last 5 minutes/ }));
+    await user.click(screen.getByRole("button", { name: /^Catch up on the last 10 minutes/ }));
     expect(ai.startLostTrack).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("lt-working")).toBeInTheDocument();
     await act(async () => release(extractive({ aiState: "Unavailable" })));
@@ -163,7 +166,7 @@ describe("I Lost Track panel", () => {
 
   it.each([
     ["Unavailable", "Summary isn't available right now. Here's what was said."],
-    ["BudgetLimited", "The recap limit for this lecture has been reached."],
+    ["BudgetLimited", "Summaries are paused for this lecture."],
   ] as const)("aiState %s shows the raw excerpt with calm copy and does not poll", async (aiState, text) => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const ai = fakeAi({ startLostTrack: vi.fn().mockResolvedValue(extractive({ aiState })) });
@@ -186,7 +189,7 @@ describe("I Lost Track panel", () => {
 
   it.each([
     [new ApiError(409, "invalid_state", "x"), "This lecture has ended"],
-    [new ApiError(429, "rate_limited", "x"), "That is a lot of catch-ups at once"],
+    [new ApiError(429, "rate_limited", "x"), "One moment. Try again in about a minute."],
     [new ApiError(404, "not_found", "x"), "We can't find this lecture"],
     [new ApiError(0, "network_error", "x"), "We could not reach the server"],
     [new ApiError(500, "http_error", "x"), "That did not work. Nothing was lost."],
@@ -195,12 +198,12 @@ describe("I Lost Track panel", () => {
     const m = await mountLecture({ ai });
     await press(5);
     expect(screen.getByTestId("lt-error")).toHaveTextContent(text);
-    expect(m.statusLog.at(-1)).toContain(text);
+    await waitFor(() => expect(m.statusLog.at(-1)).toContain(text), { timeout: 3500 }); // spaced 2 s after "Getting what was said..."
     expect(m.alertLog).toEqual([]);
     expect(ai.startLostTrack).toHaveBeenCalledTimes(1);
     await flush();
     expect(ai.startLostTrack).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: "Catch up on the last 5 minutes" })).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByRole("button", { name: /^Catch up on the last 5 minutes/ })).not.toHaveAttribute("aria-disabled");
   });
 
   it("after a network failure the same press retried reuses its key; after a definitive answer it does not", async () => {
@@ -266,6 +269,117 @@ describe("I Lost Track panel", () => {
   });
 });
 
+describe("I Lost Track review fixes (M1-M7)", () => {
+  const lines = (n: number) => Array.from({ length: n }, (_, i) => `[00:${String(i).padStart(2, "0")}] Line number ${i + 1}.`).join("\n");
+
+  it("M1: the panel is a fixed bottom bar below lg and a sticky column from lg", async () => {
+    await mountLecture({ ai: fakeAi() });
+    const panel = document.getElementById("lecture-lost-track")!;
+    expect(panel.className).toMatch(/\bfixed\b/);
+    expect(panel.className).toMatch(/lg:sticky/);
+  });
+
+  it("M2: skip links go to I lost track (focus only, no catch-up) and TL;DR; Alt+L works only when shortcuts are on", async () => {
+    const ai = fakeAi();
+    await mountLecture({ ai });
+    expect(screen.getByRole("link", { name: "Skip to TL;DR" })).toHaveAttribute("href", "#lecture-tldr");
+    await userEvent.setup().click(screen.getByRole("link", { name: "Skip to I lost track" }));
+    expect(screen.getByRole("button", { name: /^Catch up on the last 5 minutes, your usual choice/ })).toHaveFocus();
+    expect(ai.startLostTrack).not.toHaveBeenCalled();
+  });
+
+  it("M2: Alt+L is ignored by default", async () => {
+    await mountLecture({ ai: fakeAi() });
+    await userEvent.keyboard("{Alt>}l{/Alt}");
+    expect(screen.getByRole("button", { name: /your usual choice/ })).not.toHaveFocus();
+  });
+
+  it("M2: Alt+L focuses the usual window (without starting anything) when shortcuts are enabled", async () => {
+    const ai = fakeAi();
+    await mountLecture({ ai, settings: { shortcuts: true } });
+    await userEvent.keyboard("{Alt>}l{/Alt}");
+    expect(screen.getByRole("button", { name: /your usual choice/ })).toHaveFocus();
+    expect(ai.startLostTrack).not.toHaveBeenCalled();
+  });
+
+  it("M3: default window is 5, the last used one is remembered and marked in text, storage failures are tolerated", async () => {
+    await mountLecture({ ai: fakeAi() });
+    expect(screen.getByRole("button", { name: "Catch up on the last 5 minutes, your usual choice" })).toHaveTextContent("Last 5 min (your usual)");
+    await press(10);
+    expect(window.localStorage.getItem("tether.lecture.lostTrackWindow.v1")).toBe("10");
+    expect(screen.getByRole("button", { name: "Catch up on the last 10 minutes, your usual choice" })).toHaveTextContent("Last 10 min (your usual)");
+    expect(screen.getByRole("button", { name: "Catch up on the last 5 minutes" })).toHaveTextContent("Last 5 min");
+  });
+
+  it("M3: a blocked localStorage does not break the panel", async () => {
+    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    const ai = fakeAi();
+    await mountLecture({ ai, settings: {} });
+    await press(2);
+    expect(ai.startLostTrack).toHaveBeenCalledTimes(1);
+    get.mockRestore();
+    set.mockRestore();
+  });
+
+  it("M4: only the last 5 lines of What was said show by default; Show earlier words reveals the rest", async () => {
+    const ai = fakeAi({ startLostTrack: vi.fn().mockResolvedValue(extractive({ aiState: "Unavailable", text: lines(12) })) });
+    await mountLecture({ ai });
+    await press(10);
+    const list = screen.getByTestId("catchup-extract");
+    expect(within(list).getAllByRole("listitem")).toHaveLength(5);
+    expect(list).toHaveTextContent("Line number 12.");
+    expect(list).not.toHaveTextContent("Line number 7.");
+    const more = screen.getByRole("button", { name: "Show earlier words" });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    await userEvent.setup().click(more);
+    expect(within(screen.getByTestId("catchup-extract")).getAllByRole("listitem")).toHaveLength(12);
+    expect(screen.getByRole("button", { name: "Show fewer words" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("These are the words from the lecture, newest last. Not a summary.")).toBeInTheDocument();
+  });
+
+  it("M5: coverage is honest for short lectures, partial windows and empty windows", async () => {
+    const ai = fakeAi({
+      startLostTrack: vi
+        .fn()
+        .mockResolvedValueOnce(extractive({ windowMinutes: 10, coveredFromMs: 0, coveredToMs: 180_000, aiState: "Unavailable" }))
+        .mockResolvedValueOnce(extractive({ windowMinutes: 5, coveredFromMs: 0, coveredToMs: 300_000, aiState: "Unavailable" }))
+        .mockResolvedValueOnce(extractive({ windowMinutes: 5, text: "", citations: [], coveredFromMs: 600_000, coveredToMs: 900_000, aiState: "NotNeeded" })),
+    });
+    await mountLecture({ ai });
+    await press(10);
+    const result = await screen.findByTestId("catchup-result");
+    expect(result).toHaveTextContent("You have only been here 3 minutes. Here is all of it.");
+    await press(5);
+    expect(screen.getByTestId("catchup-result")).toHaveTextContent("Covers the last 5 minutes");
+    await press(5);
+    expect(screen.getByTestId("catchup-empty")).toHaveTextContent("Nothing was said in this time.");
+    expect(screen.queryByTestId("catchup-extract")).toBeNull();
+  });
+
+  it("M7: one spoken cue while working, nothing extra when the result arrives; not shown as an alert", async () => {
+    const m = await mountLecture({ ai: fakeAi() });
+    await press(5);
+    await flush();
+    expect(m.statusLog.filter((s) => /ready|where you are/i.test(s))).toEqual([]);
+    expect(m.statusLog.filter((s) => s === "Getting what was said...")).toHaveLength(1);
+    expect(m.alertLog).toEqual([]);
+  });
+
+  it("S9: the previous result is labelled when a newer press fails", async () => {
+    const ai = fakeAi({ startLostTrack: vi.fn().mockResolvedValueOnce(extractive()).mockRejectedValueOnce(new ApiError(500, "http_error", "x")) });
+    await mountLecture({ ai });
+    await press(5);
+    expect(screen.queryByTestId("catchup-earlier")).toBeNull();
+    await press(2);
+    expect(screen.getByTestId("catchup-earlier")).toHaveTextContent("Earlier catch-up, last 5 min");
+  });
+});
+
 describe("TL;DR over REST and status", () => {
   const rev = (over: Partial<SummaryRevisionPayload> = {}): SummaryRevisionPayload => ({
     revision: 3,
@@ -309,8 +423,8 @@ describe("TL;DR over REST and status", () => {
   });
 
   it.each([
-    ["Delayed", "The summary is a little behind."],
-    ["Failed", "The summary is paused for now."],
+    ["Delayed", "The summary is catching up."],
+    ["Failed", "The summary could not update just now."],
   ] as const)("summary.status %s is calm, keeps the last good revision, and does not alert", async (state, text) => {
     const m = await mountLecture({ ai: fakeAi({ getSummary: vi.fn().mockResolvedValue(rev()) }) });
     await waitFor(() => expect(screen.getByText("Limits and rates.")).toBeInTheDocument());

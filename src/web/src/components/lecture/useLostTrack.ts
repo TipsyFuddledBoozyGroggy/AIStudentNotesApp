@@ -80,6 +80,7 @@ export function useLostTrack({ ai, hubCatchUps }: UseLostTrackOptions) {
       startingRef.current = true;
       setStarting(windowMinutes);
       setError(null);
+      announcerRef.current.status(C.working); // once per press; the result is announced by the focus move
       setPollStopped(false);
       // Same key only to retry the same press after a network failure; otherwise a fresh one per press.
       if (keyRef.current?.window !== windowMinutes) keyRef.current = { window: windowMinutes, key: crypto.randomUUID() };
@@ -89,8 +90,7 @@ export function useLostTrack({ ai, hubCatchUps }: UseLostTrackOptions) {
         keyRef.current = null;
         if (!mounted.current) return;
         setResult(payload);
-        setFocusResult(true);
-        announcerRef.current.status(C.catchUpReady);
+        setFocusResult(true); // focus moves to the result heading: that is the announcement (no extra status)
       } catch (e) {
         const kind = lostTrackErrorKind(e);
         if (kind !== "network") keyRef.current = null;

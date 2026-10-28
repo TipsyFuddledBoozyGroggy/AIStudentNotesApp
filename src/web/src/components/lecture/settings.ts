@@ -35,6 +35,27 @@ function load(): LectureSettings {
   }
 }
 
+const WINDOW_KEY = "tether.lecture.lostTrackWindow.v1";
+export type UsualWindow = 2 | 5 | 10;
+
+/** Remembered I Lost Track window (PRD M2-S5 AC1). Storage may be missing or blocked: default 5. */
+export function loadUsualWindow(): UsualWindow {
+  try {
+    const v = Number(window.localStorage.getItem(WINDOW_KEY));
+    return v === 2 || v === 5 || v === 10 ? v : 5;
+  } catch {
+    return 5;
+  }
+}
+
+export function saveUsualWindow(w: UsualWindow): void {
+  try {
+    window.localStorage.setItem(WINDOW_KEY, String(w));
+  } catch {
+    /* storage unavailable: the choice is just not remembered */
+  }
+}
+
 /** Per-viewer settings kept in localStorage (convenience only; failures fall back to defaults). */
 export function useLectureSettings(initial?: Partial<LectureSettings>) {
   const [settings, setSettings] = useState<LectureSettings>({ ...DEFAULT_SETTINGS, ...initial });

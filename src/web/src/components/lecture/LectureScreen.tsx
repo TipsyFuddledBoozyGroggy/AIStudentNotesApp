@@ -20,7 +20,7 @@ import {
 import type { LectureRuntime } from "./ports";
 import { useLectureSettings, type LectureSettings } from "./settings";
 import { StatusBar } from "./StatusBar";
-import { LostTrackPanel } from "./LostTrackPanel";
+import { focusLostTrack, LostTrackPanel } from "./LostTrackPanel";
 import { TldrPanel } from "./TldrPanel";
 import { Transcript, type TranscriptHandle } from "./Transcript";
 import { useLectureSession } from "./useLectureSession";
@@ -100,6 +100,9 @@ export function LectureScreen(props: LectureScreenProps) {
       } else if (e.code === "KeyJ") {
         e.preventDefault();
         transcript.current?.jumpToLive();
+      } else if (e.code === "KeyL" && props.runtime.ai) {
+        e.preventDefault();
+        focusLostTrack();
       }
     };
     window.addEventListener("keydown", h);
@@ -139,6 +142,21 @@ export function LectureScreen(props: LectureScreenProps) {
       <a href="#lecture-transcript" className="sr-only focus:not-sr-only focus:absolute focus:z-30 focus:bg-white focus:p-2">
         {T.skipToTranscript}
       </a>
+      {props.runtime.ai ? (
+        <a
+          href="#lecture-lost-track"
+          className="sr-only focus:not-sr-only focus:absolute focus:z-30 focus:bg-white focus:p-2"
+          onClick={(e) => {
+            e.preventDefault();
+            focusLostTrack();
+          }}
+        >
+          {T.skipToLostTrack}
+        </a>
+      ) : null}
+      <a href="#lecture-tldr" className="sr-only focus:not-sr-only focus:absolute focus:z-30 focus:bg-white focus:p-2">
+        {T.skipToTldr}
+      </a>
       <StatusBar
         display={s.display}
         serverPaused={serverState === "Paused"}
@@ -161,7 +179,7 @@ export function LectureScreen(props: LectureScreenProps) {
       {s.audioSkippedMs > 0 ? <AudioSkippedNote ms={s.audioSkippedMs} /> : null}
       {offline ? <OfflineBanner stopQueued={s.stopQueued} /> : null}
       {notice}
-      <div className="mt-3 grid gap-4 px-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className={`mt-3 grid gap-4 px-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:pb-0 ${props.runtime.ai ? "pb-32" : ""}`}>
         <Transcript
           segments={s.segments}
           lecture={s.lecture}

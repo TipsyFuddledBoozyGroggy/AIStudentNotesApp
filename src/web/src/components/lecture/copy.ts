@@ -162,6 +162,7 @@ export const TRANSCRIPT_COPY = {
   jumpToLive: "Jump to live",
   skipToTranscript: "Skip to transcript",
   skipToTldr: "Skip to TL;DR",
+  skipToLostTrack: "Skip to I lost track",
   gap: (from: string, to: string, reason: string) => `Audio not available ${from} to ${to} (${reason})`,
   gapReasons: { paused: "paused", network: "connection", device: "device", provider: "speech service" },
 } as const;
@@ -170,7 +171,9 @@ export const TLDR_COPY = {
   heading: "TL;DR",
   empty: "The summary will appear here as the lecture goes on.",
   updated: (t: string, revision: number) => `Updated at ${t} (revision ${revision})`,
-  hold: "Hold updates",
+  hold: "Pause updates",
+  resume: "Resume updates",
+  paused: (t: string) => `Updates are paused. You are reading the summary from ${t}.`,
   newer: "Newer summary available",
   showLatest: "Show latest",
   showMore: "Show more",
@@ -184,7 +187,7 @@ export const SETTINGS_COPY = {
   announceTldr: "Announce TL;DR updates",
   reduceMotion: "Reduce motion",
   shortcuts: "Enable Alt+ keyboard shortcuts (experimental, off until tested with screen readers)",
-  shortcutList: "Alt+P pauses or resumes. Alt+J jumps to the live transcript.",
+  shortcutList: "Alt+P pauses or resumes. Alt+J jumps to the live transcript. Alt+L goes to I lost track.",
 } as const;
 
 /** Shown wherever text came from the deterministic mock (source === "mock"), never hidden or dismissible. */
@@ -194,8 +197,8 @@ export const DEMO_SUMMARY_COPY = {
 } as const;
 
 export const SUMMARY_STATUS_COPY = {
-  delayed: "The summary is a little behind. The transcript is not affected.",
-  failed: "The summary is paused for now. The transcript is not affected.",
+  delayed: "The summary is catching up. The transcript is not affected.",
+  failed: "The summary could not update just now. The transcript is not affected.",
   draft: "Draft",
   asOf: (t: string) => `As of ${t}`,
 } as const;
@@ -205,19 +208,27 @@ export const LOST_TRACK_COPY = {
   hint: "Pick how far back to catch up. The lecture keeps going.",
   groupLabel: "How far back",
   window: (m: number) => `Last ${m} min`,
+  windowUsual: (m: number) => `Last ${m} min (your usual)`,
+  windowUsualLabel: (m: number) => `Catch up on the last ${m} minutes, your usual choice`,
   windowLabel: (m: number) => `Catch up on the last ${m} minutes`,
   covers: (m: number) => `Covers the last ${m} minutes`,
+  coversShort: (n: number) => `You have only been here ${n} ${n === 1 ? "minute" : "minutes"}. Here is all of it.`,
+  coversShortBrief: "You have only been here a short while. Here is all of it.",
+  coversRange: (from: string, to: string) => `Covers ${from} to ${to}.`,
+  emptyWindow: "Nothing was said in this time. If you paused, the lecture may have been quiet.",
+  previousLabel: (m: number) => `Earlier catch-up, last ${m} min`,
   working: "Getting what was said...",
   resultHeading: "Here's where you are",
   said: "What was said",
-  saidNote: "This is the lecture text itself, not a summary.",
+  saidNote: "These are the words from the lecture, newest last. Not a summary.",
+  showEarlier: "Show earlier words",
+  hideEarlier: "Show fewer words",
   rightNow: "Right now",
   pending: "A short recap is being written. What was said is below in the meantime.",
   slow: "The recap is taking longer than expected. What was said is below.",
   unavailable: "Summary isn't available right now. Here's what was said.",
-  budget: "The recap limit for this lecture has been reached. Here's what was said.",
+  budget: "Summaries are paused for this lecture. Here's what was said.",
   recapReady: "Recap ready.",
-  catchUpReady: "Here's where you are. What was said is ready.",
   showDetail: "Show more detail",
   hideDetail: "Show less detail",
   done: "Got it, back to lecture",
@@ -235,7 +246,7 @@ export const LOST_TRACK_COPY = {
   from: (t: string) => `From ${t}`,
   errors: {
     invalid_state: "This lecture has ended, so there is nothing new to catch up on. Your transcript is saved.",
-    rate_limited: "That is a lot of catch-ups at once. Wait a minute, then try again. Nothing was lost.",
+    rate_limited: "One moment. Try again in about a minute. Nothing was lost.",
     not_found: "We can't find this lecture. Go back to the course and open it again.",
     network: "We could not reach the server. Nothing was lost. Try again when you are ready.",
     generic: "That did not work. Nothing was lost. You can try again when you are ready.",
