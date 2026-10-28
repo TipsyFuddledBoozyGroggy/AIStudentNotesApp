@@ -68,6 +68,8 @@ Value: trustworthy input for the AI and a source the student can check. Triggers
 - AC3: Scanned/image-only PDFs: if extraction yields little or no text (threshold to be set by backend, for example under N characters per page), the state is `no_text` with the message "This looks like a scan, so I can't read it yet", and two actions: paste the text, or upload a text-based version. **OCR is not part of this slice** (see non-goals). The student is never shown an empty review list as if the syllabus had no dates.
 - AC4: Partially extractable documents (some pages text, some scans) produce `partial`: the review screen discloses "N pages could not be read" and names the pages.
 - AC5: Password-protected, corrupt, or malformed files fail with a specific, calm message and no stack trace; the file is not retained after failure beyond a short cleanup window (proposed 24 h, to be configured).
+
+> **SUPERSEDED by docs/API_CONTRACTS_P2.md (P2-30, 2026-10-28; Lead decision, provisional where PO-owned):** Criterion 5's 24 h cleanup window is replaced: upload bytes are deleted when extraction ends and in any case within 1 hour, are never written to Postgres, and live only on an ephemeral volume (contract 5.1 item 9). The text above is left as written for history and is not the current requirement.
 - AC6: Parsing is hardened: extraction runs in a bounded sandbox (time limit, memory limit, no network, no macro/script execution, no external reference resolution such as DOCX external links or PDF launch actions). Hostile-file fixtures (zip bomb, deeply nested DOCX, huge page count, embedded JavaScript PDF) must fail safe within the limit. security-engineer owns the checklist.
 - AC7: Extraction failure never affects other course data. The student can retry once, or paste text.
 - AC8: Extracted text and file content never appear in logs (extends the F-08 log canary to this module; a sentinel in a fixture syllabus must not appear in any log sink).
@@ -137,6 +139,8 @@ Value: see the plan in a calendar view without touching real accounts. Triggers:
 ### P2-S8 Edit and undo after sync
 Value: mistakes and syllabus changes are cheap to fix. Triggers: edit a synced item, "Remove from calendar", "Undo" on the result. States: synced, update_pending, updated, removed, undone.
 - AC1: After a sync, the result screen offers "Undo this" for the whole batch for a defined window (proposal 15 min of UI affordance), and each item has "Remove from calendar" at any time later.
+
+> **SUPERSEDED by docs/API_CONTRACTS_P2.md (P2-30, 2026-10-28; Lead decision, provisional where PO-owned):** There is no 15 minute window. Undo of approve or skip never expires (contract decision 11); withdrawing a synced item removes its mock events in the same transaction (6.1). The text above is left as written for history and is not the current requirement.
 - AC2: Undo removes only the mock events created by that batch/sync keys and returns those items to `approved` (not `proposed`), preserving the student's decisions. Undo is idempotent.
 - AC3: Editing a synced item shows "Update calendar entry" as a separate explicit action that shows old vs new; it updates the same mock event (same sync key), never creating a second event.
 - AC4: Remove then re-add produces exactly one event (key reuse), verified by test.
@@ -158,8 +162,12 @@ Value: dates are right for the student's actual term and place. States: needs_te
 Value: control over uploaded documents. Triggers: "Delete this syllabus", "Export", account or course deletion. States: stored, deleting, deleted.
 - AC1: `DELETE` on a syllabus removes the original file (if stored), extracted text, proposed items, revisions, approvals, pending jobs and mock sync records. Writers re-check the syllabus exists so a late job cannot recreate data (extends C-21). Only content-free audit metadata remains.
 - AC2: Deleting a syllabus asks whether to also remove its mock-calendar events; the default describes plainly what happens to each, and the student can keep items already on the demo calendar only if they choose.
+
+> **SUPERSEDED by docs/API_CONTRACTS_P2.md (P2-30, 2026-10-28; Lead decision, provisional where PO-owned):** There is no choice and no `keep` option: `DELETE` takes no parameters and always removes the mock events and all derived data (contract 5.2, row 25). The confirmation must still say that copies already sent to a vendor and exported files are not deleted. The text above is left as written for history and is not the current requirement.
 - AC3: Course archive or purge, and user deletion, cascade to syllabus data using DB-level FKs with `ON DELETE CASCADE` (ADR-014/019 pattern) and in-flight extraction/AI jobs are canceled.
 - AC4: Export offers the student their items (title, type, date, status, source snippet) as JSON and an iCalendar (.ics) or CSV file, and the original upload on request. Export is owner-scoped and generated on demand.
+
+> **SUPERSEDED by docs/API_CONTRACTS_P2.md (P2-30, 2026-10-28; Lead decision, provisional where PO-owned):** Export is JSON only, on demand, owner-scoped; ICS/CSV are deferred and there is no original to export because none is retained (contract section 8, row 21). The text above is left as written for history and is not the current requirement.
 - AC5: The delete confirmation discloses that copies already sent to the AI provider (when real) and any exported files are not deleted by this action; wording pending legal review.
 - AC6: Deletion works while a job is running; the job's result is discarded.
 - AC7: Data-subject-style requests (admin-assisted deletion) require no admin access to document content.
@@ -284,6 +292,8 @@ Numbering is provisional (P2-D#); Lead Architect may fold these into `DECISIONS.
 - P2-D6: Recurring events in the mock calendar: single recurring event versus individual occurrences.
 - P2-D7: Whether approving and syncing is a two-step flow (approve, then separate "add to calendar" confirm; this document's proposal) or one combined step per batch.
 - P2-D8: Undo window length for batch undo (proposal 15 min) and whether per-item removal is permitted indefinitely.
+
+> **SUPERSEDED by docs/API_CONTRACTS_P2.md (P2-30, 2026-10-28; Lead decision, provisional where PO-owned):** Provisional answer in the contract: undo never expires (decision 11). The text above is left as written for history and is not the current requirement.
 - P2-D9: Which item types are in the first release (assignment, exam, reading, office hours; policies as read-only) versus deferring readings or office hours.
 - P2-D10: Resolve week-based dates ("Week 7") into concrete dates if the student confirms term start (proposal here) or leave all week-based items as "needs date" in slice 1.
 - P2-D11: Limits in section 7 (file size, pages, uploads per day) and per-student AI budget, which depend on PO-4/PO-5 spend decisions.

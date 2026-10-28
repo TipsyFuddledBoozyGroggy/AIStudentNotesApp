@@ -226,6 +226,8 @@ Dated-claims note: all thresholds marked "starting target" are proposals; they a
 - Source separation (invariant 5): uploaded original and canonical text/lines are stored separately from derived items, with provenance (document id, content hash, extractor version, prompt version, model, time). Deletion of the document deletes derived proposals that are not yet approved; approved items keep their approved values but lose snippet links with an explicit notice (decision for database-architect/security).
 - Student-facing deletion/export covers uploads, canonical text and proposals.
 
+> **SUPERSEDED by docs/API_CONTRACTS_P2.md (P2-30, 2026-10-28; Lead decision, provisional where PO-owned):** Section 12 above says the uploaded original is stored and that export covers uploads. Now: the original file is NOT retained (`originalRetained: false`); upload bytes are never written to Postgres and live only on a tmpfs/ephemeral volume shared with the sandboxed parser, deleted on completion or within 1 hour (contract 5.1 items 8-9); canonical text, `snippet.context` and `snippet.text` are purged on delete or at min(180 days after the last student write, 365 days after creation) (5.3); delete has no `keep` option and always removes the mock events (5.2); export is JSON only with no original (section 8). Logging rules above still apply and are extended by contract section 8. The text above is left as written for history and is not the current requirement.
+
 ## 13. Draft contract shapes (PROPOSAL - to feed `docs/API_CONTRACTS.md`; not accepted, not implemented)
 
 Naming and routes are for backend-engineer/Lead Architect to settle; shapes are what the AI layer can honestly produce.

@@ -1,0 +1,10 @@
+{
+  "defaultTimezone": "America/Chicago",
+  "allowDuplicate": false,
+  "noticeVersion": "draft-2026-10",
+  "attestation": {
+    "accepted": true,
+    "acceptedAt": "2026-10-28T11:59:00.000Z"
+  },
+  "termStart": "2026-08-24\n"
+}

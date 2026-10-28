@@ -5,39 +5,39 @@
   "description": "DRAFT v1 (docs/API_CONTRACTS_P2.md). Not frozen.",
   "$defs": {
     "id": {
-      "description": "Opaque server-assigned id, same format as lecture.v1 resources (ses_..., crs_...). Prefixes: syl_, itm_, syn_, evt_, unc_.",
+      "description": "Opaque server-assigned id in ONE canonical form: optional 3-letter lowercase prefix and underscore (syl_, itm_, syn_, evt_, unc_, crs_) followed by lowercase letters and digits in hyphen-separated groups; a lowercase hyphenated GUID (Guid.ToString(\"D\")) after the prefix is canonical. Upper case, braces, missing hyphens, URN forms and any other alias are non-canonical and rejected 400 (API_CONTRACTS_P2 section 2.1). Clients must not parse ids.",
       "type": "string",
       "minLength": 1,
       "maxLength": 64,
-      "pattern": "^[A-Za-z0-9_-]+$"
+      "pattern": "^(?:[a-z]{3}_)?[a-z0-9]+(?:-[a-z0-9]+)*(?![\\s\\S])"
     },
     "itemKey": {
       "description": "Stable sync key: \"ik_\" + first 32 chars of base64url(SHA-256(UTF-8(\"tether.syllabus.item.v1\\n\" + syllabusId + \"\\n\" + itemId))). Provider-agnostic; never changes when the item is edited.",
       "type": "string",
-      "pattern": "^ik_[A-Za-z0-9_-]{32}$"
+      "pattern": "^ik_[A-Za-z0-9_-]{32}(?![\\s\\S])"
     },
     "timestamp": {
       "description": "RFC 3339 with offset. Instants only (created/updated/synced); never used for dates the student reads.",
       "type": "string",
       "format": "date-time",
-      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})(?![\\s\\S])"
     },
     "localDate": {
       "description": "Wall-clock calendar date YYYY-MM-DD, years 2000-2100 only (shape and window; calendar validity such as Feb 30 and the term window are server rules, section 2.3).",
       "type": "string",
-      "pattern": "^(20[0-9]{2}|2100)-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+      "pattern": "^(20[0-9]{2}|2100)-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])(?![\\s\\S])"
     },
     "localTime": {
       "description": "Wall-clock time HH:MM, 24 hour, no seconds, no offset.",
       "type": "string",
-      "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+      "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9](?![\\s\\S])"
     },
     "ianaZone": {
       "description": "IANA zone id of the Area/Location form. Offsets such as -05:00, abbreviations such as EST and bare UTC are not accepted. Membership in the server allow-list is a server test.",
       "type": "string",
       "minLength": 3,
       "maxLength": 64,
-      "pattern": "^[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2}$"
+      "pattern": "^[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2}(?![\\s\\S])"
     },
     "etag": {
       "type": "string",
@@ -46,7 +46,7 @@
     },
     "sha256Hex": {
       "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
+      "pattern": "^[0-9a-f]{64}(?![\\s\\S])"
     },
     "weekday": {
       "type": "string",
@@ -209,17 +209,17 @@
       ]
     },
     "title": {
-      "description": "TextPolicy single-line text (API_CONTRACTS_P2 section 2.2): no C0/C1 controls (so no CR, LF, NUL, tab), no U+2028/2029, no bidi marks/overrides/isolates, no zero-width or other format characters, no tag characters, no leading/trailing space, at most 4 consecutive combining marks, at most 200 code points. Stored as plain text; escaped at each sink.",
+      "description": "TextPolicy single-line text (API_CONTRACTS_P2 section 2.2). This pattern is a coarse FIRST FILTER (no trailing newline, no controls, format characters, bidi, variation selectors, fillers, braille blank, private use or lone surrogates, no Unicode whitespace other than a single U+0020, no leading/trailing/whole-value whitespace, ZWNJ/ZWJ only between non-space characters, no stray leading mark or more than 4 combining marks); the server TextPolicy is authoritative and defined by Unicode general category. At most 200 Unicode code points (the server enforces the code-point cap; maxLength is a validator-dependent loose upper bound). Stored as plain text; escaped at each sink.",
       "type": "string",
       "minLength": 1,
       "maxLength": 200,
-      "pattern": "^(?! )(?!.* $)(?!.*[\\u0300-\\u036f]{5})(?!.*\\uDB40[\\uDC00-\\uDC7F])[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]+$"
+      "pattern": "^(?![ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\u200c\\u200d\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f\\ufe0e\\ufe0f])(?![\\s\\S]*[ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\u200c\\u200d](?![\\s\\S]))(?![\\s\\S]*[\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f]{5})(?![\\s\\S]*[\\u200c\\u200d][\\u200c\\u200d \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000])(?![\\s\\S]*[ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000][\\u200c\\u200d\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f])(?![\\s\\S]*[\\u0020-\\u0022\\u0024-\\u0029\\u002b-\\u002f\\u003a-\\u007e\\u200c\\u200d\\ufe0e\\ufe0f][\\ufe0e\\ufe0f])(?![\\s\\S]*  )(?:[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u034f\\u061c\\u115f\\u1160\\u180b-\\u180f\\u200b\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u206f\\u2800\\u3164\\ufe00-\\ufe0d\\ufeff\\uffa0\\ufff0-\\uffff\\ue000-\\uf8ff\\u00a0\\u1680\\u2000-\\u200a\\u202f\\u205f\\u3000\\ud800-\\udfff]|(?:(?!\\ud834[\\udd73-\\udd7a]|\\ud82f[\\udca0-\\udca3]|\\ud80d[\\udc30-\\udc3f]|\\ud804[\\udcbd\\udccd])[\\ud800-\\udb3f\\udb41-\\udb7f][\\udc00-\\udfff]))+(?![\\s\\S])"
     },
     "notes": {
-      "description": "TextPolicy multi-line text: LF only (CR rejected), at most 10 lines, same forbidden characters as title otherwise, at most 500 code points. Stored as plain text; escaped at each sink.",
+      "description": "TextPolicy multi-line text (coarse first filter, see title): LF only (CR rejected), at most 10 lines, no leading/trailing whitespace, same forbidden characters as title otherwise (non-LF Unicode whitespace is allowed inside), at most 500 code points. Stored as plain text; escaped at each sink.",
       "type": "string",
       "maxLength": 500,
-      "pattern": "^(?!(?:[^\\n]*\\n){10})(?![\\s\\S]*[\\u0300-\\u036f]{5})(?![\\s\\S]*\\uDB40[\\uDC00-\\uDC7F])[^\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]*$"
+      "pattern": "^(?![ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\n\\u200c\\u200d\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f\\ufe0e\\ufe0f])(?!(?:[^\\n]*\\n){10})(?![\\s\\S]*[ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\n\\u200c\\u200d](?![\\s\\S]))(?![\\s\\S]*[\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f]{5})(?![\\s\\S]*[\\u200c\\u200d][\\u200c\\u200d \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\n])(?![\\s\\S]*[ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\n][\\u200c\\u200d\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f])(?![\\s\\S]*[\\u0020-\\u0022\\u0024-\\u0029\\u002b-\\u002f\\u003a-\\u007e\\u200c\\u200d\\ufe0e\\ufe0f\\n][\\ufe0e\\ufe0f])(?:[^\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f\\u00ad\\u034f\\u061c\\u115f\\u1160\\u180b-\\u180f\\u200b\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u206f\\u2800\\u3164\\ufe00-\\ufe0d\\ufeff\\uffa0\\ufff0-\\uffff\\ue000-\\uf8ff\\ud800-\\udfff]|(?:(?!\\ud834[\\udd73-\\udd7a]|\\ud82f[\\udca0-\\udca3]|\\ud80d[\\udc30-\\udc3f]|\\ud804[\\udcbd\\udccd])[\\ud800-\\udb3f\\udb41-\\udb7f][\\udc00-\\udfff]))*(?![\\s\\S])"
     },
     "snippet": {
       "type": "object",
@@ -234,20 +234,43 @@
       ],
       "properties": {
         "text": {
-          "description": "Sliced by the server from the stored canonical text (TextPolicy applied before storage), never the model string. Untrusted plain text: render as a text node. start/end are UTF-16 code unit offsets.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 600,
-          "pattern": "^(?![\\s\\S]*\\uDB40[\\uDC00-\\uDC7F])[^\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]+$"
+          "description": "null only after the retention purge, together with context (API_CONTRACTS_P2 section 5.3); never null while the canonical text exists.",
+          "oneOf": [
+            {
+              "description": "Sliced by the server from the stored canonical text (TextPolicy applied before storage), never the model string. Untrusted plain text: render as a text node. start/end are UTF-16 code unit offsets.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 600,
+              "pattern": "^(?![ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\n\\u200c\\u200d\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f\\ufe0e\\ufe0f])(?![\\s\\S]*[ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\n\\u200c\\u200d](?![\\s\\S]))(?![\\s\\S]*[\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f]{5})(?![\\s\\S]*[\\u200c\\u200d][\\u200c\\u200d \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\n])(?![\\s\\S]*[ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\n][\\u200c\\u200d\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f])(?![\\s\\S]*[\\u0020-\\u0022\\u0024-\\u0029\\u002b-\\u002f\\u003a-\\u007e\\u200c\\u200d\\ufe0e\\ufe0f\\n][\\ufe0e\\ufe0f])(?:[^\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f\\u00ad\\u034f\\u061c\\u115f\\u1160\\u180b-\\u180f\\u200b\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u206f\\u2800\\u3164\\ufe00-\\ufe0d\\ufeff\\uffa0\\ufff0-\\uffff\\ue000-\\uf8ff\\ud800-\\udfff]|(?:(?!\\ud834[\\udd73-\\udd7a]|\\ud82f[\\udca0-\\udca3]|\\ud80d[\\udc30-\\udc3f]|\\ud804[\\udcbd\\udccd])[\\ud800-\\udb3f\\udb41-\\udb7f][\\udc00-\\udfff]))+(?![\\s\\S])"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "start": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "UTF-16 code unit offset (.NET string index) into the canonical text. Never a code point or byte offset; slicing is done in .NET, never in SQL."
+          "description": "UTF-16 code unit offset (.NET string index) into the canonical text. Never a code point or byte offset; slicing is done in .NET, never in SQL. null only after the retention purge (offsets are meaningless without the text).",
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "end": {
-          "type": "integer",
-          "minimum": 1
+          "description": "UTF-16 code unit offset of the end; null only after the retention purge, together with start.",
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "page": {
           "oneOf": [
@@ -265,7 +288,7 @@
           "$ref": "#/$defs/precision"
         },
         "context": {
-          "description": "Server-sliced context window around the snippet (the full line or paragraph, up to 1500 UTF-16 code units, never model text), so the student can judge a verbatim snippet without the original file. Offsets are UTF-16 code units in the same canonical text and context.start <= snippet.start, snippet.end <= context.end. null only after the canonical text has been purged (retention).",
+          "description": "Server-sliced context window around the snippet (the full line or paragraph, up to 1500 UTF-16 code units, never model text), so the student can judge a verbatim snippet without the original file. Offsets are UTF-16 code units in the same canonical text and context.start <= snippet.start, snippet.end <= context.end. null only after the canonical text has been purged (retention), and then snippet.text is null too.",
           "oneOf": [
             {
               "type": "object",
@@ -280,7 +303,7 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 1500,
-                  "pattern": "^(?![\\s\\S]*\\uDB40[\\uDC00-\\uDC7F])[^\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]+$"
+                  "pattern": "^(?![ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\n\\u200c\\u200d\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f\\ufe0e\\ufe0f])(?![\\s\\S]*[ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\n\\u200c\\u200d](?![\\s\\S]))(?![\\s\\S]*[\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f]{5})(?![\\s\\S]*[\\u200c\\u200d][\\u200c\\u200d \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\n])(?![\\s\\S]*[ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\n][\\u200c\\u200d\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f])(?![\\s\\S]*[\\u0020-\\u0022\\u0024-\\u0029\\u002b-\\u002f\\u003a-\\u007e\\u200c\\u200d\\ufe0e\\ufe0f\\n][\\ufe0e\\ufe0f])(?:[^\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f\\u00ad\\u034f\\u061c\\u115f\\u1160\\u180b-\\u180f\\u200b\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u206f\\u2800\\u3164\\ufe00-\\ufe0d\\ufeff\\uffa0\\ufff0-\\uffff\\ue000-\\uf8ff\\ud800-\\udfff]|(?:(?!\\ud834[\\udd73-\\udd7a]|\\ud82f[\\udca0-\\udca3]|\\ud80d[\\udc30-\\udc3f]|\\ud804[\\udcbd\\udccd])[\\ud800-\\udb3f\\udb41-\\udb7f][\\udc00-\\udfff]))+(?![\\s\\S])"
                 },
                 "start": {
                   "type": "integer",
@@ -297,7 +320,95 @@
             }
           ]
         }
-      }
+      },
+      "allOf": [
+        {
+          "description": "R2-04: after the purge text, context, start and end are all null.",
+          "if": {
+            "properties": {
+              "text": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "text"
+            ]
+          },
+          "then": {
+            "properties": {
+              "context": {
+                "type": "null"
+              },
+              "start": {
+                "type": "null"
+              },
+              "end": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "description": "R2-04: neither context nor offsets survive alone.",
+          "if": {
+            "properties": {
+              "context": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "context"
+            ]
+          },
+          "then": {
+            "properties": {
+              "text": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "description": "R2-04: offsets are null only together with the text.",
+          "if": {
+            "properties": {
+              "start": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "start"
+            ]
+          },
+          "then": {
+            "properties": {
+              "text": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "description": "R2-04: offsets are null only together with the text.",
+          "if": {
+            "properties": {
+              "end": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "end"
+            ]
+          },
+          "then": {
+            "properties": {
+              "text": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
     },
     "errorCode": {
       "description": "lecture.v1 ProblemDetails codes plus syllabus codes (docs/API_CONTRACTS_P2.md section 9).",
@@ -343,19 +454,19 @@
       ]
     },
     "textLine": {
-      "description": "TextPolicy single-line text for short document-derived or server-written strings (confidenceReason, written.dateText/timeText).",
+      "description": "TextPolicy single-line text for short document-derived or server-written strings (confidenceReason, written.dateText/timeText); same coarse first filter as title.",
       "type": "string",
-      "pattern": "^(?! )(?!.* $)(?!.*[\\u0300-\\u036f]{5})(?!.*\\uDB40[\\uDC00-\\uDC7F])[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]+$"
+      "pattern": "^(?![ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\u200c\\u200d\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f\\ufe0e\\ufe0f])(?![\\s\\S]*[ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\u200c\\u200d](?![\\s\\S]))(?![\\s\\S]*[\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f]{5})(?![\\s\\S]*[\\u200c\\u200d][\\u200c\\u200d \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000])(?![\\s\\S]*[ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000][\\u200c\\u200d\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f])(?![\\s\\S]*[\\u0020-\\u0022\\u0024-\\u0029\\u002b-\\u002f\\u003a-\\u007e\\u200c\\u200d\\ufe0e\\ufe0f][\\ufe0e\\ufe0f])(?![\\s\\S]*  )(?:[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u034f\\u061c\\u115f\\u1160\\u180b-\\u180f\\u200b\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u206f\\u2800\\u3164\\ufe00-\\ufe0d\\ufeff\\uffa0\\ufff0-\\uffff\\ue000-\\uf8ff\\u00a0\\u1680\\u2000-\\u200a\\u202f\\u205f\\u3000\\ud800-\\udfff]|(?:(?!\\ud834[\\udd73-\\udd7a]|\\ud82f[\\udca0-\\udca3]|\\ud80d[\\udc30-\\udc3f]|\\ud804[\\udcbd\\udccd])[\\ud800-\\udb3f\\udb41-\\udb7f][\\udc00-\\udfff]))+(?![\\s\\S])"
     },
     "noticeVersion": {
       "description": "Id of the DRAFT upload notice shown to the student (wording is a Product Owner / counsel placeholder, P2-D5). Opaque; the server checks it against the notice versions it knows.",
       "type": "string",
-      "pattern": "^[A-Za-z0-9._-]{1,64}$"
+      "pattern": "^[A-Za-z0-9._-]{1,64}(?![\\s\\S])"
     },
     "idempotencyKey": {
-      "description": "Idempotency-Key header value: 8-128 URL-safe characters. Anything else is 400 validation_failed.",
+      "description": "Idempotency-Key header value: 8-128 URL-safe characters, no trailing newline. Anything else is 400 validation_failed.",
       "type": "string",
-      "pattern": "^[A-Za-z0-9_-]{8,128}$"
+      "pattern": "^[A-Za-z0-9_-]{8,128}(?![\\s\\S])"
     }
   }
 }

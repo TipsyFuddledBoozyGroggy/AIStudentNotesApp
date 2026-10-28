@@ -1,0 +1,8 @@
+{
+  "type": "https://errors.tether.invalid/item_needs_date",
+  "title": "This item needs a date first.",
+  "status": 409,
+  "code": "item_needs_date",
+  "traceId": "00-abc123",
+  "detail": "Add a date before approving.\n"
+}

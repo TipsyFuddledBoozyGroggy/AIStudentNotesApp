@@ -1,0 +1,9 @@
+{
+  "confirm": {
+    "provider": "mock",
+    "acknowledgedDemo": true
+  },
+  "itemRevisions": {
+    "itm_01\n": 1
+  }
+}

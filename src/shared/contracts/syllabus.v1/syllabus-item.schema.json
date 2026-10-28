@@ -98,7 +98,7 @@
                     {
                       "type": "string",
                       "maxLength": 100,
-                      "pattern": "^(?! )(?!.* $)(?!.*[\\u0300-\\u036f]{5})(?!.*\\uDB40[\\uDC00-\\uDC7F])[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]+$"
+                      "pattern": "^(?![ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\u200c\\u200d\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f\\ufe0e\\ufe0f])(?![\\s\\S]*[ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\u200c\\u200d](?![\\s\\S]))(?![\\s\\S]*[\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f]{5})(?![\\s\\S]*[\\u200c\\u200d][\\u200c\\u200d \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000])(?![\\s\\S]*[ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000][\\u200c\\u200d\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f])(?![\\s\\S]*[\\u0020-\\u0022\\u0024-\\u0029\\u002b-\\u002f\\u003a-\\u007e\\u200c\\u200d\\ufe0e\\ufe0f][\\ufe0e\\ufe0f])(?![\\s\\S]*  )(?:[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u034f\\u061c\\u115f\\u1160\\u180b-\\u180f\\u200b\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u206f\\u2800\\u3164\\ufe00-\\ufe0d\\ufeff\\uffa0\\ufff0-\\uffff\\ue000-\\uf8ff\\u00a0\\u1680\\u2000-\\u200a\\u202f\\u205f\\u3000\\ud800-\\udfff]|(?:(?!\\ud834[\\udd73-\\udd7a]|\\ud82f[\\udca0-\\udca3]|\\ud80d[\\udc30-\\udc3f]|\\ud804[\\udcbd\\udccd])[\\ud800-\\udb3f\\udb41-\\udb7f][\\udc00-\\udfff]))+(?![\\s\\S])"
                     },
                     {
                       "type": "null"
@@ -110,7 +110,7 @@
                     {
                       "type": "string",
                       "maxLength": 50,
-                      "pattern": "^(?! )(?!.* $)(?!.*[\\u0300-\\u036f]{5})(?!.*\\uDB40[\\uDC00-\\uDC7F])[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]+$"
+                      "pattern": "^(?![ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\u200c\\u200d\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f\\ufe0e\\ufe0f])(?![\\s\\S]*[ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\u200c\\u200d](?![\\s\\S]))(?![\\s\\S]*[\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f]{5})(?![\\s\\S]*[\\u200c\\u200d][\\u200c\\u200d \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000])(?![\\s\\S]*[ \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000][\\u200c\\u200d\\u0300-\\u036f\\u1ab0-\\u1aff\\u1dc0-\\u1dff\\u20d0-\\u20ff\\ufe20-\\ufe2f])(?![\\s\\S]*[\\u0020-\\u0022\\u0024-\\u0029\\u002b-\\u002f\\u003a-\\u007e\\u200c\\u200d\\ufe0e\\ufe0f][\\ufe0e\\ufe0f])(?![\\s\\S]*  )(?:[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u034f\\u061c\\u115f\\u1160\\u180b-\\u180f\\u200b\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u206f\\u2800\\u3164\\ufe00-\\ufe0d\\ufeff\\uffa0\\ufff0-\\uffff\\ue000-\\uf8ff\\u00a0\\u1680\\u2000-\\u200a\\u202f\\u205f\\u3000\\ud800-\\udfff]|(?:(?!\\ud834[\\udd73-\\udd7a]|\\ud82f[\\udca0-\\udca3]|\\ud80d[\\udc30-\\udc3f]|\\ud804[\\udcbd\\udccd])[\\ud800-\\udb3f\\udb41-\\udb7f][\\udc00-\\udfff]))+(?![\\s\\S])"
                     },
                     {
                       "type": "null"
@@ -563,16 +563,19 @@
       "oneOf": [
         {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 2147483647
         },
         {
           "type": "null"
         }
-      ]
+      ],
+      "description": "Content revision last written to the calendar. null while syncState is not_synced AND for a first sync that failed (sync_failed on an item that never synced). Integer for synced and changed_since_sync, and for sync_failed on an item that had synced before."
     },
     "revision": {
       "type": "integer",
-      "minimum": 1
+      "minimum": 1,
+      "maximum": 2147483647
     },
     "etag": {
       "$ref": "syllabus-common.schema.json#/$defs/etag"
@@ -623,8 +626,7 @@
           "syncState": {
             "enum": [
               "synced",
-              "changed_since_sync",
-              "sync_failed"
+              "changed_since_sync"
             ]
           }
         },
@@ -639,6 +641,27 @@
           },
           "syncedRevision": {
             "type": "integer"
+          }
+        }
+      },
+      "description": "R2-11: synced and changed_since_sync always have a syncedRevision."
+    },
+    {
+      "description": "R2-11: sync_failed requires an approved item; syncedRevision is null for a never-synced item and an integer for one that synced before.",
+      "if": {
+        "properties": {
+          "syncState": {
+            "const": "sync_failed"
+          }
+        },
+        "required": [
+          "syncState"
+        ]
+      },
+      "then": {
+        "properties": {
+          "decision": {
+            "const": "approved"
           }
         }
       }
@@ -807,6 +830,37 @@
               "probably_right",
               "please_check"
             ]
+          }
+        }
+      }
+    },
+    {
+      "description": "R2-07: editing the date, time or zone of an AI item re-derives it as student_entered and drops confidence to please_check (AI items only; a student-entered item may be probably_right).",
+      "if": {
+        "properties": {
+          "origin": {
+            "const": "ai"
+          },
+          "when": {
+            "properties": {
+              "derivation": {
+                "const": "student_entered"
+              }
+            },
+            "required": [
+              "derivation"
+            ]
+          }
+        },
+        "required": [
+          "origin",
+          "when"
+        ]
+      },
+      "then": {
+        "properties": {
+          "confidence": {
+            "const": "please_check"
           }
         }
       }

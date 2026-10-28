@@ -2,9 +2,9 @@
   "items": [
     {
       "eventId": "evt_01",
-      "syllabusId": "syl_01J9Z8K2",
+      "syllabusId": "syl_01j9z8k2",
       "itemId": "itm_03",
-      "itemKey": "ik_OWh1yPwzeoR0AfZ0aMdY1JvsXbgTKDE9",
+      "itemKey": "ik_zmzduAT9Xtu-VKSA5d29Tq_CIpIywcbD",
       "occurrenceDate": null,
       "title": "Midterm exam",
       "kind": "exam",
@@ -25,9 +25,9 @@
     },
     {
       "eventId": "evt_02",
-      "syllabusId": "syl_01J9Z8K2",
+      "syllabusId": "syl_01j9z8k2",
       "itemId": "itm_03",
-      "itemKey": "ik_OWh1yPwzeoR0AfZ0aMdY1JvsXbgTKDE9",
+      "itemKey": "ik_zmzduAT9Xtu-VKSA5d29Tq_CIpIywcbD",
       "occurrenceDate": null,
       "title": "Midterm exam",
       "kind": "exam",
@@ -48,9 +48,9 @@
     },
     {
       "eventId": "evt_03",
-      "syllabusId": "syl_01J9Z8K2",
+      "syllabusId": "syl_01j9z8k2",
       "itemId": "itm_03",
-      "itemKey": "ik_OWh1yPwzeoR0AfZ0aMdY1JvsXbgTKDE9",
+      "itemKey": "ik_zmzduAT9Xtu-VKSA5d29Tq_CIpIywcbD",
       "occurrenceDate": null,
       "title": "Midterm exam",
       "kind": "exam",

@@ -2,9 +2,9 @@
   "items": [
     {
       "id": "itm_01",
-      "syllabusId": "syl_01J9Z8K2",
+      "syllabusId": "syl_01j9z8k2",
       "courseId": "crs_1",
-      "itemKey": "ik_uBhGwGpW0VqGUKPKwgyH8l5LJYDu51Gc",
+      "itemKey": "ik_HHERWOfFTiOx2V0hBXZl7qiqfbZ-26Ks",
       "origin": "ai",
       "kind": "assignment",
       "title": "Problem Set 3",
@@ -62,9 +62,9 @@
     },
     {
       "id": "itm_02",
-      "syllabusId": "syl_01J9Z8K2",
+      "syllabusId": "syl_01j9z8k2",
       "courseId": "crs_1",
-      "itemKey": "ik_8rMZFYrLGjuShk3tTBrxNqjk_r0UMOHX",
+      "itemKey": "ik_w8Lhswx3sOXYnQ_V5gGpfbaTvKdYmUr4",
       "origin": "ai",
       "kind": "exam",
       "title": "Midterm exam",
@@ -119,9 +119,9 @@
     },
     {
       "id": "itm_10",
-      "syllabusId": "syl_01J9Z8K2",
+      "syllabusId": "syl_01j9z8k2",
       "courseId": "crs_1",
-      "itemKey": "ik_x_jM3310JJz15mg08CTRGLF-izKQb7HV",
+      "itemKey": "ik_cyXIWIYqJinPTixy1h2W6UTUXmsRizv2",
       "origin": "ai",
       "kind": "exam",
       "title": "Midterm exam",
@@ -178,9 +178,9 @@
     },
     {
       "id": "itm_04",
-      "syllabusId": "syl_01J9Z8K2",
+      "syllabusId": "syl_01j9z8k2",
       "courseId": "crs_1",
-      "itemKey": "ik_rn4JqRgtsCYeE7QAKoXR76T7_OeAJUdD",
+      "itemKey": "ik_5ZTh7SiYg4vFO3gvveHXKW_Q7RQVE0h2",
       "origin": "ai",
       "kind": "policy",
       "title": "Late work loses 10 percent per day",

@@ -25,7 +25,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 50000,
-      "pattern": "^[^\\u0000]+$",
+      "pattern": "^[^\\u0000]+(?![\\s\\S])",
       "description": "Pasted text: treated exactly like a file (same canonicalization, limits, retention). NUL is rejected; format/bidi characters are stripped during canonicalization."
     },
     "termStart": {

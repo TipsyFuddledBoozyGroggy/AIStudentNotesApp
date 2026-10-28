@@ -96,6 +96,8 @@ Behavior
 - Press: the form posts once; the button becomes "Reading..." (`aria-disabled`, text only) and the page moves to the processing state. A double press does not create two syllabi (idempotency key per submit).
 - Only one active syllabus per course in this increment. If one exists, the page shows "You already have a syllabus for this course" with "Replace it" (confirm: "Replace your syllabus? Your decisions on the old items will be removed. Nothing already added to the demo calendar changes.") and "Keep it". See Q6.
 
+> **SUPERSEDED by docs/API_CONTRACTS_P2.md (P2-30, 2026-10-28; Lead decision, provisional where PO-owned):** The Replace flow is superseded: several syllabi per course are allowed (proposal 5 per course, 50 per user). "Replace" becomes add another syllabus, then delete the old one (contract row 5 of section 13). The `upload.replace.confirm` copy below is not used. The text above is left as written for history and is not the current requirement.
+
 Keyboard order: `h1` (focus) -> method radio group -> file/paste control -> optional options disclosure -> privacy note -> Read my syllabus -> Cancel.
 
 ## 4. Processing state (calm, can leave and return)
@@ -171,6 +173,8 @@ Fields and treatment
   - Low: "Please check" (question icon)
   Raw value (for example 0.62) is available under "Details" for those who want it, labeled "How sure we are: about 60 in 100". Tooltip-only information is never used.
 - Source snippet: progressive disclosure. A button "See where this came from" (`aria-expanded`) reveals the quote with page number when known: `From your syllabus, page 3: "..."`. Low-confidence rows have it open by default. The quote is plain text, max about 200 characters with "Show more" if longer; the match words may be bold but the meaning never relies on bold.
+
+> **SUPERSEDED by docs/API_CONTRACTS_P2.md (P2-30, 2026-10-28; Lead decision, provisional where PO-owned):** "See where this came from" shows the server-sliced snippet with its context window (`snippet.context`); there is no "view in document" and none will be added because the original is not retained (contract row 27). After the retention purge `snippet.text` and `snippet.context` are null and the UI says the original wording was removed on schedule (4, 5.3). The snippet and context are untrusted plain text, and batch approve shows both for every selected item. The text above is left as written for history and is not the current requirement.
 - Decision status text: "Not decided" (no text styling beyond normal), "Approved" (check icon + word), "Skipped" (dash icon + word). Status is text first.
 - Per-row actions: Approve, Skip, Edit. Buttons are at least 44px high, 48px on phone. Each has a unique accessible name: "Approve Midterm exam", "Skip Midterm exam", "Edit Midterm exam".
 
@@ -219,6 +223,8 @@ From your syllabus, page 3: "Midterm exam, Tuesday October 14 in class"
 - A draft edit survives accidental navigation (kept locally); returning shows the row open with "We kept your changes."
 - Editing an approved item that has already been synced marks it "Changed since it was added" and offers "Update the demo calendar" at the sync step.
 
+> **SUPERSEDED by docs/API_CONTRACTS_P2.md (P2-30, 2026-10-28; Lead decision, provisional where PO-owned):** Still correct for a synced item (stays approved, `changed_since_sync`, calendar untouched until the next explicit sync). Not covered here: editing an approved item that has NOT been synced returns it to "Not decided" because approval belongs to the revision that was approved, and editing the date or time of an AI item lowers its confidence to "Please check" (contract 6.2, 4, rows 17 and 48). The text above is left as written for history and is not the current requirement.
+
 ### 5.7 "Needs a date" items
 
 Principle: surfaced, but never a warning.
@@ -247,6 +253,8 @@ You approved 12 items:
 Not added: 9 not decided, 3 skipped, 3 need a date.   (text; no pressure)
 
 Reminders (optional)   ( ) None   ( ) 1 day before   ( ) 1 hour before   (radio group, default None)
+
+> **SUPERSEDED by docs/API_CONTRACTS_P2.md (P2-30, 2026-10-28; Lead decision, provisional where PO-owned):** The reminders radio group is removed: no reminder field exists in v1 and the schema rejects it (contract row 13). The same applies to `sync.reminders.*` copy and acceptance item 23. The text above is left as written for history and is not the current requirement.
    "Reminders are your choice. We don't add any unless you pick one."
 
 [ Add 12 items to the demo calendar ]     [ Back to review ]
@@ -278,6 +286,8 @@ p   You can change or remove any of these later.
 - Network failure on a decision: row shows "Couldn't save this one. Try again." with a retry button next to it; the visible state is the real state, not the optimistic one. No global red banner.
 - Session expiry: preserve local drafts, prompt sign-in, restore after.
 - Deleting: "Delete this syllabus" at the bottom of the review and in the course card overflow. Confirm: "Delete this syllabus and the items we found? Items already added to the demo calendar stay there until you remove them." Delete and export reachable (export: Q10).
+
+> **SUPERSEDED by docs/API_CONTRACTS_P2.md (P2-30, 2026-10-28; Lead decision, provisional where PO-owned):** The delete copy that says items already added to the demo calendar "stay there" is wrong now: there is no keep option, and delete always removes the mock events (contract 5.2, row 25). Same for `delete.confirm` below. The text above is left as written for history and is not the current requirement.
 
 ## 8. Error and edge states
 
@@ -373,6 +383,8 @@ Review
 12. The summary line reads "We found 30 items. 0 approved · 0 skipped · 30 not decided" before action, and "3 need a date." with a "Show them" button that expands the Needs-a-date group and focuses its heading.
 13. Each row shows title, type, date/time (or "All day"), a text confidence label from {"Looks right","Probably right","Please check"}, and decision status as text. No percentage is visible by default. Low-confidence rows show their source snippet open; others show it only after "See where this came from" (`aria-expanded` toggles).
 14. Approving an item replaces its Approve button with "Undo" in the same position, focus stays on that control, and exactly one status message is announced. Undo works with no time limit, and returns the item to "Not decided".
+
+> **SUPERSEDED by docs/API_CONTRACTS_P2.md (P2-30, 2026-10-28; Lead decision, provisional where PO-owned):** KEPT: undo of approve and skip never expires (contract decision 11, WCAG 2.2.1). This is the one place the contract confirms this document unchanged. The text above is left as written for history and is not the current requirement.
 15. Needs-date items have no Approve button (or it is `aria-disabled` with the hint "Add a date first"); "Add date" opens the inline edit; saving a date leaves the item "Not decided".
 16. Batch "Approve the clear ones" includes only items that are dated AND "Looks right" AND undecided; the button label count equals the number approved; "Undo this" restores prior states exactly. No batch action can approve "Probably right", "Please check" or undated items (negative test).
 17. Inline edit: opens in place with focus on Title; Enter saves, Escape cancels; errors appear after blur/save only, with text and `aria-describedby`; saved row is marked "You edited this"; focus returns to Edit; "Reset to what we found" restores extracted values.
@@ -548,6 +560,8 @@ Review
 - `delete.link`: "Delete this syllabus"
 - `delete.confirm`: "Delete this syllabus and the items we found? Items already added to the demo calendar stay there until you remove them."
 
+> **SUPERSEDED by docs/API_CONTRACTS_P2.md (P2-30, 2026-10-28; Lead decision, provisional where PO-owned):** Superseded: no keep option; delete removes the mock events too (contract row 25). The text above is left as written for history and is not the current requirement.
+
 Sync (mock)
 - `sync.demoTag`: "Demo calendar. Nothing is sent to Google until you connect it."
 - `sync.confirm.h1`: "Add approved items to the demo calendar"
@@ -556,6 +570,8 @@ Sync (mock)
 - `sync.confirm.showAll`: (n) => `Show all ${n}`
 - `sync.confirm.notAdded`: (u, s, d) => `Not added: ${u} not decided, ${s} skipped, ${d} need a date.`
 - `sync.reminders.legend`: "Reminders (optional)"
+
+> **SUPERSEDED by docs/API_CONTRACTS_P2.md (P2-30, 2026-10-28; Lead decision, provisional where PO-owned):** Removed (see the note on the reminders radio group above). The text above is left as written for history and is not the current requirement.
 - `sync.reminders.none` / `.day` / `.hour`: "None" / "1 day before" / "1 hour before"
 - `sync.reminders.hint`: "Reminders are your choice. We don't add any unless you pick one."
 - `sync.go`: (n) => `Add ${n} items to the demo calendar`

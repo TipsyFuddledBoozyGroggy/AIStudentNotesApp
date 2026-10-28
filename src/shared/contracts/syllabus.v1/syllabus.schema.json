@@ -161,7 +161,7 @@
           "type": "boolean"
         },
         "hiddenContentDropped": {
-          "description": "True when hidden content (invisible/tiny/off-page/background-colored text, DOCX vanish runs, comments) was removed before any AI saw the text. The count is hiddenContentRemoved.",
+          "description": "True when hidden content was removed before any AI saw the text: invisible/tiny/off-page/background-colored text, DOCX vanish runs, comments, AND tag characters, bidi controls or other format characters stripped from the document text during canonicalization. hiddenContentRemoved counts them, and hiddenContentRemoved >= 1 if and only if hiddenContentDropped is true (schema-enforced).",
           "type": "boolean"
         }
       }
@@ -360,7 +360,7 @@
       }
     },
     "retention": {
-      "description": "Canonical text retention (provisional 180 days after last student activity, PO-owned D4/D11). canonicalTextPurgeAt is null once the text has been purged.",
+      "description": "Canonical text retention (provisional, PO-owned D4/D11). canonicalTextPurgeAt = min(last student-initiated edit, decision or sync + 180 days, createdAt + 365 days); reads and polls never extend it. Purging removes the canonical text, every snippet.context AND every snippet.text; items keep kind, title, date and decision. canonicalTextPurgeAt is null once the text has been purged.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -600,6 +600,71 @@
             "properties": {
               "canonicalTextPurgeAt": {
                 "$ref": "syllabus-common.schema.json#/$defs/timestamp"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "R2-06: the count and the flag agree, and anything removed makes the document ineligible for batch approve.",
+      "if": {
+        "properties": {
+          "document": {
+            "properties": {
+              "hiddenContentRemoved": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "hiddenContentRemoved"
+            ]
+          }
+        },
+        "required": [
+          "document"
+        ]
+      },
+      "then": {
+        "properties": {
+          "document": {
+            "properties": {
+              "hiddenContentDropped": {
+                "const": true
+              }
+            }
+          },
+          "batchApproveAllowed": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "description": "R2-06: hiddenContentDropped true requires a non-zero count.",
+      "if": {
+        "properties": {
+          "document": {
+            "properties": {
+              "hiddenContentDropped": {
+                "const": true
+              }
+            },
+            "required": [
+              "hiddenContentDropped"
+            ]
+          }
+        },
+        "required": [
+          "document"
+        ]
+      },
+      "then": {
+        "properties": {
+          "document": {
+            "properties": {
+              "hiddenContentRemoved": {
+                "minimum": 1
               }
             }
           }

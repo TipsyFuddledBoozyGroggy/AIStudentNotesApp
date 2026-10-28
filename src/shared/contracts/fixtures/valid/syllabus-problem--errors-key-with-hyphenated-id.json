@@ -1,0 +1,12 @@
+{
+  "type": "https://errors.tether.invalid/validation_failed",
+  "title": "The request was invalid.",
+  "status": 400,
+  "code": "validation_failed",
+  "traceId": "00-abc123",
+  "errors": {
+    "itemEtags.itm_0f8fad5b-d9cb-469f-a165-70867728950e": [
+      "Enter some text."
+    ]
+  }
+}

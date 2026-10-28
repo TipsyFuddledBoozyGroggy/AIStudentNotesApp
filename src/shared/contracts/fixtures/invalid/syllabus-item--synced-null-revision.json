@@ -1,0 +1,57 @@
+{
+  "id": "itm_03",
+  "syllabusId": "syl_01j9z8k2",
+  "courseId": "crs_1",
+  "itemKey": "ik_zmzduAT9Xtu-VKSA5d29Tq_CIpIywcbD",
+  "origin": "ai",
+  "kind": "exam",
+  "title": "Midterm exam",
+  "notes": null,
+  "when": {
+    "status": "resolved",
+    "written": {
+      "dateText": "Wednesday, October 14, 2026",
+      "timeText": "10:00 AM",
+      "parts": {
+        "year": 2026,
+        "month": 10,
+        "day": 14,
+        "weekday": "WE"
+      }
+    },
+    "date": "2026-10-14",
+    "endDate": null,
+    "time": "10:00",
+    "endTime": "10:50",
+    "allDay": false,
+    "timezone": "America/New_York",
+    "timezoneSource": "stated_in_source",
+    "derivation": "explicit_full",
+    "unknownReason": null,
+    "alternatives": []
+  },
+  "recurrence": null,
+  "confidence": "looks_right",
+  "confidenceReason": "Full date written in the syllabus.",
+  "flags": [],
+  "snippet": {
+    "text": "Midterm exam, Wednesday, October 14, 2026, 10:00 AM in class",
+    "start": 4600,
+    "end": 4660,
+    "page": 3,
+    "precision": "exact",
+    "context": {
+      "text": "Midterm exam, Wednesday, October 14, 2026, 10:00 AM in class",
+      "start": 4600,
+      "end": 4660
+    }
+  },
+  "edited": false,
+  "decision": "approved",
+  "syncState": "synced",
+  "syncedRevision": null,
+  "revision": 1,
+  "etag": "W/\"i1\"",
+  "createdAt": "2026-10-28T12:00:00.000Z",
+  "updatedAt": "2026-10-28T12:00:00.000Z"
+}

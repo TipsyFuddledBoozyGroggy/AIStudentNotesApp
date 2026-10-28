@@ -1,6 +1,6 @@
 {
   "syncId": "syn_01",
-  "syllabusId": "syl_01J9Z8K2",
+  "syllabusId": "syl_01j9z8k2",
   "provider": "mock",
   "demoCalendar": true,
   "status": "partial",
@@ -8,7 +8,7 @@
   "results": [
     {
       "itemId": "itm_03",
-      "itemKey": "ik_OWh1yPwzeoR0AfZ0aMdY1JvsXbgTKDE9",
+      "itemKey": "ik_zmzduAT9Xtu-VKSA5d29Tq_CIpIywcbD",
       "outcome": "created",
       "errorCode": null,
       "eventCount": 1,
@@ -16,7 +16,7 @@
     },
     {
       "itemId": "itm_05",
-      "itemKey": "ik__m4YlrExdE0jsbzZkWh6NjZhKpxgY2RB",
+      "itemKey": "ik_Neud_qn7Z4Afeb9pEeRXuNI3m9L3GZaU",
       "outcome": "failed",
       "errorCode": "event_limit_reached",
       "eventCount": 0,
@@ -24,7 +24,7 @@
     },
     {
       "itemId": "itm_10",
-      "itemKey": "ik_x_jM3310JJz15mg08CTRGLF-izKQb7HV",
+      "itemKey": "ik_cyXIWIYqJinPTixy1h2W6UTUXmsRizv2",
       "outcome": "not_eligible",
       "errorCode": "item_needs_date",
       "eventCount": 0,

@@ -1,0 +1,9 @@
+{
+  "confirm": {
+    "provider": "mock",
+    "acknowledgedDemo": true
+  },
+  "itemRevisions": {
+    "itm_01": 2147483648
+  }
+}

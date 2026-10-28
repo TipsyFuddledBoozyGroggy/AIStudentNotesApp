@@ -218,8 +218,8 @@ public sealed class SyllabusContractTests
     public void Doc_exists_is_draft_and_documents_every_error_code()
     {
         var docPath = FindDoc();
-        if (docPath is null) return; // contracts mounted without docs/ (standalone TETHER_CONTRACTS_DIR run)
-        var doc = File.ReadAllText(docPath);
+        Assert.True(docPath is not null, "docs/API_CONTRACTS_P2.md was not found; mount the repository root (this test must not pass vacuously).");
+        var doc = File.ReadAllText(docPath!);
         Assert.Contains("DRAFT v1", doc);
         Assert.Contains("not frozen", doc, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("provisional", doc, StringComparison.OrdinalIgnoreCase);
@@ -355,7 +355,7 @@ public sealed class SyllabusContractTests
         Assert.Equal(300, counts["total"]!["maximum"]!.GetValue<int>());
         Assert.Equal(200, counts["unclaimedDates"]!["maximum"]!.GetValue<int>());
         var doc = DocText();
-        if (doc.Length == 0) return;
+        Assert.True(doc.Length > 0, "docs/API_CONTRACTS_P2.md was not found; this test must not pass vacuously.");
         Assert.Contains("300 items per syllabus", doc);
         Assert.Contains("1,000 events per syllabus", doc);
     }
@@ -372,17 +372,23 @@ public sealed class SyllabusContractTests
     public void Doc_states_the_normative_security_requirements()
     {
         var doc = DocText();
-        if (doc.Length == 0) return;
+        Assert.True(doc.Length > 0, "docs/API_CONTRACTS_P2.md was not found; this test must not pass vacuously.");
         string[] required =
         {
             "TextPolicy", "UTF-16 code unit", "never in SQL", "calendar.v1", "Idempotency-Replayed", "(user, method, route template, key)",
             "180 days", "injectionSuspect", "batchApproveAllowed", "noticeVersion", "attestation", "separate budget pool",
             "Upload and extraction hardening", "no network", "within 1 hour", "no cross-user", "Lead decision, provisional where PO-owned",
-            "XXE", "zip bomb", "Origin", "inclusive", "exclusive", "supersession", "FOR UPDATE", "UNLOGGED",
+            "XXE", "zip bomb", "Origin", "inclusive", "exclusive", "supersession", "FOR UPDATE", "tmpfs",
+            @"(?![\s\S])", "general category", "ZWNJ", "365 days", "AllowDuplicateProperties", "canonical form", "NFC", "no longer", "cancelled",
+            "canceled", "postponed", "rescheduled", "trusted orchestrator", "global cap on bytes in flight", "no database credentials",
+            "syllabus write bucket", "syllabus AI budget pool", "idempotency lookup", "syllabus_deleted", "sync_failed", "please_check",
+            "R2-04", "Idempotency-Key header",
         };
         foreach (var r in required) Assert.Contains(r, doc, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("calendarEvents=", doc);
         Assert.DoesNotContain("24 h hard", doc);
+        Assert.DoesNotContain("UNLOGGED", doc, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("job_inputs", doc);
     }
 
     [Fact]
