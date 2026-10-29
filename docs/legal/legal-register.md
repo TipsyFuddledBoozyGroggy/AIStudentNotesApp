@@ -6,7 +6,7 @@ Statuses: OPEN, IN-REVIEW (human working on it), CLOSED (evidence attached), ACC
 
 | ID | Sev | Status | Concern | Blocks | Evidence needed |
 |---|---|---|---|---|---|
-| L-01 | HIGH | OPEN | GR-1 / security register: a transcript or study guide copied into an institution-managed Google account is visible to the institution; third-party voices leave Tether's deletion reach. PO ruled 2026-10-29 (PO-12a) to keep HIGH until counsel reviews. Scope decision PO-14 (2026-10-29): Google accounts assumed personally owned; not yet enforced in code, rating unchanged. | PUSH | Counsel written view on notice, opt-in and warning adequacy |
+| L-01 | MEDIUM | OPEN | GR-1 / security register: a transcript or study guide copied into an institution-managed Google account is visible to the institution; third-party voices leave Tether's deletion reach. PO ruled 2026-10-29 (PO-12a) to keep HIGH until counsel reviews. Scope decision PO-14 (2026-10-29): Google accounts assumed personally owned; not yet enforced in code, DOWNGRADED HIGH to MEDIUM by the PO on 2026-10-29 (PO-14a, same reason as GR-1): school-managed accounts are out of scope, and the app must detect and refuse them (enforcement not built, `hd` claim presence unverified; test on the real test account). Counsel should still confirm the personal-account-only position. | PRODUCTION / real Google connection | Enforcement of personal-account-only sign-in with tests; counsel written view on the personal-account position |
 | L-02 | MEDIUM | OPEN | Recording consent law and campus recording policy for the pilot jurisdiction (one-party vs all-party, instructor permission, third-party voices). Gate G1. | PRODUCTION / real recording | Jurisdiction memo; campus written policy; approved notice with version, reviewer, date |
 | L-03 | MEDIUM | OPEN | FERPA applicability: student-initiated model vs school-adopted model; school-official or service-provider status; contract needed (C3, U2). Gate G1. | PRODUCTION / any school pilot | FERPA memo per model |
 | L-04 | MEDIUM | OPEN | Anthropic commercial terms and DPA: retention, training use, subprocessors, zero-data-retention need (C6). Gate G2. | First real Claude call | Reviewed terms with version and date; PO signing decision |
@@ -29,7 +29,7 @@ Statuses: OPEN, IN-REVIEW (human working on it), CLOSED (evidence attached), ACC
 | L-21 | LOW | OPEN | School records-retention holds that could conflict with deletion (U6), only if a school is custodian. | School-adopted model | Registrar statement |
 
 ## Before-push check for the Lead
-1. This must print nothing before a push (today it prints L-01 only, so the answer is: do not push):
+1. This must print nothing before a push (today it prints nothing, so this register does not block a push):
    ```
    grep -E '^\| L-[0-9]+ \| (CRITICAL|HIGH) \| (OPEN|IN-REVIEW) \|' docs/legal/legal-register.md
    ```
@@ -37,4 +37,4 @@ Statuses: OPEN, IN-REVIEW (human working on it), CLOSED (evidence attached), ACC
 3. Before production: also no OPEN or IN-REVIEW MEDIUM in this register.
 
 ## Counts (2026-10-29, provisional)
-CRITICAL 0 | HIGH 1 (L-01) | MEDIUM 15 (L-02 to L-16) | LOW 5 (L-17 to L-21).
+CRITICAL 0 | HIGH 0 | MEDIUM 16 (L-01 to L-16) | LOW 5 (L-17 to L-21).

@@ -20,11 +20,11 @@ How to read it:
 
 **None.** No review recorded a Critical finding, and I found none while confirming evidence (including the A004 migration, the renamed route, LanguageGuard and the web redesign).
 
-## 2. Open HIGH (blocks git push): 1
+## 2. Open HIGH (blocks git push): 0
 
-The policy says no push, and no offer to push, while any HIGH is open. This is the only HIGH row that is not resolved:
+The policy says no push, and no offer to push, while any HIGH is open. There is none now. The only HIGH that was open, GR-1, was downgraded to MEDIUM by the Product Owner on 2026-10-29 (PO-14a, in writing, with the reason below). It remains a production blocker:
 
-- **GR-1** (google-tokens GR-1, status OPEN): Transcript/study-guide copied into an institution-managed Google account becomes visible to the institution.
+- **GR-1** (google-tokens GR-1, now MEDIUM, status OPEN): Transcript/study-guide copied into an institution-managed Google account becomes visible to the institution.
   - Why it is still open: PO-10j allows Workspace accounts with a warning and PO-10l makes transcript upload per-session opt-in, but legal review (G1) is open and the rating was 'High until PO/legal decide'. The Product Owner has not ruled. No code implements any Docs/Drive write. Only the Product Owner can downgrade (severity-policy.md).
 
 Cleared since the last version of this register:
@@ -127,8 +127,8 @@ By severity and status (all 211 findings; Observations are not counted). FIXED-C
 | Severity | FIXED-VERIFIED | FIXED-CONTRACT-ONLY | FIXED-UNVERIFIED | OPEN | DEFERRED-WITH-REASON | SUPERSEDED | Total | Unresolved |
 |---|---|---|---|---|---|---|---|---|
 | CRITICAL | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| HIGH | 22 | 0 | 0 | 1 | 0 | 0 | 23 | 1 |
-| MEDIUM | 58 | 11 | 3 | 7 | 6 | 3 | 88 | 27 |
+| HIGH | 22 | 0 | 0 | 0 | 0 | 0 | 22 | 0 |
+| MEDIUM | 58 | 11 | 3 | 8 | 6 | 3 | 89 | 28 |
 | LOW | 48 | 10 | 5 | 27 | 9 | 1 | 100 | 51 |
 | **Total** | **128** | **21** | **8** | **35** | **15** | **4** | **211** | **79** |
 
@@ -145,7 +145,7 @@ Run from `/Users/jamie/Dev/AIStudentNotesApp`. Every step must pass; then say th
    ```
    grep -E '^\| [^|]+ \| [^|]+ \| (CRITICAL|HIGH) \| (OPEN|FIXED-CONTRACT-ONLY|FIXED-UNVERIFIED|DEFERRED-WITH-REASON) \|' docs/security/findings-register.md
    ```
-   Today it prints exactly 1 row (GR-1, HIGH, OPEN). The Product Owner ruled on 2026-10-29 (PO-12a) to keep GR-1 HIGH until qualified counsel has reviewed it, so the answer is: **do not push** until that legal evidence exists.
+   Today it prints nothing: the Product Owner downgraded GR-1 from HIGH to MEDIUM on 2026-10-29 (PO-14a). Check the legal register too (`docs/legal/legal-register.md`); both must print nothing before a push.
 3. No review newer than the register has been left out of it. This must print nothing, or each file it lists must be reflected in the register first:
    ```
    find docs/security -name '*.md' -newer docs/security/findings-register.md ! -name findings-register.md
@@ -168,7 +168,7 @@ Run from `/Users/jamie/Dev/AIStudentNotesApp`. Every step must pass; then say th
    ```
    grep -E '^\| [^|]+ \| [^|]+ \| (CRITICAL|HIGH|MEDIUM) \| (OPEN|FIXED-CONTRACT-ONLY|FIXED-UNVERIFIED|DEFERRED-WITH-REASON) \|' docs/security/findings-register.md
    ```
-   Today it prints 28 rows (1 HIGH + 27 MEDIUM, of which 11 are calendar.v1 rows FIXED-CONTRACT-ONLY). Expected MEDIUM-only count: `grep -cE '^\| [^|]+ \| [^|]+ \| MEDIUM \| (OPEN|FIXED-CONTRACT-ONLY|FIXED-UNVERIFIED|DEFERRED-WITH-REASON) \|' docs/security/findings-register.md` prints 27.
+   Today it prints 28 rows (0 HIGH + 28 MEDIUM, of which 11 are calendar.v1 rows FIXED-CONTRACT-ONLY, and GR-1 is one of the 28). Expected MEDIUM-only count: `grep -cE '^\| [^|]+ \| [^|]+ \| MEDIUM \| (OPEN|FIXED-CONTRACT-ONLY|FIXED-UNVERIFIED|DEFERRED-WITH-REASON) \|' docs/security/findings-register.md` prints 28.
 2. For every FIXED-VERIFIED row you rely on, re-open the evidence (test name still exists and passes in CI, not only locally). `grep -c 'RAN 2026-10-29' docs/security/findings-register.md` shows how many rest on my local run; none rests on a GitHub CI run because CI has never run (NEW-03).
 3. Controls that exist only as contract text or design and have no implementation yet. They are not open rows today because the code does not exist, but each becomes a production blocker the moment its feature ships. Confirm none of these features is in the release, or implement and test them first:
    - Syllabus parser sandbox, ingest worker, tmpfs volume, hostile-file fixtures (P2C-01, P2C-02, P2D-R3-03..06; contract 5.1).
@@ -479,7 +479,7 @@ Reviewer ratings were: GR-1 'High until PO/legal decide', GR-2 Medium, GR-3 Medi
 
 | ID | Source | Sev | Status | Gate | Summary | Evidence |
 |---|---|---|---|---|---|---|
-| GR-1 | google-tokens GR-1 | HIGH | OPEN | PUSH | Transcript/study-guide copied into an institution-managed Google account becomes visible to the institution. | PO-10j allows Workspace accounts with a warning and PO-10l makes transcript upload per-session opt-in, but legal review (G1) is open and the rating was 'High until PO/legal decide'. No code implements any Docs/Drive write. Only the Product Owner can downgrade (severity-policy.md). |
+| GR-1 | google-tokens GR-1 | MEDIUM | OPEN | PRODUCTION | Transcript/study-guide copied into an institution-managed Google account becomes visible to the institution. | PO-10j allows Workspace accounts with a warning and PO-10l makes transcript upload per-session opt-in, but legal review (G1) is open and the rating was 'High until PO/legal decide'. No code implements any Docs/Drive write. DOWNGRADED HIGH to MEDIUM by the Product Owner on 2026-10-29 (PO-14a): school-managed Google accounts are out of scope (PO-14), so the institution-visibility exposure does not exist for supported accounts. Reason it stays MEDIUM, not closed: the app must detect an organisation account (`hd` claim, presence with only `openid` scopes UNVERIFIED) and refuse to connect it; that enforcement is not built and must be tested before production or any real Google connection. |
 | GR-2 | google-tokens GR-2 | MEDIUM | FIXED-UNVERIFIED | PRODUCTION | Deleting in Tether does not remove Google copies; users may assume it does. | PO-10m: dialogs must say so; calendar.v1 5.4 claims it. Docs delete UX not designed. Unreviewed. |
 | GR-3 | google-tokens GR-3 | MEDIUM | DEFERRED-WITH-REASON | PRODUCTION | Token compromise on a compromised host reaches only Tether-created files/calendar. | ITokenCipher, KEK custody and scope allowlist test are not built (token doc section 5 items 3-4, 13). |
 | GR-4 | google-tokens GR-4 | LOW | DEFERRED-WITH-REASON | NONE | KEK loss forces mass reconnect. | Rotation/restore drill not built. |
@@ -560,8 +560,8 @@ RN-07 (register): `docs/DECISIONS.md` PO-9k and `docs/vendors/google-verificatio
 
 # Summary (5 lines)
 
-1. Open CRITICAL: 0. Open HIGH: 1 (GR-1, awaiting a Product Owner ruling), so a git push is still blocked. CV-01 and CV-02 are FIXED-VERIFIED at contract level.
-2. Open MEDIUM: 27 (blocks production), of which 11 are calendar.v1 items FIXED-CONTRACT-ONLY (need implementation tests); LOW not resolved: 51 (noted, includes CVR-N01..N08 and B1V-02..B1V-08).
+1. Open CRITICAL: 0. Open HIGH: 0 (GR-1 was downgraded to MEDIUM by the Product Owner on 2026-10-29, PO-14a), so the security register no longer blocks a git push. CV-01 and CV-02 are FIXED-VERIFIED at contract level.
+2. Open MEDIUM: 28 (blocks production; includes GR-1), of which 11 are calendar.v1 items FIXED-CONTRACT-ONLY (need implementation tests); LOW not resolved: 51 (noted, includes CVR-N01..N08 and B1V-02..B1V-08).
 3. 211 findings (14 review documents, 3 added by this register, 8 from batch 1 verification); 132 resolved (FIXED-VERIFIED or SUPERSEDED), 79 unresolved; 41 observations (S1-S13 added as one row).
 4. Full .NET suite passed on 2026-10-29 (830 contract, 241 AI, 99 syllabus, 534 integration, 22 architecture; rerun after commit 096ba8e); web tests, CI, scanners, Google behaviour (T1-T12) and all human gates were not verified.
 5. The rename, A004 migration, renamed route and LanguageGuard introduced no new CRITICAL, HIGH or MEDIUM finding; this register clears no release gate. RN-07 (PO's personal address in committed history) stays.
