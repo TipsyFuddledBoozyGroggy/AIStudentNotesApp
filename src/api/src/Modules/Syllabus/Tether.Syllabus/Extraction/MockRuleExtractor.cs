@@ -373,8 +373,8 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
                 _ => "No full date is written for this.",
             };
         }
-        else if (whenStatus == "not_applicable") { confidence = "probably_right"; reason = "Good to know. It has no date."; }
-        else if (forced) { confidence = "please_check"; reason = input.HiddenContentDropped ? "This file had hidden text, so please check each date." : distinct.Contains("supersession_cue") ? "The wording around this date may mean it changed." : "Something here needs a second look."; }
+        else if (whenStatus == "not_applicable") { confidence = "probably_right"; reason = "No date is written for this."; }
+        else if (forced) { confidence = "please_check"; reason = input.HiddenContentDropped ? "This file has hidden text, so please check each date." : distinct.Contains("supersession_cue") ? "The wording around this date may mean it changed." : "One detail here is unclear. Please check."; }
         else if (derivation == "explicit_full") { confidence = "looks_right"; reason = "The full date is written in your syllabus."; }
         else { confidence = "probably_right"; reason = derivation == "year_from_term" ? "The year comes from your term dates." : "Worked out from your term dates."; }
 

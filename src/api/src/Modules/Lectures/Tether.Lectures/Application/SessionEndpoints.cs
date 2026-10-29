@@ -25,7 +25,7 @@ internal static class SessionEndpoints
         g.MapDelete("/{id:guid}", (Guid id, SessionService svc, CancellationToken ct) => svc.DeleteAsync(id, ct));
         g.MapPost("/{id:guid}/audio-ticket", IssueTicket).RequireRateLimiting(AudioTicketPolicy);
 
-        // summary, lost-track and catch-ups are served by the AI module (B3). Notes stay a placeholder until their increment.
+        // summary, quick-recap and catch-ups are served by the AI module (B3). Notes stay a placeholder until their increment.
         g.MapGet("/{id:guid}/notes", GetNotes);
     }
 

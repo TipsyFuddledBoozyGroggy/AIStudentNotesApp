@@ -18,7 +18,7 @@ internal static class Pricing
 /// <summary>
 /// The degrade order from docs/ai/live-lecture-ai-design.md section 10, as thresholds on the highest cap pressure of the session,
 /// the user's day and the global month. As pressure rises: summary interval doubles, consolidation stops, everything moves to the
-/// cheap tier, the rolling TL;DR stops (leaving headroom), and only at the cap does user-initiated I Lost Track fall back to the
+/// cheap tier, the rolling TL;DR stops (leaving headroom), and only at the cap does user-initiated Quick recap fall back to the
 /// extractive view. Clarification suggestions (dropped before Haiku-only in the design) do not exist yet. Pure.
 /// </summary>
 internal static class BudgetMath

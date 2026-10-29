@@ -131,7 +131,7 @@ namespace Tether.Ai.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_ai_usage_tokens", "input_tokens >= 0 AND cached_tokens >= 0 AND output_tokens >= 0 AND est_cost_micros >= 0 AND latency_ms >= 0");
 
-                            t.HasCheckConstraint("ck_ai_usage_workflow", "(scope_kind = 'lecture' AND workflow IN ('RollingSummary','Compaction','LostTrack')) OR (scope_kind = 'syllabus' AND workflow = 'SyllabusExtract')");
+                            t.HasCheckConstraint("ck_ai_usage_workflow", "(scope_kind = 'lecture' AND workflow IN ('RollingSummary','Compaction','QuickRecap')) OR (scope_kind = 'syllabus' AND workflow = 'SyllabusExtract')");
                         });
                 });
 

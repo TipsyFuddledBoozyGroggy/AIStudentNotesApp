@@ -16,7 +16,7 @@ using Microsoft.Extensions.Hosting;
 namespace Tether.Ai;
 
 /// <summary>
-/// Public surface of the AI module: rolling TL;DR, I Lost Track, the usage ledger and the provider seam. Everything else in this
+/// Public surface of the AI module: rolling TL;DR, Quick recap, the usage ledger and the provider seam. Everything else in this
 /// assembly is internal. The only provider is the deterministic mock; the module refuses to start with any other (AiProviderGuard).
 /// </summary>
 public static class AiModule
@@ -64,7 +64,7 @@ public static class AiModule
         return builder;
     }
 
-    /// <summary>REST: summary, lost-track and catch-ups. Map under <c>/api/v1</c>.</summary>
+    /// <summary>REST: summary, quick-recap and catch-ups. Map under <c>/api/v1</c>.</summary>
     public static IEndpointRouteBuilder MapAiEndpoints(this IEndpointRouteBuilder api)
     {
         AiEndpoints.Map(api);

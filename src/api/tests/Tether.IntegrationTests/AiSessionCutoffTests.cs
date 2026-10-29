@@ -207,7 +207,7 @@ public class AiSessionCutoffTests(BlockingAiFactory factory) : AiRouteTestBase(f
         Assert.Equal(HttpStatusCode.OK, (await alice.Client.GetAsync($"/api/v1/sessions/{id}")).StatusCode);
     }
 
-    // ---------- I Lost Track ----------
+    // ---------- Quick recap ----------
 
     [Theory]
     [MemberData(nameof(Actions))]
@@ -217,9 +217,9 @@ public class AiSessionCutoffTests(BlockingAiFactory factory) : AiRouteTestBase(f
         await SeedFinalsAsync(id, a.UserId);
         var before = Mock.Calls;
 
-        var first = await (await LostTrackAsync(a.Client, id, new { windowMinutes = 2 })).BodyAsync();
+        var first = await (await QuickRecapAsync(a.Client, id, new { windowMinutes = 2 })).BodyAsync();
         await WaitForCallsAsync(before + 1); // the single worker is now blocked inside the provider
-        var second = await (await LostTrackAsync(a.Client, id, new { windowMinutes = 5 })).BodyAsync(); // waits in the queue
+        var second = await (await QuickRecapAsync(a.Client, id, new { windowMinutes = 5 })).BodyAsync(); // waits in the queue
         Assert.Equal("Pending", second.GetProperty("aiState").GetString());
 
         AssertActed(await ActAsync(a.Client, id, action), action);
@@ -249,14 +249,14 @@ public class AiSessionCutoffTests(BlockingAiFactory factory) : AiRouteTestBase(f
     }
 
     [Fact]
-    public async Task I_lost_track_on_a_paused_session_returns_the_extractive_answer_and_never_asks_the_provider()
+    public async Task Quick_recap_on_a_paused_session_returns_the_extractive_answer_and_never_asks_the_provider()
     {
         var (a, id) = await LiveSessionAsync();
         await SeedFinalsAsync(id, a.UserId);
         AssertActed(await ActAsync(a.Client, id, "pause"), "pause");
         var before = Mock.Calls;
 
-        var res = await LostTrackAsync(a.Client, id);
+        var res = await QuickRecapAsync(a.Client, id);
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.BodyAsync();

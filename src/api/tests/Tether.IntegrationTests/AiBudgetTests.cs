@@ -26,7 +26,7 @@ public abstract class AiBudgetTestBase(ApiFactory factory) : LectureTestBase(fac
     protected async Task<bool> ReserveAsync(Guid userId, Guid sessionId, long estimate)
     {
         await using var scope = Scopes.CreateUserScope(userId);
-        var o = await scope.ServiceProvider.GetRequiredService<BudgetGate>().ReserveAsync(userId, sessionId, AiWorkflow.LostTrack, "t.v1", "m", estimate, default);
+        var o = await scope.ServiceProvider.GetRequiredService<BudgetGate>().ReserveAsync(userId, sessionId, AiWorkflow.QuickRecap, "t.v1", "m", estimate, default);
         return o.Reservation is not null;
     }
 

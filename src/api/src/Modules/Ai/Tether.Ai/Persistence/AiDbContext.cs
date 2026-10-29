@@ -85,7 +85,7 @@ internal sealed class AiDbContext(DbContextOptions<AiDbContext> options, ICurren
             {
                 t.HasCheckConstraint("ck_ai_usage_tokens", "input_tokens >= 0 AND cached_tokens >= 0 AND output_tokens >= 0 AND est_cost_micros >= 0 AND latency_ms >= 0");
                 t.HasCheckConstraint("ck_ai_usage_outcome", $"outcome IN ({outcomes})");
-                t.HasCheckConstraint("ck_ai_usage_workflow", "(scope_kind = 'lecture' AND workflow IN ('RollingSummary','Compaction','LostTrack')) OR (scope_kind = 'syllabus' AND workflow = 'SyllabusExtract')");
+                t.HasCheckConstraint("ck_ai_usage_workflow", "(scope_kind = 'lecture' AND workflow IN ('RollingSummary','Compaction','QuickRecap')) OR (scope_kind = 'syllabus' AND workflow = 'SyllabusExtract')");
                 t.HasCheckConstraint("ck_ai_usage_scope_kind", "scope_kind IN ('lecture','syllabus')");
                 t.HasCheckConstraint("ck_ai_usage_pool", "pool IN ('lecture','syllabus') AND pool = scope_kind");
                 t.HasCheckConstraint("ck_ai_usage_scope_session", "(scope_kind = 'lecture' AND session_id IS NOT NULL AND session_id = scope_id) OR (scope_kind = 'syllabus' AND session_id IS NULL)");

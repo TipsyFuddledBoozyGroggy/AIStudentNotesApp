@@ -286,7 +286,7 @@ internal sealed class SummaryEngine(IServiceScopeFactory scopes, AiOptions optio
             var built = SummaryRequests.BuildDelta(st.UserId, st.SessionId, baseRev, existing, recent, fresh, options.Summary, options.CallTimeout);
             if (built.TruncatedOldest) log.LogWarning("Summary input truncated to newest lines for session {SessionId}", st.SessionId); // metric, no content
             var ctx = new SummaryContext(baseRev, built.Allowed);
-            var outcome = await gateway.RunAsync(built.Request, json => SummaryValidator.Validate(json, ctx), ct);
+            var outcome = await gateway.RunAsync(built.Request, json => LanguageGuard.Apply(SummaryValidator.Validate(json, ctx), d => LanguageGuard.Texts(d, ctx), options.LanguageGuardEnforce, log, "RollingSummary"), ct);
             if (!outcome.Ok) return (Step.Failed, outcome.Failure, false);
 
             var delta = outcome.Value!;
@@ -364,7 +364,7 @@ internal sealed class SummaryEngine(IServiceScopeFactory scopes, AiOptions optio
         {
             var built = SummaryRequests.BuildDelta(st.UserId, st.SessionId, latest.Revision, topics, [], chunk, options.Summary, options.CallTimeout, compaction: true);
             var ctx = new SummaryContext(latest.Revision, built.Allowed);
-            var outcome = await gateway.RunAsync(built.Request, json => SummaryValidator.Validate(json, ctx), ct);
+            var outcome = await gateway.RunAsync(built.Request, json => LanguageGuard.Apply(SummaryValidator.Validate(json, ctx), d => LanguageGuard.Texts(d, ctx), options.LanguageGuardEnforce, log, "RollingSummary"), ct);
             if (!outcome.Ok) return outcome.Failure;
             topics = SummaryMerger.Merge(topics, outcome.Value!);
             tldr = outcome.Value!.Tldr;

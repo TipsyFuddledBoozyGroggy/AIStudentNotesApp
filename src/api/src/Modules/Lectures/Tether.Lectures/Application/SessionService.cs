@@ -98,7 +98,12 @@ internal sealed class SessionService(
         }
 
         if (await db.Sessions.AnyAsync(s => s.State == SessionState.Active || s.State == SessionState.Paused, ct))
+        {
+            // The live session may be the committed winner of a simultaneous request with this same key (it committed after
+            // the first replay check above). Re-decide the key before reporting a conflict; only a different request is a 409.
+            if (keyHash is not null && await TryReplayAsync(keyHash, fingerprint!, ct) is { } won) return won;
             return SessionOutcome.Fail(Problems.InvalidState());
+        }
 
         var now = Now();
         var sessionId = Ids.New();

@@ -85,7 +85,7 @@ public class MockAiTests
     [Fact]
     public async Task Catch_up_output_stays_inside_the_window_it_was_given()
     {
-        var req = T.Request(AiWorkflow.LostTrack, "windowMinutes=5", new UntrustedBlock(BlockKinds.WindowSegments,
+        var req = T.Request(AiWorkflow.QuickRecap, "windowMinutes=5", new UntrustedBlock(BlockKinds.WindowSegments,
             [T.Line(10, 0, "Entropy measures disorder in a system."), T.Line(11, 20000, "Entropy always increases in isolated systems overall."), T.Line(12, 40000, "Entropy example with a melting ice cube here.")]));
         var doc = JsonDocument.Parse((await new MockAiClient(T.Options()).CompleteAsync(req, default)).Json).RootElement;
         Assert.True(doc.TryGetProperty("nowDiscussing", out _));

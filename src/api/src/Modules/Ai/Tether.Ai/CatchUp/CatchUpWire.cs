@@ -85,7 +85,7 @@ internal static class CatchUpBuilder
     }
 }
 
-/// <summary>Pure request construction for I Lost Track, shared by the runner and the eval harness.</summary>
+/// <summary>Pure request construction for Quick recap, shared by the runner and the eval harness.</summary>
 internal static class CatchUpRequests
 {
     public sealed record Built(AiRequest Request, CatchUpContext Context, bool Truncated);
@@ -94,7 +94,7 @@ internal static class CatchUpRequests
     {
         var (kept, truncated) = SummaryRequests.TakeNewestWithin(windowSegments, o.WindowMaxChars);
         var allowed = kept.ToDictionary(s => s.SegmentId, SummaryRequests.ToLine, StringComparer.Ordinal);
-        var req = new AiRequest(AiWorkflow.LostTrack, PromptLibrary.LostTrackVersion, AiTier.Balanced, PromptLibrary.LostTrack, $"windowMinutes={windowMinutes}",
+        var req = new AiRequest(AiWorkflow.QuickRecap, PromptLibrary.QuickRecapVersion, AiTier.Balanced, PromptLibrary.QuickRecap, $"windowMinutes={windowMinutes}",
             [new UntrustedBlock(BlockKinds.WindowSegments, kept.Select(SummaryRequests.ToLine).ToList())], o.MaxOutputTokens, userId, sessionId,
             $"lt:{catchUpId:N}", o.Timeout);
         return new Built(req, new CatchUpContext(allowed, kept.Count > 0), truncated);

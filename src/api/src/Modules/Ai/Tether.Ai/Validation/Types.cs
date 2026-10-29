@@ -11,6 +11,8 @@ internal static class ValidationCodes
     public const string Ungrounded = "ungrounded";
     public const string StaleBase = "stale_base";
     public const string Truncated = "truncated_output";
+    /// <summary>LanguageGuard found student-facing wording the guide forbids (enforce mode only). The code never carries the text.</summary>
+    public const string LanguageViolation = "language_violation";
 }
 
 internal sealed record Validated<T>(T? Value, string? Error) where T : class
@@ -40,7 +42,7 @@ internal sealed record TopicState(string Key, string Text, IReadOnlyList<Citatio
 
 internal sealed record SummaryDelta(string Tldr, IReadOnlyList<TopicState> Topics, IReadOnlyList<string> NewTerms, int DroppedCitations, int DroppedTopics, bool Sanitized);
 
-// ---------------- I Lost Track ----------------
+// ---------------- Quick recap ----------------
 
 internal sealed record CatchUpContext(IReadOnlyDictionary<string, SourceLine> Allowed, bool WindowHasSegments);
 

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.tether.invalid/lecture.v1/lost-track-request.schema.json",
-  "title": "lost-track-request",
+  "$id": "https://schemas.tether.invalid/lecture.v1/quick-recap-request.schema.json",
+  "title": "quick-recap-request",
   "type": "object",
   "additionalProperties": false,
   "required": [

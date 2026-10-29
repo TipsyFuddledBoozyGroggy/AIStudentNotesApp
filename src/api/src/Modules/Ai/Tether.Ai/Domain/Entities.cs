@@ -30,7 +30,7 @@ internal sealed class SummaryRevisionRow : IUserOwned
 }
 
 /// <summary>
-/// A stored I Lost Track result: the wire object (<c>catchup</c> schema) as JSON, starting extractive and replaced by the AI
+/// A stored Quick recap result: the wire object (<c>catchup</c> schema) as JSON, starting extractive and replaced by the AI
 /// version when it arrives (never the reverse). Derived data, deleted with the session.
 /// </summary>
 internal sealed class CatchUpRow : IUserOwned

@@ -44,7 +44,7 @@ internal sealed record BreakerOptions(int FailuresToOpen, TimeSpan OpenFor, Time
 internal sealed record AiOptions(
     bool Enabled, string Provider, TimeSpan CallTimeout, BudgetOptions Budget, TierPrice Fast, TierPrice Balanced,
     SummaryOptions Summary, CatchUpOptions CatchUp, BreakerOptions Breaker, MockFault MockFault, TimeSpan MockLatency,
-    Tether.Ai.Budget.ReaperOptions? Reaper = null)
+    Tether.Ai.Budget.ReaperOptions? Reaper = null, bool LanguageGuardEnforce = false)
 {
     public TierPrice Price(AiTier tier) => tier == AiTier.Fast ? Fast : Balanced;
 
@@ -94,7 +94,9 @@ internal sealed record AiOptions(
             Fast: Price("Fast", 100_000, 10_000, 500_000, "claude-haiku-5-5"),
             Balanced: Price("Balanced", 2_000_000, 100_000, 10_000_000, "claude-sonnet-5-5"),
             Summary: summary, CatchUp: catchUp, Breaker: breaker, MockFault: fault, MockLatency: TimeSpan.FromMilliseconds(c.GetValue("Ai:Mock:LatencyMs", 0)),
-            Reaper: new Tether.Ai.Budget.ReaperOptions(Secs(c, "Ai:Reaper:IntervalSeconds", 60), Secs(c, "Ai:Reaper:GraceSeconds", 180)));
+            Reaper: new Tether.Ai.Budget.ReaperOptions(Secs(c, "Ai:Reaper:IntervalSeconds", 60), Secs(c, "Ai:Reaper:GraceSeconds", 180)),
+            // LanguageGuard (docs/ux/language-guide.md 5.2) is LOG-ONLY unless this is true; measure the rule hit rates before enforcing.
+            LanguageGuardEnforce: c.GetValue("Ai:LanguageGuard:Enforce", false));
     }
 }
 

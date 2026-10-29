@@ -73,7 +73,7 @@ public class AiScopePoolTests(ScopePoolFactory factory) : AiBudgetTestBase(facto
     private async Task<bool> ReserveAsync(Guid userId, AiScope scope, long estimate)
     {
         await using var sp = Scopes.CreateUserScope(userId);
-        var wf = scope.IsLecture ? AiWorkflow.LostTrack : AiWorkflow.SyllabusExtract;
+        var wf = scope.IsLecture ? AiWorkflow.QuickRecap : AiWorkflow.SyllabusExtract;
         var o = await sp.ServiceProvider.GetRequiredService<BudgetGate>().ReserveAsync(userId, scope, wf, "t.v1", "m", estimate, default);
         return o.Reservation is not null;
     }
@@ -189,11 +189,11 @@ public class AiScopePoolTests(ScopePoolFactory factory) : AiBudgetTestBase(facto
         const string cols = "id, user_id, workflow, prompt_version, model, input_tokens, cached_tokens, output_tokens, est_cost_micros, latency_ms, outcome, created_at, scope_kind, scope_id, pool, session_id";
         Task Insert(string workflow, string kind, string pool, string session) => F.ExecAsync(
             $"insert into ai.ai_usage ({cols}) values ('{Guid.NewGuid()}', '{a.UserId}', '{workflow}', 'p', 'm', 0, 0, 0, 0, 0, 'ok', now(), '{kind}', '{Guid.NewGuid()}', '{pool}', {session})");
-        await Assert.ThrowsAsync<PostgresException>(() => Insert("LostTrack", "syllabus", "syllabus", "null"));                       // lecture workflow on a document scope
+        await Assert.ThrowsAsync<PostgresException>(() => Insert("QuickRecap", "syllabus", "syllabus", "null"));                       // lecture workflow on a document scope
         await Assert.ThrowsAsync<PostgresException>(() => Insert("SyllabusExtract", "lecture", "lecture", "null"));                   // document workflow on a lecture scope
         await Assert.ThrowsAsync<PostgresException>(() => Insert("SyllabusExtract", "syllabus", "lecture", "null"));                  // pool must equal the scope kind
         await Assert.ThrowsAsync<PostgresException>(() => Insert("SyllabusExtract", "syllabus", "syllabus", $"'{Guid.NewGuid()}'")); // document row with a session
-        await Assert.ThrowsAsync<PostgresException>(() => Insert("LostTrack", "lecture", "lecture", "null"));                         // lecture row without a session
+        await Assert.ThrowsAsync<PostgresException>(() => Insert("QuickRecap", "lecture", "lecture", "null"));                         // lecture row without a session
         await Assert.ThrowsAsync<PostgresException>(() => Insert("SyllabusExtract", "other", "other", "null"));                       // unknown kind
     }
 
@@ -364,7 +364,7 @@ public class AiScopePoolTests(ScopePoolFactory factory) : AiBudgetTestBase(facto
         var a = await NewActorAsync();
         var outcome = await RunGatewayAsync(a);
         Assert.True(outcome.Ok, outcome.Failure);
-        Assert.Equal(1, await F.ScalarAsync($"select count(*) from ai.ai_usage where user_id = '{a.UserId}' and scope_kind = 'lecture' and pool = 'lecture' and session_id = scope_id and workflow = 'LostTrack'"));
+        Assert.Equal(1, await F.ScalarAsync($"select count(*) from ai.ai_usage where user_id = '{a.UserId}' and scope_kind = 'lecture' and pool = 'lecture' and session_id = scope_id and workflow = 'QuickRecap'"));
         Assert.Equal(0, await GlobalPoolAsync("syllabus"));
         Assert.Equal(0, Fx.Probe.Calls); // the document probe is never consulted for a lecture
     }
@@ -373,7 +373,7 @@ public class AiScopePoolTests(ScopePoolFactory factory) : AiBudgetTestBase(facto
     public async Task A_workflow_that_does_not_match_its_scope_is_a_programming_error_not_a_call()
     {
         var a = await NewActorAsync();
-        var bad = DocRequest(a.UserId, Guid.NewGuid()) with { Workflow = AiWorkflow.LostTrack };
+        var bad = DocRequest(a.UserId, Guid.NewGuid()) with { Workflow = AiWorkflow.QuickRecap };
         await Assert.ThrowsAsync<ArgumentException>(() => RunDocAsync(a.UserId, bad));
     }
 }
@@ -385,6 +385,7 @@ public class AiScopeMigrationTests(ScopeMigrationFactory factory) : AiBudgetTest
 {
     private const string A002 = "20261028054119_A002_BudgetReservationAndPendingDedupe";
     private const string A003 = "20261028194636_A003_AiScope";
+    private const string A004 = "20261029145247_A004_RenameLostTrackToQuickRecap";
 
     private async Task MigrateAsync(string target)
     {
@@ -454,5 +455,18 @@ public class AiScopeMigrationTests(ScopeMigrationFactory factory) : AiBudgetTest
         await MigrateAsync(A003);
         Assert.Equal(3, await F.ScalarAsync($"select count(*) from ai.ai_usage where user_id = '{a.UserId}' and scope_id = session_id"));
         Assert.Equal(666, await F.ScalarAsync("select spent_micros from ai.global_spend where period = '2026-10' and pool = 'lecture'"));
+
+        // A004 (PO sensitive-language rename): the legacy LostTrack row is relabelled, the CHECK accepts only the new name, and Down is reversible.
+        await F.ExecAsync($"update ai.ai_usage set prompt_version = 'lost-track.v1' where user_id = '{a.UserId}' and workflow = 'LostTrack'");
+        await MigrateAsync(A004);
+        Assert.Equal(1, await F.ScalarAsync($"select count(*) from ai.ai_usage where user_id = '{a.UserId}' and workflow = 'QuickRecap' and prompt_version = 'quick-recap.v1'"));
+        Assert.Equal(0, await F.ScalarAsync("select count(*) from ai.ai_usage where workflow = 'LostTrack' or prompt_version = 'lost-track.v1'"));
+        var def = await F.TextAsync("select pg_get_constraintdef(oid) from pg_constraint where conname = 'ck_ai_usage_workflow' and conrelid = 'ai.ai_usage'::regclass");
+        Assert.Contains("QuickRecap", def);
+        Assert.DoesNotContain("LostTrack", def);
+        await MigrateAsync(A003);
+        Assert.Equal(1, await F.ScalarAsync($"select count(*) from ai.ai_usage where user_id = '{a.UserId}' and workflow = 'LostTrack' and prompt_version = 'lost-track.v1'"));
+        await MigrateAsync(A004);
+        Assert.Equal(1, await F.ScalarAsync($"select count(*) from ai.ai_usage where user_id = '{a.UserId}' and workflow = 'QuickRecap'"));
     }
 }

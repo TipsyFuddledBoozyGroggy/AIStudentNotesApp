@@ -18,7 +18,7 @@ public class DocumentScopeTests
     [Fact]
     public void A_request_without_a_scope_is_the_lecture_session_and_a_document_request_is_not()
     {
-        var lecture = T.Request(AiWorkflow.LostTrack, "i");
+        var lecture = T.Request(AiWorkflow.QuickRecap, "i");
         Assert.Equal(AiScope.Lecture(lecture.SessionId), lecture.EffectiveScope);
         Assert.True(lecture.EffectiveScope.IsLecture);
         var doc = Doc();

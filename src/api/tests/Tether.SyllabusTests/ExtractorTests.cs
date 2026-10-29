@@ -64,7 +64,7 @@ public class ExtractorTests
     {
         Assert.Equal("looks_right", Run("Midterm exam: Oct 19, 2026 at 10:00 AM").Items.Single().Confidence);
         Assert.Equal("probably_right", Run("PS1 due Sept 14").Items.Single().Confidence);
-        var tentative = Run("Midterm exam: Oct 19, 2026 (tentative, subject to change)").Items.Single();
+        var tentative = Run("Midterm exam: Oct 19, 2026 (tentative)").Items.Single();
         Assert.Equal("please_check", tentative.Confidence);
         Assert.Contains("tentative_language", tentative.Flags);
         var cue = Run("Midterm exam: Oct 19, 2026 (moved from Oct 12)").Items.Single();
@@ -142,5 +142,49 @@ public class ExtractorTests
         var o = Run(many);
         Assert.True(o.Items.Count <= 200);
         Assert.All(o.Items, i => Assert.True(TextPolicy.TryValidate(i.Title, TextKind.SingleLine, 200, out _), i.Title));
+    }
+}
+
+/// <summary>Student-facing reasons follow docs/ux/language-guide.md section 8.3 (C2 to C4): they describe the file, never the student, and are not chirpy.</summary>
+public class ExtractorLanguageTests
+{
+    private static ExtractorOutput Run(string raw, bool dropped = false)
+    {
+        var doc = DocumentText.Canonicalize(raw);
+        return new MockRuleExtractor().Extract(new ExtractorInput(doc.Text, new DateOnly(2026, 8, 24), new DateOnly(2026, 12, 11), "America/New_York", dropped, doc.InjectionSuspect));
+    }
+
+    [Fact]
+    public void A_dateless_policy_line_says_plainly_that_no_date_is_written()
+    {
+        var p = Run("Late work policy: 10% per day.").Items.Single(i => i.Kind == "policy");
+        Assert.Equal("No date is written for this.", p.ConfidenceReason);
+    }
+
+    [Fact]
+    public void Hidden_text_names_the_file_not_the_student()
+    {
+        var item = Run("Midterm exam: Oct 19, 2026 at 10:00 AM", dropped: true).Items.Single();
+        Assert.Equal("This file has hidden text, so please check each date.", item.ConfidenceReason);
+    }
+
+    [Fact]
+    public void The_generic_forced_check_names_the_thing_and_does_not_use_a_vague_alarm()
+    {
+        var items = Run("Midterm exam: Oct 19, 2026 (tentative)").Items;
+        var forced = Assert.Single(items, i => i.Flags.Contains("tentative_language"));
+        Assert.Equal("One detail here is unclear. Please check.", forced.ConfidenceReason);
+    }
+
+    [Fact]
+    public void No_reason_uses_chirpy_or_vague_phrases()
+    {
+        var all = Run("Welcome back, see you Oct 5\nLate work policy: 10% per day.\nPS1 due Sept 14\nFinal exam: TBA\nQuiz: Oct 3, 2026 (tentative)").Items;
+        Assert.All(all, i =>
+        {
+            Assert.DoesNotContain("Good to know", i.ConfidenceReason ?? "");
+            Assert.DoesNotContain("second look", i.ConfidenceReason ?? "");
+            Assert.DoesNotContain("!", i.ConfidenceReason ?? "");
+        });
     }
 }

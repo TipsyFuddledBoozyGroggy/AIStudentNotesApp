@@ -116,7 +116,7 @@ internal static class SummaryValidator
 }
 
 /// <summary>
-/// Validates the I Lost Track result (docs/ai/schemas/lost-track.v1.json) and enforces the grounding rule: a claim labelled
+/// Validates the Quick recap result (docs/ai/schemas/quick-recap.v1.json) and enforces the grounding rule: a claim labelled
 /// "lecture" keeps only citations that resolve to segments of THIS window, and loses the label if none do. Timecodes are always
 /// looked up from those segments.
 /// </summary>

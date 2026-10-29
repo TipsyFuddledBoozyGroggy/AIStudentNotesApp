@@ -281,6 +281,22 @@ public class LectureSessionTests(ApiFactory factory) : LectureTestBase(factory),
         Assert.Equal(1, await CountAsync("consent_events", $"user_id = '{a.UserId}'"));
     }
 
+    [Theory]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(4)]
+    [InlineData(5)] [InlineData(6)] [InlineData(7)] [InlineData(8)] [InlineData(9)]
+    public async Task Concurrent_same_key_stress_converges_every_time(int round)
+    {
+        _ = round; // each round is a fresh user, course and key with 12 simultaneous requests
+        var a = await NewActorAsync();
+        var courseId = await CourseAsync(a.Client);
+        var key = "stress-" + Guid.NewGuid();
+        var results = await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => StartAsync(a.Client, courseId, key)));
+        Assert.All(results, r => Assert.Equal(HttpStatusCode.Created, r.StatusCode));
+        var ids = (await Task.WhenAll(results.Select(r => r.BodyAsync()))).Select(b => b.GetProperty("id").GetString()).Distinct().ToList();
+        Assert.Single(ids);
+        Assert.Equal(1, await CountAsync("consent_events", $"user_id = '{a.UserId}'"));
+    }
+
     [Fact]
     public async Task Idempotency_key_expires_after_24_hours()
     {

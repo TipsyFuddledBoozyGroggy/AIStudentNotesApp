@@ -22,7 +22,7 @@ internal interface IAiClient
     Task<AiResponse> CompleteAsync(AiRequest request, CancellationToken ct);
 }
 
-internal enum AiWorkflow { RollingSummary, Compaction, LostTrack, SyllabusExtract }
+internal enum AiWorkflow { RollingSummary, Compaction, QuickRecap, SyllabusExtract }
 
 /// <summary>Fast maps to the cheap model, Balanced to the mid model (config). There is no Deep tier on the live path (ADR-009).</summary>
 internal enum AiTier { Fast, Balanced }

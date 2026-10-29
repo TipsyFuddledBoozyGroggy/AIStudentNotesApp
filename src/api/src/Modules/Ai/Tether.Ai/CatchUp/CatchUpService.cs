@@ -96,7 +96,7 @@ internal static class CatchUpStates
     }
 }
 
-/// <summary>Handles <c>POST /lost-track</c>: builds the extractive answer immediately and queues the AI version (never awaited).</summary>
+/// <summary>Handles <c>POST /quick-recap</c>: builds the extractive answer immediately and queues the AI version (never awaited).</summary>
 internal sealed class CatchUpService(
     AiDbContext db, ITranscriptSegmentReader reader, ISessionDirectory directory, BudgetGate budget, AiHealth health, AiOptions options,
     CatchUpQueue queue, CatchUpLimiter limiter, TimeProvider clock, ILogger<CatchUpService> log)
@@ -143,7 +143,7 @@ internal sealed class CatchUpService(
         string aiState;
         if (slice.Segments.Count == 0) aiState = "NotNeeded";
         else if (!options.Enabled || health.IsOpen || session.State != LectureState.Active) aiState = "Unavailable"; // paused: the extractive answer only, no text to the vendor (B3-06)
-        else aiState = (await budget.CheckAsync(sessionId, AiWorkflow.LostTrack, 0, ct)).Decision.Allowed ? "Pending" : "BudgetLimited";
+        else aiState = (await budget.CheckAsync(sessionId, AiWorkflow.QuickRecap, 0, ct)).Decision.Allowed ? "Pending" : "BudgetLimited";
 
         var id = Ids.New();
         var wire = CatchUpBuilder.Extractive(id, windowMinutes, from, to, slice.Segments, aiState);
@@ -207,7 +207,7 @@ internal sealed class CatchUpService(
 
 /// <summary>
 /// The catch-up lane: its own bounded queue and its own workers, so a slow rolling summary can never delay a student who just clicked
-/// I Lost Track (and a slow catch-up never delays summaries). Each job re-reads the window from the stored transcript.
+/// Quick recap (and a slow catch-up never delays summaries). Each job re-reads the window from the stored transcript.
 /// </summary>
 internal sealed class CatchUpRunner(CatchUpQueue queue, IServiceScopeFactory scopes, AiOptions options, TimeProvider clock, ILogger<CatchUpRunner> log) : BackgroundService
 {
@@ -289,7 +289,7 @@ internal sealed class CatchUpRunner(CatchUpQueue queue, IServiceScopeFactory sco
         var reader = sp.GetRequiredService<ITranscriptSegmentReader>();
         var slice = await reader.ReadWindowAsync(job.UserId, job.SessionId, row.FromMs, row.ToMs, 400, ct);
         var built = CatchUpRequests.Build(job.UserId, job.SessionId, job.CatchUpId, row.WindowMinutes, slice.Segments, options.CatchUp);
-        var outcome = await sp.GetRequiredService<AiGateway>().RunAsync(built.Request, json => CatchUpValidator.Validate(json, built.Context), ct);
+        var outcome = await sp.GetRequiredService<AiGateway>().RunAsync(built.Request, json => LanguageGuard.Apply(CatchUpValidator.Validate(json, built.Context), r => LanguageGuard.Texts(r, built.Context), options.LanguageGuardEnforce, log, "QuickRecap"), ct);
 
         CatchUpWire wire;
         if (outcome.Ok)

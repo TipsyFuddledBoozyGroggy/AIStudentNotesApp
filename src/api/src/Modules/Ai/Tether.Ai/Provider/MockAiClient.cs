@@ -38,6 +38,7 @@ internal sealed partial class MockAiClient(AiOptions options) : IAiClient
     private const string BogusId = "seg_999999";
 
     [GeneratedRegex(@"baseRevision=(\d+)")] private static partial Regex BaseRev();
+    [GeneratedRegex(@"windowMinutes=(\d+)")] private static partial Regex WindowMinutes();
     [GeneratedRegex(@"[A-Za-z]{7,}")] private static partial Regex Words();
 
     private static readonly HashSet<string> Stop = new(StringComparer.OrdinalIgnoreCase)
@@ -66,7 +67,7 @@ internal sealed partial class MockAiClient(AiOptions options) : IAiClient
         else
             json = request.Workflow switch
             {
-                AiWorkflow.LostTrack => CatchUp(request, fault),
+                AiWorkflow.QuickRecap => CatchUp(request, fault),
                 AiWorkflow.SyllabusExtract => Document(request),
                 _ => Summary(request, fault),
             };
@@ -169,21 +170,23 @@ internal sealed partial class MockAiClient(AiOptions options) : IAiClient
             .Take(take).Select(kv => (kv.Key, kv.Value.FirstId)).ToList();
     }
 
-    // ---------------- I Lost Track ----------------
+    // ---------------- Quick recap ----------------
 
     private static string CatchUp(AiRequest r, MockFault fault)
     {
         var lines = Lines(r, BlockKinds.WindowSegments);
         string[] Ids(params string[] ids) => fault == MockFault.BadCitations ? [BogusId] : ids;
 
+        var minutes = WindowMinutes().Match(r.Instruction) is { Success: true } wm ? wm.Groups[1].Value : null;
+        var span = minutes is null ? "this time" : $"the last {minutes} minutes";
         object now, shortList, detail, terms;
         string[] questions, gaps;
         if (lines.Count == 0)
         {
-            now = new { text = "Nothing was said in this window.", basis = "uncertain", segmentIds = Array.Empty<string>() };
-            shortList = new[] { new { text = "No transcript text in this window.", basis = "uncertain", segmentIds = Array.Empty<string>() } };
+            now = new { text = $"Nothing was said in {span}.", basis = "uncertain", segmentIds = Array.Empty<string>() };
+            shortList = new[] { new { text = $"No transcript text in {span}.", basis = "uncertain", segmentIds = Array.Empty<string>() } };
             detail = Array.Empty<object>(); terms = Array.Empty<object>();
-            questions = []; gaps = ["No transcript text in this window."];
+            questions = []; gaps = [$"No transcript text in {span}."];
         }
         else
         {
@@ -193,8 +196,8 @@ internal sealed partial class MockAiClient(AiOptions options) : IAiClient
             detail = Spread(lines.Count, 8).Select(i => new { text = FirstWords(lines[i].Text, 30), basis = "lecture", segmentIds = Ids(lines[i].Id) }).ToArray();
             var top = TopTerms(lines, 5);
             terms = top.Select(t => new { term = t.Term, basis = "lecture", segmentIds = Ids(t.FirstId) }).ToArray();
-            questions = top.Count > 0 ? top.Take(3).Select(t => $"Could you explain {t.Term} once more?").ToArray() : ["Could you repeat the last point?"];
-            gaps = lines.Count == 1 ? ["Very little was said in this window."] : [];
+            questions = top.Count > 0 ? top.Take(3).Select(t => $"Could you explain {t.Term} again?").ToArray() : ["Could you go over the last point?"];
+            gaps = lines.Count == 1 ? [$"Very little was said in {span}."] : [];
         }
         var confidence = lines.Count < 2 ? "low" : lines.Count < 4 ? "medium" : "high";
 

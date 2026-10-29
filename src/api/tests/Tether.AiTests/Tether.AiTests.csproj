@@ -14,6 +14,9 @@
     <Using Include="Microsoft.Extensions.Configuration" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Modules\Ai\Tether.Ai\Tether.Ai.csproj" />
     <ProjectReference Include="..\..\src\Modules\Transcript\Tether.Transcript.Contracts\Tether.Transcript.Contracts.csproj" />
   </ItemGroup>

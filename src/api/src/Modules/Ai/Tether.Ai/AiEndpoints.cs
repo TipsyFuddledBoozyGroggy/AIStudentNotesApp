@@ -21,7 +21,7 @@ internal static class AiEndpoints
     {
         var g = api.MapGroup("/sessions");
         g.MapGet("/{id:guid}/summary", GetSummary);
-        g.MapPost("/{id:guid}/lost-track", PostLostTrack);
+        g.MapPost("/{id:guid}/quick-recap", PostQuickRecap);
         g.MapGet("/{id:guid}/catch-ups/{catchUpId}", GetCatchUp);
     }
 
@@ -33,14 +33,14 @@ internal static class AiEndpoints
         return row is null ? Problems.NotFound("No summary yet.") : Results.Ok(SummaryJson.ToPayload(row));
     }
 
-    private static async Task<IResult> PostLostTrack(Guid id, HttpRequest request, CatchUpService svc, ICurrentUser user, CancellationToken ct)
+    private static async Task<IResult> PostQuickRecap(Guid id, HttpRequest request, CatchUpService svc, ICurrentUser user, CancellationToken ct)
     {
         if (!request.HasJsonContentType()) return Problems.ForStatus(415);
         int window;
         try
         {
             using var doc = await JsonDocument.ParseAsync(request.Body, cancellationToken: ct);
-            // Closed shape: exactly {"windowMinutes": 2|5|10} (lost-track-request.schema.json).
+            // Closed shape: exactly {"windowMinutes": 2|5|10} (quick-recap-request.schema.json).
             var props = doc.RootElement.ValueKind == JsonValueKind.Object ? doc.RootElement.EnumerateObject().ToList() : [];
             if (props.Count != 1 || props[0].Name != "windowMinutes" || props[0].Value.ValueKind != JsonValueKind.Number
                 || !props[0].Value.TryGetInt32(out window) || !CatchUpWindow.IsAllowed(window))

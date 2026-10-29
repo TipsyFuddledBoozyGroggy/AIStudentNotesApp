@@ -36,8 +36,8 @@ public class BudgetMathTests
     [InlineData("Compaction", 0.75, false)]   // consolidation is dropped first
     [InlineData("RollingSummary", 0.89, true)]
     [InlineData("RollingSummary", 0.90, false)] // then the rolling TL;DR
-    [InlineData("LostTrack", 0.99, true)]
-    [InlineData("LostTrack", 1.00, false)]     // user-initiated catch-up is last to go
+    [InlineData("QuickRecap", 0.99, true)]
+    [InlineData("QuickRecap", 1.00, false)]     // user-initiated catch-up is last to go
     public void Degrade_order_is_compaction_then_tldr_then_catch_up(string workflow, double pressure, bool allowed)
     {
         Assert.Equal(allowed, BudgetMath.Decide(Enum.Parse<AiWorkflow>(workflow), pressure, wouldExceed: false, B).Allowed);
@@ -46,14 +46,14 @@ public class BudgetMathTests
     [Fact]
     public void A_call_that_would_cross_a_cap_is_denied_whatever_the_workflow()
     {
-        Assert.False(BudgetMath.Decide(AiWorkflow.LostTrack, 0.1, wouldExceed: true, B).Allowed);
+        Assert.False(BudgetMath.Decide(AiWorkflow.QuickRecap, 0.1, wouldExceed: true, B).Allowed);
     }
 
     [Fact]
     public void Haiku_only_and_slowdown_kick_in_before_anything_is_stopped()
     {
-        Assert.Null(BudgetMath.Decide(AiWorkflow.LostTrack, 0.5, false, B).ForceTier);
-        Assert.Equal(AiTier.Fast, BudgetMath.Decide(AiWorkflow.LostTrack, 0.86, false, B).ForceTier);
+        Assert.Null(BudgetMath.Decide(AiWorkflow.QuickRecap, 0.5, false, B).ForceTier);
+        Assert.Equal(AiTier.Fast, BudgetMath.Decide(AiWorkflow.QuickRecap, 0.86, false, B).ForceTier);
         Assert.Equal(1.0, BudgetMath.IntervalMultiplier(0.59, B));
         Assert.Equal(2.0, BudgetMath.IntervalMultiplier(0.60, B));
     }

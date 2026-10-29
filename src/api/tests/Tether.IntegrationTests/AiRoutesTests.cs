@@ -32,9 +32,9 @@ public abstract class AiRouteTestBase(ApiFactory factory) : LectureTestBase(fact
                           $"'Cells divide.', '[]', '[]', '[{{\"segmentId\":\"seg_1\",\"startMs\":2000}}]', 'mock-fast', 'rolling-summary.v1', now())");
     }
 
-    protected static HttpRequestMessage LostTrack(string sessionId, object? body = null, string? key = null, string contentType = "application/json")
+    protected static HttpRequestMessage QuickRecap(string sessionId, object? body = null, string? key = null, string contentType = "application/json")
     {
-        var req = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/sessions/{sessionId}/lost-track")
+        var req = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/sessions/{sessionId}/quick-recap")
         {
             Content = new StringContent(JsonSerializer.Serialize(body ?? new { windowMinutes = 5 }), System.Text.Encoding.UTF8, contentType),
         };
@@ -42,8 +42,8 @@ public abstract class AiRouteTestBase(ApiFactory factory) : LectureTestBase(fact
         return req;
     }
 
-    protected static Task<HttpResponseMessage> LostTrackAsync(HttpClient c, string sessionId, object? body = null, string? key = null) =>
-        c.SendAsync(LostTrack(sessionId, body, key));
+    protected static Task<HttpResponseMessage> QuickRecapAsync(HttpClient c, string sessionId, object? body = null, string? key = null) =>
+        c.SendAsync(QuickRecap(sessionId, body, key));
 
     /// <summary>A client with the actor's session cookie but no Origin header (a cross-site form post, or a script without CORS).</summary>
     protected HttpClient NoOriginClient(Actor a)
@@ -73,7 +73,7 @@ public class AiRouteTests(ApiFactory factory) : AiRouteTestBase(factory), IClass
         var id = Guid.NewGuid();
         await (await anon.GetAsync($"/api/v1/sessions/{id}/summary")).AssertProblemAsync(HttpStatusCode.Unauthorized, "unauthenticated");
         await (await anon.GetAsync($"/api/v1/sessions/{id}/catch-ups/cu_{Guid.NewGuid():N}")).AssertProblemAsync(HttpStatusCode.Unauthorized, "unauthenticated");
-        await (await LostTrackAsync(anon, id.ToString())).AssertProblemAsync(HttpStatusCode.Unauthorized, "unauthenticated");
+        await (await QuickRecapAsync(anon, id.ToString())).AssertProblemAsync(HttpStatusCode.Unauthorized, "unauthenticated");
     }
 
     // ---------- ownership (C-09): another user and a missing session are indistinguishable ----------
@@ -94,14 +94,14 @@ public class AiRouteTests(ApiFactory factory) : AiRouteTestBase(factory), IClass
     }
 
     [Fact]
-    public async Task Another_users_lost_track_is_404_creates_nothing_and_looks_like_a_missing_session()
+    public async Task Another_users_quick_recap_is_404_creates_nothing_and_looks_like_a_missing_session()
     {
         var (alice, id) = await LiveSessionAsync();
         await SeedFinalsAsync(id, alice.UserId);
         var bob = await NewActorAsync();
 
-        var theirs = await LostTrackAsync(bob.Client, id);
-        var missing = await LostTrackAsync(bob.Client, Guid.NewGuid().ToString());
+        var theirs = await QuickRecapAsync(bob.Client, id);
+        var missing = await QuickRecapAsync(bob.Client, Guid.NewGuid().ToString());
         await theirs.AssertProblemAsync(HttpStatusCode.NotFound, "not_found");
         await missing.AssertProblemAsync(HttpStatusCode.NotFound, "not_found");
         Assert.Equal(StripTrace(await theirs.BodyAsync()), StripTrace(await missing.BodyAsync()));
@@ -114,7 +114,7 @@ public class AiRouteTests(ApiFactory factory) : AiRouteTestBase(factory), IClass
     {
         var (alice, id) = await LiveSessionAsync();
         await SeedFinalsAsync(id, alice.UserId);
-        var created = await (await LostTrackAsync(alice.Client, id)).BodyAsync();
+        var created = await (await QuickRecapAsync(alice.Client, id)).BodyAsync();
         var cuId = created.GetProperty("catchUpId").GetString()!;
         Assert.Equal(HttpStatusCode.OK, (await alice.Client.GetAsync($"/api/v1/sessions/{id}/catch-ups/{cuId}")).StatusCode);
 
@@ -174,15 +174,15 @@ public class AiRouteTests(ApiFactory factory) : AiRouteTestBase(factory), IClass
     // ---------- request validation ----------
 
     [Fact]
-    public async Task Lost_track_rejects_a_wrong_content_type_extra_fields_and_bad_windows()
+    public async Task Quick_recap_rejects_a_wrong_content_type_extra_fields_and_bad_windows()
     {
         var (a, id) = await LiveSessionAsync();
         await SeedFinalsAsync(id, a.UserId);
-        await (await a.Client.SendAsync(LostTrack(id, contentType: "text/plain"))).AssertProblemAsync(HttpStatusCode.UnsupportedMediaType, "unsupported_media_type");
-        await (await LostTrackAsync(a.Client, id, new { windowMinutes = 5, extra = 1 })).AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
-        await (await LostTrackAsync(a.Client, id, new { windowMinutes = 3 })).AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
-        await (await LostTrackAsync(a.Client, id, new { windowMinutes = "5" })).AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
-        await (await LostTrackAsync(a.Client, id, new { })).AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
+        await (await a.Client.SendAsync(QuickRecap(id, contentType: "text/plain"))).AssertProblemAsync(HttpStatusCode.UnsupportedMediaType, "unsupported_media_type");
+        await (await QuickRecapAsync(a.Client, id, new { windowMinutes = 5, extra = 1 })).AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
+        await (await QuickRecapAsync(a.Client, id, new { windowMinutes = 3 })).AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
+        await (await QuickRecapAsync(a.Client, id, new { windowMinutes = "5" })).AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
+        await (await QuickRecapAsync(a.Client, id, new { })).AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
         Assert.Equal(0, await CatchUpCountAsync(id));
     }
 
@@ -193,29 +193,29 @@ public class AiRouteTests(ApiFactory factory) : AiRouteTestBase(factory), IClass
     public async Task A_malformed_idempotency_key_is_a_validation_error(string key)
     {
         var (a, id) = await LiveSessionAsync();
-        await (await LostTrackAsync(a.Client, id, key: key)).AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
+        await (await QuickRecapAsync(a.Client, id, key: key)).AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
         Assert.Equal(0, await CatchUpCountAsync(id));
     }
 
     [Fact]
-    public async Task Lost_track_on_a_stopped_session_is_409()
+    public async Task Quick_recap_on_a_stopped_session_is_409()
     {
         var (a, id) = await LiveSessionAsync();
         Assert.True((await PostAsync(a.Client, $"/sessions/{id}/stop")).IsSuccessStatusCode);
-        await (await LostTrackAsync(a.Client, id)).AssertProblemAsync(HttpStatusCode.Conflict, "invalid_state");
+        await (await QuickRecapAsync(a.Client, id)).AssertProblemAsync(HttpStatusCode.Conflict, "invalid_state");
     }
 
     // ---------- CSRF / origin ----------
 
     [Fact]
-    public async Task Lost_track_without_an_origin_or_from_a_foreign_origin_is_rejected_and_creates_nothing()
+    public async Task Quick_recap_without_an_origin_or_from_a_foreign_origin_is_rejected_and_creates_nothing()
     {
         var (a, id) = await LiveSessionAsync();
         await SeedFinalsAsync(id, a.UserId);
 
-        await (await NoOriginClient(a).SendAsync(LostTrack(id))).AssertProblemAsync(HttpStatusCode.Forbidden, "csrf_failed");
+        await (await NoOriginClient(a).SendAsync(QuickRecap(id))).AssertProblemAsync(HttpStatusCode.Forbidden, "csrf_failed");
 
-        var foreign = LostTrack(id);
+        var foreign = QuickRecap(id);
         foreign.Headers.Remove("Origin");
         foreign.Headers.Add("Origin", "https://evil.example");
         await (await a.Client.SendAsync(foreign)).AssertProblemAsync(HttpStatusCode.Forbidden, "csrf_failed");
@@ -239,10 +239,10 @@ public class AiRouteTests(ApiFactory factory) : AiRouteTestBase(factory), IClass
     {
         var (a, id) = await LiveSessionAsync();
         await SeedFinalsAsync(id, a.UserId);
-        var first = await LostTrackAsync(a.Client, id, key: "k-replay-1");
+        var first = await QuickRecapAsync(a.Client, id, key: "k-replay-1");
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         Assert.False(first.Headers.Contains("Idempotency-Replayed"));
-        var second = await LostTrackAsync(a.Client, id, key: "k-replay-1");
+        var second = await QuickRecapAsync(a.Client, id, key: "k-replay-1");
         Assert.Equal(HttpStatusCode.OK, second.StatusCode);
         Assert.Equal("true", second.Headers.GetValues("Idempotency-Replayed").Single());
         Assert.Equal((await first.BodyAsync()).GetProperty("catchUpId").GetString(), (await second.BodyAsync()).GetProperty("catchUpId").GetString());
@@ -254,8 +254,8 @@ public class AiRouteTests(ApiFactory factory) : AiRouteTestBase(factory), IClass
     {
         var (a, id) = await LiveSessionAsync();
         await SeedFinalsAsync(id, a.UserId);
-        Assert.Equal(HttpStatusCode.OK, (await LostTrackAsync(a.Client, id, new { windowMinutes = 5 }, "k-conflict")).StatusCode);
-        await (await LostTrackAsync(a.Client, id, new { windowMinutes = 10 }, "k-conflict")).AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
+        Assert.Equal(HttpStatusCode.OK, (await QuickRecapAsync(a.Client, id, new { windowMinutes = 5 }, "k-conflict")).StatusCode);
+        await (await QuickRecapAsync(a.Client, id, new { windowMinutes = 10 }, "k-conflict")).AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
         Assert.Equal(1, await CatchUpCountAsync(id));
     }
 
@@ -266,8 +266,8 @@ public class AiRouteTests(ApiFactory factory) : AiRouteTestBase(factory), IClass
         await SeedFinalsAsync(aliceSession, alice.UserId);
         var (bob, bobSession) = await LiveSessionAsync();
         await SeedFinalsAsync(bobSession, bob.UserId);
-        var a = await (await LostTrackAsync(alice.Client, aliceSession, key: "shared-key")).BodyAsync();
-        var bRes = await LostTrackAsync(bob.Client, bobSession, key: "shared-key");
+        var a = await (await QuickRecapAsync(alice.Client, aliceSession, key: "shared-key")).BodyAsync();
+        var bRes = await QuickRecapAsync(bob.Client, bobSession, key: "shared-key");
         Assert.Equal(HttpStatusCode.OK, bRes.StatusCode);
         Assert.False(bRes.Headers.Contains("Idempotency-Replayed"));
         Assert.NotEqual(a.GetProperty("catchUpId").GetString(), (await bRes.BodyAsync()).GetProperty("catchUpId").GetString());
@@ -278,7 +278,7 @@ public class AiRouteTests(ApiFactory factory) : AiRouteTestBase(factory), IClass
     {
         var (a, id) = await LiveSessionAsync();
         await SeedFinalsAsync(id, a.UserId);
-        var results = await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => LostTrackAsync(a.Client, id, key: "k-race")));
+        var results = await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => QuickRecapAsync(a.Client, id, key: "k-race")));
         Assert.All(results, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
         var ids = await Task.WhenAll(results.Select(async r => (await r.BodyAsync()).GetProperty("catchUpId").GetString()));
         Assert.Single(ids.Distinct());
@@ -293,7 +293,7 @@ public class AiRouteTests(ApiFactory factory) : AiRouteTestBase(factory), IClass
     {
         var (a, id) = await LiveSessionAsync();
         await SeedFinalsAsync(id, a.UserId);
-        var created = await (await LostTrackAsync(a.Client, id)).BodyAsync();
+        var created = await (await QuickRecapAsync(a.Client, id)).BodyAsync();
         Assert.False(created.TryGetProperty("source", out _)); // extractive text is not model output
         var cuId = created.GetProperty("catchUpId").GetString()!;
         JsonElement final = default;
@@ -312,7 +312,7 @@ public class AiRouteTests(ApiFactory factory) : AiRouteTestBase(factory), IClass
     {
         var (a, id) = await LiveSessionAsync();
         await SeedFinalsAsync(id, a.UserId);
-        var created = await (await LostTrackAsync(a.Client, id)).BodyAsync();
+        var created = await (await QuickRecapAsync(a.Client, id)).BodyAsync();
         ContractSchemas.AssertValid("catchup", created); // POST body (extractive, aiState Pending)
         var cuId = created.GetProperty("catchUpId").GetString()!;
         JsonElement final = default;
@@ -337,7 +337,7 @@ public class AiRouteTests(ApiFactory factory) : AiRouteTestBase(factory), IClass
     {
         var (a, id) = await LiveSessionAsync();
         await SeedFinalsAsync(id, a.UserId);
-        var created = await (await LostTrackAsync(a.Client, id)).BodyAsync();
+        var created = await (await QuickRecapAsync(a.Client, id)).BodyAsync();
         var cuId = created.GetProperty("catchUpId").GetString()!;
         var guid = cuId[3..];
         await WaitNotPendingAsync(Guid.ParseExact(guid, "N"));
@@ -354,14 +354,14 @@ public class AiRouteTests(ApiFactory factory) : AiRouteTestBase(factory), IClass
     {
         var (a, id) = await LiveSessionAsync();
         await SeedFinalsAsync(id, a.UserId);
-        var first = await (await LostTrackAsync(a.Client, id, key: "k-stale")).BodyAsync();
+        var first = await (await QuickRecapAsync(a.Client, id, key: "k-stale")).BodyAsync();
         var gid = Guid.ParseExact(first.GetProperty("catchUpId").GetString()![3..], "N");
         await WaitNotPendingAsync(gid);
         await F.ExecAsync($"update ai.catch_ups set ai_state = 'Pending', created_at = now() - interval '1 hour', result = jsonb_set(result, '{{aiState}}', '\"Pending\"') where id = '{gid}'");
 
-        var replay = await (await LostTrackAsync(a.Client, id, key: "k-stale")).BodyAsync();
+        var replay = await (await QuickRecapAsync(a.Client, id, key: "k-stale")).BodyAsync();
         Assert.Equal("Unavailable", replay.GetProperty("aiState").GetString());
-        var fresh = await LostTrackAsync(a.Client, id);
+        var fresh = await QuickRecapAsync(a.Client, id);
         Assert.Equal(HttpStatusCode.OK, fresh.StatusCode);
         Assert.NotEqual(first.GetProperty("catchUpId").GetString(), (await fresh.BodyAsync()).GetProperty("catchUpId").GetString());
     }
@@ -371,7 +371,7 @@ public class AiRouteTests(ApiFactory factory) : AiRouteTestBase(factory), IClass
     {
         var (a, id) = await LiveSessionAsync();
         await SeedFinalsAsync(id, a.UserId);
-        var created = await (await LostTrackAsync(a.Client, id)).BodyAsync();
+        var created = await (await QuickRecapAsync(a.Client, id)).BodyAsync();
         var gid = Guid.ParseExact(created.GetProperty("catchUpId").GetString()![3..], "N");
         await WaitNotPendingAsync(gid);
         await F.ExecAsync($"update ai.catch_ups set ai_state = 'Pending', kind = 'Extractive', result = jsonb_set(result, '{{aiState}}', '\"Pending\"') where id = '{gid}'");
@@ -404,7 +404,7 @@ public class AiRouteInFlightTests(SlowAiFactory factory) : AiRouteTestBase(facto
     {
         var (a, id) = await LiveSessionAsync();
         await SeedFinalsAsync(id, a.UserId);
-        var results = await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => LostTrackAsync(a.Client, id)));
+        var results = await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => QuickRecapAsync(a.Client, id)));
         Assert.All(results, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
         var ids = await Task.WhenAll(results.Select(async r => (await r.BodyAsync()).GetProperty("catchUpId").GetString()));
         Assert.Single(ids.Distinct());
@@ -416,7 +416,7 @@ public class AiRouteInFlightTests(SlowAiFactory factory) : AiRouteTestBase(facto
     {
         var (a, id) = await LiveSessionAsync();
         await SeedFinalsAsync(id, a.UserId);
-        await Task.WhenAll(new[] { 2, 5, 10, 5, 2 }.Select(w => LostTrackAsync(a.Client, id, new { windowMinutes = w })));
+        await Task.WhenAll(new[] { 2, 5, 10, 5, 2 }.Select(w => QuickRecapAsync(a.Client, id, new { windowMinutes = w })));
         Assert.Equal(3, await CatchUpCountAsync(id));
     }
 
@@ -426,7 +426,7 @@ public class AiRouteInFlightTests(SlowAiFactory factory) : AiRouteTestBase(facto
         var (a, id) = await LiveSessionAsync();
         await SeedFinalsAsync(id, a.UserId);
         await SeedSummaryAsync(id, a.UserId, 1);
-        var created = await LostTrackAsync(a.Client, id);
+        var created = await QuickRecapAsync(a.Client, id);
         Assert.Equal(HttpStatusCode.OK, created.StatusCode);
         Assert.Equal("Pending", (await created.BodyAsync()).GetProperty("aiState").GetString());
 
@@ -452,17 +452,17 @@ public class AiRouteRateLimitTests(LimitedAiFactory factory) : AiRouteTestBase(f
     {
         var (a, id) = await LiveSessionAsync();
         await SeedFinalsAsync(id, a.UserId);
-        Assert.Equal(HttpStatusCode.OK, (await LostTrackAsync(a.Client, id, new { windowMinutes = 2 })).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await LostTrackAsync(a.Client, id, new { windowMinutes = 5 })).StatusCode);
-        await (await LostTrackAsync(a.Client, id, new { windowMinutes = 10 })).AssertProblemAsync(HttpStatusCode.TooManyRequests, "rate_limited");
+        Assert.Equal(HttpStatusCode.OK, (await QuickRecapAsync(a.Client, id, new { windowMinutes = 2 })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await QuickRecapAsync(a.Client, id, new { windowMinutes = 5 })).StatusCode);
+        await (await QuickRecapAsync(a.Client, id, new { windowMinutes = 10 })).AssertProblemAsync(HttpStatusCode.TooManyRequests, "rate_limited");
         Assert.Equal(2, await CatchUpCountAsync(id));
 
         var (b, other) = await LiveSessionAsync();
         await SeedFinalsAsync(other, b.UserId);
-        Assert.Equal(HttpStatusCode.OK, (await LostTrackAsync(b.Client, other, new { windowMinutes = 2 })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await QuickRecapAsync(b.Client, other, new { windowMinutes = 2 })).StatusCode);
 
         F.Clock.Advance(TimeSpan.FromSeconds(61));
-        Assert.Equal(HttpStatusCode.OK, (await LostTrackAsync(a.Client, id, new { windowMinutes = 10 })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await QuickRecapAsync(a.Client, id, new { windowMinutes = 10 })).StatusCode);
     }
 
 }

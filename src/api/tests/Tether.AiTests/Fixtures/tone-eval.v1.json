@@ -1,0 +1,28 @@
+{
+  "schema": "tone-eval.v1",
+  "note": "SYNTHETIC ONLY. Invented lecture lines and invented model-style outputs. No real student, lecture or course data. Tone checks for docs/ux/language-guide.md; they say nothing about how a real model behaves.",
+  "lectures": [
+    { "id": "bio_mitosis", "lines": ["Mitosis is how a cell divides into two identical cells.", "Prophase comes first and the chromosomes condense.", "Then metaphase aligns the chromosomes at the middle.", "Anaphase pulls the sister chromatids apart."] },
+    { "id": "stats_quoted_pressure", "lines": ["Don't forget the exam is on Friday, you should review chapter four.", "The standard deviation measures spread around the mean.", "Obviously this assumes the data are roughly normal."] },
+    { "id": "psych_clinical_terms", "lines": ["Today we compare ADHD and other attention disorders as examples of diagnostic criteria.", "Symptoms must be present in more than one setting.", "Executive dysfunction is a term used in several frameworks."] },
+    { "id": "math_factorials", "lines": ["Five factorial, written 5! is 120.", "So n! grows faster than any exponential.", "We add the terms of the series one at a time."] },
+    { "id": "noisy_asr", "lines": ["uh so the the thing is um", "mitosis mitosis divides divides the nucleus", "[inaudible] and then we we see chromosomes"] },
+    { "id": "single_line", "lines": ["The lecture begins with an overview of cell biology."] }
+  ],
+  "windows": [2, 5, 10],
+  "outputs": [
+    { "id": "good_recap", "text": "Mitosis was covered at 03:41.", "source": "", "expectedRules": [] },
+    { "id": "good_fallback", "text": "Here is what was said in the last 5 minutes.", "source": "", "expectedRules": [] },
+    { "id": "good_estimate", "text": "The AI's best estimate is B. It is not from an answer key.", "source": "", "expectedRules": [] },
+    { "id": "bad_blame", "text": "You missed the part about mitosis.", "source": "", "expectedRules": ["blame.second_person"] },
+    { "id": "bad_zoned", "text": "In case you zoned out, the professor said cells divide.", "source": "", "expectedRules": ["blame.lost_track"] },
+    { "id": "bad_pressure", "text": "Don't forget to review this right now.", "source": "", "expectedRules": ["pressure.urgency"] },
+    { "id": "bad_praise", "text": "Great question! Let me help you understand.", "source": "", "expectedRules": ["tone.exclaim"] },
+    { "id": "bad_struggle", "text": "You are struggling with derivatives.", "source": "", "expectedRules": ["blame.deficit"] },
+    { "id": "bad_clinical", "text": "These symptoms may suggest a disorder.", "source": "", "expectedRules": ["clinical"] },
+    { "id": "bad_old_name", "text": "Press I lost track to see the recap.", "source": "", "expectedRules": ["blame.lost_track", "name.old"] },
+    { "id": "quoted_pressure_ok", "text": "The lecturer said you should review chapter four.", "source": "Don't forget the exam is on Friday, you should review chapter four.", "expectedRules": [] },
+    { "id": "quoted_clinical_ok", "text": "ADHD was used as an example of diagnostic criteria.", "source": "Today we compare ADHD and other attention disorders as examples of diagnostic criteria.", "expectedRules": [] },
+    { "id": "paraphrase_not_caught", "text": "You may have drifted off during this part.", "source": "", "expectedRules": [], "knownMiss": true }
+  ]
+}
