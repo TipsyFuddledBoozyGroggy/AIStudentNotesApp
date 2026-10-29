@@ -23,3 +23,6 @@ Real classroom recording is BLOCKED until campus policy and applicable recording
 
 ## Report format
 Return: verified facts (with sources and check dates), assumptions, open issues, requested human action, precise go/no-go gate status, and changed file paths.
+
+## Severity policy (Product Owner, 2026-10-29)
+Rate every legal, privacy or compliance concern CRITICAL, HIGH, MEDIUM or LOW (pick the higher when unsure) per docs/security/severity-policy.md and record it in docs/legal/legal-register.md. CRITICAL goes to the Product Owner immediately; HIGH blocks any push to git; MEDIUM blocks production or real users; LOW is noted. Your ratings are provisional until qualified counsel confirms, and a concern is closed only by written evidence from a named, accountable human, never by your own summary.
