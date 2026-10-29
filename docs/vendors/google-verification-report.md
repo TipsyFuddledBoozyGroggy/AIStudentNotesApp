@@ -187,3 +187,8 @@ Source: five screenshots taken by the Product Owner on 2026-10-29 (Google Auth P
 **Open from the screenshots**
 - The test-user and support email address in the console reads `jolsendev@gmail.com` as the Lead reads the screenshot. `docs/DECISIONS.md` PO-9k and this report elsewhere say `jwolsendev@gmail.com` (as typed in chat). One of them is wrong; the Product Owner should say which, and the docs will be corrected. If the test user in the console differs from the account actually used for sign-in, sign-in will be refused.
 - Not yet captured: redirect URIs on the client, Verification Center, and the Drive scope label.
+
+### Addendum 2 (2026-10-29, two more Console screenshots from the Product Owner)
+- **Verification Center:** "Verification is not required since your app is configured with a Testing publishing status." Nothing else listed (no pending review, no requirements shown while in Testing).
+- **OAuth Overview (7 days):** Traffic, Errors and Users all show "No data is available for this project", so no OAuth requests have been made against this project. **OAuth token grant rate limit: 10,000 grants per day** ("Raise daily token limit" link). Useful as a project-wide ceiling for the quota and spend guard (CV-06).
+- Still not captured: the client's **Authorized redirect URIs**, and the `drive.file` label (needs the Drive API enabled). The test-user address discrepancy noted above is still open.
