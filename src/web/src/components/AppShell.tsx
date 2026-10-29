@@ -126,7 +126,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <header data-site-header className="z-10 border-b border-hair bg-surface lg:sticky lg:top-0">
+      <header data-site-header data-chrome className="z-10 border-b border-hair lg:sticky lg:top-0">
         <div className="mx-auto flex min-h-[56px] max-w-content flex-wrap items-center gap-x-1 gap-y-1 px-4 py-1 sm:gap-x-2">
           <Link href="/" className="display mr-auto inline-flex min-h-[44px] items-center text-2xl leading-none">
             Tether

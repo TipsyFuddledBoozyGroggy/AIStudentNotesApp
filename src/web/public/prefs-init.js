@@ -1,11 +1,18 @@
-// Loaded synchronously in <head> before the body paints, so a student who chose dark never sees a light flash.
+// Loaded synchronously in <head> before the body paints, so a student who chose dark (or a theme) never sees a flash.
 // A static same-origin file rather than inline script (the source tree bans dangerouslySetInnerHTML).
 // Mirrors parsePrefs/htmlAttributes in src/lib/design/prefs.ts; prefs.test.ts runs this file and checks they agree.
+// <html data-themes="off"> (build flag NEXT_PUBLIC_THEMES=off) forces the Paper theme; the stored choice is kept.
 (function () {
   try {
     var d = document.documentElement, p = {}, l = {};
     try { p = JSON.parse(localStorage.getItem("tether.prefs.v1") || "{}") || {}; } catch { p = {}; }
     try { l = JSON.parse(localStorage.getItem("tether.lecture.settings.v1") || "{}") || {}; } catch { l = {}; }
+    var skins = ["paper", "portal", "gamer", "calm", "glass"];
+    var skin = skins.indexOf(p.skin) >= 0 ? p.skin : "paper";
+    if (d.getAttribute("data-themes") === "off") skin = "paper";
+    d.setAttribute("data-skin", skin);
+    d.setAttribute("data-texture", p.texture === true ? "true" : "false");
+    d.setAttribute("data-solid", p.solid === true ? "true" : "false");
     var dark = !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
     var t = p.theme === "light" || p.theme === "dark" ? p.theme : dark ? "dark" : "light";
     d.setAttribute("data-theme", t);

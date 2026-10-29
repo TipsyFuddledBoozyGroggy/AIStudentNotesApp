@@ -2,43 +2,97 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Design tokens: docs/ux/design-direction.md section 2. The pre-hydration script in layout.tsx sets data-theme to the
-   RESOLVED "light" | "dark", plus data-quiet, data-text-size, data-spacing, data-density and data-reduce-motion.
-   tokens.test.ts parses the palette blocks below (up to the end marker) and checks them against lib/design/tokens.ts.
-   Every palette block lists every role so no value leaks between palettes through the cascade. */
-:root {
-  --c-canvas: #F5F2EA; --c-surface: #FFFFFF; --c-raised: #FFFFFF; --c-sunken: #ECE8DE;
-  --c-ink: #1C1B19; --c-muted: #57534A; --c-accent: #2E3C8C; --c-on-accent: #FFFFFF; --c-accent-subtle: #E6E8F5;
-  --c-recording: #B42318; --c-recording-subtle: #FCEBE8; --c-success: #1B6B3A; --c-success-subtle: #E7F3EA;
-  --c-warning: #7A4300; --c-warning-subtle: #FBF0D9; --c-danger: #9F1D24;
-  --c-border-strong: #8A8579; --c-border-hair: #DAD5C8; --c-focus: #2E3C8C;
+/* Design tokens: docs/ux/design-direction.md section 2 (Paper, Night desk, Fog, Dusk) and docs/ux/themes-spec.md section 2
+   (skins portal, gamer, calm, glass; each light and dark). public/prefs-init.js sets, before first paint, data-skin,
+   data-theme (the RESOLVED "light" | "dark"), data-quiet, data-texture, data-solid, data-text-size, data-spacing,
+   data-density and data-reduce-motion on <html>.
+   tokens.test.ts parses the palette blocks below (up to the end marker), resolves the cascade for every look and checks
+   it against lib/design/tokens.ts. Every palette block lists every role so no value leaks between palettes.
+   Skin selectors carry no :root, so any element with data-skin (+ data-theme) re-scopes the palette (theme swatches in
+   Preferences use this). Fog/Dusk are scoped to Paper so they can never override another skin. */
+:root,
+[data-skin="paper"] {
+  --c-canvas: #F5F2EA; --c-surface: #FFFFFF; --c-raised: #FFFFFF; --c-sunken: #ECE8DE; --c-ink: #1C1B19; --c-muted: #57534A;
+  --c-accent: #2E3C8C; --c-on-accent: #FFFFFF; --c-accent-subtle: #E6E8F5; --c-recording: #B42318; --c-recording-subtle: #FCEBE8; --c-success: #1B6B3A;
+  --c-success-subtle: #E7F3EA; --c-warning: #7A4300; --c-warning-subtle: #FBF0D9; --c-danger: #9F1D24; --c-border-strong: #8A8579; --c-border-hair: #DAD5C8;
+  --c-focus: #2E3C8C; --c-chrome: #FFFFFF; --c-on-chrome: #1C1B19; --c-grid: #F5F2EA;
 }
-:root[data-theme="dark"] {
-  --c-canvas: #14161B; --c-surface: #1C1F26; --c-raised: #242831; --c-sunken: #0F1115;
-  --c-ink: #ECEAE4; --c-muted: #A3A7B3; --c-accent: #A9B8FF; --c-on-accent: #10131F; --c-accent-subtle: #242831;
-  --c-recording: #FF8A7A; --c-recording-subtle: #242831; --c-success: #6FD39A; --c-success-subtle: #242831;
-  --c-warning: #F2B84B; --c-warning-subtle: #242831; --c-danger: #FF8F98;
-  --c-border-strong: #7A7F90; --c-border-hair: #2E333D; --c-focus: #A9B8FF;
+:root[data-theme="dark"],
+[data-skin="paper"][data-theme="dark"] {
+  --c-canvas: #14161B; --c-surface: #1C1F26; --c-raised: #242831; --c-sunken: #0F1115; --c-ink: #ECEAE4; --c-muted: #A3A7B3;
+  --c-accent: #A9B8FF; --c-on-accent: #10131F; --c-accent-subtle: #242831; --c-recording: #FF8A7A; --c-recording-subtle: #242831; --c-success: #6FD39A;
+  --c-success-subtle: #242831; --c-warning: #F2B84B; --c-warning-subtle: #242831; --c-danger: #FF8F98; --c-border-strong: #7A7F90; --c-border-hair: #2E333D;
+  --c-focus: #A9B8FF; --c-chrome: #1C1F26; --c-on-chrome: #ECEAE4; --c-grid: #14161B;
 }
-/* Low-stimulation look, light ("Fog"). */
-:root[data-quiet="true"] {
-  --c-canvas: #EEEDE8; --c-surface: #F6F5F1; --c-raised: #F6F5F1; --c-sunken: #E4E2DB;
-  --c-ink: #2B2A27; --c-muted: #5E5B54; --c-accent: #3F4A6B; --c-on-accent: #FFFFFF; --c-accent-subtle: #F6F5F1;
-  --c-recording: #A12B20; --c-recording-subtle: #F6F5F1; --c-success: #1B6B3A; --c-success-subtle: #F6F5F1;
-  --c-warning: #7A4300; --c-warning-subtle: #F6F5F1; --c-danger: #9F1D24;
-  --c-border-strong: #7F7B70; --c-border-hair: #D6D4CC; --c-focus: #3F4A6B;
+/* Low-stimulation look on Paper, light ("Fog"). Only Paper swaps palette under Low-stimulation (themes-spec 3.1). */
+:root:not([data-skin])[data-quiet="true"],
+:root[data-skin="paper"][data-quiet="true"] {
+  --c-canvas: #EEEDE8; --c-surface: #F6F5F1; --c-raised: #F6F5F1; --c-sunken: #E4E2DB; --c-ink: #2B2A27; --c-muted: #5E5B54;
+  --c-accent: #3F4A6B; --c-on-accent: #FFFFFF; --c-accent-subtle: #F6F5F1; --c-recording: #A12B20; --c-recording-subtle: #F6F5F1; --c-success: #1B6B3A;
+  --c-success-subtle: #F6F5F1; --c-warning: #7A4300; --c-warning-subtle: #F6F5F1; --c-danger: #9F1D24; --c-border-strong: #7F7B70; --c-border-hair: #D6D4CC;
+  --c-focus: #3F4A6B; --c-chrome: #F6F5F1; --c-on-chrome: #2B2A27; --c-grid: #EEEDE8;
 }
-/* Low-stimulation look, dark ("Dusk"). Complete on purpose: the doc's paste-ready block omitted --c-muted, which would
-   have inherited Fog's #5E5B54 (2.67:1 on this canvas). */
-:root[data-theme="dark"][data-quiet="true"] {
-  --c-canvas: #14161B; --c-surface: #1C1F26; --c-raised: #242831; --c-sunken: #0F1115;
-  --c-ink: #D6D4CE; --c-muted: #A3A7B3; --c-accent: #B4BCD6; --c-on-accent: #10131F; --c-accent-subtle: #242831;
-  --c-recording: #FF8A7A; --c-recording-subtle: #242831; --c-success: #6FD39A; --c-success-subtle: #242831;
-  --c-warning: #F2B84B; --c-warning-subtle: #242831; --c-danger: #FF8F98;
-  --c-border-strong: #7A7F90; --c-border-hair: #2E333D; --c-focus: #B4BCD6;
+/* Low-stimulation look on Paper, dark ("Dusk"). Complete on purpose: the design doc's block omitted --c-muted. */
+:root:not([data-skin])[data-theme="dark"][data-quiet="true"],
+:root[data-skin="paper"][data-theme="dark"][data-quiet="true"] {
+  --c-canvas: #14161B; --c-surface: #1C1F26; --c-raised: #242831; --c-sunken: #0F1115; --c-ink: #D6D4CE; --c-muted: #A3A7B3;
+  --c-accent: #B4BCD6; --c-on-accent: #10131F; --c-accent-subtle: #242831; --c-recording: #FF8A7A; --c-recording-subtle: #242831; --c-success: #6FD39A;
+  --c-success-subtle: #242831; --c-warning: #F2B84B; --c-warning-subtle: #242831; --c-danger: #FF8F98; --c-border-strong: #7A7F90; --c-border-hair: #2E333D;
+  --c-focus: #B4BCD6; --c-chrome: #1C1F26; --c-on-chrome: #D6D4CE; --c-grid: #14161B;
+}
+[data-skin="portal"] {
+  --c-canvas: #F2F4F7; --c-surface: #FFFFFF; --c-raised: #FFFFFF; --c-sunken: #E4E8ED; --c-ink: #1B2733; --c-muted: #4A5866;
+  --c-accent: #0A5AA8; --c-on-accent: #FFFFFF; --c-accent-subtle: #E3EEF9; --c-recording: #B42318; --c-recording-subtle: #FCEBE8; --c-success: #1B6B3A;
+  --c-success-subtle: #E7F3EA; --c-warning: #7A4300; --c-warning-subtle: #FBF0D9; --c-danger: #9F1D24; --c-border-strong: #6F7F8F; --c-border-hair: #D5DCE3;
+  --c-focus: #0A5AA8; --c-chrome: #1E3347; --c-on-chrome: #FFFFFF; --c-grid: #F2F4F7;
+}
+[data-skin="portal"][data-theme="dark"] {
+  --c-canvas: #10161C; --c-surface: #18202A; --c-raised: #202A36; --c-sunken: #0B1015; --c-ink: #E6ECF2; --c-muted: #A3B0BE;
+  --c-accent: #6DB3F2; --c-on-accent: #07182A; --c-accent-subtle: #202A36; --c-recording: #FF8A7A; --c-recording-subtle: #202A36; --c-success: #6FD39A;
+  --c-success-subtle: #202A36; --c-warning: #F2B84B; --c-warning-subtle: #202A36; --c-danger: #FF8F98; --c-border-strong: #6B7B8C; --c-border-hair: #26313D;
+  --c-focus: #6DB3F2; --c-chrome: #0B1015; --c-on-chrome: #E6ECF2; --c-grid: #10161C;
+}
+[data-skin="gamer"] {
+  --c-canvas: #EEF1F5; --c-surface: #FFFFFF; --c-raised: #FFFFFF; --c-sunken: #DDE3EA; --c-ink: #0D1520; --c-muted: #455566;
+  --c-accent: #006A85; --c-on-accent: #FFFFFF; --c-accent-subtle: #DDF1F7; --c-recording: #B42318; --c-recording-subtle: #FCEBE8; --c-success: #1B6B3A;
+  --c-success-subtle: #E7F3EA; --c-warning: #7A4300; --c-warning-subtle: #FBF0D9; --c-danger: #9F1D24; --c-border-strong: #66778A; --c-border-hair: #D2DAE3;
+  --c-focus: #006A85; --c-chrome: #0D1B2A; --c-on-chrome: #E8EEF5; --c-grid: #E1E7EE;
+}
+[data-skin="gamer"][data-theme="dark"] {
+  --c-canvas: #0A0E14; --c-surface: #101722; --c-raised: #172030; --c-sunken: #060A0F; --c-ink: #E8EEF5; --c-muted: #94A3B5;
+  --c-accent: #4FD8F0; --c-on-accent: #04141A; --c-accent-subtle: #172030; --c-recording: #FF8A7A; --c-recording-subtle: #172030; --c-success: #6FD39A;
+  --c-success-subtle: #172030; --c-warning: #F2B84B; --c-warning-subtle: #172030; --c-danger: #FF8F98; --c-border-strong: #66778A; --c-border-hair: #1F2A38;
+  --c-focus: #4FD8F0; --c-chrome: #060A0F; --c-on-chrome: #E8EEF5; --c-grid: #141C27;
+}
+[data-skin="calm"] {
+  --c-canvas: #EEF0EA; --c-surface: #F7F8F4; --c-raised: #F7F8F4; --c-sunken: #E2E6DD; --c-ink: #26302B; --c-muted: #55605A;
+  --c-accent: #2F6B57; --c-on-accent: #FFFFFF; --c-accent-subtle: #E3EDE7; --c-recording: #B42318; --c-recording-subtle: #FCEBE8; --c-success: #1B6B3A;
+  --c-success-subtle: #E7F3EA; --c-warning: #7A4300; --c-warning-subtle: #FBF0D9; --c-danger: #9F1D24; --c-border-strong: #6E7B73; --c-border-hair: #D8DDD3;
+  --c-focus: #2F6B57; --c-chrome: #F7F8F4; --c-on-chrome: #26302B; --c-grid: #EEF0EA;
+}
+[data-skin="calm"][data-theme="dark"] {
+  --c-canvas: #151A18; --c-surface: #1D2321; --c-raised: #252C29; --c-sunken: #101412; --c-ink: #DCE3DE; --c-muted: #9DAAA3;
+  --c-accent: #8FC7B0; --c-on-accent: #0E1A15; --c-accent-subtle: #252C29; --c-recording: #FF8A7A; --c-recording-subtle: #252C29; --c-success: #6FD39A;
+  --c-success-subtle: #252C29; --c-warning: #F2B84B; --c-warning-subtle: #252C29; --c-danger: #FF8F98; --c-border-strong: #6F7D75; --c-border-hair: #2C3431;
+  --c-focus: #8FC7B0; --c-chrome: #1D2321; --c-on-chrome: #DCE3DE; --c-grid: #151A18;
+}
+[data-skin="glass"] {
+  --c-canvas: #DCE6F7; --c-surface: #FFFFFF; --c-raised: #FFFFFF; --c-sunken: #D9E2F1; --c-ink: #172033; --c-muted: #475569;
+  --c-accent: #0A4FC9; --c-on-accent: #FFFFFF; --c-accent-subtle: #E4ECFB; --c-recording: #B42318; --c-recording-subtle: #FCEBE8; --c-success: #1B6B3A;
+  --c-success-subtle: #E7F3EA; --c-warning: #7A4300; --c-warning-subtle: #FBF0D9; --c-danger: #9F1D24; --c-border-strong: #62718C; --c-border-hair: #C9D5EA;
+  --c-focus: #0A4FC9; --c-chrome: #F4F7FD; --c-on-chrome: #172033; --c-grid: #DCE6F7;
+}
+[data-skin="glass"][data-theme="dark"] {
+  --c-canvas: #171B30; --c-surface: #1E2338; --c-raised: #272D47; --c-sunken: #0F1322; --c-ink: #E9ECF8; --c-muted: #A4ACC8;
+  --c-accent: #8EA2FF; --c-on-accent: #0B1030; --c-accent-subtle: #272D47; --c-recording: #FF8A7A; --c-recording-subtle: #272D47; --c-success: #6FD39A;
+  --c-success-subtle: #272D47; --c-warning: #F2B84B; --c-warning-subtle: #272D47; --c-danger: #FF8F98; --c-border-strong: #6F7BA3; --c-border-hair: #2E3554;
+  --c-focus: #8EA2FF; --c-chrome: #121629; --c-on-chrome: #E9ECF8; --c-grid: #171B30;
 }
 /* end of palette tokens */
 
+/* Structure per look (themes-spec 2.5). A skin is paint only: it may set colour, radius, shadow, heading face and
+   decoration, never padding, margin, gap, width, height, display, position or order (rule R11). The one sanctioned
+   exception is Calm's roomier --pad-card (a step of the 4px scale), and only at Comfortable density. */
 :root {
   --shadow-1: 0 1px 2px rgba(28, 27, 25, 0.06);
   --shadow-2: 0 8px 24px rgba(28, 27, 25, 0.14);
@@ -48,6 +102,16 @@
   --dur-base: 200ms;
   --gap-block: 1.5rem;
   --pad-card: 1.5rem;
+  --font-head: var(--f-newsreader), Georgia, serif;
+  --head-weight: 600;
+  --head-track: -0.01em;
+  --r-control: 8px;
+  --r-card: 12px;
+  --r-sheet: 16px;
+  --blur: 0px;
+  --page-bg: none;
+  --chrome-glass: var(--c-chrome);
+  --card-deco: none;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
@@ -56,10 +120,73 @@
   --shadow-3: none;
   color-scheme: dark;
 }
-:root[data-quiet="true"] {
+[data-skin="portal"] {
+  --font-head: var(--f-source-sans), var(--font-body), system-ui, sans-serif;
+  --head-track: 0;
+  --r-control: 4px;
+  --r-card: 6px;
+  --r-sheet: 8px;
+  --shadow-1: 0 1px 3px rgba(23, 32, 51, 0.14);
+}
+[data-skin="gamer"] {
+  --font-head: var(--f-jetbrains-mono), ui-monospace, monospace;
+  --head-track: -0.02em;
+  --r-control: 2px;
+  --r-card: 4px;
+  --r-sheet: 6px;
   --shadow-1: none;
   --shadow-2: none;
   --shadow-3: none;
+}
+[data-skin="calm"] {
+  --font-head: var(--font-body), system-ui, sans-serif;
+  --head-track: 0;
+  --r-control: 12px;
+  --r-card: 16px;
+  --r-sheet: 24px;
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-3: none;
+  --dur-fast: 0ms;
+  --dur-base: 0ms;
+  --pad-card: 2rem;
+}
+[data-skin="glass"] {
+  --font-head: var(--f-inter), var(--font-body), system-ui, sans-serif;
+  --head-track: -0.02em;
+  --r-control: 12px;
+  --r-card: 20px;
+  --r-sheet: 28px;
+  --blur: 20px;
+  --shadow-1: 0 8px 24px rgba(40, 60, 120, 0.1);
+  --chrome-glass: rgba(244, 247, 253, 0.72);
+  --page-bg: linear-gradient(160deg, #DCE6F7 0%, #ECE6F7 100%);
+}
+[data-skin="glass"][data-theme="dark"] {
+  --shadow-1: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --chrome-glass: rgba(18, 22, 41, 0.72);
+  --page-bg: linear-gradient(160deg, #0F1322 0%, #171B30 100%);
+}
+[data-skin="gamer"][data-texture="true"] {
+  --page-bg: linear-gradient(var(--c-grid) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, var(--c-grid) 1px, transparent 1px) 0 0 / 32px 32px;
+}
+[data-skin="portal"][data-theme="dark"],
+[data-skin="calm"][data-theme="dark"],
+[data-skin="gamer"][data-theme="dark"] {
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-3: none;
+}
+/* Low-stimulation overlay (themes-spec 3.1 step 2): strips shadow, gradient, texture, blur, motion and card decoration from
+   any skin. On Paper it also swaps to the Fog/Dusk palettes above. Safety surfaces are never reduced. */
+:root[data-quiet="true"],
+[data-quiet="true"][data-skin][data-theme] {
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-3: none;
+  --page-bg: none;
+  --blur: 0px;
   --dur-fast: 0ms;
   --dur-base: 0ms;
 }
@@ -71,10 +198,74 @@
 :root[data-text-size="s"] { font-size: 93.75%; }
 :root[data-text-size="l"] { font-size: 112.5%; }
 
-/* Higher contrast on request: ink goes to pure black/white and decorative hairlines become real boundaries. */
+/* Higher contrast on request: ink goes to pure black/white and decorative hairlines become real boundaries. !important
+   because the skin palettes are more specific than :root; no skin may weaken this. Texture and gradient go too. */
 @media (prefers-contrast: more) {
-  :root { --c-ink: #000000; --c-border-hair: var(--c-border-strong); }
-  :root[data-theme="dark"] { --c-ink: #FFFFFF; }
+  :root { --c-ink: #000000 !important; --c-border-hair: var(--c-border-strong) !important; --page-bg: none !important; }
+  :root[data-theme="dark"] { --c-ink: #FFFFFF !important; }
+}
+
+/* Site header ("chrome", themes-spec 2.1). Portal and Gamer have a dark bar in light mode: inside it every text role,
+   the borders and the focus ring map to on-chrome, so only the tested on-chrome/chrome pair occurs there. The other skins
+   keep their normal roles on chrome (tested too). The lecture bar never uses chrome roles. */
+[data-chrome] {
+  background: var(--chrome-glass);
+  color: var(--c-on-chrome);
+}
+[data-skin="portal"] [data-chrome] > *,
+[data-skin="gamer"] [data-chrome] > * {
+  --c-ink: var(--c-on-chrome);
+  --c-muted: var(--c-on-chrome);
+  --c-accent: var(--c-on-chrome);
+  --c-focus: var(--c-on-chrome);
+  --c-border-strong: var(--c-on-chrome);
+  --c-border-hair: var(--c-on-chrome);
+  --c-surface: var(--c-chrome);
+  --c-sunken: var(--c-chrome);
+  --c-canvas: var(--c-chrome);
+}
+[data-skin="portal"] [data-chrome] { border-bottom-color: var(--c-chrome); }
+[data-skin="gamer"] [data-chrome] { border-bottom-color: var(--c-accent); }
+/* Glass: the header is the only translucent element, and only where every fallback condition is false. */
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  [data-skin="glass"]:not([data-solid="true"]):not([data-quiet="true"]) [data-chrome] {
+    -webkit-backdrop-filter: blur(var(--blur)) saturate(1.4);
+    backdrop-filter: blur(var(--blur)) saturate(1.4);
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  [data-chrome] { background: var(--c-chrome); }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active), (max-width: 1023px) {
+  [data-chrome] {
+    background: var(--c-chrome);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+html:has([data-lecture-root]) [data-chrome],
+[data-solid="true"] [data-chrome],
+[data-quiet="true"] [data-chrome] {
+  background: var(--c-chrome);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Page decoration (Glass gradient, Gamer grid): one static layer behind everything, never animated. Lecture routes
+   never show it (no texture behind lecture text, themes-spec 4). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--page-bg);
+  pointer-events: none;
+}
+html:has([data-lecture-root]) body::before {
+  background: none;
+}
+@media (forced-colors: active) {
+  [data-skin] { --page-bg: none; }
 }
 
 html {
@@ -265,8 +456,12 @@ html:has([data-lecture-root]) {
   .eyebrow {
     @apply text-xs font-bold uppercase tracking-[0.08em] text-muted;
   }
+  /* Heading face per skin (themes-spec 2.5): only headings change; body, transcript and forms keep the body face. */
   .display {
-    @apply font-serif font-semibold tracking-[-0.01em] text-ink;
+    @apply text-ink;
+    font-family: var(--font-head);
+    font-weight: var(--head-weight);
+    letter-spacing: var(--head-track);
     font-optical-sizing: auto;
   }
   .link {
@@ -333,6 +528,30 @@ html:has([data-lecture-root]) {
 :root[data-quiet="true"] .card { box-shadow: none; }
 :root[data-quiet="true"] .decorative { display: none; }
 
+/* Per-skin card decoration (themes-spec 2.5 "card edge"): paint only, no layout. Portal: a 4px accent top strip drawn as
+   an inset shadow. Gamer: 1px accent corner ticks as background images (no pseudo-element, no position change). Glass: a
+   1px inner top highlight. Low-stimulation strips all of it (rule below wins by specificity). */
+[data-skin="portal"] .card { box-shadow: inset 0 4px 0 var(--c-accent), var(--shadow-1); }
+[data-skin="gamer"] .card {
+  background-image:
+    linear-gradient(var(--c-accent), var(--c-accent)), linear-gradient(var(--c-accent), var(--c-accent)),
+    linear-gradient(var(--c-accent), var(--c-accent)), linear-gradient(var(--c-accent), var(--c-accent));
+  background-size: 12px 1px, 1px 12px, 12px 1px, 1px 12px;
+  background-position: left top, left top, right bottom, right bottom;
+  background-repeat: no-repeat;
+}
+[data-skin="glass"] .card { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), var(--shadow-1); }
+[data-skin="glass"][data-theme="dark"] .card { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), var(--shadow-1); }
+/* Gamer: monospace for labels, tags and timestamps only (never prose). Tabular figures kept. */
+[data-skin="gamer"] .eyebrow,
+[data-skin="gamer"] .tag,
+[data-skin="gamer"] .transcript-time {
+  font-family: var(--f-jetbrains-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+:root[data-quiet="true"][data-skin] .card { box-shadow: none; background-image: none; }
+
 @media (forced-colors: active) {
   .btn, .field, .card, .panel, .tag { border-color: CanvasText; }
+  [data-skin] .card { background-image: none; box-shadow: none; }
 }
