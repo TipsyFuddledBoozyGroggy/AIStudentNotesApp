@@ -28,6 +28,8 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     public TestClock Clock { get; } = new();
 
     protected virtual string EnvironmentName => "Development";
+    /// <summary>The gateway uses the FIRST probe registered for a scope kind, so fixtures that register a fake document probe (AiScopeTests) need the real Syllabus probe out of the way.</summary>
+    protected virtual bool KeepRealSyllabusProbe => false;
     protected virtual IEnumerable<KeyValuePair<string, string?>> Settings => [];
 
     public string ConnectionString =>
@@ -42,10 +44,15 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("RateLimiting:ApiPermitPerMinute", "100000");
         builder.UseSetting("RateLimiting:WritePermitPerMinute", "100000");
         builder.UseSetting("RateLimiting:AnonymousPermitPerMinute", "100000");
+        // Syllabus routes have their own buckets (API_CONTRACTS_P2 section 11); the shared fixture lifts them like the general ones.
+        foreach (var k in new[] { "SyllabusWritePermitPerMinute", "SyllabusReadPermitPerMinute", "SyllabusSyncPerSyllabusPerMinute", "SyllabusSyncPerUserPerMinute", "SyllabusBatchPerUserPerMinute", "SyllabusExportPerUserPerMinute" })
+            builder.UseSetting("RateLimiting:" + k, "100000");
+        builder.UseSetting("Syllabus:Worker:PollMilliseconds", "40");
         foreach (var (k, v) in Settings) builder.UseSetting(k, v);
         builder.ConfigureTestServices(s =>
         {
             s.RemoveAll<TimeProvider>();
+            if (!KeepRealSyllabusProbe) s.RemoveAll<Tether.SharedKernel.Ai.IAiDocumentScopeProbe>();
             s.AddSingleton<TimeProvider>(Clock);
             s.AddSingleton<IStartupFilter, TestRemoteIpStartupFilter>();
         });

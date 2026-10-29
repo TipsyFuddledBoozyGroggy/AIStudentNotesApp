@@ -6,6 +6,7 @@ using Tether.Lectures;
 using Tether.Lectures.Contracts;
 using Tether.Transcript;
 using Tether.Ai;
+using Tether.Syllabus;
 using Tether.SharedKernel;
 
 namespace Tether.ArchitectureTests;
@@ -26,8 +27,9 @@ public class ModuleBoundaryTests
 
     private static readonly Assembly Transcript = typeof(TranscriptModule).Assembly;
     private static readonly Assembly Ai = typeof(AiModule).Assembly;
+    private static readonly Assembly Syllabus = typeof(SyllabusModule).Assembly;
 
-    private static readonly string[] ModuleImplementations = ["Tether.Identity", "Tether.Courses", "Tether.Lectures", "Tether.Transcript", "Tether.Ai"];
+    private static readonly string[] ModuleImplementations = ["Tether.Identity", "Tether.Courses", "Tether.Lectures", "Tether.Transcript", "Tether.Ai", "Tether.Syllabus"];
 
     private static IEnumerable<string> ProjectRefs(Assembly a) =>
         a.GetReferencedAssemblies().Select(r => r.Name!).Where(n => n.StartsWith("Tether.", StringComparison.Ordinal));
@@ -35,7 +37,7 @@ public class ModuleBoundaryTests
     [Fact]
     public void Module_implementations_do_not_reference_other_module_implementations()
     {
-        foreach (var asm in new[] { Identity, Courses, Lectures, Transcript, Ai })
+        foreach (var asm in new[] { Identity, Courses, Lectures, Transcript, Ai, Syllabus })
         {
             var self = asm.GetName().Name!;
             var illegal = ProjectRefs(asm).Where(n => ModuleImplementations.Contains(n) && n != self).ToList();
@@ -53,8 +55,10 @@ public class ModuleBoundaryTests
             ["Tether.Lectures"] = ["Tether.SharedKernel", "Tether.Courses.Contracts", "Tether.Lectures.Contracts"],
             ["Tether.Transcript"] = ["Tether.SharedKernel", "Tether.Lectures.Contracts", "Tether.Transcript.Contracts"],
             ["Tether.Ai"] = ["Tether.SharedKernel", "Tether.Lectures.Contracts", "Tether.Transcript.Contracts"],
+            // P2-B1: Syllabus needs only course ownership (ICourseOwnership). The AI document seam, when it arrives, comes through an Ai contract.
+            ["Tether.Syllabus"] = ["Tether.SharedKernel", "Tether.Courses.Contracts"],
         };
-        foreach (var asm in new[] { Identity, Courses, Lectures, Transcript, Ai })
+        foreach (var asm in new[] { Identity, Courses, Lectures, Transcript, Ai, Syllabus })
         {
             var self = asm.GetName().Name!;
             var extra = ProjectRefs(asm).Except(allowed[self]).ToList();
@@ -79,6 +83,7 @@ public class ModuleBoundaryTests
         AssertPublicSurface(Courses, "CoursesModule");
         AssertPublicSurface(Lectures, "LecturesModule");
         AssertPublicSurface(Transcript, "TranscriptModule");
+        AssertPublicSurface(Syllabus, "SyllabusModule");
         AssertPublicSurface(LecturesContracts, "IAudioTicketConsumer", "LectureState", "SessionInfo", "SessionStateRecord", "SessionStateChange",
             "ISessionDirectory", "ISessionEventReader", "ISessionSequencer", "ISessionLifecycleObserver", "ISessionActivity", "IDemoSourceIndicator");
     }
@@ -103,6 +108,7 @@ public class ModuleBoundaryTests
         Assert.Contains("Tether.Courses", refs);
         Assert.Contains("Tether.Lectures", refs);
         Assert.Contains("Tether.Transcript", refs);
+        Assert.Contains("Tether.Syllabus", refs);
     }
 
     [Fact]
@@ -209,7 +215,7 @@ public class OwnershipConventionTests
     [Fact]
     public void Every_entity_in_Courses_and_Lectures_domain_namespaces_is_user_owned()
     {
-        foreach (var asm in new[] { typeof(CoursesModule).Assembly, typeof(LecturesModule).Assembly, typeof(TranscriptModule).Assembly })
+        foreach (var asm in new[] { typeof(CoursesModule).Assembly, typeof(LecturesModule).Assembly, typeof(TranscriptModule).Assembly, typeof(SyllabusModule).Assembly })
         {
             var entities = asm.GetTypes()
                 .Where(t => t.IsClass && !t.IsAbstract && !t.IsNested && !t.Name.StartsWith('<')
@@ -271,5 +277,58 @@ public class TranscriptBoundaryTests
             Assert.DoesNotContain("FileStream", t);
             Assert.DoesNotContain("Path.GetTempFileName", t);
         }
+    }
+}
+
+/// <summary>
+/// P2-B1 Syllabus module rules (docs/API_CONTRACTS_P2.md sections 6.3, 8 and 15): mock only, no vendor or Google code, no AI module, and no
+/// logging of anything but codes, counts and exception type names.
+/// </summary>
+public class SyllabusBoundaryTests
+{
+    private static IEnumerable<string> SyllabusSources()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Tether.slnx"))) dir = dir.Parent;
+        var sep = Path.DirectorySeparatorChar;
+        return Directory.EnumerateFiles(Path.Combine(dir!.FullName, "src", "Modules", "Syllabus"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{sep}obj{sep}") && !f.Contains($"{sep}bin{sep}") && !f.Contains($"{sep}Migrations{sep}"));
+    }
+
+    [Fact]
+    public void Syllabus_does_not_reference_Ai_Identity_Lectures_Transcript_or_Google()
+    {
+        var refs = typeof(SyllabusModule).Assembly.GetReferencedAssemblies().Select(r => r.Name!).ToList();
+        foreach (var banned in new[] { "Tether.Ai", "Tether.Identity", "Tether.Lectures", "Tether.Transcript", "Tether.Host" })
+            Assert.DoesNotContain(banned, refs);
+        Assert.DoesNotContain(refs, r => r.StartsWith("Google", StringComparison.OrdinalIgnoreCase) || r.StartsWith("Anthropic", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Syllabus_source_has_no_http_client_google_or_vendor_code()
+    {
+        var banned = new[] { "HttpClient", "IHttpClientFactory", "googleapis", "calendar.google", "api.anthropic", "api.openai", "WebRequest" };
+        var hits = SyllabusSources().Where(f => { var t = File.ReadAllText(f); return banned.Any(b => t.Contains(b, StringComparison.OrdinalIgnoreCase)); }).ToList();
+        Assert.True(hits.Count == 0, "Syllabus must be mock only (no outbound network): " + string.Join(", ", hits));
+    }
+
+    [Fact]
+    public void Syllabus_logging_never_passes_content()
+    {
+        // Every log call may name only fixed codes, counts and exception type names; never a title, text, snippet, name or message.
+        var call = new System.Text.RegularExpressions.Regex(@"\.Log(Trace|Debug|Information|Warning|Error|Critical)\(([^;]*)\);", System.Text.RegularExpressions.RegexOptions.Singleline);
+        var forbidden = new[] { "Title", ".Text", "Snippet", "Context", "Notes", "FileName", "Filename", ".Message", "ToString()", "Body" };
+        var offenders = new List<string>();
+        foreach (var f in SyllabusSources())
+            foreach (System.Text.RegularExpressions.Match m in call.Matches(File.ReadAllText(f)))
+                if (forbidden.Any(x => m.Groups[2].Value.Contains(x, StringComparison.Ordinal))) offenders.Add(f + ": " + m.Value);
+        Assert.True(offenders.Count == 0, "Content in a log call: " + string.Join("; ", offenders));
+    }
+
+    [Fact]
+    public void Syllabus_registers_no_calendar_provider_other_than_the_mock()
+    {
+        var impls = typeof(SyllabusModule).Assembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract && t.GetInterfaces().Any(i => i.Name == "ICalendarProvider")).Select(t => t.Name).ToList();
+        Assert.Equal(["MockCalendar"], impls);
     }
 }

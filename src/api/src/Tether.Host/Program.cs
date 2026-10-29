@@ -7,6 +7,7 @@ using Tether.Courses;
 using Tether.Host;
 using Tether.Identity;
 using Tether.Lectures;
+using Tether.Syllabus;
 using Tether.SharedKernel;
 using Tether.SharedKernel.Http;
 using Tether.SharedKernel.Persistence;
@@ -34,6 +35,7 @@ builder.AddCoursesModule();
 builder.AddLecturesModule();
 builder.AddTranscriptModule();
 builder.AddAiModule(); // mock provider only; refuses to start with anything else
+builder.AddSyllabusModule(); // mock extractor and mock calendar only; refuses to start with anything else
 
 var allowedOrigins = builder.Configuration.GetSection("Security:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddSingleton(new OriginPolicy(allowedOrigins));
@@ -96,13 +98,16 @@ builder.Services.AddRateLimiter(o =>
     o.RejectionStatusCode = 429;
     o.GlobalLimiter = PartitionedRateLimiter.CreateChained(
         PartitionedRateLimiter.Create<HttpContext, string>(ctx => UserKey(ctx) is { } uid
-            ? (IsConsentReversal(ctx)
-                ? RateLimitPartition.GetFixedWindowLimiter("rev:" + uid, _ => PerMinute(reversalPermits))
-                : RateLimitPartition.GetFixedWindowLimiter("u:" + uid, _ => PerMinute(apiPermits)))
+            ? (ctx.SeparateRateBucket() is { } sep
+                // API_CONTRACTS_P2 section 11 (R2-14): syllabus routes have their own per-user buckets, never the shared ones.
+                ? RateLimitPartition.GetFixedWindowLimiter("sx:" + sep.Bucket + ":" + uid, _ => PerMinute(sep.PermitsPerMinute))
+                : IsConsentReversal(ctx)
+                    ? RateLimitPartition.GetFixedWindowLimiter("rev:" + uid, _ => PerMinute(reversalPermits))
+                    : RateLimitPartition.GetFixedWindowLimiter("u:" + uid, _ => PerMinute(apiPermits)))
             : RateLimitPartition.GetFixedWindowLimiter("ip:" + ClientIpKey.For(ctx.Connection.RemoteIpAddress),
                 _ => PerMinute(anonPermits))),
         PartitionedRateLimiter.Create<HttpContext, string>(ctx => UserKey(ctx) is { } uid && !HttpMethods.IsGet(ctx.Request.Method)
-            && !HttpMethods.IsHead(ctx.Request.Method) && !HttpMethods.IsOptions(ctx.Request.Method) && !IsHubNegotiate(ctx) && !IsConsentReversal(ctx)
+            && !HttpMethods.IsHead(ctx.Request.Method) && !HttpMethods.IsOptions(ctx.Request.Method) && !IsHubNegotiate(ctx) && !IsConsentReversal(ctx) && ctx.SeparateRateBucket() is null
             ? RateLimitPartition.GetFixedWindowLimiter("w:" + uid, _ => PerMinute(writePermits))
             : RateLimitPartition.GetNoLimiter("none")));
     o.AddPolicy("auth", ctx => RateLimitPartition.GetFixedWindowLimiter(
@@ -199,6 +204,7 @@ api.MapCoursesEndpoints();
 api.MapLecturesEndpoints();
 api.MapTranscriptEndpoints();
 api.MapAiEndpoints();
+api.MapSyllabusEndpoints();
 app.MapRealtimeEndpoints();
 
 if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
@@ -208,6 +214,7 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Databas
     await app.Services.MigrateLecturesAsync();
     await app.Services.MigrateTranscriptAsync(); // after Lectures: FKs to lectures.lecture_sessions
     await app.Services.MigrateAiAsync(); // after Lectures and Identity: FKs to lectures.lecture_sessions and identity.users
+    await app.Services.MigrateSyllabusAsync(); // after Identity and Courses: FKs to courses.courses and identity.users
     await app.Services.SeedDevUsersAsync(); // no-op unless Development and dev login enabled
 }
 

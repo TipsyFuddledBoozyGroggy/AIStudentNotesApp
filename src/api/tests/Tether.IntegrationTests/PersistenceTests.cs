@@ -5,6 +5,7 @@ using Tether.Identity.Persistence;
 using Tether.Lectures.Persistence;
 using Tether.SharedKernel;
 using Tether.SharedKernel.Persistence;
+using Tether.Syllabus.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -141,6 +142,9 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var transcript = scope.ServiceProvider.GetRequiredService<Tether.Transcript.Persistence.TranscriptDbContext>();
 
         var ai = scope.ServiceProvider.GetRequiredService<Tether.Ai.Persistence.AiDbContext>();
+        var syllabus = scope.ServiceProvider.GetRequiredService<SyllabusDbContext>();
+        await syllabus.GetService<IMigrator>().MigrateAsync("0"); // Syllabus references Courses and Identity: it goes first on the way down
+        Assert.Empty(await syllabus.Database.GetAppliedMigrationsAsync());
         await ai.GetService<IMigrator>().MigrateAsync("0");
         await transcript.GetService<IMigrator>().MigrateAsync("0");
         await lectures.GetService<IMigrator>().MigrateAsync("0");
@@ -158,6 +162,8 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Empty(await transcript.Database.GetPendingMigrationsAsync());
         await ai.GetService<IMigrator>().MigrateAsync();
         Assert.Empty(await ai.Database.GetPendingMigrationsAsync());
+        await syllabus.GetService<IMigrator>().MigrateAsync();
+        Assert.Empty(await syllabus.Database.GetPendingMigrationsAsync());
         Assert.Empty(await courses.Database.GetPendingMigrationsAsync());
         Assert.Empty(await identity.Database.GetPendingMigrationsAsync());
     }
@@ -176,23 +182,30 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
             join pg_class c on c.oid = con.conrelid join pg_namespace ns on ns.oid = c.relnamespace
             join pg_class rc on rc.oid = con.confrelid join pg_namespace rns on rns.oid = rc.relnamespace
             where con.contype = 'f' and ns.nspname <> rns.nspname
-            order by con.conname
             """, conn);
         var found = new List<(string, string, string, string)>();
         await using (var r = await cmd.ExecuteReaderAsync())
             while (await r.ReadAsync()) found.Add((r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3)));
+        // The database collation decides the order of ORDER BY conname, so compare in ordinal order.
+        found = [.. found.OrderBy(x => x.Item1, StringComparer.Ordinal)];
 
         // Allow-list (docs/architecture/backend-foundation.md): ADR-014 courses.user_id -> identity.users, and ADR-019
         // lecture_sessions.user_id -> identity.users / lecture_sessions.course_id -> courses.courses, all ON DELETE CASCADE ('c').
+        // P2-B1 (docs/data/schema-syllabus-p2.md section 9): four Syllabus entries, all composite or user FKs, all CASCADE: syllabi and
+        // calendar_events to courses, idempotency_keys to courses and (so content-free tombstones die with the account) to identity.users.
         Assert.Equal(
         [
             ("fk_ai_usage_user_id", "ai", "identity", "c"),
             ("fk_audio_progress_session_user", "transcript", "lectures", "c"),
+            ("fk_calendar_events_course_user", "syllabus", "courses", "c"),
             ("fk_catch_ups_session_user", "ai", "lectures", "c"),
             ("fk_courses_user_id", "courses", "identity", "c"),
+            ("fk_idempotency_keys_course_user", "syllabus", "courses", "c"),
+            ("fk_idempotency_keys_user", "syllabus", "identity", "c"),
             ("fk_lecture_sessions_course_id", "lectures", "courses", "c"),
             ("fk_lecture_sessions_user_id", "lectures", "identity", "c"),
             ("fk_summary_revisions_session_user", "ai", "lectures", "c"),
+            ("fk_syllabi_course_user", "syllabus", "courses", "c"),
             ("fk_transcript_events_session_user", "transcript", "lectures", "c"),
         ], found);
     }
@@ -230,15 +243,17 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var lectures = scope.ServiceProvider.GetRequiredService<LecturesDbContext>();
         var transcript = scope.ServiceProvider.GetRequiredService<Tether.Transcript.Persistence.TranscriptDbContext>();
         var ai2 = scope.ServiceProvider.GetRequiredService<Tether.Ai.Persistence.AiDbContext>();
+        var syllabus2 = scope.ServiceProvider.GetRequiredService<SyllabusDbContext>();
         try
         {
+            await syllabus2.GetService<IMigrator>().MigrateAsync("0");
             await ai2.GetService<IMigrator>().MigrateAsync("0");
             await transcript.GetService<IMigrator>().MigrateAsync("0");
             await lectures.GetService<IMigrator>().MigrateAsync("0");
             await courses.GetService<IMigrator>().MigrateAsync("0");
             await identity.GetService<IMigrator>().MigrateAsync("0");
             Assert.Equal(0, await factory.ScalarAsync(
-                "select count(*) from pg_tables where schemaname in ('identity','courses','lectures','transcript','ai') and tablename <> '__ef_migrations_history'"));
+                "select count(*) from pg_tables where schemaname in ('identity','courses','lectures','transcript','ai','syllabus') and tablename <> '__ef_migrations_history'"));
         }
         finally
         {
@@ -247,6 +262,7 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
             await lectures.GetService<IMigrator>().MigrateAsync();
             await transcript.GetService<IMigrator>().MigrateAsync();
             await ai2.GetService<IMigrator>().MigrateAsync();
+            await syllabus2.GetService<IMigrator>().MigrateAsync();
         }
     }
 }

@@ -1,0 +1,344 @@
+using System.Collections.Concurrent;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Tether.SharedKernel;
+using Tether.Syllabus.Domain;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Configuration;
+
+namespace Tether.Syllabus.Application;
+
+/// <summary>Limits and switches. Every default is a contract proposal (section 10 and 11), not a measured value.</summary>
+internal sealed class SyllabusOptions
+{
+    public int SyllabiPerCourse { get; init; } = 5;
+    public int SyllabiPerUser { get; init; } = 50;
+    public int CreationsPerDay { get; init; } = 10;
+    public int MaxItems { get; init; } = 300;
+    public int MaxStudentItems { get; init; } = 100;
+    public int MaxAiItems { get; init; } = 200;
+    public int MaxEventsPerSyllabus { get; init; } = 1000;
+    public int MaxEventsPerUser { get; init; } = 5000;
+    public int MaxEventsPerCall { get; init; } = 500;
+    public int MaxOccurrencesPerItem { get; init; } = 60;
+    public long UploadMaxBytes { get; init; } = 10L * 1024 * 1024;
+    public long BytesInFlight { get; init; } = 100L * 1024 * 1024;
+    public int PasteBodyBytes { get; init; } = 1024 * 1024;
+    public int JsonBodyBytes { get; init; } = 16 * 1024;
+    public int MetadataBytes { get; init; } = 4 * 1024;
+    public int UploadReadSeconds { get; init; } = 60;
+    public int WritePermitPerMinute { get; init; } = 20;
+    public int ReadPermitPerMinute { get; init; } = 120;
+    public int SyncPerSyllabusPerMinute { get; init; } = 6;
+    public int SyncPerUserPerMinute { get; init; } = 12;
+    public int BatchPerUserPerMinute { get; init; } = 12;
+    public int ExportPerUserPerMinute { get; init; } = 6;
+    public int LeaseSeconds { get; init; } = 60;
+    public int MaxAttempts { get; init; } = 3;
+    public int WorkerPollMilliseconds { get; init; } = 300;
+    public int MaintenanceSeconds { get; init; } = 300;
+    public bool WorkerEnabled { get; init; } = true;
+    public int MockStageDelayMilliseconds { get; init; }
+    public string? CalendarFault { get; init; }
+    public int DebrisDays { get; init; } = 7;
+    public int IdleDays { get; init; } = 180;
+    public int AbsoluteDays { get; init; } = 365;
+
+    public static SyllabusOptions From(IConfiguration c) => new()
+    {
+        SyllabiPerCourse = c.GetValue("Syllabus:SyllabiPerCourse", 5),
+        SyllabiPerUser = c.GetValue("Syllabus:SyllabiPerUser", 50),
+        WritePermitPerMinute = c.GetValue("RateLimiting:SyllabusWritePermitPerMinute", 20),
+        ReadPermitPerMinute = c.GetValue("RateLimiting:SyllabusReadPermitPerMinute", 120),
+        SyncPerSyllabusPerMinute = c.GetValue("RateLimiting:SyllabusSyncPerSyllabusPerMinute", 6),
+        SyncPerUserPerMinute = c.GetValue("RateLimiting:SyllabusSyncPerUserPerMinute", 12),
+        BatchPerUserPerMinute = c.GetValue("RateLimiting:SyllabusBatchPerUserPerMinute", 12),
+        ExportPerUserPerMinute = c.GetValue("RateLimiting:SyllabusExportPerUserPerMinute", 6),
+        BytesInFlight = c.GetValue("Syllabus:BytesInFlight", 100L * 1024 * 1024),
+        LeaseSeconds = c.GetValue("Syllabus:LeaseSeconds", 60),
+        WorkerEnabled = c.GetValue("Syllabus:Worker:Enabled", true),
+        WorkerPollMilliseconds = Math.Max(20, c.GetValue("Syllabus:Worker:PollMilliseconds", 300)),
+        MaintenanceSeconds = Math.Max(5, c.GetValue("Syllabus:MaintenanceIntervalSeconds", 300)),
+        MockStageDelayMilliseconds = c.GetValue("Syllabus:Mock:StageDelayMilliseconds", 0),
+        CalendarFault = c["Syllabus:Mock:Faults:Calendar"],
+    };
+}
+
+/// <summary>Server secrets. Without configuration they are random per process (safe, but tags and fingerprints do not survive a restart).</summary>
+internal sealed class SyllabusKeys(byte[] etag, byte[][] idempotencyRing, byte[] audit, string restoreEpoch)
+{
+    public byte[] ETag { get; } = etag;
+    /// <summary>Active key first, previous key second (rotation overlap, N-04).</summary>
+    public byte[][] IdempotencyRing { get; } = idempotencyRing;
+    public byte[] Audit { get; } = audit;
+    public string RestoreEpoch { get; } = restoreEpoch;
+
+    public static SyllabusKeys From(IConfiguration c)
+    {
+        static byte[] Key(IConfiguration c, string name)
+        {
+            if (c[name] is not { Length: > 0 } b64) return RandomNumberGenerator.GetBytes(32);
+            var k = Convert.FromBase64String(b64);
+            return k.Length >= 32 ? k : throw new InvalidOperationException($"{name} must decode to at least 32 bytes.");
+        }
+        var ring = new List<byte[]> { Key(c, "Security:IdempotencyHmacKey") };
+        if (c["Security:IdempotencyHmacKeyPrevious"] is { Length: > 0 }) ring.Add(Key(c, "Security:IdempotencyHmacKeyPrevious"));
+        return new SyllabusKeys(Key(c, "Security:ETagKey"), [.. ring], Key(c, "Security:SyllabusAuditHmacKey"), c["Syllabus:RestoreEpoch"] ?? "0");
+    }
+}
+
+internal static class Hashing
+{
+    public static string Sha256Hex(ReadOnlySpan<byte> data) => Convert.ToHexStringLower(SHA256.HashData(data));
+    public static string Sha256Hex(string s) => Sha256Hex(Encoding.UTF8.GetBytes(s));
+    public static byte[] Sha256(string s) => SHA256.HashData(Encoding.UTF8.GetBytes(s));
+    public static byte[] Hmac(byte[] key, string data) => HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(data));
+}
+
+/// <summary>Opaque weak ETags. The tag is an HMAC over the resource id, row_version, created_at and the restore epoch (R3-14), so a tag
+/// is never accepted for another resource and survives neither a restore nor a guess. Compared in constant time.</summary>
+internal sealed class SyllabusETag(SyllabusKeys keys)
+{
+    public string ForSyllabus(SyllabusDoc s) => Tag("syl", s.Id, s.RowVersion, s.CreatedAt);
+    public string ForItem(SyllabusItem i) => Tag("itm", i.Id, i.RowVersion, i.CreatedAt);
+
+    private string Tag(string kind, Guid id, int rowVersion, DateTimeOffset createdAt)
+    {
+        var mac = Hashing.Hmac(keys.ETag, $"{kind}|{id:N}|{rowVersion}|{createdAt.UtcTicks}|{keys.RestoreEpoch}");
+        return $"W/\"{WebEncoders.Base64UrlEncode(mac, 0, 16)}\"";
+    }
+
+    public bool Matches(string? presented, string current)
+    {
+        if (string.IsNullOrWhiteSpace(presented)) return false;
+        var a = Encoding.ASCII.GetBytes(Normalize(presented));
+        var b = Encoding.ASCII.GetBytes(Normalize(current));
+        return CryptographicOperations.FixedTimeEquals(a, b);
+
+        static string Normalize(string tag) => (tag.Trim().StartsWith("W/", StringComparison.Ordinal) ? tag.Trim()[2..] : tag.Trim()).Trim('"');
+    }
+}
+
+internal static class ItemKey
+{
+    /// <summary>"ik_" + first 32 characters of base64url(SHA-256(UTF-8("tether.syllabus.item.v1\n" + syllabusId + "\n" + itemId))), no padding (section 4.1). Inputs are the WIRE ids.</summary>
+    public static string Derive(string syllabusWireId, string itemWireId)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes("tether.syllabus.item.v1\n" + syllabusWireId + "\n" + itemWireId));
+        return "ik_" + WebEncoders.Base64UrlEncode(hash)[..32];
+    }
+}
+
+internal static class Ids2
+{
+    public const string Syllabus = "syl", Item = "itm", Sync = "syn", Event = "evt", Unclaimed = "unc";
+    public static string Syl(Guid id) => WireId.Format(Syllabus, id);
+    public static string Itm(Guid id) => WireId.Format(Item, id);
+    public static string Course(Guid id) => WireId.Format(null, id);
+    public static string KeyOf(Guid syllabusId, Guid itemId) => ItemKey.Derive(Syl(syllabusId), Itm(itemId));
+}
+
+/// <summary>Strict parsing of wall-clock values. Manual (no culture, no trailing-whitespace tolerance), so "2026-01-01\n" never parses.</summary>
+internal static class Local
+{
+    public static bool TryDate(string? s, out DateOnly d)
+    {
+        d = default;
+        if (s is null || s.Length != 10 || s[4] != '-' || s[7] != '-') return false;
+        for (var i = 0; i < 10; i++) if (i is not (4 or 7) && !char.IsAsciiDigit(s[i])) return false;
+        var y = int.Parse(s.AsSpan(0, 4), CultureInfo.InvariantCulture);
+        var m = int.Parse(s.AsSpan(5, 2), CultureInfo.InvariantCulture);
+        var day = int.Parse(s.AsSpan(8, 2), CultureInfo.InvariantCulture);
+        if (y is < 2000 or > 2100 || m is < 1 or > 12 || day < 1 || day > DateTime.DaysInMonth(y, m)) return false;
+        d = new DateOnly(y, m, day);
+        return true;
+    }
+
+    public static bool TryTime(string? s, out TimeOnly t)
+    {
+        t = default;
+        if (s is null || s.Length != 5 || s[2] != ':') return false;
+        if (!char.IsAsciiDigit(s[0]) || !char.IsAsciiDigit(s[1]) || !char.IsAsciiDigit(s[3]) || !char.IsAsciiDigit(s[4])) return false;
+        var h = (s[0] - '0') * 10 + (s[1] - '0'); var m = (s[3] - '0') * 10 + (s[4] - '0');
+        if (h > 23 || m > 59) return false;
+        t = new TimeOnly(h, m);
+        return true;
+    }
+
+    public static string Date(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    public static string Time(TimeOnly t) => t.ToString("HH:mm", CultureInfo.InvariantCulture);
+    public static string? DateOrNull(DateOnly? d) => d is { } v ? Date(v) : null;
+    public static string? TimeOrNull(TimeOnly? t) => t is { } v ? Time(v) : null;
+    public static string Weekday(DayOfWeek d) => d switch
+    {
+        DayOfWeek.Monday => "MO", DayOfWeek.Tuesday => "TU", DayOfWeek.Wednesday => "WE", DayOfWeek.Thursday => "TH",
+        DayOfWeek.Friday => "FR", DayOfWeek.Saturday => "SA", _ => "SU",
+    };
+
+    /// <summary>A wall-clock time that does not exist (spring-forward gap) in <paramref name="zone"/>. False if the zone is unknown to the host.</summary>
+    public static bool IsInDstGap(DateOnly d, TimeOnly t, string zone)
+    {
+        try
+        {
+            var tz = TimeZoneInfo.FindSystemTimeZoneById(zone);
+            return tz.IsInvalidTime(d.ToDateTime(t, DateTimeKind.Unspecified));
+        }
+        catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException) { return false; }
+    }
+}
+
+/// <summary>Server allow-list of IANA zones (contract: "validated against a server allow-list"). Independent of the host's tzdata.</summary>
+internal static class ZoneAllowList
+{
+    private static readonly HashSet<string> Zones = new(StringComparer.Ordinal)
+    {
+        "America/New_York", "America/Chicago", "America/Denver", "America/Phoenix", "America/Los_Angeles", "America/Anchorage",
+        "America/Detroit", "America/Indiana/Indianapolis", "America/Boise", "America/Juneau", "America/Adak", "America/Halifax",
+        "America/St_Johns", "America/Toronto", "America/Vancouver", "America/Edmonton", "America/Winnipeg", "America/Regina",
+        "America/Mexico_City", "America/Bogota", "America/Lima", "America/Santiago", "America/Sao_Paulo", "America/Argentina/Buenos_Aires",
+        "America/Caracas", "America/Puerto_Rico", "America/Panama", "America/Havana", "America/Jamaica",
+        "Pacific/Honolulu", "Pacific/Auckland", "Pacific/Guam", "Pacific/Fiji", "Pacific/Pago_Pago",
+        "Europe/London", "Europe/Dublin", "Europe/Lisbon", "Europe/Paris", "Europe/Berlin", "Europe/Madrid", "Europe/Rome",
+        "Europe/Amsterdam", "Europe/Brussels", "Europe/Zurich", "Europe/Vienna", "Europe/Stockholm", "Europe/Oslo", "Europe/Copenhagen",
+        "Europe/Helsinki", "Europe/Warsaw", "Europe/Prague", "Europe/Athens", "Europe/Istanbul", "Europe/Moscow", "Europe/Kyiv",
+        "Asia/Tokyo", "Asia/Seoul", "Asia/Shanghai", "Asia/Hong_Kong", "Asia/Singapore", "Asia/Kolkata", "Asia/Dubai", "Asia/Karachi",
+        "Asia/Dhaka", "Asia/Bangkok", "Asia/Jakarta", "Asia/Manila", "Asia/Taipei", "Asia/Jerusalem", "Asia/Riyadh", "Asia/Tehran",
+        "Africa/Cairo", "Africa/Lagos", "Africa/Nairobi", "Africa/Johannesburg", "Africa/Casablanca", "Africa/Accra",
+        "Australia/Sydney", "Australia/Melbourne", "Australia/Brisbane", "Australia/Perth", "Australia/Adelaide",
+        "Atlantic/Reykjavik",
+    };
+
+    public static bool Contains(string? zone) => zone is not null && Zones.Contains(zone);
+}
+
+/// <summary>Fixed-window counters with an injectable clock, for the per-user and per-syllabus limits the host limiter cannot key on.</summary>
+internal sealed class RateGate(TimeProvider clock)
+{
+    private readonly ConcurrentDictionary<string, (long Window, int Count)> _w = new();
+
+    /// <summary>True if the call is allowed (and counted). One minute windows.</summary>
+    public bool TryAcquire(string key, int limit)
+    {
+        var window = clock.GetUtcNow().ToUnixTimeSeconds() / 60;
+        var allowed = false;
+        _w.AddOrUpdate(key, _ => { allowed = limit > 0; return (window, 1); }, (_, cur) =>
+        {
+            if (cur.Window != window) { allowed = limit > 0; return (window, 1); }
+            if (cur.Count >= limit) { allowed = false; return cur; }
+            allowed = true; return (window, cur.Count + 1);
+        });
+        if (_w.Count > 20_000) foreach (var kv in _w) if (kv.Value.Window < window - 1) _w.TryRemove(kv.Key, out _);
+        return allowed;
+    }
+}
+
+/// <summary>R3-05: one streaming upload per user and a global bytes-in-flight budget; each accepted upload reserves the full cap.</summary>
+internal sealed class UploadGate(SyllabusOptions options)
+{
+    private readonly object _lock = new();
+    private readonly HashSet<Guid> _users = [];
+    private long _reserved;
+
+    public bool TryEnter(Guid userId)
+    {
+        lock (_lock)
+        {
+            if (_users.Contains(userId) || _reserved + options.UploadMaxBytes > options.BytesInFlight) return false;
+            _users.Add(userId); _reserved += options.UploadMaxBytes; return true;
+        }
+    }
+
+    public void Leave(Guid userId)
+    {
+        lock (_lock) { if (_users.Remove(userId)) _reserved -= options.UploadMaxBytes; }
+    }
+}
+
+/// <summary>Lets DELETE cancel a running extraction in this process (every job writer also re-checks the syllabus exists).</summary>
+internal sealed class JobCancellation(IServiceProvider services)
+{
+    private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _running = new();
+    public void Register(Guid syllabusId, CancellationTokenSource cts) => _running[syllabusId] = cts;
+    public void Unregister(Guid syllabusId) => _running.TryRemove(syllabusId, out _);
+    public void Cancel(Guid syllabusId)
+    {
+        // in-flight AI calls for this scope are cut off and their budget hold released (no-op when no AI module is registered)
+        (services.GetService(typeof(Tether.SharedKernel.Ai.IAiScopeCutoff)) as Tether.SharedKernel.Ai.IAiScopeCutoff)?.Cancel(Tether.SharedKernel.Ai.AiScopeKinds.Syllabus, syllabusId);
+        if (_running.TryGetValue(syllabusId, out var c)) { try { c.Cancel(); } catch (ObjectDisposedException) { } }
+    }
+}
+
+/// <summary>Reads a JSON request body with a streaming cap and the strict serializer settings of API_CONTRACTS_P2 section 2.1.</summary>
+internal static class JsonBody
+{
+    /// <summary>
+    /// AllowDuplicateProperties=false is set on the options used for typed binding itself (not only JsonDocumentOptions): with default options a
+    /// duplicate key in a Dictionary (itemEtags, itemRevisions) is silently collapsed, last one wins. Unmapped members (read-only fields, unknown
+    /// names) are rejected. Nullable annotations are respected so a null for a non-nullable member is a binding error.
+    /// </summary>
+    public static readonly JsonSerializerOptions Strict = new(JsonSerializerDefaults.Web)
+    {
+        AllowDuplicateProperties = false,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        RespectNullableAnnotations = true,
+        PropertyNameCaseInsensitive = false,
+        AllowTrailingCommas = false,
+        ReadCommentHandling = JsonCommentHandling.Disallow,
+        NumberHandling = JsonNumberHandling.Strict,
+        MaxDepth = 16,
+    };
+
+    public static readonly JsonSerializerOptions Out = new(JsonSerializerDefaults.Web)
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.Never,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Default,
+    };
+
+    public enum Failure { None, TooLarge, Unsupported, Invalid }
+
+    /// <summary>Reads at most <paramref name="cap"/> bytes (counted while reading; Content-Length is never trusted).</summary>
+    public static async Task<(byte[]? Bytes, Failure Failure)> ReadBytesAsync(HttpContext http, int cap, CancellationToken ct)
+    {
+        var ct0 = http.Request.ContentType;
+        if (ct0 is null || !ct0.StartsWith("application/json", StringComparison.OrdinalIgnoreCase)) return (null, Failure.Unsupported);
+        if (http.Request.ContentLength is { } cl && cl > cap) return (null, Failure.TooLarge);
+        using var ms = new MemoryStream();
+        var buffer = new byte[8192];
+        try
+        {
+            int n;
+            while ((n = await http.Request.Body.ReadAsync(buffer, ct)) > 0)
+            {
+                if (ms.Length + n > cap) return (null, Failure.TooLarge);
+                ms.Write(buffer, 0, n);
+            }
+        }
+        catch (BadHttpRequestException b) when (b.StatusCode == 413) { return (null, Failure.TooLarge); }
+        return (ms.ToArray(), Failure.None);
+    }
+
+    /// <summary>Typed binding. EVERY decoding or binding failure (lone surrogate, invalid UTF-8, CESU-8, wrong type, unknown or duplicate member) is Invalid, never an exception.</summary>
+    public static bool TryBind<T>(byte[] body, out T? value) where T : class
+    {
+        value = null;
+        if (body.Length == 0) return false;
+        try { value = JsonSerializer.Deserialize<T>(body, Strict); return value is not null; }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or DecoderFallbackException or ArgumentException or FormatException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Merge-patch / map style binding of a flat object: member name to raw JSON element (duplicates rejected).</summary>
+    public static bool TryBindMembers(byte[] body, out Dictionary<string, JsonElement>? members)
+    {
+        members = null;
+        if (!TryBind<Dictionary<string, JsonElement>>(body, out var m) || m is null) return false;
+        members = m;
+        return true;
+    }
+}
