@@ -6,7 +6,7 @@ import { ConsentStart } from "../ConsentStart";
 import { createHarnessRuntime, type HarnessControls, type HarnessRuntimeOptions } from "../harnessRuntime";
 import { MicBlocked } from "../MicBlocked";
 import { FakeMicSource, FakeMicTrack } from "../micSource";
-import type { LectureBackend } from "../ports";
+import type { LectureAi, LectureBackend } from "../ports";
 import { StartFlow } from "../StartFlow";
 
 const SID = "ses_harness";
@@ -52,6 +52,29 @@ const fakeBackend = (): LectureBackend => ({
     return { ok: true, runtime };
   },
 });
+
+/** Deterministic stand-in for the AI routes (no network). Text is labelled as a demo by source: "mock". */
+const fakeAi: LectureAi = {
+  getSummary: async () => null,
+  startQuickRecap: async (windowMinutes) => ({
+    catchUpId: "cu_harness",
+    windowMinutes,
+    kind: "Ai",
+    aiState: "Ready",
+    source: "mock",
+    text: "Most recent: the chain rule.",
+    citations: [{ segmentId: "seg_3", startMs: 9000 }],
+    coveredFromMs: 0,
+    coveredToMs: 9900,
+    nowDiscussing: { text: "The chain rule, right after the power rule.", basis: "lecture", citations: [{ segmentId: "seg_3", startMs: 9000 }] },
+    shortCatchUp: [
+      { text: "The derivative of x squared is two x.", basis: "lecture", citations: [{ segmentId: "seg_1", startMs: 1000 }] },
+      { text: "Power rule: bring the exponent down.", basis: "lecture", citations: [{ segmentId: "seg_2", startMs: 2000 }] },
+    ],
+    gaps: ["Audio was not available from 00:05 to 00:08."],
+  }),
+  getCatchUp: async () => null,
+};
 
 export const FIXTURES: Record<string, Spec> = {
   "consent": {
@@ -106,6 +129,8 @@ export const FIXTURES: Record<string, Spec> = {
     live: {
       events: lines(),
       track: "live",
+      // The real runtime always has the AI routes (realRuntime.ts); without them this fixture hid Quick recap entirely.
+      rt: { ai: fakeAi },
       script: [
         b.partialEvent(SID, 4, 1, "so now the chain"),
         b.finalEvent(SID, "7", 4, "So now the chain rule: outer derivative times inner derivative.", 12000),
@@ -113,6 +138,11 @@ export const FIXTURES: Record<string, Spec> = {
         b.correctionEvent(SID, "8", 4, 2, "So now the chain rule: outer derivative times the inner derivative."),
       ],
     },
+  },
+  "live-quick-recap": {
+    title: "Live view with Quick recap (deterministic fake AI, demo-labelled)",
+    ux: "4",
+    live: { events: lines(), track: "live", rt: { ai: fakeAi } },
   },
   "live-redteam": {
     title: "Live view with red-team text (must render inert)",

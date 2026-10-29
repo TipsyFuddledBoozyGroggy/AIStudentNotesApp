@@ -23,7 +23,7 @@ export interface HarnessRuntimeOptions {
   failActions?: { pause?: boolean; resume?: boolean; stop?: boolean };
   /** When true, REST succeeds but the matching session.state event is never delivered (mismatch tests). */
   swallowStateEvents?: boolean;
-  /** AI routes stand-in. Absent: no Lost Track panel. */
+  /** AI routes stand-in. Absent: no Quick recap panel. */
   ai?: LectureAi;
 }
 

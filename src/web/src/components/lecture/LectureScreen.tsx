@@ -18,12 +18,14 @@ import {
   type PausedVariant,
 } from "./Notices";
 import type { LectureRuntime } from "./ports";
+import { usePrefs } from "../PrefsProvider";
 import { useLectureSettings, type LectureSettings } from "./settings";
 import { StatusBar } from "./StatusBar";
-import { focusLostTrack, LostTrackPanel } from "./LostTrackPanel";
+import { focusQuickRecap, QuickRecapPanel } from "./QuickRecapPanel";
 import { TldrPanel } from "./TldrPanel";
-import { Transcript, type TranscriptHandle } from "./Transcript";
+import { matchesQuery, Transcript, type TranscriptHandle } from "./Transcript";
 import { useLectureSession } from "./useLectureSession";
+import { useWide } from "./useWide";
 
 export interface LectureScreenProps {
   runtime: LectureRuntime;
@@ -35,11 +37,22 @@ export interface LectureScreenProps {
   justStarted?: boolean;
   /** Fixed settings (tests/harness); otherwise read from localStorage. */
   settingsOverride?: Partial<LectureSettings>;
+  /** Course name for the page heading (the only h1 on the live screen). */
+  courseName?: string;
 }
 
 /** Live view and every state that replaces or decorates it (Paused, Stopped, mismatch, offline). */
+const SKIP =
+  "sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-control focus:border-2 focus:border-accent focus:bg-surface focus:px-4 focus:py-3 focus:font-semibold focus:text-accent";
+
 export function LectureScreen(props: LectureScreenProps) {
   const [settings, updateSettings] = useLectureSettings(props.settingsOverride);
+  const { prefs, update: updatePrefs } = usePrefs();
+  const reduceMotion = settings.reduceMotion || prefs.reduceMotion;
+  // Focus mode (section 4): student-chosen, remembered, never automatic. Removes chrome, never lowers text contrast.
+  const focus = prefs.focusMode;
+  const wide = useWide();
+  const tldrInline = !wide || focus;
   const s = useLectureSession({
     runtime: props.runtime,
     track: props.track,
@@ -50,6 +63,7 @@ export function LectureScreen(props: LectureScreenProps) {
     justStarted: props.justStarted,
   });
   const [stopOpen, setStopOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const transcript = useRef<TranscriptHandle>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const pauseRef = useRef<HTMLButtonElement>(null);
@@ -100,9 +114,9 @@ export function LectureScreen(props: LectureScreenProps) {
       } else if (e.code === "KeyJ") {
         e.preventDefault();
         transcript.current?.jumpToLive();
-      } else if (e.code === "KeyL" && props.runtime.ai) {
+      } else if (e.code === "KeyR" && props.runtime.ai) {
         e.preventDefault();
-        focusLostTrack();
+        focusQuickRecap();
       }
     };
     window.addEventListener("keydown", h);
@@ -114,6 +128,16 @@ export function LectureScreen(props: LectureScreenProps) {
   const offline = s.fatal === null && s.connection === "disconnected" && serverState !== "Stopped" && serverState !== "Failed" && serverState !== null;
   const stopped = kind === "Stopped";
   const variant: PausedVariant = s.micLost ? "mic-stopped" : s.reason === "auto_pause_no_audio" ? "auto" : "user";
+
+  const tldr = (
+    <TldrPanel
+      summary={s.lecture.summary}
+      status={s.lecture.summaryStatus}
+      collapsible={tldrInline}
+      live={!stopped && s.fatal === null}
+      onCite={(id) => transcript.current?.focusSegment(id)}
+    />
+  );
 
   let notice: React.ReactNode = null;
   if (s.fatal) {
@@ -138,23 +162,23 @@ export function LectureScreen(props: LectureScreenProps) {
   }
 
   return (
-    <div data-lecture-root data-reduce-motion={settings.reduceMotion ? "true" : "false"} className="lecture-root -mx-4">
-      <a href="#lecture-transcript" className="sr-only focus:not-sr-only focus:absolute focus:z-30 focus:bg-white focus:p-2">
+    <div data-lecture-root data-reduce-motion={reduceMotion ? "true" : "false"} className="lecture-root pb-8">
+      <a href="#lecture-transcript" className={SKIP}>
         {T.skipToTranscript}
       </a>
       {props.runtime.ai ? (
         <a
-          href="#lecture-lost-track"
-          className="sr-only focus:not-sr-only focus:absolute focus:z-30 focus:bg-white focus:p-2"
+          href="#lecture-quick-recap"
+          className={SKIP}
           onClick={(e) => {
             e.preventDefault();
-            focusLostTrack();
+            focusQuickRecap();
           }}
         >
-          {T.skipToLostTrack}
+          {T.skipToQuickRecap}
         </a>
       ) : null}
-      <a href="#lecture-tldr" className="sr-only focus:not-sr-only focus:absolute focus:z-30 focus:bg-white focus:p-2">
+      <a href="#lecture-tldr" className={SKIP}>
         {T.skipToTldr}
       </a>
       <StatusBar
@@ -169,32 +193,91 @@ export function LectureScreen(props: LectureScreenProps) {
         headingRef={headingRef}
         pauseRef={pauseRef}
         settings={<SettingsPanel settings={settings} onChange={updateSettings} />}
+        focusToggle={
+          stopped ? null : (
+          <button
+            type="button"
+            aria-pressed={focus}
+            className={`btn-secondary hidden min-h-[48px] lg:inline-flex ${focus ? "border-accent bg-accent-subtle text-accent" : ""}`}
+            onClick={() => updatePrefs({ focusMode: !focus })}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              {focus ? (
+                <path d="M3 8.5 6.5 12 13 4.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              ) : (
+                <rect x="4" y="2.5" width="8" height="11" rx="1" fill="none" stroke="currentColor" strokeWidth="1.8" />
+              )}
+            </svg>
+            Focus
+          </button>
+          )
+        }
+        // Review S2: the Stopped/Failed/fatal panels already offer "Back to course"; a second "Leave" exit was removed.
+        showSeconds={prefs.showSeconds}
       />
+      <h1 className="sr-only">{props.courseName ? `Lecture: ${props.courseName}` : "Lecture"}</h1>
       {s.actionError ? (
-        <p data-testid="action-error" className="mx-3 mt-3 rounded border-2 border-slate-700 bg-white p-3">
-          {s.actionError}
-        </p>
+        <div className="mx-auto mt-3 max-w-content px-4">
+          <p data-testid="action-error" className="panel panel-notice">
+            {s.actionError}
+          </p>
+        </div>
       ) : null}
-      {props.runtime.demoSource ? <DemoNotice /> : null}
-      {s.audioSkippedMs > 0 ? <AudioSkippedNote ms={s.audioSkippedMs} /> : null}
+      {/* Safety state first: directly under the lecture bar (design-direction 5.4), then informational notes. */}
       {offline ? <OfflineBanner stopQueued={s.stopQueued} /> : null}
       {notice}
-      <div className={`mt-3 grid gap-4 px-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:pb-0 ${props.runtime.ai ? "pb-32" : ""}`}>
-        <Transcript
-          segments={s.segments}
-          lecture={s.lecture}
-          pauses={s.pauses}
-          announceLines={settings.announceLines}
-          handleRef={transcript}
-        />
+      {props.runtime.demoSource ? <DemoNotice compact={notice !== null || offline} /> : null}
+      {s.audioSkippedMs > 0 ? <AudioSkippedNote ms={s.audioSkippedMs} /> : null}
+      <div
+        data-layout={focus ? "focus" : "standard"}
+        className={`mx-auto mt-4 grid gap-6 px-4 ${focus ? "max-w-[52rem]" : "max-w-content lg:grid-cols-[minmax(0,1fr)_360px]"} ${
+          props.runtime.ai ? (focus ? "pb-44" : "pb-44 lg:pb-0") : ""
+        }`}
+      >
         <div className="min-w-0 space-y-4">
-          <LostTrackPanel
+          {tldrInline ? tldr : null}
+          {stopped ? (
+            // Review tools (design-direction slice 8, narrow): only once the lecture has ended, so nothing moves during it.
+            <section aria-label="Review this lecture" className="flex flex-wrap items-end gap-3">
+              <div className="min-w-0 flex-1 basis-60">
+                <label htmlFor="lecture-search" className="label">
+                  Search this lecture
+                </label>
+                <input id="lecture-search" type="search" className="field" value={query} autoComplete="off" aria-describedby="lecture-search-count" onChange={(e) => setQuery(e.target.value)} />
+                <p id="lecture-search-count" className="help mt-1">
+                  {query.trim()
+                    ? `${s.segments.filter((x) => matchesQuery(x.text, query)).length} of ${s.segments.length} lines match.`
+                    : `${s.segments.length} ${s.segments.length === 1 ? "line" : "lines"}.`}
+                </p>
+              </div>
+              <div className="pb-7">
+                <button type="button" className="btn-secondary" aria-disabled="true" aria-describedby="export-reason">
+                  Export to Google Docs
+                </button>
+                <p id="export-reason" className="help mt-1 max-w-[18rem]">
+                  Not built yet. Nothing is sent anywhere. When it exists it will ask you first.
+                </p>
+              </div>
+            </section>
+          ) : null}
+          <Transcript
+            query={stopped ? query : ""}
+            segments={s.segments}
+            lecture={s.lecture}
+            pauses={s.pauses}
+            announceLines={settings.announceLines}
+            handleRef={transcript}
+          />
+        </div>
+        <div className="min-w-0 space-y-4">
+          <QuickRecapPanel
             ai={props.runtime.ai}
+            docked={focus}
             hubCatchUps={s.lecture.catchUps}
             onCite={(id) => transcript.current?.focusSegment(id)}
             onDone={() => document.getElementById("lecture-transcript")?.focus()}
           />
-          <TldrPanel summary={s.lecture.summary} status={s.lecture.summaryStatus} onCite={(id) => transcript.current?.focusSegment(id)} />
+          {tldrInline ? null : tldr}
         </div>
       </div>
       <StopDialog

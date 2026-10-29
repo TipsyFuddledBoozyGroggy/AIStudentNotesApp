@@ -4,15 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "@/lib/api/errors";
 import type { CatchUpPayload, WindowMinutes } from "@/lib/lecture";
 import { useAnnouncer } from "./Announcer";
-import { LOST_TRACK_COPY as C } from "./copy";
+import { QUICK_RECAP_COPY as C } from "./copy";
 import type { LectureAi } from "./ports";
 
 export const CATCHUP_POLL_MS = 2000;
 export const CATCHUP_POLL_MAX = 10; // about 20 s, then the extractive view simply stays
 
-export type LostTrackErrorKind = keyof typeof C.errors;
+export type QuickRecapErrorKind = keyof typeof C.errors;
 
-export function lostTrackErrorKind(e: unknown): LostTrackErrorKind {
+export function quickRecapErrorKind(e: unknown): QuickRecapErrorKind {
   if (e instanceof ApiError) {
     if (e.isNetwork) return "network";
     if (e.status === 409) return "invalid_state";
@@ -31,25 +31,25 @@ export function mergeCatchUp(prev: CatchUpPayload | null, next: CatchUpPayload):
 
 export type RecapWait = "none" | "waiting" | "slow";
 
-export interface UseLostTrackOptions {
+export interface UseQuickRecapOptions {
   ai: LectureAi | undefined;
   /** catchup.ready events already reduced from the hub. */
   hubCatchUps: Record<string, CatchUpPayload>;
 }
 
 /**
- * I Lost Track: one press = one POST with a fresh Idempotency-Key. The extractive answer comes back at once; if the
+ * Quick recap: one press = one POST with a fresh Idempotency-Key. The extractive answer comes back at once; if the
  * AI version is pending, the hub's catchup.ready delivers it and a short bounded poll is the fallback. There is no
  * automatic retry of a failed press: the student presses again when ready.
  */
-export function useLostTrack({ ai, hubCatchUps }: UseLostTrackOptions) {
+export function useQuickRecap({ ai, hubCatchUps }: UseQuickRecapOptions) {
   const announcer = useAnnouncer();
   const announcerRef = useRef(announcer);
   announcerRef.current = announcer;
 
   const [starting, setStarting] = useState<WindowMinutes | null>(null);
   const [result, setResult] = useState<CatchUpPayload | null>(null);
-  const [error, setError] = useState<LostTrackErrorKind | null>(null);
+  const [error, setError] = useState<QuickRecapErrorKind | null>(null);
   const [pollStopped, setPollStopped] = useState(false);
   const [focusResult, setFocusResult] = useState(false);
 
@@ -86,13 +86,13 @@ export function useLostTrack({ ai, hubCatchUps }: UseLostTrackOptions) {
       if (keyRef.current?.window !== windowMinutes) keyRef.current = { window: windowMinutes, key: crypto.randomUUID() };
       const key = keyRef.current.key;
       try {
-        const payload = await ai.startLostTrack(windowMinutes, key);
+        const payload = await ai.startQuickRecap(windowMinutes, key);
         keyRef.current = null;
         if (!mounted.current) return;
         setResult(payload);
         setFocusResult(true); // focus moves to the result heading: that is the announcement (no extra status)
       } catch (e) {
-        const kind = lostTrackErrorKind(e);
+        const kind = quickRecapErrorKind(e);
         if (kind !== "network") keyRef.current = null;
         if (!mounted.current) return;
         setError(kind);

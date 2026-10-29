@@ -35,10 +35,10 @@ function load(): LectureSettings {
   }
 }
 
-const WINDOW_KEY = "tether.lecture.lostTrackWindow.v1";
+const WINDOW_KEY = "tether.lecture.quickRecapWindow.v1";
 export type UsualWindow = 2 | 5 | 10;
 
-/** Remembered I Lost Track window (PRD M2-S5 AC1). Storage may be missing or blocked: default 5. */
+/** Remembered Quick recap window (PRD M2-S5 AC1). Storage may be missing or blocked: default 5. */
 export function loadUsualWindow(): UsualWindow {
   try {
     const v = Number(window.localStorage.getItem(WINDOW_KEY));

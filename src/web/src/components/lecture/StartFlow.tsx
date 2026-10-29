@@ -94,6 +94,8 @@ function StartFlowInner({ courseId, courseName, backend, mic, onBackToCourse, at
         />
       );
     case "live":
-      return <LectureScreen runtime={phase.runtime} track={phase.track} mic={mic} onBackToCourse={onBackToCourse} justStarted />;
+      return (
+        <LectureScreen runtime={phase.runtime} track={phase.track} mic={mic} onBackToCourse={onBackToCourse} courseName={courseName} justStarted />
+      );
   }
 }

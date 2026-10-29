@@ -40,6 +40,8 @@ export function CourseForm({ onSubmit, onCreated, existingNames = [], draftDelay
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const loaded = useRef(false);
+  /** Set once the course is saved: a debounced autosave still pending must not re-create the cleared draft. */
+  const saved = useRef(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const [failCount, setFailCount] = useState(0);
@@ -59,6 +61,7 @@ export function CourseForm({ onSubmit, onCreated, existingNames = [], draftDelay
   useEffect(() => {
     if (!loaded.current) return;
     const t = window.setTimeout(() => {
+      if (saved.current) return;
       try {
         const empty = !draft.name && !draft.code && !draft.term && !draft.instructor;
         if (empty) window.localStorage.removeItem(DRAFT_KEY);
@@ -99,6 +102,7 @@ export function CourseForm({ onSubmit, onCreated, existingNames = [], draftDelay
         term: opt(draft.term),
         instructor: opt(draft.instructor),
       });
+      saved.current = true;
       try {
         window.localStorage.removeItem(DRAFT_KEY);
       } catch {
@@ -117,19 +121,22 @@ export function CourseForm({ onSubmit, onCreated, existingNames = [], draftDelay
   }
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} noValidate aria-labelledby="form-heading" className="space-y-5">
-      <h1 id="form-heading" className="text-2xl font-bold">
-        Add a course
-      </h1>
+    <form onSubmit={(e) => void handleSubmit(e)} noValidate aria-labelledby="form-heading" className="card max-w-prose space-y-6">
+      <div>
+        <h1 id="form-heading" className="display text-3xl">
+          Add a course
+        </h1>
+        <p className="mt-1 text-muted">Only the name is needed. Your answers are saved on this device as you type.</p>
+      </div>
 
       {failCount > 0 && nameError && (
-        <div ref={summaryRef} tabIndex={-1} role="alert" className="rounded-lg border-2 border-red-800 bg-red-50 p-4">
-          <h2 className="font-bold text-red-900">One thing to fix</h2>
+        <div ref={summaryRef} tabIndex={-1} role="alert" className="panel panel-danger">
+          <h2 className="font-bold text-danger">One thing to fix</h2>
           <ul className="mt-1 list-disc pl-5">
             <li>
               <a
                 href="#course-name"
-                className="text-red-900 underline"
+                className="text-danger underline"
                 onClick={(ev) => {
                   ev.preventDefault();
                   nameRef.current?.focus();
@@ -142,11 +149,15 @@ export function CourseForm({ onSubmit, onCreated, existingNames = [], draftDelay
         </div>
       )}
 
-      {restored && <p role="status">Welcome back. We restored your draft.</p>}
+      {restored && (
+        <p role="status" className="panel panel-neutral text-sm">
+          Welcome back. We restored your draft.
+        </p>
+      )}
 
       <div>
-        <label htmlFor="course-name" className="font-semibold">
-          Course name <span aria-hidden="true">(required)</span>
+        <label htmlFor="course-name" className="label">
+          Course name <span aria-hidden="true" className="font-normal text-muted">(required)</span>
         </label>
         <input
           id="course-name"
@@ -163,12 +174,12 @@ export function CourseForm({ onSubmit, onCreated, existingNames = [], draftDelay
           autoComplete="off"
         />
         {nameError && (
-          <p id="course-name-error" className="mt-1 font-medium text-red-900">
+          <p id="course-name-error" className="mt-2 font-semibold text-danger">
             {nameError}
           </p>
         )}
         {duplicate && (
-          <p id="course-name-dup" className="mt-1 text-slate-800">
+          <p id="course-name-dup" className="mt-2 text-sm text-muted">
             You already have a course with this name. You can still save it.
           </p>
         )}
@@ -177,32 +188,32 @@ export function CourseForm({ onSubmit, onCreated, existingNames = [], draftDelay
       <div>
         <button
           type="button"
-          className="font-medium text-blue-900 underline"
+          className="btn-quiet -ml-3"
           aria-expanded={showOptions}
           aria-controls="course-options"
           onClick={() => setShowOptions((s) => !s)}
         >
           {showOptions ? "Hide options" : "Show options"}
         </button>
-        <p className="text-sm text-slate-700">Optional. You can add these later.</p>
-        <div id="course-options" hidden={!showOptions} className="mt-3 space-y-4">
+        <p className="help">Code, term and instructor. Optional; you can add these later.</p>
+        <div id="course-options" hidden={!showOptions} className="mt-4 space-y-4 border-l-2 border-hair pl-4">
           <div>
-            <label htmlFor="course-code" className="font-semibold">Course code</label>
+            <label htmlFor="course-code" className="label">Course code</label>
             <input id="course-code" className="field" value={draft.code} onChange={update("code")} autoComplete="off" />
           </div>
           <div>
-            <label htmlFor="course-term" className="font-semibold">Term</label>
+            <label htmlFor="course-term" className="label">Term</label>
             <input id="course-term" className="field" value={draft.term} onChange={update("term")} autoComplete="off" />
           </div>
           <div>
-            <label htmlFor="course-instructor" className="font-semibold">Instructor</label>
+            <label htmlFor="course-instructor" className="label">Instructor</label>
             <input id="course-instructor" className="field" value={draft.instructor} onChange={update("instructor")} autoComplete="off" />
           </div>
         </div>
       </div>
 
       {saveError && (
-        <div role="alert" className="rounded-lg border-2 border-amber-800 bg-amber-50 p-4">
+        <div role="alert" className="panel panel-notice">
           {saveError}
         </div>
       )}
@@ -211,7 +222,7 @@ export function CourseForm({ onSubmit, onCreated, existingNames = [], draftDelay
         <button type="submit" className="btn-primary" disabled={saving} aria-disabled={saving}>
           {saving ? "Saving..." : saveError ? "Try again" : "Save course"}
         </button>
-        <Link href="/" className="btn-secondary">
+        <Link href="/" className="btn-quiet">
           Cancel
         </Link>
       </div>

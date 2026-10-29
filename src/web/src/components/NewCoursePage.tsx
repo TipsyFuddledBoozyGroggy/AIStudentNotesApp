@@ -19,7 +19,12 @@ export function NewCoursePage() {
       .catch(() => undefined); // duplicate warning is best-effort
   }, [status]);
 
-  if (status !== "authenticated") return <p role="status">Loading...</p>;
+  if (status !== "authenticated")
+    return (
+      <p role="status" className="text-muted">
+        Getting ready.
+      </p>
+    );
   return (
     <CourseForm
       existingNames={names}

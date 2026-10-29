@@ -26,10 +26,10 @@ export interface ApiClient {
   /** Latest summary revision (or a specific one). 404 `not_found` means no summary yet. Raw body; the caller parses it. */
   getSummary(id: string, revision?: number): Promise<unknown>;
   /**
-   * I Lost Track. One Idempotency-Key per press (reused only to retry the same press after a network failure).
+   * Quick recap. One Idempotency-Key per press (reused only to retry the same press after a network failure).
    * Errors: 400 validation_failed, 404, 409 invalid_state (not Active/Paused), 429 rate_limited. Raw body.
    */
-  postLostTrack(id: string, windowMinutes: 2 | 5 | 10, idempotencyKey: string): Promise<unknown>;
+  postQuickRecap(id: string, windowMinutes: 2 | 5 | 10, idempotencyKey: string): Promise<unknown>;
   /** Poll fallback for catchup.ready. 404 when unknown. Raw body. */
   getCatchUp(id: string, catchUpId: string): Promise<unknown>;
 }
@@ -68,7 +68,8 @@ export function createApiClient({ baseUrl, fetchImpl }: ApiClientOptions): ApiCl
       throw new ApiError(
         res.status,
         problem?.code ?? "http_error",
-        problem?.detail ?? problem?.title ?? `Request failed (${res.status}).`,
+        // Never a status code: this text can reach the UI (language guide A26).
+        problem?.detail ?? problem?.title ?? "That did not work. Nothing was changed.",
         problem,
       );
     }
@@ -126,8 +127,8 @@ export function createApiClient({ baseUrl, fetchImpl }: ApiClientOptions): ApiCl
       const q = revision === undefined ? "" : `?revision=${revision}`;
       return (await request(`/sessions/${encodeURIComponent(id)}/summary${q}`)).json();
     },
-    async postLostTrack(id, windowMinutes, idempotencyKey) {
-      const res = await request(`/sessions/${encodeURIComponent(id)}/lost-track`, {
+    async postQuickRecap(id, windowMinutes, idempotencyKey) {
+      const res = await request(`/sessions/${encodeURIComponent(id)}/quick-recap`, {
         method: "POST",
         headers: { "Idempotency-Key": idempotencyKey },
         body: JSON.stringify({ windowMinutes }),

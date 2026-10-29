@@ -39,13 +39,21 @@ export function SignInView() {
   }
 
   return (
-    <form onSubmit={(e) => void submit(e)} noValidate className="card max-w-md space-y-4" aria-labelledby="signin-heading">
-      <h1 id="signin-heading" className="text-2xl font-bold">
-        Sign in
-      </h1>
-      <p className="text-slate-700">Development sign-in. No password needed. Real Google sign-in comes later.</p>
+    <form
+      onSubmit={(e) => void submit(e)}
+      noValidate
+      className="card mx-auto mt-4 max-w-md space-y-5 sm:mt-12"
+      aria-labelledby="signin-heading"
+    >
       <div>
-        <label htmlFor="email" className="font-semibold">
+        <p className="eyebrow">Tether</p>
+        <h1 id="signin-heading" className="display mt-1 text-3xl">
+          Sign in
+        </h1>
+      </div>
+      <p className="text-muted">This is a development sign-in. Enter any school-style email. Google sign-in arrives later.</p>
+      <div>
+        <label htmlFor="email" className="label">
           Email
         </label>
         <input
@@ -59,12 +67,16 @@ export function SignInView() {
           aria-describedby={error ? "email-error" : undefined}
         />
         {error && (
-          <p id="email-error" role="alert" className="mt-1 font-medium text-red-900">
+          <p id="email-error" role="alert" className="mt-2 flex items-start gap-2 font-semibold text-danger">
+            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false" className="mt-0.5 shrink-0">
+              <circle cx="9" cy="9" r="7.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+              <path d="M9 4.8v5M9 12.4v.6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
             {error}
           </p>
         )}
       </div>
-      <button type="submit" className="btn-primary" disabled={busy}>
+      <button type="submit" className="btn-primary w-full sm:w-auto" disabled={busy}>
         {busy ? "Signing in..." : "Sign in"}
       </button>
     </form>

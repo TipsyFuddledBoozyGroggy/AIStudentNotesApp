@@ -53,16 +53,17 @@ export function ConsentStart({ courseName, onStart, onCancel, attestation, error
   };
 
   return (
-    <section aria-labelledby="consent-h1" className="mx-auto max-w-[640px]">
-      <h1 id="consent-h1" ref={headingRef} tabIndex={-1} className="text-2xl font-bold">
+    <section aria-labelledby="consent-h1" className="card mx-auto max-w-[640px]">
+      <p className="eyebrow">Before you start</p>
+      <h1 id="consent-h1" ref={headingRef} tabIndex={-1} className="display mt-1 break-words text-3xl">
         <PlainText value={C.heading(courseName)} />
       </h1>
-      <p className="mt-3">
-        <span className="mr-2 inline-block rounded border-2 border-amber-800 px-2 text-sm font-bold text-amber-900">{C.draftTag}</span>
+      <p className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted">
+        <span className="tag tag-warning">{C.draftTag}</span>
         {C.draftNotice}
       </p>
-      <p className="mt-3">{C.intro}</p>
-      <ul className="mt-3 list-disc space-y-1 pl-6">
+      <p className="mt-5 text-lg">{C.intro}</p>
+      <ul className="mt-3 list-disc space-y-2 pl-6 marker:text-muted">
         {C.bullets.map((b) => (
           <li key={b}>{b}</li>
         ))}
@@ -70,8 +71,10 @@ export function ConsentStart({ courseName, onStart, onCancel, attestation, error
       </ul>
 
       <details className="mt-4">
-        <summary className="min-h-[44px] cursor-pointer py-2 font-semibold underline">{C.whatDoesThisMean}</summary>
-        <p className="mt-2">{C.whatDoesThisMeanBody}</p>
+        <summary className="inline-flex min-h-[44px] cursor-pointer items-center font-semibold text-accent underline underline-offset-[0.2em]">
+          {C.whatDoesThisMean}
+        </summary>
+        <p className="mt-1 text-muted">{C.whatDoesThisMeanBody}</p>
       </details>
 
       {attested ? (
@@ -79,7 +82,7 @@ export function ConsentStart({ courseName, onStart, onCancel, attestation, error
           <PlainText value={C.attested(courseName, attestation?.dateLabel ?? "")} />{" "}
           <button
             type="button"
-            className="min-h-[44px] underline"
+            className="btn-quiet btn-sm"
             onClick={() => {
               setAttested(false);
               setChecked(false);
@@ -90,12 +93,12 @@ export function ConsentStart({ courseName, onStart, onCancel, attestation, error
         </p>
       ) : null}
 
-      <div className="mt-4 flex items-start gap-3">
+      <div className="mt-5 flex items-start gap-3 rounded-control border-2 border-line bg-surface p-4">
         <input
           ref={checkRef}
           id="consent-check"
           type="checkbox"
-          className="mt-1 h-6 w-6 shrink-0"
+          className="mt-0.5 h-6 w-6 shrink-0 accent-[var(--c-accent)]"
           checked={checked}
           onChange={(e) => setChecked(e.target.checked)}
         />
@@ -105,10 +108,10 @@ export function ConsentStart({ courseName, onStart, onCancel, attestation, error
       </div>
 
       {error ? (
-        <p id={errId} className="mt-3 rounded border-2 border-slate-600 bg-white p-3">
+        <p id={errId} className="panel panel-notice mt-3">
           {C.errors[error]}{" "}
           {error === "invalid_state" && runningLectureHref ? (
-            <a className="underline" href={runningLectureHref}>
+            <a className="link" href={runningLectureHref}>
               Open the running lecture
             </a>
           ) : null}
@@ -116,22 +119,22 @@ export function ConsentStart({ courseName, onStart, onCancel, attestation, error
       ) : null}
 
       {!checked ? (
-        <p id={hintId} ref={hintRef} tabIndex={-1} className="mt-3 text-sm">
+        <p id={hintId} ref={hintRef} tabIndex={-1} className="mt-3 text-sm text-muted">
           {C.startHint}
         </p>
       ) : null}
 
-      <div className="mt-4 flex flex-wrap gap-3">
+      <div className="mt-5 flex flex-wrap gap-3">
         <button
           type="button"
-          className="btn-primary min-h-[48px] min-w-[48px]"
+          className="btn-primary min-h-[48px] min-w-[48px] px-6"
           aria-disabled={!checked || busy ? true : undefined}
           aria-describedby={!checked ? hintId : undefined}
           onClick={press}
         >
           {busy ? C.starting : C.start}
         </button>
-        <button type="button" className="btn-secondary min-h-[48px]" onClick={onCancel}>
+        <button type="button" className="btn-quiet min-h-[48px]" onClick={onCancel}>
           {C.notNow}
         </button>
       </div>

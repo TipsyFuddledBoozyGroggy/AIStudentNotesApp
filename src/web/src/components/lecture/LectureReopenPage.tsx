@@ -41,11 +41,16 @@ export function LectureReopenPage() {
   const session = state.s === "ready" ? state.session : null;
   const runtime = useMemo(() => (session ? createRealRuntime({ api }, session) : null), [session]);
 
-  if (state.s === "loading") return <p role="status">Loading...</p>;
+  if (state.s === "loading")
+    return (
+      <p role="status" className="text-muted">
+        Getting this lecture.
+      </p>
+    );
   if (!session || !runtime) {
     return (
-      <div className="space-y-3">
-        <h1 className="text-2xl font-bold">{state.s === "notfound" ? "We can't find that lecture" : "We couldn't load this lecture"}</h1>
+      <div className="max-w-prose space-y-4">
+        <h1 className="display text-3xl">{state.s === "notfound" ? "We can't find that lecture" : "We couldn't load this lecture"}</h1>
         <Link href="/" className="btn-primary">
           Back to dashboard
         </Link>
@@ -54,7 +59,13 @@ export function LectureReopenPage() {
   }
   return (
     <AnnouncerProvider>
-      <LectureScreen runtime={runtime} track={null} mic={mic} onBackToCourse={() => router.push(`/courses/${encodeURIComponent(session.courseId)}`)} />
+      <LectureScreen
+        runtime={runtime}
+        track={null}
+        mic={mic}
+        courseName={session.title ?? undefined}
+        onBackToCourse={() => router.push(`/courses/${encodeURIComponent(session.courseId)}`)}
+      />
     </AnnouncerProvider>
   );
 }

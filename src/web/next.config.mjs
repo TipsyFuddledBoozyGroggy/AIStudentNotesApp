@@ -5,6 +5,8 @@ const enableHarness = process.env.NODE_ENV !== "production" || process.env.TETHE
 const nextConfig = {
   pageExtensions: enableHarness ? ["tsx", "ts", "jsx", "js", "dev.tsx"] : ["tsx", "ts", "jsx", "js"],
   reactStrictMode: true,
+  // The floating dev "N" badge overlaps content in demos and screenshots; build/runtime error overlays still show.
+  devIndicators: false,
   webpack(config, { isServer }) {
     // msw/browser is exported with "node": null; it is only ever loaded in the browser.
     if (isServer) config.resolve.alias["msw/browser"] = false;

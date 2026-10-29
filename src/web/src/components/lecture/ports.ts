@@ -20,14 +20,14 @@ export interface SessionActions {
 }
 
 /**
- * REST AI surface (summary, I Lost Track, catch-up poll). Failures reject with ApiError (status 0 = network).
+ * REST AI surface (summary, Quick recap, catch-up poll). Failures reject with ApiError (status 0 = network).
  * Results are already parsed and plain-data only; the UI renders them as text nodes.
  */
 export interface LectureAi {
   /** Latest summary revision; null when there is none yet (404). */
   getSummary(): Promise<SummaryRevisionPayload | null>;
   /** One press = one idempotencyKey. */
-  startLostTrack(windowMinutes: WindowMinutes, idempotencyKey: string): Promise<CatchUpPayload>;
+  startQuickRecap(windowMinutes: WindowMinutes, idempotencyKey: string): Promise<CatchUpPayload>;
   /** null when the catch-up is unknown (404). */
   getCatchUp(catchUpId: string): Promise<CatchUpPayload | null>;
 }
@@ -36,7 +36,7 @@ export interface LectureRuntime {
   sessionId: string;
   transport: LectureTransport;
   actions: SessionActions;
-  /** AI routes. Absent: the Lost Track panel is not shown and no summary is fetched over REST. */
+  /** AI routes. Absent: the Quick recap panel is not shown and no summary is fetched over REST. */
   ai?: LectureAi;
   /** True while a replay/mock provider is active (contract section 12.2). */
   demoSource: boolean;

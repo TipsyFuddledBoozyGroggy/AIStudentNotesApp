@@ -26,6 +26,6 @@ export function MockProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  if (!ready) return <p role="status" className="p-6">Loading...</p>;
+  if (!ready) return <p role="status" className="p-6">Getting things ready.</p>;
   return <>{children}</>;
 }

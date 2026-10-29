@@ -16,16 +16,16 @@ describe("AI routes on the API client", () => {
     await expect(api.getSummary("ses_missing")).rejects.toMatchObject({ status: 404 });
   });
 
-  it("POST lost-track sends the Idempotency-Key header and a closed body", async () => {
+  it("POST quick-recap sends the Idempotency-Key header and a closed body", async () => {
     await signIn();
     let seen: { key: string | null; body: unknown } | null = null;
     server.use(
-      http.post(`${base}/sessions/:id/lost-track`, async ({ request }) => {
+      http.post(`${base}/sessions/:id/quick-recap`, async ({ request }) => {
         seen = { key: request.headers.get("Idempotency-Key"), body: await request.json() };
         return HttpResponse.json({ catchUpId: "cu_1", windowMinutes: 2, text: "t", citations: [], kind: "Extractive" });
       }),
     );
-    await api.postLostTrack("ses_1", 2, "key-123");
+    await api.postQuickRecap("ses_1", 2, "key-123");
     expect(seen).toEqual({ key: "key-123", body: { windowMinutes: 2 } });
   });
 
@@ -35,7 +35,7 @@ describe("AI routes on the API client", () => {
     ["ses_missing", 404],
   ])("%s maps to status %i", async (id, status) => {
     await signIn();
-    const err = await api.postLostTrack(id, 5, "k").catch((e) => e);
+    const err = await api.postQuickRecap(id, 5, "k").catch((e) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect((err as ApiError).status).toBe(status);
   });
@@ -46,7 +46,7 @@ describe("createRealAi", () => {
     await signIn();
     const ai = createRealAi(api, "ses_1");
     expect((await ai.getSummary())?.revision).toBe(2);
-    expect((await ai.startLostTrack(5, "k")).aiState).toBe("Pending");
+    expect((await ai.startQuickRecap(5, "k")).aiState).toBe("Pending");
     expect((await ai.getCatchUp("cu_x"))?.kind).toBe("Ai");
     expect(await ai.getCatchUp("cu_missing")).toBeNull();
     expect(await createRealAi(api, "ses_nosummary").getSummary()).toBeNull();
@@ -54,7 +54,7 @@ describe("createRealAi", () => {
 
   it("a malformed body rejects instead of rendering half a payload", async () => {
     await signIn();
-    server.use(http.post(`${base}/sessions/:id/lost-track`, () => HttpResponse.json({ nope: true })));
-    await expect(createRealAi(api, "ses_1").startLostTrack(5, "k")).rejects.toMatchObject({ code: "bad_response" });
+    server.use(http.post(`${base}/sessions/:id/quick-recap`, () => HttpResponse.json({ nope: true })));
+    await expect(createRealAi(api, "ses_1").startQuickRecap(5, "k")).rejects.toMatchObject({ code: "bad_response" });
   });
 });

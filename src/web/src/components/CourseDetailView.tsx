@@ -19,30 +19,36 @@ export function CourseDetailView({ course, justAdded }: Props) {
   const meta = [course.code, course.term, course.instructor].filter(Boolean).join(" · ");
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-3xl space-y-8">
       <div>
-        <h1 ref={headingRef} tabIndex={-1} className="break-words text-2xl font-bold">
+        <Link href="/courses" className="link inline-flex min-h-[44px] items-center gap-1 text-sm no-underline hover:underline">
+          <span aria-hidden="true">&larr;</span> Courses
+        </Link>
+        <h1 ref={headingRef} tabIndex={-1} className="display mt-1 break-words text-3xl">
           {course.name}
         </h1>
-        {meta && <p className="text-slate-700">{meta}</p>}
+        {meta && <p className="mt-1 text-muted">{meta}</p>}
         {justAdded && (
-          <p role="status" className="mt-2 font-medium">
+          <p role="status" className="mt-3 inline-flex items-center gap-2 font-semibold text-success">
+            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+              <path d="M3.5 9.5 7 13l7.5-8" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
             {course.name} added.
           </p>
         )}
       </div>
 
-      <section aria-labelledby="lecture-heading" className="card">
-        <h2 id="lecture-heading" className="text-xl font-bold">
+      <section aria-labelledby="lecture-heading" className="card border-l-4 border-l-accent">
+        <h2 id="lecture-heading" className="display text-2xl">
           Lecture
         </h2>
-        <p className="mt-1 text-slate-700">Nothing is recorded until you choose to start.</p>
-        <Link href={`/courses/${encodeURIComponent(course.id)}/lecture`} className="btn-primary mt-4">
+        <p className="mt-2 max-w-prose text-muted">Nothing is recorded until you choose to start. You will see what Tether does first, and you can pause or stop at any time.</p>
+        <Link href={`/courses/${encodeURIComponent(course.id)}/lecture`} className="btn-primary mt-5">
           Start a lecture
         </Link>
       </section>
 
-      <Link href="/" className="btn-secondary">
+      <Link href="/" className="btn-quiet px-0">
         Back to dashboard
       </Link>
     </div>

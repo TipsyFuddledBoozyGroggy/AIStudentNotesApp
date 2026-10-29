@@ -188,25 +188,25 @@ test("another user cannot read, join or stream into someone else's lecture", asy
 
 // --- AI routes (demo mode: the backend's deterministic mock AI, not a language model) --------------------------
 
-const catchUpButton = (page: Page, minutes: number) => page.getByRole("button", { name: `Catch up on the last ${minutes} minutes` });
+const catchUpButton = (page: Page, minutes: number) => page.getByRole("button", { name: `recap of the last ${minutes} minutes` });
 
-test("I Lost Track: one press posts once with an Idempotency-Key, shows what was said, then the Demo summary recap; citation opens the transcript line", async ({ page }) => {
+test("Quick recap: one press posts once with an Idempotency-Key, shows what was said, then the Demo summary recap; citation opens the transcript line", async ({ page }) => {
   await spyMic(page);
   const posts: { key: string | null; body: string | null }[] = [];
   page.on("request", (r) => {
-    if (r.method() === "POST" && /\/sessions\/[^/]+\/lost-track$/.test(r.url())) posts.push({ key: r.headers()["idempotency-key"] ?? null, body: r.postData() });
+    if (r.method() === "POST" && /\/sessions\/[^/]+\/quick-recap$/.test(r.url())) posts.push({ key: r.headers()["idempotency-key"] ?? null, body: r.postData() });
   });
-  await openConsent(page, `LostTrack ${uid()}`);
+  await openConsent(page, `QuickRecap ${uid()}`);
   await checkAndStart(page);
   await expect(transcript(page)).toContainText(DEMO_LINE_1);
   await expect(page.locator("[data-segment-id]").first()).toBeVisible(); // a saved (final) line, not only a partial
 
   // Three windows, no confirm step.
-  await expect(page.getByRole("button", { name: /^Catch up on the last/ })).toHaveCount(3);
+  await expect(page.getByRole("button", { name: /recap of the last \d+ minutes$/ })).toHaveCount(3);
   await catchUpButton(page, 5).click();
   const result = page.getByTestId("catchup-result");
   await expect(result).toBeVisible();
-  await expect(result.getByRole("heading", { name: "Here's where you are" })).toBeFocused();
+  await expect(result.getByRole("heading", { name: "Here is what was said" })).toBeFocused();
   expect(posts).toHaveLength(1);
   expect(posts[0]!.key).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
   expect(JSON.parse(posts[0]!.body!)).toEqual({ windowMinutes: 5 });
@@ -218,7 +218,7 @@ test("I Lost Track: one press posts once with an Idempotency-Key, shows what was
   await cite.click();
   await expect(page.locator("[data-segment-id]:focus")).toHaveCount(1);
 
-  await result.getByRole("button", { name: "Got it, back to lecture" }).click();
+  await result.getByRole("button", { name: "Back to lecture" }).click();
   await expect(result).toHaveCount(0);
   await expect(transcript(page)).toBeFocused();
   expect(posts).toHaveLength(1);
@@ -242,42 +242,42 @@ test("TL;DR: the live summary arrives labelled as a Demo summary and is fetched 
   await expect(page.locator("#lecture-tldr").getByTestId("demo-summary-tag")).toBeVisible();
 });
 
-test("I Lost Track on an ended lecture and under a rate limit: calm message, one request each, no retry", async ({ page }) => {
+test("Quick recap on an ended lecture and under a rate limit: calm message, one request each, no retry", async ({ page }) => {
   await spyMic(page);
   await openConsent(page, `LtErr ${uid()}`);
   await checkAndStart(page);
   await expect(transcript(page)).toContainText(DEMO_LINE_1);
 
   let limited = 0;
-  await page.route(/\/sessions\/[^/]+\/lost-track$/, (route) => {
+  await page.route(/\/sessions\/[^/]+\/quick-recap$/, (route) => {
     limited++;
     return route.fulfill({ status: 429, contentType: "application/problem+json", body: JSON.stringify({ status: 429, code: "rate_limited", title: "Too many requests." }) });
   });
   await catchUpButton(page, 2).click();
-  await expect(page.getByTestId("lt-error")).toContainText("Try again in about a minute");
+  await expect(page.getByTestId("qr-error")).toContainText("Try again in about a minute");
   await page.waitForTimeout(2500);
   expect(limited).toBe(1);
-  await page.unroute(/\/sessions\/[^/]+\/lost-track$/);
+  await page.unroute(/\/sessions\/[^/]+\/quick-recap$/);
 
   await stopLecture(page);
   await catchUpButton(page, 2).click();
-  await expect(page.getByTestId("lt-error")).toContainText("This lecture has ended");
+  await expect(page.getByTestId("qr-error")).toContainText("This lecture has ended");
 });
 
-test("I Lost Track stays on screen on a phone while the transcript scrolls, and the skip link reaches it", async ({ page }) => {
+test("Quick recap stays on screen on a phone while the transcript scrolls, and the skip link reaches it", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await spyMic(page);
   await openConsent(page, `LtPhone ${uid()}`);
   await checkAndStart(page);
   await expect(transcript(page)).toContainText(DEMO_LINE_1);
-  const usual = page.getByRole("button", { name: /^Catch up on the last 5 minutes, your usual choice/ });
+  const usual = page.getByRole("button", { name: /^Last 5 min \(your usual\): recap of the last 5 minutes$/ });
   await expect(usual).toBeInViewport();
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   await expect(usual).toBeInViewport();
   const box = await usual.boundingBox();
   expect(box!.height).toBeGreaterThanOrEqual(44);
-  await page.keyboard.press("Tab"); // first stop is a skip link; "Skip to I lost track" is reachable by keyboard
-  await page.getByRole("link", { name: "Skip to I lost track" }).focus();
+  await page.keyboard.press("Tab"); // first stop is a skip link; "Skip to Quick recap" is reachable by keyboard
+  await page.getByRole("link", { name: "Skip to Quick recap" }).focus();
   await page.keyboard.press("Enter");
   await expect(usual).toBeFocused();
   await stopLecture(page);

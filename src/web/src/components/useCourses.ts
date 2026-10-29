@@ -18,7 +18,7 @@ export function useCourses(enabled: boolean): { state: DashboardState; reload: (
         if (cancelled) return;
         const msg =
           e instanceof ApiError && e.isNetwork
-            ? "We can't reach the server right now."
+            ? "We can't reach the server at the moment."
             : "We couldn't load your courses.";
         setState({ status: "error", message: msg });
       });

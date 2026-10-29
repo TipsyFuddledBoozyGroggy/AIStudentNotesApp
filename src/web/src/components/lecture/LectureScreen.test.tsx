@@ -13,12 +13,12 @@ afterEach(() => {
 const stateLabel = () => screen.getByTestId("state-label").textContent;
 
 describe("Live view (UX section 2)", () => {
-  it("renders status bar with Recording label, Demo source tag (non-dismissible), Help: Quiet, and axe-clean", async () => {
+  it("renders status bar with Recording label, Demo source tag (non-dismissible), Prompts: Quiet, and axe-clean", async () => {
     const m = await mountLecture();
     expect(stateLabel()).toBe("Recording");
     expect(screen.getByTestId("demo-tag")).toHaveTextContent("Demo source: replayed test audio");
     expect(within(screen.getByTestId("demo-tag")).queryByRole("button")).toBeNull();
-    expect(screen.getByText("Help: Quiet")).toBeInTheDocument();
+    expect(screen.getByText("Prompts: Quiet")).toBeInTheDocument();
     expect(screen.getByTestId("connection")).toHaveTextContent("Connected");
     expect(document.title).toBe("Recording |");
     expect(await axeViolations(m.container)).toEqual([]);
@@ -176,7 +176,7 @@ describe("Paused state (UX section 3)", () => {
     const m = await mountLecture({ events: baseEvents("Paused", "user"), track: "live" });
     await waitFor(() => expect(m.track!.readyState).toBe("ended"));
     expect(screen.queryByRole("region", { name: "Recording is paused" })).toBeNull();
-    expect(screen.getByRole("region", { name: "Something doesn't match" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "The app and your microphone disagree" })).toBeInTheDocument();
   });
 
   it("AC2 (press path): the track is stopped before the Paused panel appears", async () => {
@@ -214,7 +214,7 @@ describe("Paused state (UX section 3)", () => {
     await act(async () => void m.controls.step());
     await waitFor(() => expect(screen.getByRole("region", { name: "Recording was paused automatically" })).toBeInTheDocument());
     expect(m.track!.readyState).toBe("ended"); // the client turned its mic off; not a mismatch
-    expect(screen.queryByRole("region", { name: /Something doesn't match/ })).toBeNull();
+    expect(screen.queryByRole("region", { name: /The app and your microphone disagree/ })).toBeNull();
     expect(screen.getByText(/No audio was received for 5 minutes/)).toBeInTheDocument();
     expect(document.activeElement).not.toBe(screen.getByRole("button", { name: "Resume recording" }));
     expect(m.alertLog.filter((t) => t.startsWith("Recording was paused automatically"))).toHaveLength(1);
@@ -308,7 +308,7 @@ describe("Mic lost mid-session (UX section 5)", () => {
     await waitFor(() => expect(screen.getByRole("region", { name: "Microphone stopped" })).toBeInTheDocument());
     await flush();
     expect(m.alertLog.filter((t) => t === "The microphone stopped. Recording is paused.")).toHaveLength(1);
-    expect(m.alertLog.filter((t) => t.startsWith("Something doesn't match"))).toHaveLength(0);
+    expect(m.alertLog.filter((t) => t.startsWith("The app and your microphone disagree"))).toHaveLength(0);
     expect(stateLabel()).toBe("Paused");
     expect(m.mic.requestCount).toBe(0); // no automatic retry
   });
@@ -375,22 +375,22 @@ describe("Mic/server mismatch (UX section 8)", () => {
     expect(m.track!.readyState).toBe("live");
     await act(async () => void m.controls.step());
     await waitFor(() => expect(m.track!.readyState).toBe("ended"));
-    const panel = screen.getByRole("region", { name: "Something doesn't match" });
-    expect(panel.textContent).toContain("We turned the microphone off to be safe.");
+    const panel = screen.getByRole("region", { name: "The app and your microphone disagree" });
+    expect(panel.textContent).toContain("The app and your microphone disagree, so the microphone is off.");
     expect(stateLabel()).toBe("Not recording");
-    expect(m.alertLog.filter((t) => t.startsWith("Something doesn't match"))).toHaveLength(1);
+    expect(m.alertLog.filter((t) => t.startsWith("The app and your microphone disagree"))).toHaveLength(1);
     expect(screen.queryByRole("region", { name: "Recording is paused" })).toBeNull();
   });
 
   it("AC2: warning has a text heading, an icon marked decorative, and axe is clean", async () => {
     const m = await mountLecture({ events: baseEvents("Paused", "user"), track: "live" });
-    await waitFor(() => screen.getByRole("region", { name: /Something doesn't match/ }));
+    await waitFor(() => screen.getByRole("region", { name: /The app and your microphone disagree/ }));
     expect(await axeViolations(m.container)).toEqual([]);
   });
 
   it("AC3: Check again never restarts capture", async () => {
     const m = await mountLecture({ events: baseEvents("Paused", "user"), track: "live" });
-    await waitFor(() => screen.getByRole("region", { name: /Something doesn't match/ }));
+    await waitFor(() => screen.getByRole("region", { name: /The app and your microphone disagree/ }));
     await userEvent.click(screen.getByRole("button", { name: "Check again" }));
     await flush();
     expect(m.mic.requestCount).toBe(0);

@@ -63,7 +63,7 @@ export const handlers = [
   }),
 
   // --- AI routes (wire shapes from AiEndpoints.cs / CatchUpWire.cs). Session ids pick the scenario:
-  // ses_missing -> 404, ses_ended -> 409 on lost-track, ses_limited -> 429, ses_nosummary -> 404 on summary.
+  // ses_missing -> 404, ses_ended -> 409 on quick-recap, ses_limited -> 429, ses_nosummary -> 404 on summary.
   http.get(`${P}/sessions/:id/summary`, ({ params }) => {
     if (!db.currentUser()) return unauth();
     if (params.id === "ses_missing") return problem(404, "not_found", "Session not found.");
@@ -81,7 +81,7 @@ export const handlers = [
     });
   }),
 
-  http.post(`${P}/sessions/:id/lost-track`, async ({ params, request }) => {
+  http.post(`${P}/sessions/:id/quick-recap`, async ({ params, request }) => {
     if (!db.currentUser()) return unauth();
     if (params.id === "ses_missing") return problem(404, "not_found", "Session not found.");
     if (params.id === "ses_ended") return problem(409, "invalid_state", "The session is not running.");
@@ -101,11 +101,11 @@ export const handlers = [
 
   http.get(`${P}/sessions/:id/catch-ups/:catchUpId`, ({ params }) => {
     if (!db.currentUser()) return unauth();
-    if (params.id === "ses_missing" || params.catchUpId === "cu_missing") return problem(404, "not_found", "Catch-up not found.");
+    if (params.id === "ses_missing" || params.catchUpId === "cu_missing") return problem(404, "not_found", "Recap not found.");
     return HttpResponse.json({
       catchUpId: params.catchUpId,
       windowMinutes: 5,
-      text: "Right now: derivatives.",
+      text: "Most recent: derivatives.",
       citations: [{ segmentId: "seg_1", startMs: 1000 }],
       kind: "Ai",
       aiState: "Ready",

@@ -34,12 +34,17 @@ export function CourseDetailPage() {
     };
   }, [status, id]);
 
-  if (state.s === "loading") return <p role="status">Loading...</p>;
+  if (state.s === "loading")
+    return (
+      <p role="status" className="text-muted">
+        Getting this course.
+      </p>
+    );
   if (state.s === "notfound" || state.s === "error") {
     return (
-      <div className="space-y-3">
-        <h1 className="text-2xl font-bold">{state.s === "notfound" ? "We can't find that course" : "We couldn't load this course"}</h1>
-        <p>{state.s === "notfound" ? "It may have been removed." : "Please try again in a moment."}</p>
+      <div className="max-w-prose space-y-4">
+        <h1 className="display text-3xl">{state.s === "notfound" ? "We can't find that course" : "We couldn't load this course"}</h1>
+        <p className="text-muted">{state.s === "notfound" ? "It may have been removed, or it belongs to another account." : "Nothing was deleted. Try again in a moment."}</p>
         <Link href="/" className="btn-primary">
           Back to dashboard
         </Link>

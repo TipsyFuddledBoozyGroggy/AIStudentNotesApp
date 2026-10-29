@@ -65,11 +65,11 @@ export const STATUS_COPY = {
   stopping: "Stopping...",
   connected: "Connected",
   notConnected: "Not connected",
-  helpQuiet: "Help: Quiet",
+  helpQuiet: "Prompts: Quiet",
   pause: "Pause",
   resume: "Resume",
   stop: "Stop",
-  unavailable: "Not available right now",
+  unavailable: "Not available at the moment",
   keyboardHelp: "Keyboard help",
 } as const;
 
@@ -81,7 +81,7 @@ export const ANNOUNCE = {
   backOnline: "Back online. Recording is on.",
   micStopped: "The microphone stopped. Recording is paused.",
   disconnected: "Not connected. Audio is not being saved.",
-  mismatch: "Something doesn't match. We turned the microphone off to be safe.",
+  mismatch: "The app and your microphone disagree, so the microphone is off.",
   autoPaused: "Recording was paused automatically. Nothing is being recorded.",
   autoStopped: "The lecture was stopped automatically. Your transcript is saved.",
   tldrUpdated: "TL;DR updated",
@@ -142,14 +142,14 @@ export const BLOCKED_COPY = {
 
 export const OFFLINE_COPY = {
   banner: "Not connected. Audio is not being saved.",
-  retrying: "Trying to reconnect. Trying again...",
+  retrying: "Trying to reconnect.",
   resumeDisabledReason: "Resume is not available while not connected",
 } as const;
 
 export const MISMATCH_COPY = {
-  heading: "Something doesn't match",
-  body: "We turned the microphone off to be safe. Reload the state to continue.",
-  bodyMicOff: "The server shows a recording, but your microphone is not on. Nothing is being recorded here. Reload the state to continue.",
+  heading: "The app and your microphone disagree",
+  body: "The app and your microphone disagree, so the microphone is off. Nothing is being recorded. Choose Check again.",
+  bodyMicOff: "The server shows a recording, but your microphone is not on. Nothing is being recorded here. Choose Check again.",
   check: "Check again",
   stop: "Stop lecture",
 } as const;
@@ -157,12 +157,12 @@ export const MISMATCH_COPY = {
 export const TRANSCRIPT_COPY = {
   heading: "Transcript",
   logLabel: "Transcript lines",
-  empty: "Lines will appear here as the lecture goes on.",
+  empty: "Words will appear here once the lecture starts.",
   edited: "edited",
   jumpToLive: "Jump to live",
   skipToTranscript: "Skip to transcript",
   skipToTldr: "Skip to TL;DR",
-  skipToLostTrack: "Skip to I lost track",
+  skipToQuickRecap: "Skip to Quick recap",
   gap: (from: string, to: string, reason: string) => `Audio not available ${from} to ${to} (${reason})`,
   gapReasons: { paused: "paused", network: "connection", device: "device", provider: "speech service" },
 } as const;
@@ -187,7 +187,7 @@ export const SETTINGS_COPY = {
   announceTldr: "Announce TL;DR updates",
   reduceMotion: "Reduce motion",
   shortcuts: "Enable Alt+ keyboard shortcuts (experimental, off until tested with screen readers)",
-  shortcutList: "Alt+P pauses or resumes. Alt+J jumps to the live transcript. Alt+L goes to I lost track.",
+  shortcutList: "Alt+P pauses or resumes. Alt+J jumps to the live transcript. Alt+R goes to Quick recap.",
 } as const;
 
 /** Shown wherever text came from the deterministic mock (source === "mock"), never hidden or dismissible. */
@@ -197,46 +197,49 @@ export const DEMO_SUMMARY_COPY = {
 } as const;
 
 export const SUMMARY_STATUS_COPY = {
-  delayed: "The summary is catching up. The transcript is not affected.",
+  delayed: "The summary is updating more slowly than usual. The transcript is not affected.",
   failed: "The summary could not update just now. The transcript is not affected.",
   draft: "Draft",
   asOf: (t: string) => `As of ${t}`,
 } as const;
 
-export const LOST_TRACK_COPY = {
-  heading: "I lost track",
-  hint: "Pick how far back to catch up. The lecture keeps going.",
+export const QUICK_RECAP_COPY = {
+  heading: "Quick recap",
+  hint: "How far back? The lecture keeps going.",
   groupLabel: "How far back",
   window: (m: number) => `Last ${m} min`,
   windowUsual: (m: number) => `Last ${m} min (your usual)`,
-  windowUsualLabel: (m: number) => `Catch up on the last ${m} minutes, your usual choice`,
-  windowLabel: (m: number) => `Catch up on the last ${m} minutes`,
+  // WCAG 2.5.3 Label in Name: the visible text starts the accessible name (Lead approval, 2026-10-29).
+  windowUsualLabel: (m: number) => `Last ${m} min (your usual): recap of the last ${m} minutes`,
+  windowLabel: (m: number) => `Last ${m} min: recap of the last ${m} minutes`,
   covers: (m: number) => `Covers the last ${m} minutes`,
-  coversShort: (n: number) => `You have only been here ${n} ${n === 1 ? "minute" : "minutes"}. Here is all of it.`,
-  coversShortBrief: "You have only been here a short while. Here is all of it.",
+  coversShort: (n: number) => `The lecture has run ${n} ${n === 1 ? "minute" : "minutes"}. Here is all of it.`,
+  // The guide proposes "The lecture has only just begun."; its own checklist bans "just", so this states the fact instead.
+  coversShortBrief: "The lecture began less than a minute ago. Here is all of it.",
   coversRange: (from: string, to: string) => `Covers ${from} to ${to}.`,
   emptyWindow: "Nothing was said in this time. If you paused, the lecture may have been quiet.",
-  previousLabel: (m: number) => `Earlier catch-up, last ${m} min`,
+  previousLabel: (m: number) => `Earlier recap, last ${m} min`,
   working: "Getting what was said...",
-  resultHeading: "Here's where you are",
-  said: "What was said",
+  resultHeading: "Here is what was said",
+  said: "Word for word",
   saidNote: "These are the words from the lecture, newest last. Not a summary.",
   showEarlier: "Show earlier words",
   hideEarlier: "Show fewer words",
-  rightNow: "Right now",
-  pending: "A short recap is being written. What was said is below in the meantime.",
-  slow: "The recap is taking longer than expected. What was said is below.",
-  unavailable: "Summary isn't available right now. Here's what was said.",
-  budget: "Summaries are paused for this lecture. Here's what was said.",
+  rightNow: "Most recent",
+  pending: "A short recap is being written. The words themselves are below.",
+  slow: "Still writing your recap. Here is what was said so far.",
+  unavailable: "A recap is not available at the moment. Here is what was said.",
+  budget: "A recap is not available for this lecture. Here is what was said.",
   recapReady: "Recap ready.",
   showDetail: "Show more detail",
   hideDetail: "Show less detail",
-  done: "Got it, back to lecture",
+  done: "Back to lecture",
+  backShort: "Close recap",
   moreHeading: "More detail",
   whyItMatters: "Why it matters",
   keyTerms: "Key terms",
   questions: "Questions you could ask",
-  gaps: "Worth knowing",
+  gaps: "Also mentioned",
   confidence: (c: string) => `Confidence: ${c}`,
   basis: {
     lecture: null,
@@ -245,10 +248,10 @@ export const LOST_TRACK_COPY = {
   },
   from: (t: string) => `From ${t}`,
   errors: {
-    invalid_state: "This lecture has ended, so there is nothing new to catch up on. Your transcript is saved.",
-    rate_limited: "One moment. Try again in about a minute. Nothing was lost.",
+    invalid_state: "This lecture has ended, so there is nothing new to recap. Your transcript is saved.",
+    rate_limited: "One moment. Try again in about a minute. Nothing was changed.",
     not_found: "We can't find this lecture. Go back to the course and open it again.",
-    network: "We could not reach the server. Nothing was lost. Try again when you are ready.",
-    generic: "That did not work. Nothing was lost. You can try again when you are ready.",
+    network: "We could not reach the server. Nothing was changed. Try again when you like.",
+    generic: "That did not work. Nothing was changed. You can try again when you like.",
   },
 } as const;

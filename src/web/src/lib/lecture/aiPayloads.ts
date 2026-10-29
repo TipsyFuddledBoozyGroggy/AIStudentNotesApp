@@ -9,7 +9,7 @@ import type {
   SummaryRevisionPayload,
 } from "./types";
 
-// Parsers for REST AI payloads (GET /summary, POST /lost-track, GET /catch-ups/{id}). Same philosophy as
+// Parsers for REST AI payloads (GET /summary, POST /quick-recap, GET /catch-ups/{id}). Same philosophy as
 // realtime/eventGuard.ts: check what the UI reads, copy only known fields (extras are dropped, never rendered),
 // and return null for anything malformed so a bad body is treated as "unavailable", never half-rendered.
 

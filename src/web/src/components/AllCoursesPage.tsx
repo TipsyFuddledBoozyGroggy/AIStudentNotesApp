@@ -1,35 +1,83 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import type { Course } from "@/lib/api";
 import { sortByRecentUse } from "@/lib/nextStep";
 import { useRequireUser } from "./AuthProvider";
 import { CourseCard } from "./CourseCard";
 import { useCourses } from "./useCourses";
 
+/** Client-side course search: every word must appear in the name, code, term or instructor. */
+export function searchCourses(courses: Course[], query: string): Course[] {
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return courses;
+  return courses.filter((c) => {
+    const hay = [c.name, c.code, c.term, c.instructor].filter(Boolean).join(" ").toLowerCase();
+    return words.every((w) => hay.includes(w));
+  });
+}
+
 export function AllCoursesPage() {
+  const [query, setQuery] = useState("");
   const { status } = useRequireUser();
   const { state, reload } = useCourses(status === "authenticated");
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold">All courses</h1>
-      {state.status === "loading" && <p role="status">Loading your courses...</p>}
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <h1 className="display text-3xl">All courses</h1>
+        <Link href="/courses/new" className="btn-secondary btn-sm">
+          Add a course
+        </Link>
+      </div>
+      {state.status === "loading" && (
+        <p role="status" className="text-muted">
+          Getting your courses.
+        </p>
+      )}
       {state.status === "error" && (
-        <div role="alert" className="card">
-          <p>{state.message}</p>
-          <button type="button" className="btn-primary mt-3" onClick={reload}>
+        <div role="alert" className="panel panel-notice max-w-prose">
+          <p className="font-semibold">{state.message}</p>
+          <p className="mt-1 text-muted">Nothing was deleted. Try again when you like.</p>
+          <button type="button" className="btn-primary mt-4" onClick={reload}>
             Try again
           </button>
         </div>
       )}
-      {state.status === "ready" && (
-        <ul className="space-y-3">
-          {sortByRecentUse(state.courses).map((c) => (
-            <CourseCard key={c.id} course={c} />
-          ))}
-        </ul>
+      {state.status === "ready" && state.courses.length > 0 && (
+        <div className="max-w-md">
+          <label htmlFor="course-search" className="label">
+            Search your courses
+          </label>
+          <input
+            id="course-search"
+            type="search"
+            className="field"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-describedby="course-search-count"
+            autoComplete="off"
+          />
+          <p id="course-search-count" className="help mt-1">
+            {query.trim()
+              ? `${searchCourses(state.courses, query).length} of ${state.courses.length} match.`
+              : `${state.courses.length} ${state.courses.length === 1 ? "course" : "courses"}.`}
+          </p>
+        </div>
       )}
-      <Link href="/" className="btn-secondary">
+      {state.status === "ready" && (
+        searchCourses(state.courses, query).length > 0 ? (
+          <ul className="divide-y divide-hair overflow-hidden rounded-card border border-hair bg-surface">
+            {sortByRecentUse(searchCourses(state.courses, query)).map((c) => (
+              <CourseCard key={c.id} course={c} headingLevel={2} />
+            ))}
+          </ul>
+        ) : (
+          <p className="text-muted">{query.trim() ? "No course matches that. Try fewer words." : "No courses yet."}</p>
+        )
+      )}
+      <Link href="/" className="btn-quiet px-0">
         Back to dashboard
       </Link>
     </div>

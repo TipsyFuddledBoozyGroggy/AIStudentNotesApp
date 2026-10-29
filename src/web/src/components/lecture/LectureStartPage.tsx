@@ -35,11 +35,16 @@ export function LectureStartPage() {
     };
   }, [status, id]);
 
-  if (state.s === "loading") return <p role="status">Loading...</p>;
+  if (state.s === "loading")
+    return (
+      <p role="status" className="text-muted">
+        Getting this course.
+      </p>
+    );
   if (state.s !== "ready" || !id) {
     return (
-      <div className="space-y-3">
-        <h1 className="text-2xl font-bold">{state.s === "notfound" ? "We can't find that course" : "We couldn't load this course"}</h1>
+      <div className="max-w-prose space-y-4">
+        <h1 className="display text-3xl">{state.s === "notfound" ? "We can't find that course" : "We couldn't load this course"}</h1>
         <Link href="/" className="btn-primary">
           Back to dashboard
         </Link>

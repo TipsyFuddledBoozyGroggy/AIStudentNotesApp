@@ -2,29 +2,123 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Design tokens: docs/ux/design-direction.md section 2. The pre-hydration script in layout.tsx sets data-theme to the
+   RESOLVED "light" | "dark", plus data-quiet, data-text-size, data-spacing, data-density and data-reduce-motion.
+   tokens.test.ts parses the palette blocks below (up to the end marker) and checks them against lib/design/tokens.ts.
+   Every palette block lists every role so no value leaks between palettes through the cascade. */
 :root {
+  --c-canvas: #F5F2EA; --c-surface: #FFFFFF; --c-raised: #FFFFFF; --c-sunken: #ECE8DE;
+  --c-ink: #1C1B19; --c-muted: #57534A; --c-accent: #2E3C8C; --c-on-accent: #FFFFFF; --c-accent-subtle: #E6E8F5;
+  --c-recording: #B42318; --c-recording-subtle: #FCEBE8; --c-success: #1B6B3A; --c-success-subtle: #E7F3EA;
+  --c-warning: #7A4300; --c-warning-subtle: #FBF0D9; --c-danger: #9F1D24;
+  --c-border-strong: #8A8579; --c-border-hair: #DAD5C8; --c-focus: #2E3C8C;
+}
+:root[data-theme="dark"] {
+  --c-canvas: #14161B; --c-surface: #1C1F26; --c-raised: #242831; --c-sunken: #0F1115;
+  --c-ink: #ECEAE4; --c-muted: #A3A7B3; --c-accent: #A9B8FF; --c-on-accent: #10131F; --c-accent-subtle: #242831;
+  --c-recording: #FF8A7A; --c-recording-subtle: #242831; --c-success: #6FD39A; --c-success-subtle: #242831;
+  --c-warning: #F2B84B; --c-warning-subtle: #242831; --c-danger: #FF8F98;
+  --c-border-strong: #7A7F90; --c-border-hair: #2E333D; --c-focus: #A9B8FF;
+}
+/* Low-stimulation look, light ("Fog"). */
+:root[data-quiet="true"] {
+  --c-canvas: #EEEDE8; --c-surface: #F6F5F1; --c-raised: #F6F5F1; --c-sunken: #E4E2DB;
+  --c-ink: #2B2A27; --c-muted: #5E5B54; --c-accent: #3F4A6B; --c-on-accent: #FFFFFF; --c-accent-subtle: #F6F5F1;
+  --c-recording: #A12B20; --c-recording-subtle: #F6F5F1; --c-success: #1B6B3A; --c-success-subtle: #F6F5F1;
+  --c-warning: #7A4300; --c-warning-subtle: #F6F5F1; --c-danger: #9F1D24;
+  --c-border-strong: #7F7B70; --c-border-hair: #D6D4CC; --c-focus: #3F4A6B;
+}
+/* Low-stimulation look, dark ("Dusk"). Complete on purpose: the doc's paste-ready block omitted --c-muted, which would
+   have inherited Fog's #5E5B54 (2.67:1 on this canvas). */
+:root[data-theme="dark"][data-quiet="true"] {
+  --c-canvas: #14161B; --c-surface: #1C1F26; --c-raised: #242831; --c-sunken: #0F1115;
+  --c-ink: #D6D4CE; --c-muted: #A3A7B3; --c-accent: #B4BCD6; --c-on-accent: #10131F; --c-accent-subtle: #242831;
+  --c-recording: #FF8A7A; --c-recording-subtle: #242831; --c-success: #6FD39A; --c-success-subtle: #242831;
+  --c-warning: #F2B84B; --c-warning-subtle: #242831; --c-danger: #FF8F98;
+  --c-border-strong: #7A7F90; --c-border-hair: #2E333D; --c-focus: #B4BCD6;
+}
+/* end of palette tokens */
+
+:root {
+  --shadow-1: 0 1px 2px rgba(28, 27, 25, 0.06);
+  --shadow-2: 0 8px 24px rgba(28, 27, 25, 0.14);
+  --shadow-3: 0 16px 40px rgba(28, 27, 25, 0.2);
+  --scrim: rgba(20, 22, 27, 0.55);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --gap-block: 1.5rem;
+  --pad-card: 1.5rem;
   color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-3: none;
+  color-scheme: dark;
+}
+:root[data-quiet="true"] {
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-3: none;
+  --dur-fast: 0ms;
+  --dur-base: 0ms;
+}
+:root[data-density="compact"] {
+  --gap-block: 0.75rem;
+  --pad-card: 1rem;
+}
+/* Text size S / M / L (percent keeps the browser's own font-size setting in charge). */
+:root[data-text-size="s"] { font-size: 93.75%; }
+:root[data-text-size="l"] { font-size: 112.5%; }
+
+/* Higher contrast on request: ink goes to pure black/white and decorative hairlines become real boundaries. */
+@media (prefers-contrast: more) {
+  :root { --c-ink: #000000; --c-border-hair: var(--c-border-strong); }
+  :root[data-theme="dark"] { --c-ink: #FFFFFF; }
 }
 
 html {
-  /* Sticky header must not hide focused elements (WCAG 2.4.11). */
+  /* Sticky top bar (>= 1024) must not hide focused elements (WCAG 2.4.11). */
   scroll-padding-top: 5rem;
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
-  font-size: 1rem;
-  line-height: 1.5;
+  @apply bg-canvas font-sans text-ink antialiased;
+  font-size: 1.0625rem;
+  line-height: 1.55;
 }
 
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+/* Reading spacing "Wider" (Preferences > Look). Applies to page content, not to the browser chrome of the app bar. */
+:root[data-spacing="wide"] main {
+  letter-spacing: 0.04em;
+  word-spacing: 0.12em;
+  line-height: 1.75;
+}
+
+/* The hidden attribute always wins over display utilities (e.g. "flex"). */
+[hidden]:not([hidden="until-found"]) {
+  display: none !important;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Two-tone ring: 3px focus colour plus a canvas-coloured halo, 3:1+ in all four palettes (section 2.7). */
 :focus-visible {
-  outline: 3px solid #1e3a8a;
+  outline: 3px solid var(--c-focus);
   outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--c-canvas);
 }
 
-/* Programmatic focus targets (headings) do not need a ring. */
+/* Programmatic focus targets (headings, transcript lines) do not need a ring. */
 [tabindex="-1"]:focus {
   outline: none;
+  box-shadow: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -44,18 +138,39 @@ body {
   }
 }
 
-/* Live-lecture screens: sticky site header plus sticky status bar must not hide focused elements (SC 2.4.11). */
+/* Live-lecture screens: the lecture bar REPLACES the site header (one sticky bar, section 3), and the sticky bar must
+   not hide focused elements (SC 2.4.11). The bar wraps to two rows on phones, hence the larger padding there. */
+body:has([data-lecture-root]) [data-site-header],
+body:has([data-lecture-root]) [data-site-rail],
+body:has([data-lecture-root]) [data-site-prefs] {
+  display: none;
+}
+body:has([data-lecture-root]) main {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+body:has([data-lecture-root]) [data-shell] {
+  max-width: none;
+  padding-left: 0;
+  padding-right: 0;
+}
 html:has([data-lecture-root]) {
-  scroll-padding-top: 10rem;
+  scroll-padding-top: 6rem;
 }
 @media (max-width: 1023px) {
-  /* The fixed I Lost Track bar must never cover a focused control (WCAG 2.4.11). */
+  html:has([data-lecture-root]) {
+    scroll-padding-top: 9rem;
+  }
+}
+@media (max-width: 1023px) {
+  /* The fixed Quick recap bar must never cover a focused control (WCAG 2.4.11). */
   html:has([data-lecture-root]) {
     scroll-padding-bottom: 9rem;
   }
 }
 
-/* In-app Reduce motion toggle (UX section 0); prefers-reduced-motion is handled above. */
+/* In-app Reduce motion (UX section 0); prefers-reduced-motion is handled above. Set on <html> by Preferences and on the
+   lecture root by the lecture setting. */
 [data-reduce-motion="true"] *,
 [data-reduce-motion="true"] *::before,
 [data-reduce-motion="true"] *::after {
@@ -65,22 +180,159 @@ html:has([data-lecture-root]) {
 }
 
 @layer components {
+  /* Buttons (section 4). One filled accent button per region. Press/hover change border or text only: no scale, no glow. */
   .btn {
-    @apply inline-flex min-h-[44px] items-center justify-center rounded-lg px-5 py-2 text-base font-semibold;
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-control border-2 px-5 py-2 text-base font-semibold leading-tight;
+    transition-property: color, background-color, border-color, text-decoration-color;
+    transition-duration: var(--dur-fast);
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    text-decoration-line: underline;
+    text-decoration-color: transparent;
+    text-underline-offset: 0.2em;
+  }
+  .btn:hover {
+    text-decoration-color: currentColor;
   }
   .btn-primary {
-    @apply btn bg-blue-900 text-white hover:bg-blue-800;
+    @apply btn border-accent bg-accent text-on-accent;
   }
   .btn-secondary {
-    @apply btn border-2 border-slate-600 bg-white text-slate-900 hover:bg-slate-100;
+    @apply btn border-line bg-surface text-ink;
   }
-  .btn-disabled {
-    @apply btn cursor-not-allowed border-2 border-dashed border-slate-500 bg-slate-100 text-slate-700;
+  .btn-secondary:hover {
+    @apply bg-sunken;
   }
+  /* Quiet text button: for tertiary actions. Keeps a 44px target. */
+  .btn-quiet {
+    @apply btn border-transparent bg-transparent px-3 text-accent;
+  }
+  .btn-quiet:hover {
+    @apply border-hair;
+  }
+  /* Destructive: never filled (section 4). */
+  .btn-danger {
+    @apply btn border-danger bg-surface text-danger;
+  }
+  .btn-sm {
+    @apply min-h-[44px] px-3 py-1 text-sm;
+  }
+  .btn-disabled,
+  .btn[aria-disabled="true"]:not(.btn-steady) {
+    @apply cursor-not-allowed border-dashed border-line bg-sunken text-muted;
+    text-decoration-color: transparent;
+  }
+  /* Busy buttons that must not flash grey (Quick recap windows): keep their look, block the pointer cue only. */
+  .btn-steady[aria-disabled="true"] {
+    @apply cursor-progress;
+  }
+
   .field {
-    @apply mt-1 block min-h-[44px] w-full rounded-lg border-2 border-slate-600 bg-white px-3 py-2 text-base;
+    @apply mt-1 block min-h-[44px] w-full rounded-control border-2 border-line bg-surface px-3 py-2 text-base text-ink;
   }
+  .field[aria-invalid="true"] {
+    @apply border-danger;
+  }
+  .label {
+    @apply font-semibold text-ink;
+  }
+  .help {
+    @apply text-sm text-muted;
+  }
+
   .card {
-    @apply rounded-xl border border-slate-300 bg-white p-5 shadow-sm;
+    @apply rounded-card border border-hair bg-surface shadow-1;
+    padding: var(--pad-card);
   }
+
+  /* Inline, non-modal panel with a left stripe that carries meaning (plus a shape and a word, never colour alone). */
+  .panel {
+    @apply rounded-card border border-line bg-surface p-4;
+    border-left-width: 6px;
+  }
+  .panel-neutral { border-left-color: var(--c-border-strong); }
+  .panel-notice { border-left-color: var(--c-warning); }
+  .panel-safety { border-left-color: var(--c-recording); }
+  .panel-danger { border-left-color: var(--c-danger); }
+
+  /* Tags: text plus a boundary; small, never below 13px. */
+  .tag {
+    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold leading-snug;
+  }
+  .tag-warning { @apply border-warning bg-warning-subtle text-warning; }
+  .tag-neutral { @apply border-line bg-sunken text-ink; }
+  .tag-accent { @apply border-accent bg-accent-subtle text-accent; }
+
+  .eyebrow {
+    @apply text-xs font-bold uppercase tracking-[0.08em] text-muted;
+  }
+  .display {
+    @apply font-serif font-semibold tracking-[-0.01em] text-ink;
+    font-optical-sizing: auto;
+  }
+  .link {
+    @apply font-semibold text-accent underline underline-offset-[0.2em];
+  }
+  .rule {
+    @apply border-t border-hair;
+  }
+}
+
+/* Transcript reading layout (section 4 "Transcript line"): hanging timestamp column, 68ch measure, no zebra. */
+@layer components {
+  .transcript-line {
+    @apply mb-3 grid max-w-prose grid-cols-[3.25rem_minmax(0,1fr)] gap-x-3 rounded-control leading-[1.6];
+  }
+  .transcript-time {
+    @apply pt-[0.2em] text-sm tabular-nums text-muted;
+  }
+  .transcript-divider {
+    @apply mb-3 flex max-w-prose items-center gap-3 text-sm text-muted;
+  }
+  .transcript-divider::before,
+  .transcript-divider::after {
+    content: "";
+    @apply h-px flex-1 bg-hair;
+  }
+  .transcript-partial {
+    @apply ml-[4rem] min-h-[1.6rem] max-w-prose italic text-muted;
+  }
+}
+
+/* Transcript viewport height (section 3): fits between the sticky lecture bar and the Quick recap dock, so the newest
+   line (where follow-live scrolls to) is never hidden behind the dock. dvh keeps mobile browser bars into account. */
+[data-lecture-root] .transcript {
+  height: max(12rem, calc(100dvh - 22rem));
+}
+@media (min-width: 1024px) {
+  [data-lecture-root] .transcript {
+    height: max(22rem, calc(100vh - 15rem));
+  }
+  [data-lecture-root] [data-layout="focus"] .transcript {
+    height: max(16rem, calc(100vh - 25rem));
+  }
+}
+
+/* Desktop: while a catch-up result is open, the Quick recap card stops being a sticky, internally scrolling box and flows
+   with the page, so the whole result (and "Back to lecture") is reachable by normal page scroll. Same DOM, same focus behaviour. */
+@media (min-width: 1024px) {
+  #lecture-quick-recap[data-has-result="true"]:not([data-docked]) {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+/* A cited line that received focus is tinted (not outlined: it is a programmatic focus target). */
+.transcript-line:focus {
+  background: var(--c-accent-subtle);
+  box-shadow: 0 0 0 6px var(--c-accent-subtle);
+}
+
+/* Low-stimulation look: borders instead of tints and shadows; hover changes the border, not the fill (section 2.4). */
+:root[data-quiet="true"] .btn-secondary:hover { @apply border-ink bg-surface; }
+:root[data-quiet="true"] .card { box-shadow: none; }
+:root[data-quiet="true"] .decorative { display: none; }
+
+@media (forced-colors: active) {
+  .btn, .field, .card, .panel, .tag { border-color: CanvasText; }
 }

@@ -9,13 +9,18 @@ export function DashboardPage() {
   const { state, reload } = useCourses(status === "authenticated");
 
   if (status === "loading" || status === "unauthenticated") {
-    return <p role="status">Loading...</p>;
+    return (
+      <p role="status" className="text-muted">
+        Getting your courses.
+      </p>
+    );
   }
   if (status === "error") {
     return (
-      <div role="alert" className="card">
-        <p>We can&apos;t reach the server right now.</p>
-        <button type="button" className="btn-primary mt-3" onClick={() => window.location.reload()}>
+      <div role="alert" className="panel panel-notice max-w-prose">
+        <p className="font-semibold">We can&apos;t reach the server at the moment.</p>
+        <p className="mt-1 text-muted">Nothing was deleted. Try again when you like.</p>
+        <button type="button" className="btn-primary mt-4" onClick={() => window.location.reload()}>
           Try again
         </button>
       </div>

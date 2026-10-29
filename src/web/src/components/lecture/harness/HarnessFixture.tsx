@@ -62,7 +62,7 @@ function HarnessControlsBar(p: {
   onServerPause(): void;
 }) {
   return (
-    <section aria-label="Harness controls (development only)" className="mt-6 rounded-lg border-2 border-dashed border-slate-500 bg-white p-3">
+    <section aria-label="Harness controls (development only)" className="mt-6 rounded-lg border-2 border-dashed border-line bg-surface p-3">
       <h2 className="text-base font-bold">Harness controls (dev only)</h2>
       <div className="mt-2 flex flex-wrap gap-2">
         <button type="button" className="btn-secondary" onClick={p.onStep} aria-disabled={p.remaining === 0 ? true : undefined}>
@@ -90,7 +90,7 @@ export function HarnessFixture({ id }: { id: string }) {
   if (!spec) return <p>Unknown fixture.</p>;
   return (
     <>
-      <p className="mb-3 text-sm text-slate-700">
+      <p className="mb-3 text-sm text-muted">
         Fixture: {spec.title} (UX section {spec.ux}). Synthetic data; no network, no microphone.
       </p>
       {spec.live ? <LiveFixture spec={spec.live} /> : spec.custom?.()}

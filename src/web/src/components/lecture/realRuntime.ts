@@ -64,8 +64,8 @@ export function createRealAi(api: ApiClient, sessionId: string): LectureAi {
         throw e;
       }
     },
-    async startLostTrack(windowMinutes, key) {
-      const body = parseCatchUp(await api.postLostTrack(sessionId, windowMinutes, key));
+    async startQuickRecap(windowMinutes, key) {
+      const body = parseCatchUp(await api.postQuickRecap(sessionId, windowMinutes, key));
       if (!body) throw badBody();
       return body;
     },

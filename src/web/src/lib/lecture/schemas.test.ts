@@ -1,14 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { loadFixtures, loadSchemasFromDisk, loadValidatorsFromDisk } from "./schemas.node";
+import { loadFixtures, loadSchemasFromDisk, loadValidatorsFromDisk, otherContractSchemaNames } from "./schemas.node";
 
 const validators = loadValidatorsFromDisk();
-const valid = loadFixtures("valid");
-const invalid = loadFixtures("invalid");
+// The shared fixtures folder also holds syllabus.v1 / calendar.v1 fixtures (validated by the .NET contract tests). This
+// suite runs only the fixtures of schemas the web validator registers (lecture.v1), and fails on any fixture that belongs
+// to no contract family at all, so a mistyped lecture fixture name cannot be skipped silently.
+const lectureNames = new Set(validators.names());
+const otherNames = otherContractSchemaNames();
+const allValid = loadFixtures("valid");
+const allInvalid = loadFixtures("invalid");
+const valid = allValid.filter((f) => lectureNames.has(f.schema));
+const invalid = allInvalid.filter((f) => lectureNames.has(f.schema));
 
 describe("lecture.v1 contract (same fixtures as the .NET tests)", () => {
   it("registers every schema file", () => {
     expect(validators.names().length).toBe(loadSchemasFromDisk().length);
     expect(validators.names()).toEqual(expect.arrayContaining(["common", "hub-event", "transcript.final", "join-response"]));
+  });
+
+  it("every fixture belongs to lecture.v1 or to another contract family's schema", () => {
+    const orphans = [...allValid, ...allInvalid].filter((f) => !lectureNames.has(f.schema) && !otherNames.has(f.schema)).map((f) => f.file);
+    expect(orphans).toEqual([]);
   });
 
   it("has fixtures to run", () => {
