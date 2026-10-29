@@ -60,3 +60,47 @@ Deferred: row-level security (ADR-013), revisited at M003 start with security-en
 | ADR-020b | Course lifecycle port. `Tether.Courses.Contracts.ICourseLifecycleHandler` is called by Courses before it archives or purges a course. Lectures implements it: archive and purge stop every live session of the course (consent Stop event, audit, `session.state` with reason `course_archived` or `course_deleted`, sockets closed by push), and purge also audits `session.delete` for each session the cascade removes. User deletion has no endpoint yet and must use the same path when it is built. Login-session revocation is pushed the same way through `IAuthSessionRevocationObserver` (SharedKernel, implemented by Transcript). | B2-03, B2-06, B2-07 |
 | ADR-020c | `demoSource` is stored on the session when it is created (`lectures.lecture_sessions.demo_source`, migration M007, existing rows backfilled to true because the replay provider was the only source) and is never recomputed from the current provider. Replay fault injection (`Speech:Replay:Faults:*`) and the scripted transcript (`Speech:Replay:Script`) make the process refuse to start outside Development, Test or Testing. Any `Speech:Provider` other than `replay` already refuses to start in every environment, because no real provider is implemented or authorized (G1/G2 open). | B2-08, B2-09 |
 | ADR-020d | **Single instance only** for the realtime stack until a backplane and shared state exist. See docs/architecture/m2-b2-realtime.md, "Single-instance limits". | B2 review, multi-instance section |
+
+## Product Owner decisions on Google Calendar / Google suite (2026-10-28)
+
+| ID | Decision | Status |
+|---|---|---|
+| PO-9 | Tether uses the Google suite (Calendar now; Docs/Drive for notes and study guides). | PO decided; design in progress |
+| PO-9a | If a student deletes a Tether-created event in Google, Tether leaves it alone (never recreates it) and may tell the student. | PO decided |
+| PO-9b | Reminder defaults are delegated to `adhd-ux-specialist` (audience: neurodivergent students). Output: `docs/ux/calendar-reminders.md`. Not human-validated (G4). | Delegated, pending |
+| PO-9c | Token key management is delegated to `security-engineer`. Output: `docs/security/google-tokens-and-data-residency.md`. | Delegated, pending |
+| PO-9d | One Google account per user, and it must be the same account the student signs in with (Google sign-in is the identity). Students get access to all pertinent content Tether creates, in their own Google account. Implication: the dev-login identity gets replaced by Google OIDC sign-in (PO-6). | PO decided |
+| PO-9e | All content Tether creates should live in one or more Google apps so it survives a Tether outage. This amends the Postgres-centred model (invariant 5 and deletion/export controls) and needs an ADR plus CLAUDE.md wording once security and legal input is in. | PO intent; amendment pending |
+| PO-9f | Planning assumes legal clearance exists so the PO can use the app end to end. This is a planning assumption only: gates in `RELEASE_GATES.md` stay as recorded until evidence exists. | Planning assumption, no gate change |
+| PO-9h | The app only needs to see events it creates (no conflict detection against other events). Supports the `calendar.app.created` scope proposal. | PO decided |
+| PO-9i | The student chooses where their schedule lives: Google Calendar or Tether's own calendar. Tether calendar: per-course view plus one combined view. Google Calendar: used as ordinary Google Calendar Confirmed: no separate per-course Google calendars; one calendar, course shown in event titles (e.g. "BIO 201 · Midterm exam"). | PO decided |
+| PO-9j | Google account belongs to the student. A student without one must create one for now. | PO decided |
+| PO-9k | Designated dev/test Google account: jwolsendev@gmail.com (PO's). No credentials are shared or stored. Using it for real calls still needs a Google Cloud project and OAuth client created by the PO, the control list in `docs/security/google-tokens-and-data-residency.md`, and PO go-ahead for the first real call. | PO designated; no external call made |
+| PO-9g | Still open (reduced): reminders on/off by default (calendar-reminders.md), disconnect behaviour (events presumed kept), ICS interim, Google Cloud project/OAuth client creation, and security doc questions Q1-Q7 (storage model, transcript opt-in, university accounts, pilot key custody, delete defaults, closed accounts). | Open |
+| PO-9l | Reminders are ON by default (visible pre-selected Gentle preset), per `docs/ux/calendar-reminders.md`. Not human-validated (G4). | PO decided |
+| PO-9m | Storage model accepted: Postgres is the working record, Google is the student's durable copy. | PO decided |
+| PO-9n | If a student's Google account is closed or suspended, they can no longer use Tether, and Tether must no longer have access to that account or its data (tokens deleted; retention/purge of the student's Tether-side data to be specified and confirmed with the PO). | PO decided; purge details pending |
+| PO-9o | Detached calendar entries (syllabus deleted, or Google disconnected with "keep events"): option C. Delete all content (titles, dates, course labels) immediately and keep only a content-free record per Google event (event id plus generation counter), so a re-created event never reuses a deleted event's id and Tether can still remove its own events later. Record is deleted when the student disconnects Google or deletes their account, with an upper limit proposed at 400 days (matches audit retention; proposal, not approved). Supersedes the earlier option A choice (2026-10-29). Contract revision pending. | PO decided (2026-10-29) |
+
+## Delegated picks (2026-10-29): PO said "your pick" on the open calendar/security items
+These are Lead Architect choices under delegation. Reversible. They approve no spending, external permission or gate.
+
+| ID | Pick | Notes |
+|---|---|---|
+| PO-10a | Events a student edits in Google are preserved ("edited in Google"); Tether never overwrites or removes them. | Extends PO-9a (deleted events left alone). |
+| PO-10b | No added type word in event titles: `<course> · <item title>`. | Matches the PO example. |
+| PO-10c | `syllabus.v1` stays frozen. No `quiz` or `class_meeting` kind now; quizzes use the assignment reminder timing until a reviewed additive change. | Revisit with a security delta. |
+| PO-10d | Switching destination (Google vs Tether calendar) moves nothing automatically. New approved items go to the new destination; moving old entries is a separate, confirmed run. | |
+| PO-10e | A student may re-add a deleted event only by deliberate action in a preview. Never automatic. | |
+| PO-10f | Reminder time is a whole hour, 08:00 to 20:00. | |
+| PO-10g | The mock calendar table and frozen `calendar-sync` routes stay mock-only and are deprecated; remove once `calendar.v1` is implemented. | |
+| PO-10h | Retention: 20 sync runs per syllabus, audit 400 days, content-free event record at most 400 days (all proposals, configurable). | |
+| PO-10i | Reminder pause is manual resume in v1; no auto-resume job. | |
+| PO-10j | University-managed (Workspace) Google accounts are allowed. Show a plain warning at connect and at transcript opt-in; handle admin-blocked gracefully. | Legal to review (G1). |
+| PO-10k | Pilot key custody: KEK in the host secret store (dev: ignored local config), KMS later with PO approval of vendor and cost. | Security doc Q5. |
+| PO-10l | Transcript upload to Google is a per-session student opt-in. Knowledge estimates are not mirrored to Google by default. | Security doc Q2, Q3. |
+| PO-10m | Deleting in Tether keeps the Google copies by default and offers an explicit "also remove from Google" choice while the grant is valid. Dialogs must say so. | Security doc Q6. |
+| PO-10n | Closed or suspended Google account: sign-in fails, tokens are deleted, existing Tether sessions end at their normal absolute lifetime. Tether-side data follows the retention policy, no password fallback. Purge timing needs PO/legal. | Refines PO-9n. |
+| PO-10o | Students get a "let Tether manage this again" action only for entries whose content-free record still exists, via the reconnect flow with preview. | |
+| PO-10p | Custom CSRF header name `X-Tether-CSRF` (finding B1-09). | |
+| PO-10q | Google quota: per-user daily budget plus a global soft limit well below Google's charged threshold; exact numbers for devops to set and PO to approve. | Review CV-06. |
