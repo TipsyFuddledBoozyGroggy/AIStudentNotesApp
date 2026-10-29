@@ -293,8 +293,24 @@ internal sealed class SessionService(
                 db.ChangeTracker.Clear();
                 if (!await ExistsAsync(id, ct)) return Problems.NotFound("Session not found."); // lost a race to another delete
             }
+            catch (Exception ex) when (IsDeadlockOrSerialization(ex))
+            {
+                // The delete cascade races in-flight transcript/audio-progress writers (their FK checks take KEY SHARE on this row
+                // while the cascade waits on their rows); PostgreSQL aborts one side. The transaction rolled back, so retry is safe.
+                db.ChangeTracker.Clear();
+                if (!await ExistsAsync(id, ct)) return Problems.NotFound("Session not found.");
+                await Task.Delay(Random.Shared.Next(20, 120), ct);
+            }
         }
         return Problems.ConcurrencyConflict();
+    }
+
+    /// <summary>True when any exception in the chain is PostgreSQL deadlock_detected (40P01) or serialization_failure (40001).</summary>
+    private static bool IsDeadlockOrSerialization(Exception ex)
+    {
+        for (var e = ex; e is not null; e = e.InnerException)
+            if (e is PostgresException { SqlState: PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.SerializationFailure }) return true;
+        return false;
     }
 
     // ---------- audio ticket ----------

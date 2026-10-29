@@ -354,6 +354,37 @@ public class RealtimeAudioTests(RealtimeAudioTests.Factory f) : LectureTestBase(
     }
 
     [Fact]
+    public async Task Deleting_a_session_that_deadlocks_with_a_concurrent_writer_is_retried_and_returns_204()
+    {
+        // Deterministic reproduction of the former intermittent 500 (SQLSTATE 40P01): the delete cascade waits on a row the writer holds,
+        // while the writer's FK check on a new child row waits on the session row the delete already locked. PostgreSQL aborts the
+        // earlier waiter (the delete) after deadlock_timeout; the endpoint must retry rather than surface a 500.
+        var (a, _, id) = await LiveAsync();
+        await F.ExecAsync($"insert into transcript.audio_progress (session_id, user_id, accepted_ms, updated_at) values ('{id}', '{a.UserId}', 0, now())");
+        await using var conn = new Npgsql.NpgsqlConnection(F.ConnectionString);
+        await conn.OpenAsync();
+        await using var tx = await conn.BeginTransactionAsync();
+        await using (var hold = new Npgsql.NpgsqlCommand($"update transcript.audio_progress set accepted_ms = 1 where session_id = '{id}'", conn, tx)) await hold.ExecuteNonQueryAsync();
+
+        var delete = a.Client.DeleteAsync($"/api/v1/sessions/{id}");
+        await Task.Delay(500); // the delete now owns the session row lock and waits on the audio_progress row
+        var insert = Task.Run(async () =>
+        {
+            await using var cmd = new Npgsql.NpgsqlCommand(
+                $"insert into transcript.transcript_events (session_id, seq, user_id, kind, from_ms, to_ms, gap_reason, occurred_at) values ('{id}', 1, '{a.UserId}', 'Gap', 0, 0, 'network', now())", conn, tx);
+            await cmd.ExecuteNonQueryAsync();
+        });
+        await Task.WhenAny(insert, Task.Delay(8000)); // completes once PostgreSQL aborts the delete; throws if the writer is chosen instead
+        try { await insert; } catch (Npgsql.PostgresException) { /* writer chosen as the victim: still must not affect the delete */ }
+        try { await tx.CommitAsync(); } catch (Exception) { }
+
+        Assert.Equal(HttpStatusCode.NoContent, (await delete).StatusCode);
+        Assert.Equal(0, await F.ScalarAsync($"select count(*) from lectures.lecture_sessions where id = '{id}'"));
+        Assert.Equal(0, await F.ScalarAsync($"select count(*) from transcript.transcript_events where session_id = '{id}'"));
+        Assert.Equal(0, await F.ScalarAsync($"select count(*) from transcript.audio_progress where session_id = '{id}'"));
+    }
+
+    [Fact]
     public async Task Purging_the_course_closes_the_audio_socket_via_the_watchdog()
     {
         var (a, course, id) = await LiveAsync();
