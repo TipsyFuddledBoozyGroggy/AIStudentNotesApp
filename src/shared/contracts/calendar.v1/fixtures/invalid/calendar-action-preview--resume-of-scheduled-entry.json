@@ -1,0 +1,29 @@
+{
+  "kind": "resume",
+  "destination": "google",
+  "generatedAt": "2026-10-28T12:00:00Z",
+  "entryCount": 2,
+  "entries": [
+    {
+      "entryId": "ent_06",
+      "itemId": "itm_07",
+      "occurrenceDate": "2026-11-03",
+      "title": "BIO 201 · Read chapter 7",
+      "state": "scheduled",
+      "willChange": true,
+      "resumeAction": "take_back"
+    },
+    {
+      "entryId": "ent_07",
+      "itemId": "itm_10",
+      "occurrenceDate": "2026-11-20",
+      "title": "BIO 201 · Project proposal due",
+      "state": "deleted_in_google",
+      "willChange": true,
+      "resumeAction": "readd"
+    }
+  ],
+  "keptInGoogleCount": 0,
+  "basis": null,
+  "previewDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

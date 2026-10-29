@@ -1,0 +1,4 @@
+{
+  "purpose": "connect",
+  "outcome": "invalid_grant: Bad Request"
+}

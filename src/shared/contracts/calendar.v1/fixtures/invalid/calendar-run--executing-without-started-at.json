@@ -1,0 +1,44 @@
+{
+  "runId": "run_02",
+  "kind": "write",
+  "syllabusId": "syl_01j9z8k2",
+  "destination": "google",
+  "state": "executing",
+  "createdAt": "2026-10-28T12:00:00Z",
+  "startedAt": null,
+  "finishedAt": null,
+  "progress": {
+    "total": 2,
+    "done": 1
+  },
+  "results": [
+    {
+      "itemId": "itm_03",
+      "itemKey": "ik_zmzduAT9Xtu-VKSA5d29Tq_CIpIywcbD",
+      "outcome": "created",
+      "errorCode": null,
+      "entryCount": 1,
+      "syncState": "synced"
+    },
+    {
+      "itemId": "itm_10",
+      "itemKey": "ik_cyXIWIYqJinPTixy1h2W6UTUXmsRizv2",
+      "outcome": "retrying",
+      "errorCode": "provider_rate_limited",
+      "entryCount": 0,
+      "syncState": "not_synced"
+    }
+  ],
+  "counts": {
+    "created": 1,
+    "updated": 0,
+    "unchanged": 0,
+    "removed": 0,
+    "notPresent": 0,
+    "leftAlone": 0,
+    "retrying": 1,
+    "failed": 0,
+    "notEligible": 0
+  },
+  "previewDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

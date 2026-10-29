@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-google-connection.schema.json",
+  "title": "Google connection",
+  "description": "GET connection, also the 202 body of disconnect. Never carries a token, the Google subject, a calendar id or a remote event id. DRAFT calendar.v1 (docs/API_CONTRACTS_CALENDAR.md), NOT frozen. Mock and fake-Google only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "account",
+    "grantedScopes",
+    "calendar",
+    "connectedAt",
+    "statusChangedAt",
+    "entryCounts",
+    "revocation",
+    "etag"
+  ],
+  "properties": {
+    "status": {
+      "$ref": "calendar-common.schema.json#/$defs/connectionStatus"
+    },
+    "account": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "emailMasked",
+            "workspaceAccount"
+          ],
+          "properties": {
+            "emailMasked": {
+              "$ref": "calendar-common.schema.json#/$defs/maskedEmail"
+            },
+            "workspaceAccount": {
+              "type": "boolean",
+              "description": "hd claim present: an institution-managed account (GR-1 notice)."
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "grantedScopes": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 4,
+      "items": {
+        "$ref": "calendar-common.schema.json#/$defs/googleScope"
+      }
+    },
+    "calendar": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "state"
+          ],
+          "properties": {
+            "name": {
+              "const": "Tether"
+            },
+            "state": {
+              "$ref": "calendar-common.schema.json#/$defs/calendarState"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "connectedAt": {
+      "oneOf": [
+        {
+          "$ref": "calendar-common.schema.json#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "statusChangedAt": {
+      "$ref": "calendar-common.schema.json#/$defs/timestamp"
+    },
+    "entryCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scheduled",
+        "retryLater",
+        "leftAlone",
+        "keptInGoogle"
+      ],
+      "properties": {
+        "scheduled": {
+          "$ref": "calendar-common.schema.json#/$defs/count"
+        },
+        "retryLater": {
+          "$ref": "calendar-common.schema.json#/$defs/count"
+        },
+        "leftAlone": {
+          "$ref": "calendar-common.schema.json#/$defs/count"
+        },
+        "keptInGoogle": {
+          "$ref": "calendar-common.schema.json#/$defs/count"
+        }
+      }
+    },
+    "revocation": {
+      "oneOf": [
+        {
+          "$ref": "calendar-common.schema.json#/$defs/revocation"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "etag": {
+      "$ref": "calendar-common.schema.json#/$defs/etag"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "not_connected"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "account": {
+            "type": "null"
+          },
+          "calendar": {
+            "type": "null"
+          },
+          "connectedAt": {
+            "type": "null"
+          },
+          "grantedScopes": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "connected"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "account": {
+            "type": "object"
+          },
+          "calendar": {
+            "type": "object"
+          },
+          "connectedAt": {
+            "$ref": "calendar-common.schema.json#/$defs/timestamp"
+          },
+          "grantedScopes": {
+            "contains": {
+              "const": "calendar.app.created"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "needs_reauth",
+              "admin_blocked"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "grantedScopes": {
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ]
+}

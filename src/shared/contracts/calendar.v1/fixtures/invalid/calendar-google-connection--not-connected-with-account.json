@@ -1,0 +1,19 @@
+{
+  "status": "not_connected",
+  "account": {
+    "emailMasked": "j***@gmail.com",
+    "workspaceAccount": false
+  },
+  "grantedScopes": [],
+  "calendar": null,
+  "connectedAt": null,
+  "statusChangedAt": "2026-10-28T12:00:00Z",
+  "entryCounts": {
+    "scheduled": 0,
+    "retryLater": 0,
+    "leftAlone": 0,
+    "keptInGoogle": 9
+  },
+  "revocation": "unconfirmed",
+  "etag": "W/\"c2\""
+}

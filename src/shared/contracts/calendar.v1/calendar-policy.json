@@ -1,0 +1,323 @@
+{
+  "status": "DRAFT calendar.v1 policy. Values marked PROPOSAL are pending devops/PO (PO-10q, PO-10h); nothing here is approved or measured.",
+  "googleErrorMap": [
+    {
+      "signal": "invalid_grant",
+      "where": "token_endpoint_refresh",
+      "deletesToken": true,
+      "confirmedByRetry": true,
+      "connection": "needs_reauth",
+      "outcome": "connection needs_reauth; all runs fail; no further Google calls",
+      "note": "HTTP 400 from the refresh endpoint, repeated once after a short delay; the ONLY signal that deletes a token (CV-05)"
+    },
+    {
+      "signal": "invalid_grant_unconfirmed",
+      "where": "token_endpoint_refresh",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": null,
+      "outcome": "retry once after a short delay",
+      "note": "first sighting; may be a Google incident"
+    },
+    {
+      "signal": "invalid_client",
+      "where": "token_endpoint",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": null,
+      "outcome": "run failed provider_unavailable; operator alert; connection unchanged",
+      "note": "our own client secret or config"
+    },
+    {
+      "signal": "unauthorized_client",
+      "where": "token_endpoint",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": null,
+      "outcome": "run failed provider_unavailable; operator alert; connection unchanged",
+      "note": ""
+    },
+    {
+      "signal": "accessNotConfigured",
+      "where": "calendar_api_403",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": null,
+      "outcome": "run failed provider_unavailable; operator alert; connection unchanged",
+      "note": "Calendar API disabled in our project"
+    },
+    {
+      "signal": "SERVICE_DISABLED",
+      "where": "calendar_api_403",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": null,
+      "outcome": "run failed provider_unavailable; operator alert; connection unchanged",
+      "note": ""
+    },
+    {
+      "signal": "quotaExceeded",
+      "where": "calendar_api_403",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": null,
+      "outcome": "run failed provider_unavailable; spend guard alert; no blind retry",
+      "note": ""
+    },
+    {
+      "signal": "rateLimitExceeded",
+      "where": "calendar_api_403_429",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": null,
+      "outcome": "retry with backoff, honour Retry-After; exhausted: provider_rate_limited",
+      "note": ""
+    },
+    {
+      "signal": "userRateLimitExceeded",
+      "where": "calendar_api_403_429",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": null,
+      "outcome": "retry with backoff, honour Retry-After; exhausted: provider_rate_limited",
+      "note": ""
+    },
+    {
+      "signal": "insufficientPermissions",
+      "where": "calendar_api_403",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": "needs_reauth",
+      "outcome": "connection needs_reauth (reconnect replaces the token); item failed connection_required",
+      "note": ""
+    },
+    {
+      "signal": "unknown_403",
+      "where": "calendar_api_403",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": null,
+      "outcome": "item failed remote_rejected; connection unchanged; unrecognised 403 reasons never delete a token",
+      "note": ""
+    },
+    {
+      "signal": "decrypt_failure",
+      "where": "local",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": null,
+      "outcome": "run failed provider_unavailable; connection unchanged; operator alert",
+      "note": ""
+    },
+    {
+      "signal": "http_5xx",
+      "where": "calendar_api",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": null,
+      "outcome": "retry with backoff; exhausted: provider_unavailable",
+      "note": ""
+    },
+    {
+      "signal": "timeout",
+      "where": "calendar_api",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": null,
+      "outcome": "retry with backoff; exhausted: provider_unavailable",
+      "note": ""
+    },
+    {
+      "signal": "event_404_410",
+      "where": "calendar_api_event",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": null,
+      "outcome": "entry deleted_in_google; delete counts as success",
+      "note": ""
+    },
+    {
+      "signal": "calendar_404",
+      "where": "calendar_api_calendar",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": null,
+      "outcome": "calendar missing_in_google after calendars.get; new calendar only on explicit confirm",
+      "note": ""
+    },
+    {
+      "signal": "insert_409",
+      "where": "calendar_api_event",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": null,
+      "outcome": "events.get; adopt only if a confirmed intent row matches the intended fingerprint, else remote_conflict",
+      "note": ""
+    },
+    {
+      "signal": "etag_412",
+      "where": "calendar_api_event",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": null,
+      "outcome": "re-get once and re-evaluate",
+      "note": ""
+    },
+    {
+      "signal": "http_400",
+      "where": "calendar_api",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": null,
+      "outcome": "no retry; item failed remote_rejected",
+      "note": ""
+    },
+    {
+      "signal": "admin_policy_enforced",
+      "where": "token_endpoint_refresh",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": "needs_reauth",
+      "outcome": "treated as needs_reauth until test T9 verifies the exact code",
+      "note": "UNVERIFIED code (vendor report 10.6)"
+    },
+    {
+      "signal": "access_denied_admin",
+      "where": "consent_error",
+      "deletesToken": false,
+      "confirmedByRetry": false,
+      "connection": "admin_blocked",
+      "outcome": "callback outcome admin_blocked; no token exists",
+      "note": "only reachable from the consent-time error= value, unverified until T9"
+    }
+  ],
+  "circuitBreaker": {
+    "windowMinutes": 10,
+    "minConnections": 20,
+    "maxTerminalFailurePercent": 5,
+    "action": "stop_deleting_and_alert",
+    "status": "PROPOSAL"
+  },
+  "limits": {
+    "status": "PROPOSAL pending devops/PO (PO-10q)",
+    "googleRequestsPerUserPerMinute": 120,
+    "googleWritesPerSecondPerCalendar": 3,
+    "googleWritesPerUserPerDay": 3000,
+    "runsPerUserPerDay": 20,
+    "scheduleWritePerUserPerMinute": 20,
+    "schedulePreviewPerUserPerMinute": 30,
+    "exportPerUserPerMinute": 6,
+    "egressFairness": "per_user_weighted_round_robin",
+    "globalStop": {
+      "behaviour": "shed_heaviest_users_first",
+      "disablesCalendarForEveryone": false,
+      "alertAtPercentOfBillingThreshold": 50,
+      "softLimitBelowBillingThreshold": true
+    },
+    "budgetExhaustedResponse": "429 rate_limited with Retry-After",
+    "auth": {
+      "startPerIpPerMinute": 300,
+      "startPerBinderCookiePerMinute": 10,
+      "callbackPerIpPerMinute": 300,
+      "maxUnconsumedStatesPerIpOrCookie": 20,
+      "stateTtlMinutes": 10,
+      "rejectBeforeAnyDatabaseWrite": true,
+      "copyOn429": "calm_try_again_in_a_moment"
+    }
+  },
+  "retention": {
+    "syncRunsPerSyllabus": 20,
+    "auditDays": 400,
+    "status": "PROPOSAL (PO-10h), configurable"
+  },
+  "contentFreeEventRecord": {
+    "fields": [
+      "calendarTargetId",
+      "eventId",
+      "generation",
+      "lastUsedAt"
+    ],
+    "upperLimitDays": 400,
+    "deletedOn": [
+      "disconnect",
+      "account_deletion",
+      "calendar_target_deletion"
+    ],
+    "status": "PROPOSAL pending PO (PO-9o, PO-10h)",
+    "purpose": "A re-created event never reuses a deleted event's id; no title, date, course, item key or fingerprint is kept."
+  },
+  "hardDeleteOn": [
+    "syllabus_delete",
+    "course_delete",
+    "course_archive",
+    "account_deletion",
+    "disconnect_keep"
+  ],
+  "disconnecting": {
+    "deadlineHours": 24,
+    "exits": [
+      "not_connected_on_terminal_token_failure",
+      "not_connected_on_student_choosing_keep",
+      "not_connected_on_deadline"
+    ]
+  },
+  "accountDeletion": {
+    "blocksOnGoogle": false,
+    "googleAttemptSeconds": 300
+  },
+  "previewDigest": {
+    "hkdfLabel": "calendar-preview-digest.v1",
+    "keyRing": true,
+    "canonicalForm": "length_prefixed_utf8",
+    "compare": "CryptographicOperations.FixedTimeEquals",
+    "stored": false,
+    "role": "consistency_check_not_authorisation",
+    "binds": [
+      "version",
+      "userId",
+      "kind",
+      "syllabusId",
+      "connectionId",
+      "remoteCalendarId",
+      "destination",
+      "preset",
+      "reminderTime",
+      "pause",
+      "courseOverrides",
+      "entries",
+      "generation",
+      "reminders",
+      "exclusions",
+      "leftAlone",
+      "skippedReminders",
+      "counts"
+    ]
+  },
+  "eventBodyAllowlist": [
+    "id",
+    "summary",
+    "description",
+    "start",
+    "end",
+    "reminders",
+    "extendedProperties.private",
+    "status"
+  ],
+  "eventBodyForbidden": [
+    "attendees",
+    "conferenceData",
+    "attachments",
+    "source",
+    "guestsCanModify",
+    "location",
+    "colorId",
+    "visibility_shared"
+  ],
+  "sendUpdates": "none",
+  "descriptionLink": "no_query_no_ids",
+  "dialogsMustState": [
+    "events_remain_in_google",
+    "also_remove_from_google_choice",
+    "next_sign_in_asks_consent_again"
+  ]
+}

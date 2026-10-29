@@ -1,0 +1,445 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-preview.schema.json",
+  "title": "schedule preview",
+  "description": "The exact list a write would produce, with local dates AND timezones, uncertainty flags, derived ends, reminders and what is left out and why. previewDigest is an HMAC over the canonical plan; the write must carry it and gets 409 plan_changed if the recomputed plan differs. DRAFT calendar.v1 (docs/API_CONTRACTS_CALENDAR.md), NOT frozen. Mock and fake-Google only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "syllabusId",
+    "destination",
+    "target",
+    "generatedAt",
+    "entries",
+    "excluded",
+    "leftAlone",
+    "reminders",
+    "counts",
+    "previewDigest"
+  ],
+  "properties": {
+    "syllabusId": {
+      "$ref": "calendar-common.schema.json#/$defs/id"
+    },
+    "destination": {
+      "$ref": "calendar-common.schema.json#/$defs/destination"
+    },
+    "target": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "const": "tether"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "accountEmailMasked",
+            "calendarName",
+            "calendarState"
+          ],
+          "properties": {
+            "kind": {
+              "const": "google"
+            },
+            "accountEmailMasked": {
+              "$ref": "calendar-common.schema.json#/$defs/maskedEmail"
+            },
+            "calendarName": {
+              "const": "Tether"
+            },
+            "calendarState": {
+              "$ref": "calendar-common.schema.json#/$defs/calendarState"
+            }
+          }
+        }
+      ]
+    },
+    "generatedAt": {
+      "$ref": "calendar-common.schema.json#/$defs/timestamp"
+    },
+    "entries": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "itemId",
+          "itemKey",
+          "occurrenceDate",
+          "title",
+          "kind",
+          "allDay",
+          "start",
+          "end",
+          "endDerived",
+          "timezoneSource",
+          "flags",
+          "action",
+          "reminders",
+          "skippedReminders"
+        ],
+        "properties": {
+          "itemId": {
+            "$ref": "calendar-common.schema.json#/$defs/id"
+          },
+          "itemKey": {
+            "$ref": "calendar-common.schema.json#/$defs/itemKey"
+          },
+          "occurrenceDate": {
+            "oneOf": [
+              {
+                "$ref": "calendar-common.schema.json#/$defs/localDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "$ref": "calendar-common.schema.json#/$defs/title"
+          },
+          "kind": {
+            "$ref": "calendar-common.schema.json#/$defs/editableKind"
+          },
+          "allDay": {
+            "type": "boolean"
+          },
+          "start": {
+            "$ref": "calendar-common.schema.json#/$defs/startLocal"
+          },
+          "end": {
+            "$ref": "calendar-common.schema.json#/$defs/endLocal"
+          },
+          "endDerived": {
+            "type": "boolean"
+          },
+          "timezoneSource": {
+            "$ref": "calendar-common.schema.json#/$defs/timezoneSource"
+          },
+          "flags": {
+            "type": "array",
+            "uniqueItems": true,
+            "maxItems": 18,
+            "items": {
+              "$ref": "calendar-common.schema.json#/$defs/flag"
+            }
+          },
+          "action": {
+            "$ref": "calendar-common.schema.json#/$defs/previewAction"
+          },
+          "reminders": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "minutesBefore",
+                "method",
+                "fireAt"
+              ],
+              "properties": {
+                "minutesBefore": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 40320
+                },
+                "method": {
+                  "const": "popup"
+                },
+                "fireAt": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "date",
+                    "time"
+                  ],
+                  "properties": {
+                    "date": {
+                      "$ref": "calendar-common.schema.json#/$defs/localDate"
+                    },
+                    "time": {
+                      "$ref": "calendar-common.schema.json#/$defs/reminderTime"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "skippedReminders": {
+            "type": "array",
+            "maxItems": 6,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "reason",
+                "date"
+              ],
+              "properties": {
+                "reason": {
+                  "$ref": "calendar-common.schema.json#/$defs/skippedReminderReason"
+                },
+                "date": {
+                  "oneOf": [
+                    {
+                      "$ref": "calendar-common.schema.json#/$defs/localDate"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "allOf": [
+          {
+            "$ref": "calendar-common.schema.json#/$defs/eventTimes"
+          }
+        ]
+      }
+    },
+    "excluded": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "itemId",
+          "itemKey",
+          "reason"
+        ],
+        "properties": {
+          "itemId": {
+            "$ref": "calendar-common.schema.json#/$defs/id"
+          },
+          "itemKey": {
+            "$ref": "calendar-common.schema.json#/$defs/itemKey"
+          },
+          "reason": {
+            "$ref": "calendar-common.schema.json#/$defs/excludedReason"
+          }
+        }
+      }
+    },
+    "leftAlone": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "itemId",
+          "itemKey",
+          "occurrenceDate",
+          "reason"
+        ],
+        "properties": {
+          "itemId": {
+            "$ref": "calendar-common.schema.json#/$defs/id"
+          },
+          "itemKey": {
+            "$ref": "calendar-common.schema.json#/$defs/itemKey"
+          },
+          "occurrenceDate": {
+            "oneOf": [
+              {
+                "$ref": "calendar-common.schema.json#/$defs/localDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "$ref": "calendar-common.schema.json#/$defs/leftAloneReason"
+          }
+        }
+      }
+    },
+    "reminders": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "appliesTo",
+        "preset",
+        "reminderTime",
+        "dailyCapSkips"
+      ],
+      "properties": {
+        "appliesTo": {
+          "type": "string",
+          "enum": [
+            "google_events",
+            "none"
+          ]
+        },
+        "preset": {
+          "oneOf": [
+            {
+              "$ref": "calendar-common.schema.json#/$defs/reminderPreset"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reminderTime": {
+          "oneOf": [
+            {
+              "$ref": "calendar-common.schema.json#/$defs/reminderTime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dailyCapSkips": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "date",
+              "count"
+            ],
+            "properties": {
+              "date": {
+                "$ref": "calendar-common.schema.json#/$defs/localDate"
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "create",
+        "update",
+        "unchanged",
+        "excluded",
+        "leftAlone",
+        "reminders"
+      ],
+      "properties": {
+        "create": {
+          "$ref": "calendar-common.schema.json#/$defs/count"
+        },
+        "update": {
+          "$ref": "calendar-common.schema.json#/$defs/count"
+        },
+        "unchanged": {
+          "$ref": "calendar-common.schema.json#/$defs/count"
+        },
+        "excluded": {
+          "$ref": "calendar-common.schema.json#/$defs/count"
+        },
+        "leftAlone": {
+          "$ref": "calendar-common.schema.json#/$defs/count"
+        },
+        "reminders": {
+          "$ref": "calendar-common.schema.json#/$defs/count"
+        }
+      }
+    },
+    "previewDigest": {
+      "$ref": "calendar-common.schema.json#/$defs/sha256Hex"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "destination": {
+            "const": "tether"
+          }
+        },
+        "required": [
+          "destination"
+        ]
+      },
+      "then": {
+        "properties": {
+          "target": {
+            "properties": {
+              "kind": {
+                "const": "tether"
+              }
+            }
+          },
+          "reminders": {
+            "properties": {
+              "appliesTo": {
+                "const": "none"
+              },
+              "preset": {
+                "type": "null"
+              },
+              "reminderTime": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "destination": {
+            "const": "google"
+          }
+        },
+        "required": [
+          "destination"
+        ]
+      },
+      "then": {
+        "properties": {
+          "target": {
+            "properties": {
+              "kind": {
+                "const": "google"
+              }
+            }
+          },
+          "reminders": {
+            "properties": {
+              "appliesTo": {
+                "const": "google_events"
+              },
+              "preset": {
+                "$ref": "calendar-common.schema.json#/$defs/reminderPreset"
+              },
+              "reminderTime": {
+                "$ref": "calendar-common.schema.json#/$defs/reminderTime"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

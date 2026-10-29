@@ -1,0 +1,13 @@
+{
+  "syllabusId": "syl_01j9z8k2",
+  "itemIds": [
+    "itm_03",
+    "itm_05"
+  ],
+  "previewDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "confirm": {
+    "destination": "google",
+    "entryCount": 3,
+    "acknowledged": true
+  }
+}

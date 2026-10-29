@@ -1,0 +1,44 @@
+{
+  "runId": "run_10",
+  "kind": "resume",
+  "syllabusId": null,
+  "destination": "google",
+  "state": "succeeded",
+  "createdAt": "2026-10-28T12:00:00Z",
+  "startedAt": "2026-10-28T12:00:01Z",
+  "finishedAt": "2026-10-28T12:00:09Z",
+  "progress": {
+    "total": 2,
+    "done": 2
+  },
+  "results": [
+    {
+      "itemId": "itm_07",
+      "itemKey": "ik_Ps1TkSr4NmrHYAbVk4hxu5gnqdmH19qD",
+      "outcome": "updated",
+      "errorCode": null,
+      "entryCount": 1,
+      "syncState": "synced"
+    },
+    {
+      "itemId": "itm_10",
+      "itemKey": "ik_cyXIWIYqJinPTixy1h2W6UTUXmsRizv2",
+      "outcome": "created",
+      "errorCode": null,
+      "entryCount": 1,
+      "syncState": "synced"
+    }
+  ],
+  "counts": {
+    "created": 1,
+    "updated": 1,
+    "unchanged": 0,
+    "removed": 0,
+    "notPresent": 0,
+    "leftAlone": 0,
+    "retrying": 0,
+    "failed": 0,
+    "notEligible": 0
+  },
+  "previewDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

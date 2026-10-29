@@ -1,0 +1,22 @@
+{
+  "status": "admin_blocked",
+  "account": {
+    "emailMasked": "s***@university.edu",
+    "workspaceAccount": true
+  },
+  "grantedScopes": [],
+  "calendar": {
+    "name": "Tether",
+    "state": "ready"
+  },
+  "connectedAt": "2026-10-28T12:00:00Z",
+  "statusChangedAt": "2026-11-04T09:00:00Z",
+  "entryCounts": {
+    "scheduled": 14,
+    "retryLater": 0,
+    "leftAlone": 1,
+    "keptInGoogle": 0
+  },
+  "revocation": null,
+  "etag": "W/\"c1\""
+}

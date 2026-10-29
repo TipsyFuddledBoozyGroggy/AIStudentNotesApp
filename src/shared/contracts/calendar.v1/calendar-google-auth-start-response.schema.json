@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-google-auth-start-response.schema.json",
+  "title": "Google authorization start response",
+  "description": "200 from either start route. The browser navigates to authorizationUrl. state is single use, bound to the session (or the pre-session binder cookie for sign-in), purpose and scopes, expires in 10 minutes. DRAFT calendar.v1 (docs/API_CONTRACTS_CALENDAR.md), NOT frozen. Mock and fake-Google only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "purpose",
+    "authorizationUrl",
+    "expiresAt"
+  ],
+  "properties": {
+    "purpose": {
+      "type": "string",
+      "enum": [
+        "signin",
+        "connect"
+      ]
+    },
+    "authorizationUrl": {
+      "$ref": "calendar-common.schema.json#/$defs/authorizationUrl"
+    },
+    "expiresAt": {
+      "$ref": "calendar-common.schema.json#/$defs/timestamp"
+    }
+  }
+}

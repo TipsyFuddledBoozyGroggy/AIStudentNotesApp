@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-reminder-update-preview-request.schema.json",
+  "title": "reminder update preview request",
+  "description": "POST reminder-update-previews. Read-only, no Google call. Returns calendar-action-preview of kind reminders computed from the CURRENT saved settings. DRAFT calendar.v1 (docs/API_CONTRACTS_CALENDAR.md), NOT frozen. Mock and fake-Google only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "courseId"
+  ],
+  "properties": {
+    "courseId": {
+      "oneOf": [
+        {
+          "$ref": "calendar-common.schema.json#/$defs/id"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  }
+}

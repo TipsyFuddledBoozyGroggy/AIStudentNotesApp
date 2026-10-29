@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-resume-request.schema.json",
+  "title": "resume request",
+  "description": "POST resumptions (202), Idempotency-Key required. 'Let Tether manage this again' / deliberate re-add (PO-10e, PO-10o): bound to the previewDigest that showed the overwrite or re-creation. Never automatic. DRAFT calendar.v1 (docs/API_CONTRACTS_CALENDAR.md), NOT frozen. Mock and fake-Google only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "syllabusId",
+    "itemIds",
+    "previewDigest",
+    "confirm"
+  ],
+  "properties": {
+    "syllabusId": {
+      "$ref": "calendar-common.schema.json#/$defs/id"
+    },
+    "itemIds": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "calendar-common.schema.json#/$defs/id"
+      }
+    },
+    "previewDigest": {
+      "$ref": "calendar-common.schema.json#/$defs/sha256Hex"
+    },
+    "confirm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "destination",
+        "entryCount",
+        "acknowledged"
+      ],
+      "properties": {
+        "destination": {
+          "const": "google"
+        },
+        "entryCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "acknowledged": {
+          "const": true
+        }
+      }
+    }
+  }
+}

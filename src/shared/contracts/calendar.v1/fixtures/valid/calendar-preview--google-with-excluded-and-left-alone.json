@@ -1,0 +1,153 @@
+{
+  "syllabusId": "syl_01j9z8k2",
+  "destination": "google",
+  "target": {
+    "kind": "google",
+    "accountEmailMasked": "j***@gmail.com",
+    "calendarName": "Tether",
+    "calendarState": "ready"
+  },
+  "generatedAt": "2026-10-28T12:00:00Z",
+  "entries": [
+    {
+      "itemId": "itm_03",
+      "itemKey": "ik_zmzduAT9Xtu-VKSA5d29Tq_CIpIywcbD",
+      "occurrenceDate": "2026-11-12",
+      "title": "BIO 201 · Midterm exam",
+      "kind": "exam",
+      "allDay": false,
+      "start": {
+        "date": "2026-11-12",
+        "time": "14:00",
+        "timezone": "America/New_York"
+      },
+      "end": {
+        "date": "2026-11-12",
+        "time": "15:00"
+      },
+      "endDerived": true,
+      "timezoneSource": "stated_in_source",
+      "flags": [],
+      "action": "create",
+      "reminders": [
+        {
+          "minutesBefore": 10380,
+          "method": "popup",
+          "fireAt": {
+            "date": "2026-11-05",
+            "time": "09:00"
+          }
+        },
+        {
+          "minutesBefore": 1740,
+          "method": "popup",
+          "fireAt": {
+            "date": "2026-11-11",
+            "time": "09:00"
+          }
+        }
+      ],
+      "skippedReminders": []
+    },
+    {
+      "itemId": "itm_10",
+      "itemKey": "ik_cyXIWIYqJinPTixy1h2W6UTUXmsRizv2",
+      "occurrenceDate": "2026-11-20",
+      "title": "BIO 201 · Project proposal due",
+      "kind": "assignment",
+      "allDay": true,
+      "start": {
+        "date": "2026-11-20",
+        "time": null,
+        "timezone": "America/New_York"
+      },
+      "end": {
+        "date": "2026-11-20",
+        "time": null
+      },
+      "endDerived": false,
+      "timezoneSource": "course_default",
+      "flags": [
+        "timezone_assumed"
+      ],
+      "action": "create",
+      "reminders": [
+        {
+          "minutesBefore": 3780,
+          "method": "popup",
+          "fireAt": {
+            "date": "2026-11-17",
+            "time": "09:00"
+          }
+        },
+        {
+          "minutesBefore": 900,
+          "method": "popup",
+          "fireAt": {
+            "date": "2026-11-19",
+            "time": "09:00"
+          }
+        }
+      ],
+      "skippedReminders": []
+    },
+    {
+      "itemId": "itm_07",
+      "itemKey": "ik_Ps1TkSr4NmrHYAbVk4hxu5gnqdmH19qD",
+      "occurrenceDate": "2026-11-03",
+      "title": "BIO 201 · Read chapter 7",
+      "kind": "reading",
+      "allDay": true,
+      "start": {
+        "date": "2026-11-03",
+        "time": null,
+        "timezone": "America/New_York"
+      },
+      "end": {
+        "date": "2026-11-03",
+        "time": null
+      },
+      "endDerived": false,
+      "timezoneSource": "stated_in_source",
+      "flags": [],
+      "action": "unchanged",
+      "reminders": [],
+      "skippedReminders": []
+    }
+  ],
+  "excluded": [
+    {
+      "itemId": "itm_01",
+      "itemKey": "ik_HHERWOfFTiOx2V0hBXZl7qiqfbZ-26Ks",
+      "reason": "needs_date"
+    },
+    {
+      "itemId": "itm_02",
+      "itemKey": "ik_w8Lhswx3sOXYnQ_V5gGpfbaTvKdYmUr4",
+      "reason": "not_approved"
+    }
+  ],
+  "leftAlone": [
+    {
+      "itemId": "itm_05",
+      "itemKey": "ik_Neud_qn7Z4Afeb9pEeRXuNI3m9L3GZaU",
+      "occurrenceDate": "2026-11-05",
+      "reason": "deleted_in_google"
+    }
+  ],
+  "reminders": {
+    "appliesTo": "google_events",
+    "preset": "gentle",
+    "reminderTime": "09:00",
+    "dailyCapSkips": []
+  },
+  "counts": {
+    "create": 2,
+    "update": 0,
+    "unchanged": 1,
+    "excluded": 2,
+    "leftAlone": 1,
+    "reminders": 4
+  },
+  "previewDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

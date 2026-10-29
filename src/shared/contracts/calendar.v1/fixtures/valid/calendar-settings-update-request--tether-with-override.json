@@ -1,0 +1,11 @@
+{
+  "destination": "tether",
+  "reminders": {
+    "preset": "gentle",
+    "reminderTime": "09:00",
+    "courseOverrides": {
+      "crs_01": "off"
+    },
+    "pausedUntil": null
+  }
+}

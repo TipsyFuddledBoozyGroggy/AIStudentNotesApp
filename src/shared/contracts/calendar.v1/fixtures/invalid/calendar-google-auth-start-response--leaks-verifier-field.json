@@ -1,0 +1,6 @@
+{
+  "purpose": "connect",
+  "authorizationUrl": "https://accounts.google.com/o/oauth2/v2/auth?client_id=fake-client.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Fapp.tether.invalid%2Fapi%2Fv1%2Fauth%2Fgoogle%2Fcallback&response_type=code&state=St4teStateStateStateStateStateStateStateState_-1&nonce=N0nceNonceNonceNonceNonceNonceNonceNonceNonce_-2&code_challenge=Ch4llengeChallengeChallengeChallengeChallen&code_challenge_method=S256&scope=openid%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcalendar.app.created&access_type=offline&prompt=select_account%20consent&login_hint=118273645091827364509",
+  "expiresAt": "2026-10-28T12:10:00Z",
+  "codeVerifier": "x"
+}

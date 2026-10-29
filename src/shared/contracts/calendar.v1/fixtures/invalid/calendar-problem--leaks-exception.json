@@ -1,0 +1,9 @@
+{
+  "type": "https://errors.tether.invalid/provider_unavailable",
+  "title": "x",
+  "status": 503,
+  "detail": "x",
+  "code": "provider_unavailable",
+  "traceId": "00-abc123",
+  "exception": "System.Net.Http.HttpRequestException: accounts.google.com"
+}

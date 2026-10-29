@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-settings.schema.json",
+  "title": "schedule settings",
+  "description": "GET settings. Destination is per account; reminders per preset. Precedence: pause, then course override, then preset. pausedUntil is at most 60 days ahead (server rule; manual resume in v1, PO-10i). eventsInGoogle is the number of scheduled Google events, so the UI can say how many stay in Google if the destination changes (nothing moves automatically, PO-10d). DRAFT calendar.v1 (docs/API_CONTRACTS_CALENDAR.md), NOT frozen. Mock and fake-Google only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "destination",
+    "reminders",
+    "eventsInGoogle",
+    "updatedAt",
+    "etag"
+  ],
+  "properties": {
+    "destination": {
+      "$ref": "calendar-common.schema.json#/$defs/settingsDestination"
+    },
+    "reminders": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preset",
+        "reminderTime",
+        "courseOverrides",
+        "pausedUntil"
+      ],
+      "properties": {
+        "preset": {
+          "$ref": "calendar-common.schema.json#/$defs/reminderPreset"
+        },
+        "reminderTime": {
+          "$ref": "calendar-common.schema.json#/$defs/reminderTime"
+        },
+        "courseOverrides": {
+          "type": "object",
+          "maxProperties": 50,
+          "propertyNames": {
+            "$ref": "calendar-common.schema.json#/$defs/id"
+          },
+          "additionalProperties": {
+            "$ref": "calendar-common.schema.json#/$defs/courseReminderSetting"
+          }
+        },
+        "pausedUntil": {
+          "oneOf": [
+            {
+              "$ref": "calendar-common.schema.json#/$defs/localDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "eventsInGoogle": {
+      "$ref": "calendar-common.schema.json#/$defs/count"
+    },
+    "updatedAt": {
+      "$ref": "calendar-common.schema.json#/$defs/timestamp"
+    },
+    "etag": {
+      "$ref": "calendar-common.schema.json#/$defs/etag"
+    }
+  }
+}

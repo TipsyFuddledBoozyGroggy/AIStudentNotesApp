@@ -1,0 +1,165 @@
+{
+  "exportedAt": "2026-10-28T12:00:00Z",
+  "settings": {
+    "destination": "google",
+    "reminders": {
+      "preset": "extra_runway",
+      "reminderTime": "10:00",
+      "courseOverrides": {
+        "crs_01": "off",
+        "crs_02": "use_default"
+      },
+      "pausedUntil": "2026-11-20"
+    },
+    "eventsInGoogle": 14,
+    "updatedAt": "2026-10-28T12:00:00Z",
+    "etag": "W/\"s2\""
+  },
+  "connection": {
+    "status": "connected",
+    "account": {
+      "emailMasked": "j***@gmail.com",
+      "workspaceAccount": false
+    },
+    "grantedScopes": [
+      "openid",
+      "calendar.app.created"
+    ],
+    "calendar": {
+      "name": "Tether",
+      "state": "ready"
+    },
+    "connectedAt": "2026-10-28T12:00:00Z",
+    "statusChangedAt": "2026-10-28T12:00:00Z",
+    "entryCounts": {
+      "scheduled": 14,
+      "retryLater": 0,
+      "leftAlone": 1,
+      "keptInGoogle": 0
+    },
+    "revocation": null,
+    "etag": "W/\"c1\""
+  },
+  "entries": [
+    {
+      "entryId": "ent_01",
+      "courseId": "crs_01",
+      "syllabusId": "syl_01j9z8k2",
+      "itemId": "itm_03",
+      "itemKey": "ik_zmzduAT9Xtu-VKSA5d29Tq_CIpIywcbD",
+      "occurrenceDate": "2026-11-12",
+      "title": "BIO 201 · Midterm exam",
+      "kind": "exam",
+      "allDay": false,
+      "start": {
+        "date": "2026-11-12",
+        "time": "14:00",
+        "timezone": "America/New_York"
+      },
+      "end": {
+        "date": "2026-11-12",
+        "time": "15:00"
+      },
+      "endDerived": true,
+      "timezoneSource": "stated_in_source",
+      "flags": [],
+      "destination": "google",
+      "state": "scheduled",
+      "syncedRevision": 1,
+      "scheduledAt": "2026-10-28T12:00:00.000Z",
+      "stateChangedAt": "2026-10-28T12:00:00.000Z",
+      "reminders": [
+        {
+          "minutesBefore": 10380,
+          "method": "popup"
+        },
+        {
+          "minutesBefore": 1740,
+          "method": "popup"
+        }
+      ],
+      "google": {
+        "generation": 1,
+        "lastCheckedAt": "2026-10-28T12:00:00Z"
+      },
+      "etag": "W/\"e1\""
+    },
+    {
+      "entryId": "ent_02",
+      "courseId": "crs_01",
+      "syllabusId": "syl_01j9z8k2",
+      "itemId": "itm_05",
+      "itemKey": "ik_Neud_qn7Z4Afeb9pEeRXuNI3m9L3GZaU",
+      "occurrenceDate": "2026-11-05",
+      "title": "BIO 201 · Lab report 3",
+      "kind": "assignment",
+      "allDay": false,
+      "start": {
+        "date": "2026-11-05",
+        "time": "23:59",
+        "timezone": "America/New_York"
+      },
+      "end": {
+        "date": "2026-11-06",
+        "time": "00:59"
+      },
+      "endDerived": false,
+      "timezoneSource": "stated_in_source",
+      "flags": [],
+      "destination": "tether",
+      "state": "scheduled",
+      "syncedRevision": 1,
+      "scheduledAt": "2026-10-28T12:00:00.000Z",
+      "stateChangedAt": "2026-10-28T12:00:00.000Z",
+      "reminders": [],
+      "google": null,
+      "etag": "W/\"e1\""
+    }
+  ],
+  "runs": [
+    {
+      "runId": "run_03",
+      "kind": "write",
+      "syllabusId": "syl_01j9z8k2",
+      "destination": "google",
+      "state": "succeeded",
+      "createdAt": "2026-10-28T12:00:00Z",
+      "startedAt": "2026-10-28T12:00:01Z",
+      "finishedAt": "2026-10-28T12:00:09Z",
+      "progress": {
+        "total": 2,
+        "done": 2
+      },
+      "results": [
+        {
+          "itemId": "itm_03",
+          "itemKey": "ik_zmzduAT9Xtu-VKSA5d29Tq_CIpIywcbD",
+          "outcome": "created",
+          "errorCode": null,
+          "entryCount": 1,
+          "syncState": "synced"
+        },
+        {
+          "itemId": "itm_10",
+          "itemKey": "ik_cyXIWIYqJinPTixy1h2W6UTUXmsRizv2",
+          "outcome": "created",
+          "errorCode": null,
+          "entryCount": 1,
+          "syncState": "synced"
+        }
+      ],
+      "counts": {
+        "created": 2,
+        "updated": 0,
+        "unchanged": 0,
+        "removed": 0,
+        "notPresent": 0,
+        "leftAlone": 0,
+        "retrying": 0,
+        "failed": 0,
+        "notEligible": 0
+      },
+      "previewDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ]
+}

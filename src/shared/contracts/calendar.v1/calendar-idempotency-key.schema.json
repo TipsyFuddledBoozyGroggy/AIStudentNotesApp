@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-idempotency-key.schema.json",
+  "title": "Idempotency-Key header value",
+  "description": "The Idempotency-Key request header (format identical to syllabus.v1). Exists so the header has real valid and invalid fixtures.",
+  "$ref": "calendar-common.schema.json#/$defs/idempotencyKey"
+}

@@ -1,0 +1,9 @@
+{
+  "courseId": null,
+  "previewDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "confirm": {
+    "destination": "google",
+    "entryCount": 5,
+    "acknowledged": true
+  }
+}

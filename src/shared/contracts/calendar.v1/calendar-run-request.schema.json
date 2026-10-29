@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-run-request.schema.json",
+  "title": "schedule write request",
+  "description": "POST runs (202), Idempotency-Key required. The explicit confirm: previewDigest from the preview, the destination, the entry count and the reminder preset the student saw. Nothing is written without it. DRAFT calendar.v1 (docs/API_CONTRACTS_CALENDAR.md), NOT frozen. Mock and fake-Google only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "syllabusId",
+    "itemRevisions",
+    "previewDigest",
+    "confirm"
+  ],
+  "properties": {
+    "syllabusId": {
+      "$ref": "calendar-common.schema.json#/$defs/id"
+    },
+    "itemRevisions": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 100,
+      "propertyNames": {
+        "$ref": "calendar-common.schema.json#/$defs/id"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 2147483647
+      }
+    },
+    "previewDigest": {
+      "$ref": "calendar-common.schema.json#/$defs/sha256Hex"
+    },
+    "confirm": {
+      "$ref": "calendar-common.schema.json#/$defs/confirmWrite"
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-export.schema.json",
+  "title": "schedule export",
+  "description": "GET export (attachment, no-store, nosniff, 6/min). Everything Tether holds about the schedule for this student, excluding tokens, key ids, remote ids and fingerprints. Copies in the student's Google account are the student's own and are not part of it. DRAFT calendar.v1 (docs/API_CONTRACTS_CALENDAR.md), NOT frozen. Mock and fake-Google only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "exportedAt",
+    "settings",
+    "connection",
+    "entries",
+    "runs"
+  ],
+  "properties": {
+    "exportedAt": {
+      "$ref": "calendar-common.schema.json#/$defs/timestamp"
+    },
+    "settings": {
+      "$ref": "calendar-settings.schema.json"
+    },
+    "connection": {
+      "$ref": "calendar-google-connection.schema.json"
+    },
+    "entries": {
+      "type": "array",
+      "maxItems": 5000,
+      "items": {
+        "$ref": "calendar-entry.schema.json"
+      }
+    },
+    "runs": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "calendar-run.schema.json"
+      }
+    }
+  }
+}

@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-action-preview.schema.json",
+  "title": "action preview",
+  "description": "Read-only plan for a removal, reminder update, disconnect or resume. previewDigest is the same HMAC construction as calendar-preview (calendar-policy.json previewDigest) and the matching write recomputes the plan and answers 409 plan_changed on any difference. DRAFT calendar.v1 (docs/API_CONTRACTS_CALENDAR.md), NOT frozen. Mock and fake-Google only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "destination",
+    "generatedAt",
+    "entryCount",
+    "entries",
+    "keptInGoogleCount",
+    "basis",
+    "previewDigest"
+  ],
+  "properties": {
+    "kind": {
+      "$ref": "calendar-common.schema.json#/$defs/actionPreviewKind"
+    },
+    "destination": {
+      "$ref": "calendar-common.schema.json#/$defs/destination"
+    },
+    "generatedAt": {
+      "$ref": "calendar-common.schema.json#/$defs/timestamp"
+    },
+    "entryCount": {
+      "$ref": "calendar-common.schema.json#/$defs/count"
+    },
+    "entries": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "entryId",
+          "itemId",
+          "occurrenceDate",
+          "title",
+          "state",
+          "willChange",
+          "resumeAction"
+        ],
+        "properties": {
+          "entryId": {
+            "$ref": "calendar-common.schema.json#/$defs/id"
+          },
+          "itemId": {
+            "$ref": "calendar-common.schema.json#/$defs/id"
+          },
+          "occurrenceDate": {
+            "oneOf": [
+              {
+                "$ref": "calendar-common.schema.json#/$defs/localDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "$ref": "calendar-common.schema.json#/$defs/title"
+          },
+          "state": {
+            "$ref": "calendar-common.schema.json#/$defs/entryState"
+          },
+          "willChange": {
+            "type": "boolean"
+          },
+          "resumeAction": {
+            "oneOf": [
+              {
+                "$ref": "calendar-common.schema.json#/$defs/resumeAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "keptInGoogleCount": {
+      "allOf": [
+        {
+          "$ref": "calendar-common.schema.json#/$defs/count"
+        }
+      ],
+      "description": "Content-free records (PO-9o): events Tether created earlier whose content it no longer holds. Tether cannot check them for student edits, so it never removes them (PO-10a); the student deletes them in Google."
+    },
+    "basis": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "preset",
+            "reminderTime",
+            "courseOverrides",
+            "pausedUntil"
+          ],
+          "properties": {
+            "preset": {
+              "$ref": "calendar-common.schema.json#/$defs/reminderPreset"
+            },
+            "reminderTime": {
+              "$ref": "calendar-common.schema.json#/$defs/reminderTime"
+            },
+            "courseOverrides": {
+              "type": "object",
+              "maxProperties": 50,
+              "propertyNames": {
+                "$ref": "calendar-common.schema.json#/$defs/id"
+              },
+              "additionalProperties": {
+                "$ref": "calendar-common.schema.json#/$defs/courseReminderSetting"
+              }
+            },
+            "pausedUntil": {
+              "oneOf": [
+                {
+                  "$ref": "calendar-common.schema.json#/$defs/localDate"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "previewDigest": {
+      "$ref": "calendar-common.schema.json#/$defs/sha256Hex"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "reminders"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "basis": {
+            "type": "object"
+          },
+          "destination": {
+            "const": "google"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "not": {
+              "const": "reminders"
+            }
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "basis": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "disconnect",
+              "resume"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "destination": {
+            "const": "google"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "not": {
+              "const": "resume"
+            }
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "entries": {
+            "items": {
+              "properties": {
+                "resumeAction": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "resume"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "entries": {
+            "items": {
+              "properties": {
+                "state": {
+                  "enum": [
+                    "edited_in_google",
+                    "deleted_in_google"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

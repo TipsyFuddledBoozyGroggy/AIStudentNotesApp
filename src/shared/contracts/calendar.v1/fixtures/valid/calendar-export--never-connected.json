@@ -1,0 +1,33 @@
+{
+  "exportedAt": "2026-10-28T12:00:00Z",
+  "settings": {
+    "destination": "unset",
+    "reminders": {
+      "preset": "gentle",
+      "reminderTime": "09:00",
+      "courseOverrides": {},
+      "pausedUntil": null
+    },
+    "eventsInGoogle": 0,
+    "updatedAt": "2026-10-28T12:00:00Z",
+    "etag": "W/\"s1\""
+  },
+  "connection": {
+    "status": "not_connected",
+    "account": null,
+    "grantedScopes": [],
+    "calendar": null,
+    "connectedAt": null,
+    "statusChangedAt": "2026-10-28T12:00:00Z",
+    "entryCounts": {
+      "scheduled": 0,
+      "retryLater": 0,
+      "leftAlone": 0,
+      "keptInGoogle": 9
+    },
+    "revocation": "unconfirmed",
+    "etag": "W/\"c2\""
+  },
+  "entries": [],
+  "runs": []
+}

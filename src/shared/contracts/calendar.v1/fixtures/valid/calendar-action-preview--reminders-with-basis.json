@@ -1,0 +1,25 @@
+{
+  "kind": "reminders",
+  "destination": "google",
+  "generatedAt": "2026-10-28T12:00:00Z",
+  "entryCount": 1,
+  "entries": [
+    {
+      "entryId": "ent_01",
+      "itemId": "itm_03",
+      "occurrenceDate": "2026-11-12",
+      "title": "BIO 201 · Midterm exam",
+      "state": "scheduled",
+      "willChange": true,
+      "resumeAction": null
+    }
+  ],
+  "keptInGoogleCount": 0,
+  "basis": {
+    "preset": "gentle",
+    "reminderTime": "09:00",
+    "courseOverrides": {},
+    "pausedUntil": null
+  },
+  "previewDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

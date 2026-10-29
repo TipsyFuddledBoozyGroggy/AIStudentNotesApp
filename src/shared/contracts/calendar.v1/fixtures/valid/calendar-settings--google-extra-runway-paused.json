@@ -1,0 +1,15 @@
+{
+  "destination": "google",
+  "reminders": {
+    "preset": "extra_runway",
+    "reminderTime": "10:00",
+    "courseOverrides": {
+      "crs_01": "off",
+      "crs_02": "use_default"
+    },
+    "pausedUntil": "2026-11-20"
+  },
+  "eventsInGoogle": 14,
+  "updatedAt": "2026-10-28T12:00:00Z",
+  "etag": "W/\"s2\""
+}

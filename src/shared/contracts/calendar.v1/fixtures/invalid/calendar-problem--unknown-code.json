@@ -1,0 +1,8 @@
+{
+  "type": "https://errors.tether.invalid/google_error",
+  "title": "x",
+  "status": 502,
+  "detail": "x",
+  "code": "google_error",
+  "traceId": "00-abc123"
+}

@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-google-disconnect-request.schema.json",
+  "title": "Google disconnect request",
+  "description": "POST disconnect, Idempotency-Key required (a fresh key per click; a replayed disconnect returns the CURRENT connection resource). remove_events is bound to the digest and count from POST disconnect-preview (CV-08); keep carries neither. Events are removed (if chosen) BEFORE revocation. With needs_reauth or admin_blocked only keep is possible (409 connection_required otherwise). DRAFT calendar.v1 (docs/API_CONTRACTS_CALENDAR.md), NOT frozen. Mock and fake-Google only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "eventsAction",
+    "acknowledged",
+    "entryCount",
+    "previewDigest"
+  ],
+  "properties": {
+    "eventsAction": {
+      "$ref": "calendar-common.schema.json#/$defs/eventsAction"
+    },
+    "acknowledged": {
+      "const": true
+    },
+    "entryCount": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "previewDigest": {
+      "oneOf": [
+        {
+          "$ref": "calendar-common.schema.json#/$defs/sha256Hex"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "eventsAction": {
+            "const": "keep"
+          }
+        },
+        "required": [
+          "eventsAction"
+        ]
+      },
+      "then": {
+        "properties": {
+          "entryCount": {
+            "type": "null"
+          },
+          "previewDigest": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "eventsAction": {
+            "const": "remove_events"
+          }
+        },
+        "required": [
+          "eventsAction"
+        ]
+      },
+      "then": {
+        "properties": {
+          "entryCount": {
+            "type": "integer"
+          },
+          "previewDigest": {
+            "$ref": "calendar-common.schema.json#/$defs/sha256Hex"
+          }
+        }
+      }
+    }
+  ]
+}

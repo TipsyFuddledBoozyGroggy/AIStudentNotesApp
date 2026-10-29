@@ -1,0 +1,8 @@
+{
+  "type": "https://errors.tether.invalid/plan_changed",
+  "title": "line1\nline2",
+  "status": 409,
+  "detail": "line1\nline2",
+  "code": "plan_changed",
+  "traceId": "00-abc123"
+}

@@ -1,0 +1,15 @@
+{
+  "courseId": "crs_01",
+  "basis": {
+    "preset": "off",
+    "reminderTime": "09:00",
+    "courseOverrides": {},
+    "pausedUntil": null
+  },
+  "previewDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "confirm": {
+    "destination": "google",
+    "entryCount": 5,
+    "acknowledged": true
+  }
+}

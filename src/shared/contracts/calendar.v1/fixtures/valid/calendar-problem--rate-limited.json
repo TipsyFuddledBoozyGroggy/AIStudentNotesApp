@@ -1,0 +1,9 @@
+{
+  "type": "https://errors.tether.invalid/rate_limited",
+  "title": "Too many requests. Please slow down.",
+  "status": 429,
+  "detail": "Too many requests. Please slow down.",
+  "code": "rate_limited",
+  "traceId": "00-abc123",
+  "retryAfterSeconds": 30
+}

@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-google-callback-outcome.schema.json",
+  "title": "Google callback outcome",
+  "description": "The query the server appends when it redirects the browser after GET /auth/google/callback: ?purpose=...&outcome=... Nothing else. DRAFT calendar.v1 (docs/API_CONTRACTS_CALENDAR.md), NOT frozen. Mock and fake-Google only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "purpose",
+    "outcome"
+  ],
+  "properties": {
+    "purpose": {
+      "type": "string",
+      "enum": [
+        "signin",
+        "connect"
+      ]
+    },
+    "outcome": {
+      "$ref": "calendar-common.schema.json#/$defs/callbackOutcome"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "signed_in"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "purpose": {
+            "const": "signin"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "connected"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "purpose": {
+            "const": "connect"
+          }
+        }
+      }
+    }
+  ]
+}

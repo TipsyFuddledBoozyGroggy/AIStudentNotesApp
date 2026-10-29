@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-removal-request.schema.json",
+  "title": "schedule removal request",
+  "description": "POST removals (202), Idempotency-Key required. Bound to the previewDigest and count from POST removal-previews (CV-08). Removes events Tether wrote for the named items. Events the student edited in Google are never deleted (reported left_alone, PO-10a). DRAFT calendar.v1 (docs/API_CONTRACTS_CALENDAR.md), NOT frozen. Mock and fake-Google only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "syllabusId",
+    "itemIds",
+    "previewDigest",
+    "confirm"
+  ],
+  "properties": {
+    "syllabusId": {
+      "$ref": "calendar-common.schema.json#/$defs/id"
+    },
+    "itemIds": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "calendar-common.schema.json#/$defs/id"
+      }
+    },
+    "previewDigest": {
+      "$ref": "calendar-common.schema.json#/$defs/sha256Hex"
+    },
+    "confirm": {
+      "$ref": "calendar-common.schema.json#/$defs/confirmCount"
+    }
+  }
+}

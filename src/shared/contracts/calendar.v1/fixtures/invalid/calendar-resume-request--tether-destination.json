@@ -1,0 +1,12 @@
+{
+  "syllabusId": "syl_01j9z8k2",
+  "itemIds": [
+    "itm_07"
+  ],
+  "previewDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "confirm": {
+    "destination": "tether",
+    "entryCount": 1,
+    "acknowledged": true
+  }
+}

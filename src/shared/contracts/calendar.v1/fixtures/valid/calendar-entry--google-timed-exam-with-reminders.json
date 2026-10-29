@@ -1,0 +1,43 @@
+{
+  "entryId": "ent_01",
+  "courseId": "crs_01",
+  "syllabusId": "syl_01j9z8k2",
+  "itemId": "itm_03",
+  "itemKey": "ik_zmzduAT9Xtu-VKSA5d29Tq_CIpIywcbD",
+  "occurrenceDate": "2026-11-12",
+  "title": "BIO 201 · Midterm exam",
+  "kind": "exam",
+  "allDay": false,
+  "start": {
+    "date": "2026-11-12",
+    "time": "14:00",
+    "timezone": "America/New_York"
+  },
+  "end": {
+    "date": "2026-11-12",
+    "time": "15:00"
+  },
+  "endDerived": true,
+  "timezoneSource": "stated_in_source",
+  "flags": [],
+  "destination": "google",
+  "state": "scheduled",
+  "syncedRevision": 1,
+  "scheduledAt": "2026-10-28T12:00:00.000Z",
+  "stateChangedAt": "2026-10-28T12:00:00.000Z",
+  "reminders": [
+    {
+      "minutesBefore": 10380,
+      "method": "popup"
+    },
+    {
+      "minutesBefore": 1740,
+      "method": "popup"
+    }
+  ],
+  "google": {
+    "generation": 1,
+    "lastCheckedAt": "2026-10-28T12:00:00Z"
+  },
+  "etag": "W/\"e1\""
+}

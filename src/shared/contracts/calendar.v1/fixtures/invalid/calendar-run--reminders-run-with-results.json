@@ -1,0 +1,36 @@
+{
+  "runId": "run_09",
+  "kind": "reminders",
+  "syllabusId": null,
+  "destination": "google",
+  "state": "succeeded",
+  "createdAt": "2026-10-28T12:00:00Z",
+  "startedAt": "2026-10-28T12:00:01Z",
+  "finishedAt": "2026-10-28T12:00:09Z",
+  "progress": {
+    "total": 14,
+    "done": 14
+  },
+  "results": [
+    {
+      "itemId": "itm_03",
+      "itemKey": "ik_zmzduAT9Xtu-VKSA5d29Tq_CIpIywcbD",
+      "outcome": "updated",
+      "errorCode": null,
+      "entryCount": 1,
+      "syncState": "synced"
+    }
+  ],
+  "counts": {
+    "created": 0,
+    "updated": 12,
+    "unchanged": 0,
+    "removed": 0,
+    "notPresent": 0,
+    "leftAlone": 2,
+    "retrying": 0,
+    "failed": 0,
+    "notEligible": 0
+  },
+  "previewDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

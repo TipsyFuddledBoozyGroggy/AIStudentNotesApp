@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-google-disconnect-preview-request.schema.json",
+  "title": "disconnect preview request",
+  "description": "POST disconnect-preview. Read-only, no Google call. Returns calendar-action-preview of kind disconnect. DRAFT calendar.v1 (docs/API_CONTRACTS_CALENDAR.md), NOT frozen. Mock and fake-Google only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "eventsAction"
+  ],
+  "properties": {
+    "eventsAction": {
+      "$ref": "calendar-common.schema.json#/$defs/eventsAction"
+    }
+  }
+}

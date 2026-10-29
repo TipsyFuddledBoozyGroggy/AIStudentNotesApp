@@ -1,0 +1,8 @@
+{
+  "type": "https://errors.tether.invalid/destination_not_chosen",
+  "title": "Choose where your schedule lives first.",
+  "status": 409,
+  "detail": "Choose where your schedule lives first.",
+  "code": "destination_not_chosen",
+  "traceId": "00-abc123"
+}

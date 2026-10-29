@@ -1,0 +1,25 @@
+{
+  "status": "connected",
+  "account": {
+    "emailMasked": "jane@gmail.com",
+    "workspaceAccount": false
+  },
+  "grantedScopes": [
+    "openid",
+    "calendar.app.created"
+  ],
+  "calendar": {
+    "name": "Tether",
+    "state": "ready"
+  },
+  "connectedAt": "2026-10-28T12:00:00Z",
+  "statusChangedAt": "2026-10-28T12:00:00Z",
+  "entryCounts": {
+    "scheduled": 14,
+    "retryLater": 0,
+    "leftAlone": 1,
+    "keptInGoogle": 0
+  },
+  "revocation": null,
+  "etag": "W/\"c1\""
+}

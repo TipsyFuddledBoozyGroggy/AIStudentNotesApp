@@ -1,0 +1,4 @@
+{
+  "landing": "home",
+  "redirectUri": "https://evil.example/cb"
+}

@@ -1,0 +1,14 @@
+{
+  "courseId": null,
+  "basis": {
+    "preset": "gentle",
+    "reminderTime": "09:00",
+    "courseOverrides": {},
+    "pausedUntil": null
+  },
+  "confirm": {
+    "destination": "google",
+    "entryCount": 5,
+    "acknowledged": true
+  }
+}

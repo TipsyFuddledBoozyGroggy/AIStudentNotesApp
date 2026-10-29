@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-settings-update-request.schema.json",
+  "title": "schedule settings update",
+  "description": "PUT settings, If-Match required. Replaces the whole document. Saving settings NEVER writes to Google; changing reminders on existing events is a separate confirmed run (reminder-updates). destination cannot be unset again. DRAFT calendar.v1 (docs/API_CONTRACTS_CALENDAR.md), NOT frozen. Mock and fake-Google only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "destination",
+    "reminders"
+  ],
+  "properties": {
+    "destination": {
+      "$ref": "calendar-common.schema.json#/$defs/destination"
+    },
+    "reminders": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preset",
+        "reminderTime",
+        "courseOverrides",
+        "pausedUntil"
+      ],
+      "properties": {
+        "preset": {
+          "$ref": "calendar-common.schema.json#/$defs/reminderPreset"
+        },
+        "reminderTime": {
+          "$ref": "calendar-common.schema.json#/$defs/reminderTime"
+        },
+        "courseOverrides": {
+          "type": "object",
+          "maxProperties": 50,
+          "propertyNames": {
+            "$ref": "calendar-common.schema.json#/$defs/id"
+          },
+          "additionalProperties": {
+            "$ref": "calendar-common.schema.json#/$defs/courseReminderSetting"
+          }
+        },
+        "pausedUntil": {
+          "oneOf": [
+            {
+              "$ref": "calendar-common.schema.json#/$defs/localDate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

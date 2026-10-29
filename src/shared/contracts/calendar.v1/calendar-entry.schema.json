@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-entry.schema.json",
+  "title": "schedule entry",
+  "description": "One event on the student's schedule (one per item occurrence). start.date is required and non-null: an item without a resolved date cannot be an entry (invariant 4). The Google event id, calendar id, markers and fingerprints are server-side only. DRAFT calendar.v1 (docs/API_CONTRACTS_CALENDAR.md), NOT frozen. Mock and fake-Google only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "entryId",
+    "courseId",
+    "syllabusId",
+    "itemId",
+    "itemKey",
+    "occurrenceDate",
+    "title",
+    "kind",
+    "allDay",
+    "start",
+    "end",
+    "endDerived",
+    "timezoneSource",
+    "flags",
+    "destination",
+    "state",
+    "syncedRevision",
+    "scheduledAt",
+    "stateChangedAt",
+    "reminders",
+    "google",
+    "etag"
+  ],
+  "properties": {
+    "entryId": {
+      "$ref": "calendar-common.schema.json#/$defs/id"
+    },
+    "courseId": {
+      "$ref": "calendar-common.schema.json#/$defs/id"
+    },
+    "syllabusId": {
+      "$ref": "calendar-common.schema.json#/$defs/id"
+    },
+    "itemId": {
+      "$ref": "calendar-common.schema.json#/$defs/id"
+    },
+    "itemKey": {
+      "$ref": "calendar-common.schema.json#/$defs/itemKey"
+    },
+    "occurrenceDate": {
+      "oneOf": [
+        {
+          "$ref": "calendar-common.schema.json#/$defs/localDate"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "title": {
+      "allOf": [
+        {
+          "$ref": "calendar-common.schema.json#/$defs/title"
+        }
+      ],
+      "description": "Composed by the server: '<course label> · <item title>' (PO-9i), plain text, escaped at every sink. The student's item notes and the document snippet are never part of it."
+    },
+    "kind": {
+      "$ref": "calendar-common.schema.json#/$defs/editableKind"
+    },
+    "allDay": {
+      "type": "boolean"
+    },
+    "start": {
+      "$ref": "calendar-common.schema.json#/$defs/startLocal"
+    },
+    "end": {
+      "$ref": "calendar-common.schema.json#/$defs/endLocal"
+    },
+    "endDerived": {
+      "type": "boolean"
+    },
+    "timezoneSource": {
+      "$ref": "calendar-common.schema.json#/$defs/timezoneSource"
+    },
+    "flags": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 18,
+      "items": {
+        "$ref": "calendar-common.schema.json#/$defs/flag"
+      }
+    },
+    "destination": {
+      "$ref": "calendar-common.schema.json#/$defs/destination"
+    },
+    "state": {
+      "$ref": "calendar-common.schema.json#/$defs/entryState"
+    },
+    "syncedRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "scheduledAt": {
+      "$ref": "calendar-common.schema.json#/$defs/timestamp"
+    },
+    "stateChangedAt": {
+      "$ref": "calendar-common.schema.json#/$defs/timestamp"
+    },
+    "reminders": {
+      "$ref": "calendar-common.schema.json#/$defs/entryReminders"
+    },
+    "google": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "generation",
+            "lastCheckedAt"
+          ],
+          "properties": {
+            "generation": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "lastCheckedAt": {
+              "oneOf": [
+                {
+                  "$ref": "calendar-common.schema.json#/$defs/timestamp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "etag": {
+      "$ref": "calendar-common.schema.json#/$defs/etag"
+    }
+  },
+  "allOf": [
+    {
+      "$ref": "calendar-common.schema.json#/$defs/eventTimes"
+    },
+    {
+      "if": {
+        "properties": {
+          "destination": {
+            "const": "tether"
+          }
+        },
+        "required": [
+          "destination"
+        ]
+      },
+      "then": {
+        "properties": {
+          "google": {
+            "type": "null"
+          },
+          "reminders": {
+            "maxItems": 0
+          },
+          "state": {
+            "const": "scheduled"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "destination": {
+            "const": "google"
+          }
+        },
+        "required": [
+          "destination"
+        ]
+      },
+      "then": {
+        "properties": {
+          "google": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  ]
+}

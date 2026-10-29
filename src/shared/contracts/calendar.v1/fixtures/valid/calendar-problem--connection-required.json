@@ -1,0 +1,8 @@
+{
+  "type": "https://errors.tether.invalid/connection_required",
+  "title": "Connect Google Calendar first.",
+  "status": 409,
+  "detail": "Connect Google Calendar first.",
+  "code": "connection_required",
+  "traceId": "00-abc123"
+}

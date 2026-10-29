@@ -1,0 +1,8 @@
+{
+  "product": "calendar",
+  "landing": "schedule",
+  "noticeVersion": "connect-notice-draft-1",
+  "scopes": [
+    "https://www.googleapis.com/auth/calendar"
+  ]
+}

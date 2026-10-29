@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-google-connect-start-request.schema.json",
+  "title": "Google data-connect start request",
+  "description": "POST /auth/google/connect/start. Authenticated. product is calendar only in calendar.v1 (Docs/Drive get their own contract). The client cannot name scopes. noticeVersion is the id of the DRAFT pre-screen text the student saw; stored with the state row and copied to the grant record and a content-free audit event at the callback (CV-11). DRAFT calendar.v1 (docs/API_CONTRACTS_CALENDAR.md), NOT frozen. Mock and fake-Google only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "product",
+    "landing",
+    "noticeVersion"
+  ],
+  "properties": {
+    "product": {
+      "const": "calendar"
+    },
+    "landing": {
+      "$ref": "calendar-common.schema.json#/$defs/landing"
+    },
+    "noticeVersion": {
+      "$ref": "calendar-common.schema.json#/$defs/noticeVersion"
+    }
+  }
+}

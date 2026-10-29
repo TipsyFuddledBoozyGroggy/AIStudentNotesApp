@@ -1,0 +1,9 @@
+{
+  "destination": "unset",
+  "reminders": {
+    "preset": "gentle",
+    "reminderTime": "09:00",
+    "courseOverrides": {},
+    "pausedUntil": null
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "destination": "unset",
+  "reminders": {
+    "preset": "gentle",
+    "reminderTime": "09:00",
+    "courseOverrides": {},
+    "pausedUntil": null
+  },
+  "updatedAt": "2026-10-28T12:00:00Z",
+  "etag": "W/\"s1\""
+}

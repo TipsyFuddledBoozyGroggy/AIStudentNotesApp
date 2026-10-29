@@ -1,0 +1,44 @@
+{
+  "exportedAt": "2026-10-28T12:00:00Z",
+  "settings": {
+    "destination": "google",
+    "reminders": {
+      "preset": "extra_runway",
+      "reminderTime": "10:00",
+      "courseOverrides": {
+        "crs_01": "off",
+        "crs_02": "use_default"
+      },
+      "pausedUntil": "2026-11-20"
+    },
+    "eventsInGoogle": 14,
+    "updatedAt": "2026-10-28T12:00:00Z",
+    "etag": "W/\"s2\""
+  },
+  "connection": {
+    "status": "connected",
+    "account": {
+      "emailMasked": "j***@gmail.com",
+      "workspaceAccount": false
+    },
+    "grantedScopes": [
+      "openid",
+      "calendar.app.created"
+    ],
+    "calendar": {
+      "name": "Tether",
+      "state": "ready"
+    },
+    "connectedAt": "2026-10-28T12:00:00Z",
+    "statusChangedAt": "2026-10-28T12:00:00Z",
+    "entryCounts": {
+      "scheduled": 14,
+      "retryLater": 0,
+      "leftAlone": 1,
+      "keptInGoogle": 0
+    },
+    "revocation": null,
+    "etag": "W/\"c1\""
+  },
+  "entries": []
+}

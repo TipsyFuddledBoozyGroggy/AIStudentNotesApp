@@ -1,0 +1,9 @@
+{
+  "destination": "google",
+  "reminders": {
+    "preset": "gentle",
+    "reminderTime": "07:00",
+    "courseOverrides": {},
+    "pausedUntil": null
+  }
+}

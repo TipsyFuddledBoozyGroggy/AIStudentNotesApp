@@ -1,0 +1,159 @@
+{
+  "syllabusId": "syl_01j9z8k2",
+  "destination": "google",
+  "target": {
+    "kind": "google",
+    "accountEmailMasked": "j***@gmail.com",
+    "calendarName": "Tether",
+    "calendarState": "not_created"
+  },
+  "generatedAt": "2026-10-28T12:00:00Z",
+  "entries": [
+    {
+      "itemId": "itm_03",
+      "itemKey": "ik_zmzduAT9Xtu-VKSA5d29Tq_CIpIywcbD",
+      "occurrenceDate": "2026-12-02",
+      "title": "BIO 201 · Midterm exam",
+      "kind": "exam",
+      "allDay": false,
+      "start": {
+        "date": "2026-12-02",
+        "time": "14:00",
+        "timezone": "America/New_York"
+      },
+      "end": {
+        "date": "2026-12-02",
+        "time": "15:00"
+      },
+      "endDerived": true,
+      "timezoneSource": "stated_in_source",
+      "flags": [],
+      "action": "create",
+      "reminders": [
+        {
+          "minutesBefore": 1740,
+          "method": "popup",
+          "fireAt": {
+            "date": "2026-12-01",
+            "time": "09:00"
+          }
+        }
+      ],
+      "skippedReminders": []
+    },
+    {
+      "itemId": "itm_05",
+      "itemKey": "ik_Neud_qn7Z4Afeb9pEeRXuNI3m9L3GZaU",
+      "occurrenceDate": "2026-12-02",
+      "title": "HIS 210 · Essay 2 due",
+      "kind": "assignment",
+      "allDay": false,
+      "start": {
+        "date": "2026-12-02",
+        "time": "23:59",
+        "timezone": "America/New_York"
+      },
+      "end": {
+        "date": "2026-12-02",
+        "time": "23:59"
+      },
+      "endDerived": false,
+      "timezoneSource": "stated_in_source",
+      "flags": [],
+      "action": "create",
+      "reminders": [
+        {
+          "minutesBefore": 2339,
+          "method": "popup",
+          "fireAt": {
+            "date": "2026-12-01",
+            "time": "09:00"
+          }
+        }
+      ],
+      "skippedReminders": []
+    },
+    {
+      "itemId": "itm_07",
+      "itemKey": "ik_Ps1TkSr4NmrHYAbVk4hxu5gnqdmH19qD",
+      "occurrenceDate": "2026-12-02",
+      "title": "CHM 101 · Lab report due",
+      "kind": "assignment",
+      "allDay": false,
+      "start": {
+        "date": "2026-12-02",
+        "time": "17:00",
+        "timezone": "America/New_York"
+      },
+      "end": {
+        "date": "2026-12-02",
+        "time": "17:00"
+      },
+      "endDerived": false,
+      "timezoneSource": "stated_in_source",
+      "flags": [],
+      "action": "create",
+      "reminders": [
+        {
+          "minutesBefore": 1920,
+          "method": "popup",
+          "fireAt": {
+            "date": "2026-12-01",
+            "time": "09:00"
+          }
+        }
+      ],
+      "skippedReminders": []
+    },
+    {
+      "itemId": "itm_10",
+      "itemKey": "ik_cyXIWIYqJinPTixy1h2W6UTUXmsRizv2",
+      "occurrenceDate": "2026-12-02",
+      "title": "ENG 100 · Paper draft due",
+      "kind": "assignment",
+      "allDay": false,
+      "start": {
+        "date": "2026-12-02",
+        "time": "12:00",
+        "timezone": "America/New_York"
+      },
+      "end": {
+        "date": "2026-12-02",
+        "time": "12:00"
+      },
+      "endDerived": false,
+      "timezoneSource": "stated_in_source",
+      "flags": [],
+      "action": "create",
+      "reminders": [],
+      "skippedReminders": [
+        {
+          "reason": "daily_cap",
+          "date": "2026-12-01"
+        }
+      ]
+    }
+  ],
+  "excluded": [],
+  "leftAlone": [],
+  "reminders": {
+    "appliesTo": "google_events",
+    "preset": "gentle",
+    "reminderTime": "09:00",
+    "dailyCapSkips": [
+      {
+        "date": "2026-12-01",
+        "count": 1
+      }
+    ]
+  },
+  "counts": {
+    "create": 4,
+    "update": 0,
+    "unchanged": 0,
+    "excluded": 0,
+    "leftAlone": 0,
+    "reminders": 3
+  },
+  "previewDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

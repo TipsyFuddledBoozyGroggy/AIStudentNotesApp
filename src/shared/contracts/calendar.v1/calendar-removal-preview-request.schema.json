@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/calendar.v1/calendar-removal-preview-request.schema.json",
+  "title": "removal preview request",
+  "description": "POST removal-previews. Read-only, no Google call. Returns calendar-action-preview of kind removal. DRAFT calendar.v1 (docs/API_CONTRACTS_CALENDAR.md), NOT frozen. Mock and fake-Google only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "syllabusId",
+    "itemIds"
+  ],
+  "properties": {
+    "syllabusId": {
+      "$ref": "calendar-common.schema.json#/$defs/id"
+    },
+    "itemIds": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "calendar-common.schema.json#/$defs/id"
+      }
+    }
+  }
+}

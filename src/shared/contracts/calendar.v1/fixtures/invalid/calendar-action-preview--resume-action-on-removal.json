@@ -1,0 +1,29 @@
+{
+  "kind": "removal",
+  "destination": "google",
+  "generatedAt": "2026-10-28T12:00:00Z",
+  "entryCount": 1,
+  "entries": [
+    {
+      "entryId": "ent_01",
+      "itemId": "itm_03",
+      "occurrenceDate": "2026-11-12",
+      "title": "BIO 201 · Midterm exam",
+      "state": "scheduled",
+      "willChange": true,
+      "resumeAction": "readd"
+    },
+    {
+      "entryId": "ent_06",
+      "itemId": "itm_07",
+      "occurrenceDate": "2026-11-03",
+      "title": "BIO 201 · Read chapter 7",
+      "state": "edited_in_google",
+      "willChange": false,
+      "resumeAction": null
+    }
+  ],
+  "keptInGoogleCount": 0,
+  "basis": null,
+  "previewDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}
