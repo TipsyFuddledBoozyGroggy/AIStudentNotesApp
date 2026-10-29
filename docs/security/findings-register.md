@@ -12,6 +12,8 @@ How to read it:
 - IDs: review-local IDs clash across reviews (B1-nn, N-nn), so the register prefixes them (M1, M1R, M2C, M2B1, M2B2, M2B3, M2B3R, P2C, P2R, P2D, P2B1, CV, CVR, GR, NEW). CVR is the calendar.v1 re-review (`docs/security/calendar-v1-contract-rereview.md`), whose new findings N-1..N-8 are CVR-N01..CVR-N08.
 - Updated 2026-10-29 from the calendar.v1 re-review: CV-01 and CV-02 are FIXED-VERIFIED at contract level; CV-03..CV-24 are FIXED-CONTRACT-ONLY (or DEFERRED-WITH-REASON for CV-21); CVR-N01..N08 added as LOW. No other row was touched. GR-1 stays OPEN HIGH: only the Product Owner can downgrade it, and no ruling exists.
 
+- Updated 2026-10-29 (batch 1 verification, commit 096ba8e): M1R-N01, M1R-N02, P2B1-02, P2B1-10, P2B1-11, P2B1-14 are FIXED-VERIFIED (evidence in `docs/security/batch1-verification.md`). New rows B1V-01 (MEDIUM) and B1V-02..B1V-08 (LOW) were added. Expected greps and counts below are updated.
+
 # Part I. Gate summary
 
 ## 1. Open CRITICAL
@@ -36,18 +38,19 @@ What this means for the current working tree:
 
 Everything else rated HIGH in any review is FIXED-VERIFIED (M1-F01, F02, F03; M2C-01, 02, 06, 07, 13, 14, 21, 23, 25; P2C-01, 02, 05, 06, 08, 16, 20, 24; CV-01, CV-02).
 
-## 3. Open MEDIUM (blocks production): 29
+## 3. Open MEDIUM (blocks production): 27
 
 | Area | Open MEDIUM | Count |
 |---|---|---|
 | Authentication, sessions, cookies | M1-F07, M1-F08b, M2C-08, NEW-02 | 4 |
-| Edge: proxy, headers, CSRF, rate limits | M1-F04, M1R-N01, M1R-N02 | 3 |
+| Edge: proxy, headers, CSRF, rate limits | M1-F04 | 1 |
+| Logging | B1V-01 | 1 |
 | Web app | M2C-16, M2C-29 | 2 |
-| Syllabus | P2C-23, P2B1-02 | 2 |
+| Syllabus | P2C-23 | 1 |
 | calendar.v1 contract (unbuilt; FIXED-CONTRACT-ONLY) | CV-03, CV-04, CV-05, CV-06, CV-07, CV-08, CV-09, CV-10, CV-11, CV-12, CV-13 | 11 |
 | Google tokens and residency (unbuilt) | GR-2, GR-3, GR-5, GR-6, GR-7 | 5 |
 | Governance, deletion, scanning | NEW-01, NEW-03 | 2 |
-| **Total** | | **29** |
+| **Total** | | **27** |
 
 **Authentication, sessions, cookies (4)**
 
@@ -56,21 +59,22 @@ Everything else rated HIGH in any review is FIXED-VERIFIED (M1-F01, F02, F03; M2
 - M2C-08 [OPEN]: Session cookie SameSite: contract text says Strict, code is Lax; rationale (OAuth return) is documented only in the uncommitted API_CONTRACTS_CALENDAR.md.
 - NEW-02 [DEFERRED-WITH-REASON]: SEC-005 lockout/back-off not built (vacuous until Google sign-in exists).
 
-**Edge: proxy, headers, CSRF, rate limits (3)**
+**Edge: proxy, headers, CSRF, rate limits (1)**
 
 - M1-F04 [OPEN]: Origin-only CSRF has no second layer (Sec-Fetch-Site or custom header). The WebSocket/hub Origin gap is closed.
-- M1R-N01 [OPEN]: Forwarded-header config not validated: TrustedProxyNetworks such as 0.0.0.0/0 lets any client spoof X-Forwarded-For and dodge limits.
-- M1R-N02 [OPEN]: HSTS depends on Request.IsHttps (false behind a TLS terminator); AllowedHosts is '*'.
+
+**Logging (1)**
+
+- B1V-01 [OPEN]: Provider-scoped logging config (Logging:Console:LogLevel:Default and similar) overrides the code filters, so the categories that carry student text can be switched back on. Reproduced in a scratch copy: 9 sentinel-bearing records.
 
 **Web app (2)**
 
 - M2C-16 [FIXED-UNVERIFIED]: Recording indicator must reflect server state AND the local mic track.
 - M2C-29 [OPEN]: Web app must send CSP connect-src and Permissions-Policy (microphone=(self)); test that no provider key is in the bundle.
 
-**Syllabus (2)**
+**Syllabus (1)**
 
 - P2C-23 [FIXED-UNVERIFIED]: Syllabus load could starve live-lecture AI budget (per-pool floor).
-- P2B1-02 [OPEN]: No log-canary through the real log pipeline; Npgsql and EF Query log categories unfiltered.
 
 **calendar.v1 contract (unbuilt) (11)**
 
@@ -99,9 +103,9 @@ Everything else rated HIGH in any review is FIXED-VERIFIED (M1-F01, F02, F03; M2
 - NEW-01 [DEFERRED-WITH-REASON]: No account/user deletion path exists and evidence-table erasure is undecided (purge_evidence has no production caller).
 - NEW-03 [OPEN]: No dependency, secret, container or CodeQL scan evidence; CI workflow has never run on GitHub.
 
-Note: the 11 calendar.v1 MEDIUM rows were re-reviewed on 2026-10-29 and are FIXED-CONTRACT-ONLY: the contract defect is closed, but nothing is built, so they stay production blockers until their implementation tests exist and pass (contract section 16 'Required'; per-row tests are in Part II and in the re-review). Numbers in CV-06 and CV-13 are PROPOSAL pending PO/devops (PO-10q).
+Note: M1R-N01, M1R-N02 and P2B1-02 left this list on 2026-10-29 (FIXED-VERIFIED, batch 1). Note: the 11 calendar.v1 MEDIUM rows were re-reviewed on 2026-10-29 and are FIXED-CONTRACT-ONLY: the contract defect is closed, but nothing is built, so they stay production blockers until their implementation tests exist and pass (contract section 16 'Required'; per-row tests are in Part II and in the re-review). Numbers in CV-06 and CV-13 are PROPOSAL pending PO/devops (PO-10q).
 
-## 4. LOW (noted, no gate): 47 not resolved, 46 resolved
+## 4. LOW (noted, no gate): 51 not resolved, 49 resolved
 
 Not resolved (noted; no deadline):
 
@@ -110,22 +114,23 @@ Not resolved (noted; no deadline):
 - Web app: M2B3R-N06 [FIXED-UNVERIFIED] Hub catchup.ready/summary.revision skipped the strict parsers; P2D-R3-07 [DEFERRED-WITH-REASON] Schema patterns only reliable in UTF-16 regex engines
 - Lectures / realtime: M2C-11 [FIXED-UNVERIFIED] In-memory partials must be per (user, session) and cleared on stop/pause/delete; M2C-19 [FIXED-UNVERIFIED] Server should derive timecodes; captureOffsetMs advisory; M2C-22 [DEFERRED-WITH-REASON] Export status/ownership semantics for the mock exporter; M2C-27 [FIXED-UNVERIFIED] Replay cap amplification; M2B1-07 [OPEN] Consent text immutability by convention only (no text hash stored); M2B2-10 [OPEN] Transcript source tables mutable by the app role (no append-only triggers); M2B2-11 [OPEN] Vendor-robustness: unbounded _events channel, _rateStrikes never decays, provider write failure leaves socket open, no unique Final (session_id, segment_no); M2B2-12 [OPEN] Lifecycle job: one throwing row stops the batch every tick
 - AI gateway: M2B3-05 [OPEN] Rate/duplicate controls: per-user limit, 200-per-session permanent cap, key binding on coalesced answer still unfixed
-- Syllabus: P2C-29 [DEFERRED-WITH-REASON] Server-side confirm record for real writes; P2R-R2-09 [DEFERRED-WITH-REASON] Plain false-but-clean date still batch-approvable; P2D-R3-02 [FIXED-UNVERIFIED] Lone surrogate / invalid UTF-8 in JSON must be 400, not 500; P2D-R3-09 [DEFERRED-WITH-REASON] VS15/VS16 invisible channel after non-ASCII base; P2B1-08 [OPEN] Retention purge keeps snippet offsets (contract says remove); P2B1-09 [OPEN] Contract's custom CSRF header does not exist; P2B1-10 [OPEN] NFC is a no-op under InvariantGlobalization; the test is a tautology; P2B1-11 [OPEN] Idempotency/audit HMAC keys fall back to random per-process keys; only ETagKey warned; P2B1-12 [OPEN] Ten slow uploaders can starve the 100 MB upload gate; P2B1-13 [OPEN] Lease fencing done; no heartbeat during long extraction; fault injection keyed on environment name 'Test'; P2B1-14 [OPEN] DST-gap check silently passes when host tzdata is missing; P2B1-15 [OPEN] Audit immutability bypassable by the app role (switch via set_config; app owns table)
+- Syllabus: P2C-29 [DEFERRED-WITH-REASON] Server-side confirm record for real writes; P2R-R2-09 [DEFERRED-WITH-REASON] Plain false-but-clean date still batch-approvable; P2D-R3-02 [FIXED-UNVERIFIED] Lone surrogate / invalid UTF-8 in JSON must be 400, not 500; P2D-R3-09 [DEFERRED-WITH-REASON] VS15/VS16 invisible channel after non-ASCII base; P2B1-08 [OPEN] Retention purge keeps snippet offsets (contract says remove); P2B1-09 [OPEN] Contract's custom CSRF header does not exist; P2B1-12 [OPEN] Ten slow uploaders can starve the 100 MB upload gate; P2B1-13 [OPEN] Lease fencing done; no heartbeat during long extraction; fault injection keyed on environment name 'Test', P2B1-15 [OPEN] Audit immutability bypassable by the app role (switch via set_config; app owns table)
+- Batch 1 (added 2026-10-29): B1V-02 [OPEN] log canary coverage gaps; B1V-03 [OPEN] explicit key overrides skip the strength checks; B1V-04 [OPEN] root-secret check is a denylist (sequential or repeating keys, and the public test key, are accepted); B1V-05 [OPEN] no rotation story and no operator docs for RootSecret/AllowedHosts/ICU/tzdata; B1V-06 [OPEN] Development fallback secret file edge cases; B1V-07 [OPEN] DocumentText.Canonicalize throws on a lone surrogate under ICU (latent); B1V-08 [OPEN] edge validators are lenient and HSTS includeSubDomains is unconditional
 - calendar.v1 contract (unbuilt): CV-14, CV-15, CV-16, CV-17, CV-18, CV-19, CV-20, CV-22, CV-23, CV-24 [FIXED-CONTRACT-ONLY] (closed in the contract by the re-review; implementation tests pending); CV-21 [DEFERRED-WITH-REASON] Identity rules (find-or-create by iss+sub, session rotation) are CAL-23 tests for the module; CVR-N01 [OPEN] content-free record pseudonymous and generation protection lapses after disconnect/400 days; CVR-N02 [OPEN] resume take_back write path unspecified; CVR-N03 [OPEN] action previews do not state 'no Google call', eventsAction not in digest binds; CVR-N04 [OPEN] login_hint carries the sub in the URL; CVR-N05 [OPEN] connection state undefined while the circuit breaker is open; CVR-N06 [OPEN] calendar-policy.json can drift from production behaviour; CVR-N07 [OPEN] account deletion does not state its eventsAction; CVR-N08 [OPEN] Syllabus-side 409 is a requirement on frozen syllabus.v1
 - Google tokens and residency (unbuilt): GR-4 [DEFERRED-WITH-REASON] KEK loss forces mass reconnect
 - Governance, deletion, scanning: M2B1-09 [DEFERRED-WITH-REASON] Retention and erasure of consent/audit evidence undecided
 
 ## 5. Counts
 
-By severity and status (all 203 findings; Observations are not counted). FIXED-CONTRACT-ONLY counts as unresolved: it is verified in the contract, not at runtime.
+By severity and status (all 211 findings; Observations are not counted). FIXED-CONTRACT-ONLY counts as unresolved: it is verified in the contract, not at runtime.
 
 | Severity | FIXED-VERIFIED | FIXED-CONTRACT-ONLY | FIXED-UNVERIFIED | OPEN | DEFERRED-WITH-REASON | SUPERSEDED | Total | Unresolved |
 |---|---|---|---|---|---|---|---|---|
 | CRITICAL | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | HIGH | 22 | 0 | 0 | 1 | 0 | 0 | 23 | 1 |
-| MEDIUM | 55 | 11 | 3 | 9 | 6 | 3 | 87 | 29 |
-| LOW | 45 | 10 | 5 | 23 | 9 | 1 | 93 | 47 |
-| **Total** | **122** | **21** | **8** | **33** | **15** | **4** | **203** | **77** |
+| MEDIUM | 58 | 11 | 3 | 7 | 6 | 3 | 88 | 27 |
+| LOW | 48 | 10 | 5 | 27 | 9 | 1 | 100 | 51 |
+| **Total** | **128** | **21** | **8** | **35** | **15** | **4** | **211** | **79** |
 
 Observations (Info, not findings): 41 entries listed at the end.
 
@@ -163,13 +168,14 @@ Run from `/Users/jamie/Dev/AIStudentNotesApp`. Every step must pass; then say th
    ```
    grep -E '^\| [^|]+ \| [^|]+ \| (CRITICAL|HIGH|MEDIUM) \| (OPEN|FIXED-CONTRACT-ONLY|FIXED-UNVERIFIED|DEFERRED-WITH-REASON) \|' docs/security/findings-register.md
    ```
-   Today it prints 30 rows (1 HIGH + 29 MEDIUM, of which 11 are calendar.v1 rows FIXED-CONTRACT-ONLY).
+   Today it prints 28 rows (1 HIGH + 27 MEDIUM, of which 11 are calendar.v1 rows FIXED-CONTRACT-ONLY). Expected MEDIUM-only count: `grep -cE '^\| [^|]+ \| [^|]+ \| MEDIUM \| (OPEN|FIXED-CONTRACT-ONLY|FIXED-UNVERIFIED|DEFERRED-WITH-REASON) \|' docs/security/findings-register.md` prints 27.
 2. For every FIXED-VERIFIED row you rely on, re-open the evidence (test name still exists and passes in CI, not only locally). `grep -c 'RAN 2026-10-29' docs/security/findings-register.md` shows how many rest on my local run; none rests on a GitHub CI run because CI has never run (NEW-03).
 3. Controls that exist only as contract text or design and have no implementation yet. They are not open rows today because the code does not exist, but each becomes a production blocker the moment its feature ships. Confirm none of these features is in the release, or implement and test them first:
    - Syllabus parser sandbox, ingest worker, tmpfs volume, hostile-file fixtures (P2C-01, P2C-02, P2D-R3-03..06; contract 5.1).
    - Real STT vendor controls: daily STT-minutes budget, global kill switch, vendor retention terms (M2C-25, G2).
    - Real Claude adapter: PII redaction decision (M2B3-12 / B3-12), disclosure that an in-flight request cannot be recalled, regex/prompt Cf-character handling (M2B3R-N07), per-user quick-recap limit (M2B3-05), shared-state backplane (single-instance only, ADR-020d).
    - Google: token cipher and KEK custody, OAuth client and verification, Calendar and Docs adapters, quotas (GR-1..GR-7). calendar.v1 is closed only at contract level (CV-01..CV-24, re-review 2026-10-29): before the Calendar module ships, its section 16 'Required' tests must exist and pass, in particular CV-01/CV-02 (extended delete scan, disconnect exits, account deletion with Google failing), CV-03 (fake-Google drift, `If-Match`, normalisation), CV-04 (two-user mismatch), CV-05 (mass `invalid_client` deletes nothing; table-driven match to `calendar-policy.json`, CVR-N06), CV-06/CV-13 (load tests; PO/devops approve the PROPOSAL numbers), CV-07 (withdraw during run), CV-08 (plan-changed zero writes per kind), CV-10/CV-11, CV-12 (cross-user digest replay), the log canary (CV-15), and Google behaviour tests T1-T12 (NOT RUN).
+   - Deployment prerequisites added by batch 1 (no Dockerfile or deployment definition exists yet; none of this is enforced by an artifact): `Security__RootSecret` (base64, 32+ bytes, from the secret store; startup refuses it otherwise), `AllowedHosts` (public host names, not `*`), a runtime image with ICU (libicu) and tzdata, `Security__TrustedProxies`/`TrustedProxyNetworks` only for the real proxy. Wrong values stop startup (tested), but B1V-01 and B1V-05 must be closed first.
    - Account deletion and evidence retention (NEW-01), sign-in lockout (NEW-02), multi-instance revocation.
 4. Scanning and operations (gate G5): CodeQL, dependency, secret and container scan results from a real CI run; a deployed telemetry sample; a backup restore drill including a KEK restore (NEW-03).
 5. Human gates that this policy does not touch: G1 recording consent and campus policy, G2 vendor terms and cost, G3 real-device/screen-reader QA, G4 ADHD suitability validation, G5. All remain as recorded in `docs/RELEASE_GATES.md`.
@@ -220,8 +226,8 @@ Original reviews used the same four-level scale. F-08 was rated 'Low/Medium'; re
 | M1-F08 | m1-review F-08 (log leakage) | MEDIUM | FIXED-VERIFIED | PRODUCTION | Exception/log leakage of row values (SEC-027). Re-rated MEDIUM. | Program.cs:29-31,174-179 (type + trace id only); tests/Tether.IntegrationTests/RealtimeLogCanaryTests.cs (RAN 2026-10-29, pass); m2-b2-review 'Logs' RAN. |
 | M1-F08b | m1-review F-08 (audit part) | MEDIUM | OPEN | PRODUCTION | No audit events for login, logout, session revocation or ownership violations (SEC-028). | grep 'audit' in src/api/src/Modules/Identity returns nothing. Lectures and Syllabus have audit tables; Identity has none. |
 | M1-F09 | m1-review F-09 | LOW | OPEN | NONE | Dev-login gating is sound; residual: no CI check that the dev compose override is never deployed. | Guards verified (DevLoginStartupGuardTests, m1-review RAN). CI check absent; CI has never run on GitHub (PROGRESS Iteration 9). |
-| M1R-N01 | m1-rereview N-01 | MEDIUM | OPEN | PRODUCTION | Forwarded-header config not validated: TrustedProxyNetworks such as 0.0.0.0/0 lets any client spoof X-Forwarded-For and dodge limits. | Program.cs:45-59 unchanged: no range/prefix validation, no 'directly exposed' flag. |
-| M1R-N02 | m1-rereview N-02 | MEDIUM | OPEN | PRODUCTION | HSTS depends on Request.IsHttps (false behind a TLS terminator); AllowedHosts is '*'. | Program.cs:151; src/api/src/Tether.Host/appsettings.json:9. |
+| M1R-N01 | m1-rereview N-01 | MEDIUM | FIXED-VERIFIED | PRODUCTION | Forwarded-header config not validated: TrustedProxyNetworks such as 0.0.0.0/0 lets any client spoof X-Forwarded-For and dodge limits. | Program.cs:63 calls EdgeConfig.ParseTrustedProxies (EdgeConfig.cs:17-44); tests/Tether.IntegrationTests/EdgeConfigTests.cs:22,35,42,108 (RAN 2026-10-29, pass). Residual leniency (public /8 and IPv6 /32 accepted; I checked 1.0.0.0/8 and ::/32 in a scratch probe; ::/32 does not match IPv4 clients) is B1V-08. Details: batch1-verification.md |
+| M1R-N02 | m1-rereview N-02 | MEDIUM | FIXED-VERIFIED | PRODUCTION | HSTS depends on Request.IsHttps (false behind a TLS terminator); AllowedHosts is '*'. | Program.cs:65,171-172, EdgeConfig.cs:47-53; appsettings.json:9 now 'localhost'; tests/Tether.IntegrationTests/EdgeConfigTests.cs:56,89,98,128 (RAN 2026-10-29, pass). Scratch probe (not in repo): Production Host evil.test gets 400, localhost 200 with HSTS. No repo test sends a wrong Host header. See B1V-08. |
 | M1R-N03 | m1-rereview N-03 | LOW | FIXED-VERIFIED | NONE | Re-login did not revoke the session the browser already held. | PROGRESS Iteration 3; tests/Tether.IntegrationTests/PreM2HardeningTests.cs:52 and tests/Tether.IntegrationTests/B2FixTests.cs:79 (RAN 2026-10-29, pass) |
 | M1R-N04 | m1-rereview N-04 | LOW | FIXED-VERIFIED | NONE | IPv6 limiter keyed on the full address. | ClientIpKeyTests tests/Tether.IntegrationTests/PreM2HardeningTests.cs:12; tests/Tether.IntegrationTests/B2FixTests.cs:266 (RAN 2026-10-29, pass) |
 | M1R-N05 | m1-rereview N-05 | LOW | DEFERRED-WITH-REASON | NONE | Authentication runs before the limiter, so revoked-cookie floods cost a DB read each. | Program.cs:194-195 unchanged. Reviewer: accept for M1; needs proxy/WAF limits at deployment (devops). |
@@ -413,7 +419,7 @@ Prefix P2B1. B1-16..B1-20 are Info. 'B1 fixes' covered B1-01,03,04,05,06,07,13; 
 | ID | Source | Sev | Status | Gate | Summary | Evidence |
 |---|---|---|---|---|---|---|
 | P2B1-01 | p2-b1-review B1-01 | MEDIUM | FIXED-VERIFIED | PRODUCTION | Syllabus delete: no deadlock retry; reaper lock order reversed. | Jobs.cs:203-205 lock order; tests/Tether.IntegrationTests/Syllabus/SyllabusB1FixTests.cs B1_01_* (RAN 2026-10-29, pass) |
-| P2B1-02 | p2-b1-review B1-02 | MEDIUM | OPEN | PRODUCTION | No log-canary through the real log pipeline; Npgsql and EF Query log categories unfiltered. | Program.cs:29-31 filters only 3 categories (no Npgsql, no EF Query); fix section of p2-b1-review lists B1-02 as 'Not touched'. |
+| P2B1-02 | p2-b1-review B1-02 | MEDIUM | FIXED-VERIFIED | PRODUCTION | No log-canary through the real log pipeline; Npgsql and EF Query log categories unfiltered. | Program.cs:38-46; tests/Tether.IntegrationTests/LogPipelineCanaryTests.cs:97,155 (RAN 2026-10-29, pass). Mutation in a scratch copy: removing all filters, or Hosting.Diagnostics, or ExceptionHandlerMiddleware+EF Update makes the canary FAIL. Removing the EF Query/Npgsql.* filters does NOT fail it (B1V-02). Provider-scoped config bypass is B1V-01 (MEDIUM, open). |
 | P2B1-03 | p2-b1-review B1-03 | MEDIUM | FIXED-VERIFIED | PRODUCTION | Batch approvals not individually audited. | B1_03_* in tests/Tether.IntegrationTests/Syllabus/SyllabusB1FixTests.cs (RAN 2026-10-29, pass) |
 | P2B1-04 | p2-b1-review B1-04 | MEDIUM | FIXED-VERIFIED | PRODUCTION | Unbounded growth of sync_runs, items, audit. | B1_04_* in tests/Tether.IntegrationTests/Syllabus/SyllabusB1FixTests.cs (RAN 2026-10-29, pass). Residual (purge_evidence has no production caller) is NEW-01. |
 | P2B1-05 | p2-b1-review B1-05 | LOW | FIXED-VERIFIED | NONE | Foreign DELETE cancelled another user's job. | B1_05_* in tests/Tether.IntegrationTests/Syllabus/SyllabusB1FixTests.cs (RAN 2026-10-29, pass) |
@@ -421,11 +427,11 @@ Prefix P2B1. B1-16..B1-20 are Info. 'B1 fixes' covered B1-01,03,04,05,06,07,13; 
 | P2B1-07 | p2-b1-review B1-07 | LOW | FIXED-VERIFIED | NONE | Fingerprint material delimiter-joined. | B1_07_* in tests/Tether.IntegrationTests/Syllabus/SyllabusB1FixTests.cs (RAN 2026-10-29, pass) |
 | P2B1-08 | p2-b1-review B1-08 | LOW | OPEN | NONE | Retention purge keeps snippet offsets (contract says remove). | Not in the 'B1 fixes' list; Jobs.cs:277-289 still nulls text and context but keeps snippet_start/end. |
 | P2B1-09 | p2-b1-review B1-09 | LOW | OPEN | NONE | Contract's custom CSRF header does not exist. | Same evidence as M1-F04: no X-Tether-CSRF in src/api. |
-| P2B1-10 | p2-b1-review B1-10 | LOW | OPEN | NONE | NFC is a no-op under InvariantGlobalization; the test is a tautology. | src/api/Directory.Build.props:10 InvariantGlobalization true; PROGRESS Iteration 9 lists ICU decision open. |
-| P2B1-11 | p2-b1-review B1-11 | LOW | OPEN | NONE | Idempotency/audit HMAC keys fall back to random per-process keys; only ETagKey warned. | Program.cs:133-134 warns only for ETagKey. |
+| P2B1-10 | p2-b1-review B1-10 | LOW | FIXED-VERIFIED | NONE | NFC is a no-op under InvariantGlobalization; the test is a tautology. | Directory.Build.props InvariantGlobalization=false; TextAndIdTests.cs:171 now asserts 'Caf\u00E9' and not a mirror; NormalizationGuardTests (TextAndIdTests.cs:319); module guard SyllabusModule.cs:29 (RAN 2026-10-29, Syllabus 99 pass). No culture-sensitive string calls found in src (grep). Latent issue B1V-07. |
+| P2B1-11 | p2-b1-review B1-11 | LOW | FIXED-VERIFIED | NONE | Idempotency/audit HMAC keys fall back to random per-process keys; only ETagKey warned. | RootSecret.cs; RootSecretTests.cs:37,54,71,81,90,105,119,126,145,154,178,188,214 (RAN 2026-10-29, pass; RFC 5869 check at :37). Fallback to random per-process keys is gone outside Development. Residuals: B1V-03, B1V-04, B1V-05, B1V-06. |
 | P2B1-12 | p2-b1-review B1-12 | LOW | OPEN | NONE | Ten slow uploaders can starve the 100 MB upload gate. | Not in 'B1 fixes'. |
 | P2B1-13 | p2-b1-review B1-13 | LOW | OPEN | NONE | Lease fencing done; no heartbeat during long extraction; fault injection keyed on environment name 'Test'. | B1_13_* tests/Tether.IntegrationTests/Syllabus/SyllabusB1FixTests.cs (RAN 2026-10-29, pass) covers fencing; 'B1 fixes' lists heartbeat and env-name as not done. |
-| P2B1-14 | p2-b1-review B1-14 | LOW | OPEN | NONE | DST-gap check silently passes when host tzdata is missing. | Not in 'B1 fixes'. |
+| P2B1-14 | p2-b1-review B1-14 | LOW | FIXED-VERIFIED | NONE | DST-gap check silently passes when host tzdata is missing. | Support.cs IsInDstGap throws and ZoneAllowList.EnsureHostSupportsAll; SyllabusModule.cs:30; TextAndIdTests.cs:335,342,351 (RAN 2026-10-29, pass). The 'host lacks tzdata' case is tested by injecting the resolver, not on a real image. |
 | P2B1-15 | p2-b1-review B1-15 | LOW | OPEN | NONE | Audit immutability bypassable by the app role (switch via set_config; app owns table). | Not in 'B1 fixes'. Same owner-role gap applies to M2B1-02 evidence tables. |
 
 ## calendar.v1 contract review (calendar-v1-contract-review.md) and re-review (calendar-v1-contract-rereview.md)
@@ -480,6 +486,19 @@ Reviewer ratings were: GR-1 'High until PO/legal decide', GR-2 Medium, GR-3 Medi
 | GR-5 | google-tokens GR-5 | MEDIUM | DEFERRED-WITH-REASON | PRODUCTION | drive.file capability assumptions wrong, forcing a broader scope. | Vendor tests T1-T12 NOT RUN (calendar contract CV-28). |
 | GR-6 | google-tokens GR-6 | MEDIUM | DEFERRED-WITH-REASON | PRODUCTION | Student shares a Doc containing third-party voices or weakness notes. | Student-controlled; warning copy not written (adhd-ux/legal). |
 | GR-7 | google-tokens GR-7 | MEDIUM | DEFERRED-WITH-REASON | PRODUCTION | Unverified OAuth app: test users only, 7-day refresh expiry; unusable for real students. | Blocking for real use; Google Cloud project/OAuth client not created (PO-9g). |
+
+## Batch 1 verification (batch1-verification.md, commit 096ba8e)
+
+| ID | Source | Sev | Status | Gate | Summary | Evidence |
+|---|---|---|---|---|---|---|
+| B1V-01 | batch 1 verification | MEDIUM | OPEN | PRODUCTION | Code filters in Program.cs:38-46 have no provider name. A provider-scoped rule such as Logging:Console:LogLevel:Default=Trace wins over them (.NET selects provider-specific rules first), so Hosting.Diagnostics (full URL with query), ExceptionHandlerMiddleware and EF Update (exception with row values) log again. The comment and commit say config cannot re-enable them. | Scratch probe (not in repo) with a provider-scoped Trace rule: 9 sentinel records, incl. 'Request starting ... ?token=CANARY-02-QUERY-TOKEN' and EF Update. Fix: add rules per registered provider or post-configure LoggerFilterOptions; add a canary case with a provider-scoped rule. |
+| B1V-02 | batch 1 verification | LOW | OPEN | NONE | Canary gaps: TestServer (no Kestrel categories or bad-request logs), new canary does not drive hub, audio socket or AI/LanguageGuard paths, sentinels are plain ASCII (no spaces or Unicode), EF Query and Npgsql.* filters are not proven (removing them still passes). | Scratch mutation runs; LogPipelineCanaryTests.cs:18-24. Older RealtimeLogCanaryTests covers hub and audio with fewer categories. |
+| B1V-03 | batch 1 verification | LOW | OPEN | NONE | Explicit overrides Security:ETagKey, IdempotencyHmacKey(+Previous), SyllabusAuditHmacKey accept any 32+ bytes (zeros included) with no sample check or warning, in any environment. | READ Support.cs SyllabusKeys.Override, CoursesModule.cs, LecturesModule.cs. Not run. |
+| B1V-04 | batch 1 verification | LOW | OPEN | NONE | Root-secret sample detection is a denylist. Bytes 0..31, 'abcdefghijklmnopqrstuvwxyz012345' and a repeating 4-byte pattern are ACCEPTED in Production; the public test key in ApiFactory.cs is accepted too (design asked for test-key refusal and key ids in readiness). | Scratch probe: 3 of 4 weak keys accepted. READ RootSecret.cs:90-96. |
+| B1V-05 | batch 1 verification | LOW | OPEN | NONE | No root-secret rotation procedure: no RootSecretPrevious, IdempotencyHmacKeyPrevious takes a raw key (no tool prints the derived one), no previous ring for the audit HMAC. Docs (DEVELOPMENT.md, compose) do not mention RootSecret, AllowedHosts, ICU or tzdata; no Dockerfile exists to carry them. | grep of docs and compose; READ. Startup guards fail closed, so the effect is an operator trap, not a leak. |
+| B1V-06 | batch 1 verification | LOW | OPEN | NONE | Development fallback file: if no home folder resolves the path becomes relative to the working directory (not run); an existing file's permissions are not checked on load; a reader can hit a half-written file and report it invalid. File mode 0600 on create is tested. | READ RootSecret.cs:71-75,98-120; RootSecretTests.cs:139 (pass). |
+| B1V-07 | batch 1 verification | LOW | OPEN | NONE | With ICU, DocumentText.Canonicalize (DocumentText.cs:24) throws ArgumentException on a lone surrogate; TextPolicy catches it, Canonicalize does not. Not reachable over HTTP today (escaped lone surrogates in JSON gave 400 in a probe). | Scratch probe: 'canonicalize THROWS ArgumentException'. |
+| B1V-08 | batch 1 verification | LOW | OPEN | NONE | Edge validators are lenient: any /8 IPv4 (public too) or /32 IPv6 network is accepted as a trusted proxy; HSTS always sends includeSubDomains for a year and cannot be configured (no preload token; browsers ignore it over plain http). On a shared parent domain it pins sibling subdomains to HTTPS. AllowedHosts defaults to 'localhost', so probes with another Host header get 400. | Scratch probe: 1.0.0.0/8 accepted. READ Program.cs:171-172. |
 
 ## Findings added by this register
 
@@ -542,7 +561,7 @@ RN-07 (register): `docs/DECISIONS.md` PO-9k and `docs/vendors/google-verificatio
 # Summary (5 lines)
 
 1. Open CRITICAL: 0. Open HIGH: 1 (GR-1, awaiting a Product Owner ruling), so a git push is still blocked. CV-01 and CV-02 are FIXED-VERIFIED at contract level.
-2. Open MEDIUM: 29 (blocks production), of which 11 are calendar.v1 items FIXED-CONTRACT-ONLY (need implementation tests); LOW not resolved: 47 (noted, includes CVR-N01..N08).
-3. 203 findings from 14 review documents plus 3 added by this register; 126 resolved (FIXED-VERIFIED or SUPERSEDED), 77 unresolved; 41 observations (S1-S13 added as one row).
-4. Full .NET suite passed on 2026-10-29 (830 contract, 241 AI, 95 syllabus, 478 integration, 19 architecture); web tests, CI, scanners, Google behaviour (T1-T12) and all human gates were not verified.
+2. Open MEDIUM: 27 (blocks production), of which 11 are calendar.v1 items FIXED-CONTRACT-ONLY (need implementation tests); LOW not resolved: 51 (noted, includes CVR-N01..N08 and B1V-02..B1V-08).
+3. 211 findings (14 review documents, 3 added by this register, 8 from batch 1 verification); 132 resolved (FIXED-VERIFIED or SUPERSEDED), 79 unresolved; 41 observations (S1-S13 added as one row).
+4. Full .NET suite passed on 2026-10-29 (830 contract, 241 AI, 99 syllabus, 534 integration, 22 architecture; rerun after commit 096ba8e); web tests, CI, scanners, Google behaviour (T1-T12) and all human gates were not verified.
 5. The rename, A004 migration, renamed route and LanguageGuard introduced no new CRITICAL, HIGH or MEDIUM finding; this register clears no release gate. RN-07 (PO's personal address in committed history) stays.
