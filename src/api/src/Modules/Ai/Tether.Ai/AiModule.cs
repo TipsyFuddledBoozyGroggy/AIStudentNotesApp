@@ -48,6 +48,7 @@ public static class AiModule
 
         services.AddSingleton<AiHealth>();
         services.AddSingleton<SessionCutoff>();
+        services.AddSingleton<Tether.SharedKernel.Ai.IAiScopeCutoff>(sp => sp.GetRequiredService<SessionCutoff>());
         services.AddSingleton<ISessionLifecycleObserver>(sp => sp.GetRequiredService<SessionCutoff>());
         services.AddSingleton<SummaryEngine>();
         services.AddSingleton<SummaryScheduler>();

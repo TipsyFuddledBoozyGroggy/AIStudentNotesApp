@@ -66,7 +66,7 @@ internal sealed class ReservationReaper(IServiceScopeFactory scopes, AiOptions o
         {
             // Fixed, parameterised statement across users (like GlobalSpend); no entity, so no per-user filter is bypassed.
             var stale = await db.Database.SqlQuery<StaleRow>($"""
-                select id as "Id", user_id as "UserId", est_cost_micros as "EstCostMicros", model as "Model",
+                select id as "Id", user_id as "UserId", est_cost_micros as "EstCostMicros", model as "Model", pool as "Pool",
                        to_char(created_at at time zone 'UTC', 'YYYY-MM') as "Period"
                 from ai.ai_usage where outcome = 'reserved' and created_at < {cutoff} order by created_at limit {BatchSize}
                 """).ToListAsync(ct);
@@ -74,7 +74,7 @@ internal sealed class ReservationReaper(IServiceScopeFactory scopes, AiOptions o
 
             var settled = 0;
             foreach (var r in stale)
-                if (await ledger.SettleAsync(new Reservation(r.Id, r.UserId, r.Period, r.EstCostMicros), r.Model, new AiTokenUsage(0, 0, 0), 0, 0, Outcomes.Error))
+                if (await ledger.SettleAsync(new Reservation(r.Id, r.UserId, r.Period, r.EstCostMicros, r.Pool), r.Model, new AiTokenUsage(0, 0, 0), 0, 0, Outcomes.Error))
                     settled++;
             total += settled;
             if (settled == 0 || stale.Count < BatchSize) break; // nothing progressed (ledger faults): try again next tick
@@ -90,5 +90,6 @@ internal sealed class ReservationReaper(IServiceScopeFactory scopes, AiOptions o
         public long EstCostMicros { get; set; }
         public string Model { get; set; } = "";
         public string Period { get; set; } = "";
+        public string Pool { get; set; } = "lecture";
     }
 }

@@ -4,6 +4,7 @@ using Tether.Ai.Domain;
 using Tether.Ai.Prompts;
 using Tether.Ai.Validation;
 using Tether.Lectures.Contracts;
+using Tether.SharedKernel.Ai;
 using Microsoft.Extensions.Logging;
 
 namespace Tether.Ai.Provider;
@@ -70,13 +71,16 @@ internal sealed class AiHealth(AiOptions options, TimeProvider clock)
 /// is refusing us is never hammered. Scoped: run it inside the owning user's scope.
 /// </summary>
 internal sealed class AiGateway(
-    IAiClient client, UsageLedger ledger, BudgetGate budget, AiHealth health, AiOptions options, SessionCutoff cutoff, ISessionDirectory directory, ILogger<AiGateway> log)
+    IAiClient client, UsageLedger ledger, BudgetGate budget, AiHealth health, AiOptions options, SessionCutoff cutoff, ISessionDirectory directory, ILogger<AiGateway> log,
+    IEnumerable<IAiDocumentScopeProbe>? documentProbes = null)
 {
     public async Task<GatewayOutcome<T>> RunAsync<T>(AiRequest request, Func<string, Validated<T>> validate, CancellationToken ct) where T : class
     {
+        if (request.EffectiveScope.IsLecture == (request.Workflow == AiWorkflow.SyllabusExtract))
+            throw new ArgumentException("Workflow does not belong to the request scope.", nameof(request)); // programming error, never user-reachable
         if (!options.Enabled) return new(null, AiFailure.Disabled, "", false);
         // Taken before any state check: a pause that commits after the check below still cancels the call (see SessionCutoff).
-        using var lease = cutoff.Acquire(request.SessionId, ct);
+        using var lease = cutoff.Acquire(request.EffectiveScope, ct);
         var sct = lease.Token;
         var repaired = false;
         string? repairCode = null;
@@ -94,7 +98,7 @@ internal sealed class AiGateway(
 
             // Hold the estimated cost against every cap BEFORE the call (B3-02). A ledger that cannot be written fails closed.
             ReserveOutcome held;
-            try { held = await budget.ReserveAsync(req.UserId, req.SessionId, req.Workflow, req.PromptVersion, options.Price(req.Tier).Model, EstimateMicro(req), ct); }
+            try { held = await budget.ReserveAsync(req.UserId, req.EffectiveScope, req.Workflow, req.PromptVersion, options.Price(req.Tier).Model, EstimateMicro(req), ct); }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 log.LogWarning("AI budget reservation failed: {ExceptionType}", ex.GetType().Name);
@@ -103,7 +107,7 @@ internal sealed class AiGateway(
             }
             if (held.Reservation is not { } reservation)
             {
-                await ledger.RecordAsync(req.UserId, req.SessionId, req.Workflow, req.PromptVersion, "none", new AiTokenUsage(0, 0, 0), 0, 0, Outcomes.BudgetDenied, ct);
+                await ledger.RecordAsync(req.UserId, req.EffectiveScope, req.Workflow, req.PromptVersion, "none", new AiTokenUsage(0, 0, 0), 0, 0, Outcomes.BudgetDenied, ct);
                 return new(null, AiFailure.BudgetLimited, model, repaired);
             }
             if (held.Decision.ForceTier is { } forced) req = req with { Tier = forced };
@@ -186,10 +190,20 @@ internal sealed class AiGateway(
         return new(null, AiFailure.InvalidOutput, model, repaired);
     }
 
-    /// <summary>Fails closed: a session that cannot be confirmed Active for this user (missing, someone else's, paused, stopped, or a lookup error) gets no vendor call.</summary>
+    /// <summary>
+    /// Fails closed: a scope that cannot be confirmed live for this user gets no vendor call. A lecture scope must be an Active session
+    /// (missing, someone else's, paused, stopped, or a lookup error all refuse). A document scope asks the probe the owning module
+    /// registered for that kind; no probe, a false answer or an error all refuse.
+    /// </summary>
     private async Task<bool> IsActiveAsync(AiRequest req, CancellationToken ct)
     {
-        try { return await directory.FindAsync(req.UserId, req.SessionId, ct) is { State: LectureState.Active }; }
+        try
+        {
+            var scope = req.EffectiveScope;
+            if (scope.IsLecture) return await directory.FindAsync(req.UserId, scope.Id, ct) is { State: LectureState.Active };
+            var probe = documentProbes?.FirstOrDefault(p => p.Kind == scope.Kind);
+            return probe is not null && await probe.IsLiveAsync(req.UserId, scope.Id, ct);
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             log.LogWarning("AI session state check failed: {ExceptionType}", ex.GetType().Name);

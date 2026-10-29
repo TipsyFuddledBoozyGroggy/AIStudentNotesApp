@@ -60,7 +60,11 @@ internal sealed class AiUsageRow : IUserOwned
 {
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
-    public Guid SessionId { get; set; }
+    /// <summary>Legacy lecture key: set for lecture rows (equal to <see cref="ScopeId"/>), null for document rows. Dropped by a later contract migration (A004).</summary>
+    public Guid? SessionId { get; set; }
+    public string ScopeKind { get; set; } = "lecture";   // lecture | syllabus
+    public Guid ScopeId { get; set; }
+    public string Pool { get; set; } = "lecture";         // budget pool; equal to ScopeKind today
     public string Workflow { get; set; } = "";
     public string PromptVersion { get; set; } = "";
     public string Model { get; set; } = "";

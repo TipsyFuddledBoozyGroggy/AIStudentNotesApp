@@ -1,4 +1,5 @@
 using Tether.Lectures.Contracts;
+using Tether.SharedKernel.Ai;
 
 namespace Tether.Ai.Provider;
 
@@ -9,29 +10,35 @@ namespace Tether.Ai.Provider;
 /// A lease is taken BEFORE the gateway re-checks the session state, so a pause that commits after the check still cancels the call,
 /// and one that commits before it is seen by the check. In-process only, like the other session registries (ADR-020d).
 /// </summary>
-internal sealed class SessionCutoff : ISessionLifecycleObserver
+internal sealed class SessionCutoff : ISessionLifecycleObserver, IAiScopeCutoff
 {
     private readonly object _gate = new();
-    private readonly Dictionary<Guid, List<CancellationTokenSource>> _leases = [];
+    private readonly Dictionary<AiScope, List<CancellationTokenSource>> _leases = [];
 
     public int TrackedSessions { get { lock (_gate) return _leases.Count; } }
 
     /// <summary>A token that is cancelled when <paramref name="ct"/> is, or when the session is paused, stopped or deleted. Dispose it when the call ends.</summary>
-    public Lease Acquire(Guid sessionId, CancellationToken ct)
+    public Lease Acquire(Guid sessionId, CancellationToken ct) => Acquire(AiScope.Lecture(sessionId), ct);
+
+    public Lease Acquire(AiScope scope, CancellationToken ct)
     {
         var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         lock (_gate)
         {
-            if (!_leases.TryGetValue(sessionId, out var list)) _leases[sessionId] = list = [];
+            if (!_leases.TryGetValue(scope, out var list)) _leases[scope] = list = [];
             list.Add(cts);
         }
-        return new Lease(this, sessionId, cts);
+        return new Lease(this, scope, cts);
     }
 
-    public void Cancel(Guid sessionId)
+    public void Cancel(Guid sessionId) => Cancel(AiScope.Lecture(sessionId));
+
+    public void Cancel(string kind, Guid scopeId) => Cancel(new AiScope(kind, scopeId));
+
+    public void Cancel(AiScope scope)
     {
         List<CancellationTokenSource> snapshot;
-        lock (_gate) snapshot = _leases.TryGetValue(sessionId, out var list) ? [.. list] : [];
+        lock (_gate) snapshot = _leases.TryGetValue(scope, out var list) ? [.. list] : [];
         foreach (var cts in snapshot)
         {
             try { cts.Cancel(); }
@@ -51,14 +58,14 @@ internal sealed class SessionCutoff : ISessionLifecycleObserver
         return Task.CompletedTask;
     }
 
-    private void Release(Guid sessionId, CancellationTokenSource cts)
+    private void Release(AiScope scope, CancellationTokenSource cts)
     {
         lock (_gate)
         {
-            if (_leases.TryGetValue(sessionId, out var list))
+            if (_leases.TryGetValue(scope, out var list))
             {
                 list.Remove(cts);
-                if (list.Count == 0) _leases.Remove(sessionId);
+                if (list.Count == 0) _leases.Remove(scope);
             }
         }
         cts.Dispose();
@@ -67,10 +74,10 @@ internal sealed class SessionCutoff : ISessionLifecycleObserver
     internal sealed class Lease : IDisposable
     {
         private readonly SessionCutoff _owner;
-        private readonly Guid _sessionId;
+        private readonly AiScope _scope;
         private readonly CancellationTokenSource _cts;
-        internal Lease(SessionCutoff owner, Guid sessionId, CancellationTokenSource cts) { _owner = owner; _sessionId = sessionId; _cts = cts; }
+        internal Lease(SessionCutoff owner, AiScope scope, CancellationTokenSource cts) { _owner = owner; _scope = scope; _cts = cts; }
         public CancellationToken Token => _cts.Token;
-        public void Dispose() => _owner.Release(_sessionId, _cts);
+        public void Dispose() => _owner.Release(_scope, _cts);
     }
 }

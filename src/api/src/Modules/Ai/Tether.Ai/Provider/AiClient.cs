@@ -1,3 +1,5 @@
+using Tether.SharedKernel.Ai;
+
 namespace Tether.Ai.Provider;
 
 /// <summary>
@@ -20,7 +22,7 @@ internal interface IAiClient
     Task<AiResponse> CompleteAsync(AiRequest request, CancellationToken ct);
 }
 
-internal enum AiWorkflow { RollingSummary, Compaction, LostTrack }
+internal enum AiWorkflow { RollingSummary, Compaction, LostTrack, SyllabusExtract }
 
 /// <summary>Fast maps to the cheap model, Balanced to the mid model (config). There is no Deep tier on the live path (ADR-009).</summary>
 internal enum AiTier { Fast, Balanced }
@@ -41,12 +43,33 @@ internal static class BlockKinds
 }
 
 /// <summary>
+/// What a unit of AI work belongs to: a lecture session (kind <c>lecture</c>) or a document job (kind <c>syllabus</c>). The kind is
+/// also the budget pool, so lecture and syllabus spend are capped independently. Kinds are a fixed vocabulary (database CHECK).
+/// </summary>
+internal readonly record struct AiScope(string Kind, Guid Id)
+{
+    public static AiScope Lecture(Guid sessionId) => new(AiScopeKinds.Lecture, sessionId);
+    public static AiScope Syllabus(Guid syllabusId) => new(AiScopeKinds.Syllabus, syllabusId);
+    public string Pool => Kind;
+    public bool IsLecture => Kind == AiScopeKinds.Lecture;
+}
+
+/// <summary>
 /// <paramref name="Instruction"/> is trusted, server-built text (revision numbers, window length). <paramref name="RepairHint"/> is a
 /// code from <see cref="Validation.ValidationCodes"/> and never echoes model output or transcript text.
 /// </summary>
 internal sealed record AiRequest(
     AiWorkflow Workflow, string PromptVersion, AiTier Tier, string System, string Instruction, IReadOnlyList<UntrustedBlock> Blocks,
-    int MaxOutputTokens, Guid UserId, Guid SessionId, string IdempotencyKey, TimeSpan Timeout, string? RepairHint = null);
+    int MaxOutputTokens, Guid UserId, Guid SessionId, string IdempotencyKey, TimeSpan Timeout, string? RepairHint = null, AiScope? Scope = null)
+{
+    /// <summary>The scope the work is accounted and cut off under. Null means the lecture session in <see cref="SessionId"/> (every lecture caller).</summary>
+    public AiScope EffectiveScope => Scope ?? AiScope.Lecture(SessionId);
+
+    /// <summary>A request for document-scoped work. <see cref="SessionId"/> is empty: there is no lecture.</summary>
+    public static AiRequest ForDocument(AiScope scope, AiWorkflow workflow, string promptVersion, AiTier tier, string system, string instruction,
+        IReadOnlyList<UntrustedBlock> blocks, int maxOutputTokens, Guid userId, string idempotencyKey, TimeSpan timeout) =>
+        new(workflow, promptVersion, tier, system, instruction, blocks, maxOutputTokens, userId, Guid.Empty, idempotencyKey, timeout, null, scope);
+}
 
 internal sealed record AiTokenUsage(int InputTokens, int CachedTokens, int OutputTokens);
 

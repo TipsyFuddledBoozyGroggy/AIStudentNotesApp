@@ -5,9 +5,28 @@ namespace Tether.Ai.Provider;
 /// <summary>Token prices in micro-USD per million tokens. UNVERIFIED (vendor gate G2): placeholders, replace from the Console after PO-4.</summary>
 internal sealed record TierPrice(long InputMicroPerMTok, long CachedInputMicroPerMTok, long OutputMicroPerMTok, string Model);
 
+/// <summary>The three caps of one budget pool: per scope (a lecture session, or a document job), per user per UTC day, and global per UTC month.</summary>
+internal sealed record PoolBudget(long PerScopeMicro, long PerUserDailyMicro, long GlobalMonthlyMicro);
+
 internal sealed record BudgetOptions(
     long PerSessionMicro, long PerUserDailyMicro, long GlobalMonthlyMicro,
-    double SlowdownAt, double DropCompactionAt, double FastOnlyAt, double StopSummaryAt, bool ExplicitlyConfigured);
+    double SlowdownAt, double DropCompactionAt, double FastOnlyAt, double StopSummaryAt, bool ExplicitlyConfigured,
+    PoolBudget? SyllabusPool = null)
+{
+    /// <summary>
+    /// Caps for a budget pool. Lecture and syllabus pools are independent: spend in one never counts toward the other's caps, so a large
+    /// syllabus can exhaust only the syllabus pool and never the lecture AI allowance (and the reverse).
+    /// </summary>
+    public PoolBudget For(string pool) => pool switch
+    {
+        Tether.SharedKernel.Ai.AiScopeKinds.Lecture => new PoolBudget(PerSessionMicro, PerUserDailyMicro, GlobalMonthlyMicro),
+        Tether.SharedKernel.Ai.AiScopeKinds.Syllabus => SyllabusPool ?? DefaultSyllabusPool,
+        _ => throw new ArgumentOutOfRangeException(nameof(pool)),
+    };
+
+    /// <summary>Placeholders, like the lecture ones (vendor gate G2): $0.10 per job, $0.50 per user-day, $10 per month.</summary>
+    public static PoolBudget DefaultSyllabusPool { get; } = new(100_000, 500_000, 10_000_000);
+}
 
 internal sealed record SummaryOptions(
     int FlushSegments, TimeSpan FlushAfter, TimeSpan MinInterval, TimeSpan Tick, int MaxNewChars, int RecentWindowChars,
@@ -39,7 +58,12 @@ internal sealed record AiOptions(
             GlobalMonthlyMicro: b.GetValue("GlobalMonthlyMicroUsd", 50_000_000L), // $50, placeholder
             SlowdownAt: b.GetValue("SlowdownAt", 0.60), DropCompactionAt: b.GetValue("DropCompactionAt", 0.75),
             FastOnlyAt: b.GetValue("FastOnlyAt", 0.85), StopSummaryAt: b.GetValue("StopSummaryAt", 0.90),
-            ExplicitlyConfigured: b["PerSessionMicroUsd"] is not null && b["PerUserDailyMicroUsd"] is not null && b["GlobalMonthlyMicroUsd"] is not null);
+            ExplicitlyConfigured: b["PerSessionMicroUsd"] is not null && b["PerUserDailyMicroUsd"] is not null && b["GlobalMonthlyMicroUsd"] is not null,
+            // Separate pool for document (syllabus) work: its own per-job, per-user-day and global-month caps (docs/data/schema-syllabus-p2.md section 11).
+            SyllabusPool: new PoolBudget(
+                c.GetValue("Ai:Pools:syllabus:PerJobMicroUsd", BudgetOptions.DefaultSyllabusPool.PerScopeMicro),
+                c.GetValue("Ai:Pools:syllabus:PerUserDailyMicroUsd", BudgetOptions.DefaultSyllabusPool.PerUserDailyMicro),
+                c.GetValue("Ai:Pools:syllabus:GlobalMonthlyMicroUsd", BudgetOptions.DefaultSyllabusPool.GlobalMonthlyMicro)));
 
         // Model ids come from the vendor report (claude-haiku-5-5 / claude-sonnet-5-5); prices are the report's figures, UNVERIFIED (G2).
         TierPrice Price(string tier, long inp, long cached, long outp, string model) => new(
@@ -96,7 +120,9 @@ internal static class AiProviderGuard
             throw new InvalidOperationException("Ai:Mock:Fault is set but the environment is not Development or Test. Fault injection is demo/test only.");
         if (!developmentOrTest && options.MockLatency > TimeSpan.Zero)
             throw new InvalidOperationException("Ai:Mock:LatencyMs is set but the environment is not Development or Test.");
-        if (options.Budget.PerSessionMicro <= 0 || options.Budget.PerUserDailyMicro <= 0 || options.Budget.GlobalMonthlyMicro <= 0)
+        var syl = options.Budget.For(Tether.SharedKernel.Ai.AiScopeKinds.Syllabus);
+        if (options.Budget.PerSessionMicro <= 0 || options.Budget.PerUserDailyMicro <= 0 || options.Budget.GlobalMonthlyMicro <= 0
+            || syl.PerScopeMicro <= 0 || syl.PerUserDailyMicro <= 0 || syl.GlobalMonthlyMicro <= 0)
             throw new InvalidOperationException("Ai:Budget caps must be positive. To switch AI off set Ai:Enabled=false.");
     }
 }

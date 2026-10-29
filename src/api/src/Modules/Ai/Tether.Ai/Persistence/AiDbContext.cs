@@ -85,12 +85,18 @@ internal sealed class AiDbContext(DbContextOptions<AiDbContext> options, ICurren
             {
                 t.HasCheckConstraint("ck_ai_usage_tokens", "input_tokens >= 0 AND cached_tokens >= 0 AND output_tokens >= 0 AND est_cost_micros >= 0 AND latency_ms >= 0");
                 t.HasCheckConstraint("ck_ai_usage_outcome", $"outcome IN ({outcomes})");
-                t.HasCheckConstraint("ck_ai_usage_workflow", "workflow IN ('RollingSummary','Compaction','LostTrack')");
+                t.HasCheckConstraint("ck_ai_usage_workflow", "(scope_kind = 'lecture' AND workflow IN ('RollingSummary','Compaction','LostTrack')) OR (scope_kind = 'syllabus' AND workflow = 'SyllabusExtract')");
+                t.HasCheckConstraint("ck_ai_usage_scope_kind", "scope_kind IN ('lecture','syllabus')");
+                t.HasCheckConstraint("ck_ai_usage_pool", "pool IN ('lecture','syllabus') AND pool = scope_kind");
+                t.HasCheckConstraint("ck_ai_usage_scope_session", "(scope_kind = 'lecture' AND session_id IS NOT NULL AND session_id = scope_id) OR (scope_kind = 'syllabus' AND session_id IS NULL)");
             });
             b.HasKey(x => x.Id);
             b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
             b.Property(x => x.UserId).HasColumnName("user_id").IsRequired();
             b.Property(x => x.SessionId).HasColumnName("session_id");
+            b.Property(x => x.ScopeKind).HasColumnName("scope_kind").HasMaxLength(10).HasDefaultValue("lecture").IsRequired();
+            b.Property(x => x.ScopeId).HasColumnName("scope_id");
+            b.Property(x => x.Pool).HasColumnName("pool").HasMaxLength(10).HasDefaultValue("lecture").IsRequired();
             b.Property(x => x.Workflow).HasColumnName("workflow").HasMaxLength(24).IsRequired();
             b.Property(x => x.PromptVersion).HasColumnName("prompt_version").HasMaxLength(64).IsRequired();
             b.Property(x => x.Model).HasColumnName("model").HasMaxLength(64).IsRequired();
@@ -103,6 +109,8 @@ internal sealed class AiDbContext(DbContextOptions<AiDbContext> options, ICurren
             b.Property(x => x.CreatedAt).HasColumnName("created_at");
             b.HasIndex(x => new { x.UserId, x.CreatedAt }).HasDatabaseName("ix_ai_usage_user_created");
             b.HasIndex(x => new { x.SessionId, x.CreatedAt }).HasDatabaseName("ix_ai_usage_session_created");
+            b.HasIndex(x => new { x.UserId, x.ScopeKind, x.ScopeId, x.CreatedAt }).HasDatabaseName("ix_ai_usage_scope_created");
+            b.HasIndex(x => new { x.UserId, x.Pool, x.CreatedAt }).HasDatabaseName("ix_ai_usage_user_pool_created");
             b.HasQueryFilter(x => x.UserId == CurrentUserId);
         });
     }

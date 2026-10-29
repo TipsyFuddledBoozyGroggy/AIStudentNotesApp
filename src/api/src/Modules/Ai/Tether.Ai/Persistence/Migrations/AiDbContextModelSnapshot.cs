@@ -65,13 +65,33 @@ namespace Tether.Ai.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("output_tokens");
 
+                    b.Property<string>("Pool")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("lecture")
+                        .HasColumnName("pool");
+
                     b.Property<string>("PromptVersion")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("prompt_version");
 
-                    b.Property<Guid>("SessionId")
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("scope_id");
+
+                    b.Property<string>("ScopeKind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("lecture")
+                        .HasColumnName("scope_kind");
+
+                    b.Property<Guid?>("SessionId")
                         .HasColumnType("uuid")
                         .HasColumnName("session_id");
 
@@ -93,13 +113,25 @@ namespace Tether.Ai.Persistence.Migrations
                     b.HasIndex("UserId", "CreatedAt")
                         .HasDatabaseName("ix_ai_usage_user_created");
 
+                    b.HasIndex("UserId", "Pool", "CreatedAt")
+                        .HasDatabaseName("ix_ai_usage_user_pool_created");
+
+                    b.HasIndex("UserId", "ScopeKind", "ScopeId", "CreatedAt")
+                        .HasDatabaseName("ix_ai_usage_scope_created");
+
                     b.ToTable("ai_usage", "ai", t =>
                         {
                             t.HasCheckConstraint("ck_ai_usage_outcome", "outcome IN ('ok','repaired','invalid','degraded','error','timeout','rate_limited','budget_denied','stale','reserved')");
 
+                            t.HasCheckConstraint("ck_ai_usage_pool", "pool IN ('lecture','syllabus') AND pool = scope_kind");
+
+                            t.HasCheckConstraint("ck_ai_usage_scope_kind", "scope_kind IN ('lecture','syllabus')");
+
+                            t.HasCheckConstraint("ck_ai_usage_scope_session", "(scope_kind = 'lecture' AND session_id IS NOT NULL AND session_id = scope_id) OR (scope_kind = 'syllabus' AND session_id IS NULL)");
+
                             t.HasCheckConstraint("ck_ai_usage_tokens", "input_tokens >= 0 AND cached_tokens >= 0 AND output_tokens >= 0 AND est_cost_micros >= 0 AND latency_ms >= 0");
 
-                            t.HasCheckConstraint("ck_ai_usage_workflow", "workflow IN ('RollingSummary','Compaction','LostTrack')");
+                            t.HasCheckConstraint("ck_ai_usage_workflow", "(scope_kind = 'lecture' AND workflow IN ('RollingSummary','Compaction','LostTrack')) OR (scope_kind = 'syllabus' AND workflow = 'SyllabusExtract')");
                         });
                 });
 

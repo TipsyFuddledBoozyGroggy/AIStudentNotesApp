@@ -64,7 +64,12 @@ internal sealed partial class MockAiClient(AiOptions options) : IAiClient
         if (fault == MockFault.Malformed || (fault == MockFault.MalformedThenValid && Interlocked.Exchange(ref _malformedUsed, 1) == 0))
             json = "{\"tldr\": \"this output was cut off";
         else
-            json = request.Workflow == AiWorkflow.LostTrack ? CatchUp(request, fault) : Summary(request, fault);
+            json = request.Workflow switch
+            {
+                AiWorkflow.LostTrack => CatchUp(request, fault),
+                AiWorkflow.SyllabusExtract => Document(request),
+                _ => Summary(request, fault),
+            };
 
         var rendered = PromptRenderer.Render(request);
         var usage = new AiTokenUsage(PromptRenderer.EstimateTokens(rendered), 0, PromptRenderer.EstimateTokens(json.Length));
@@ -94,6 +99,18 @@ internal sealed partial class MockAiClient(AiOptions options) : IAiClient
         if (k == 1) return [n - 1];
         return Enumerable.Range(0, k).Select(i => (int)Math.Round(i * (n - 1) / (double)(k - 1))).Distinct().ToList();
     }
+
+    // ---------------- document workflow ----------------
+
+    /// <summary>
+    /// Deterministic document-workflow answer for tests: one entry per source line, echoing the line id and a short snippet. It is a
+    /// stand-in for the gateway path only. It proposes no dates and says nothing about how a model reads a syllabus; the real
+    /// extraction schema and validator belong to the Syllabus module's extractor seam, which does not exist yet.
+    /// </summary>
+    private static string Document(AiRequest r) => JsonSerializer.Serialize(new
+    {
+        lines = Lines(r, BlockKinds.SourceChunk).Select(l => new { lineId = l.Id, text = Snippet(l.Text, 80) }).ToArray(),
+    });
 
     // ---------------- rolling summary / compaction ----------------
 
