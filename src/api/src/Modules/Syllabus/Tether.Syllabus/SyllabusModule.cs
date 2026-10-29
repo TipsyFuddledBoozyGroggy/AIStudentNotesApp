@@ -1,6 +1,7 @@
 using Tether.Syllabus.Application;
 using Tether.Syllabus.Extraction;
 using Tether.Syllabus.Persistence;
+using Tether.Syllabus.Text;
 using Tether.SharedKernel.Persistence;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
@@ -25,6 +26,8 @@ public static class SyllabusModule
         var cs = cfg.GetConnectionString("Default") ?? throw new InvalidOperationException("ConnectionStrings:Default is required.");
 
         // ---- startup guards ----
+        TextPolicy.EnsureNormalizationAvailable(TextPolicy.NormalizationAvailable);
+        ZoneAllowList.EnsureHostSupportsAll(); // B1-14: no tzdata means no DST-gap detection, so refuse to start
         if (!string.Equals(cfg["Syllabus:CalendarProvider"] ?? "mock", "mock", StringComparison.Ordinal))
             throw new InvalidOperationException("Syllabus:CalendarProvider must be 'mock'. A real calendar needs a new calendar.v1 contract and a security review (PO-6).");
         if (!string.Equals(cfg["Syllabus:Extractor"] ?? "mock", "mock", StringComparison.Ordinal))
@@ -39,7 +42,7 @@ public static class SyllabusModule
 
         var options = SyllabusOptions.From(cfg);
         builder.Services.AddSingleton(options);
-        builder.Services.AddSingleton(SyllabusKeys.From(cfg));
+        builder.Services.AddSingleton(sp => SyllabusKeys.From(cfg, sp.GetRequiredService<Tether.SharedKernel.Security.DerivedKeys>()));
         builder.Services.AddSingleton<SyllabusETag>();
         builder.Services.AddSingleton<RateGate>();
         builder.Services.AddSingleton<UploadGate>();

@@ -171,9 +171,16 @@ public class TextAndIdTests
     public void TextPolicy_normalizes_to_nfc_and_keeps_verbatim_compatibility_characters()
     {
         Assert.True(TextPolicy.TryValidate("Cafe\u0301", TextKind.SingleLine, 200, out var nfc));
-        // NFC composition needs ICU. Under InvariantGlobalization (the repo default) string.Normalize is a no-op, which TextPolicy.NormalizationAvailable reports.
-        Assert.Equal(TextPolicy.NormalizationAvailable ? "Caf\u00E9" : "Cafe\u0301", nfc);
-        Assert.Equal(AppContext.TryGetSwitch("System.Globalization.Invariant", out var inv) && inv, !TextPolicy.NormalizationAvailable);
+        // B1-10: NFC composition needs ICU. This must FAIL if normalisation is a no-op (InvariantGlobalization=true), not mirror it.
+        Assert.Equal("Caf\u00E9", nfc);
+        Assert.NotEqual("Cafe\u0301", nfc);
+        Assert.True(TextPolicy.NormalizationAvailable);
+        Assert.False(AppContext.TryGetSwitch("System.Globalization.Invariant", out var inv) && inv);
+        // A decomposed sequence and its precomposed form are equal after the policy, so duplicate detection and display agree.
+        Assert.True(TextPolicy.TryValidate("e\u0301", TextKind.SingleLine, 200, out var decomposed));
+        Assert.True(TextPolicy.TryValidate("\u00E9", TextKind.SingleLine, 200, out var precomposed));
+        Assert.Equal(precomposed, decomposed);
+        Assert.Equal(1, decomposed.Length);
         Assert.True(TextPolicy.TryValidate("\uFB01nal", TextKind.SingleLine, 200, out var lig));     // NFC, not NFKC: the ligature stays
         Assert.Equal("\uFB01nal", lig);
     }
@@ -195,9 +202,9 @@ public class TextAndIdTests
     {
         var tag = char.ConvertFromUtf32(0xE0041);
         var doc = DocumentText.Canonicalize("Exam on Oct 19" + tag + "\u202E hidden \u200B text\r\n  Second   line  ");
-        Assert.DoesNotContain(tag, doc.Text);
-        Assert.DoesNotContain("\u202E", doc.Text);
-        Assert.DoesNotContain("\u200B", doc.Text);
+        Assert.DoesNotContain(tag, doc.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("\u202E", doc.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("\u200B", doc.Text, StringComparison.Ordinal);
         Assert.Equal("Exam on Oct 19 hidden text\nSecond line", doc.Text);
         Assert.True(doc.HiddenRemoved >= 3);
         Assert.True(doc.InjectionSuspect);                         // a tag character and a bidi override
@@ -306,5 +313,44 @@ public class TextAndIdTests
         Assert.True(SyllabusService.ValidKey(new string('a', 128)));
         foreach (var k in new[] { "short", new string('a', 129), "has space1", "abcdefgh\n", "abc/defgh" }) Assert.False(SyllabusService.ValidKey(k), k);
         Assert.False(SyllabusService.ValidKey(null));
+    }
+}
+
+public class NormalizationGuardTests
+{
+    [Fact]
+    public void Startup_guard_fails_closed_when_normalisation_is_unavailable_and_passes_when_it_works()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => TextPolicy.EnsureNormalizationAvailable(false));
+        Assert.Contains("ICU", ex.Message);
+        TextPolicy.EnsureNormalizationAvailable(true);
+        TextPolicy.EnsureNormalizationAvailable(TextPolicy.NormalizationAvailable); // this host must be able to compose
+    }
+}
+
+/// <summary>B1-14: a host without tzdata must not silently report "no DST gap" (that would let a nonexistent local time through unflagged).</summary>
+public class TimeZoneFailClosedTests
+{
+    [Fact]
+    public void A_zone_the_host_cannot_resolve_is_an_explicit_error_not_false()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => Local.IsInDstGap(new DateOnly(2026, 3, 8), new TimeOnly(2, 30), "Nowhere/Missing_Zone"));
+        Assert.Contains("tzdata", ex.Message);
+    }
+
+    [Fact]
+    public void Startup_check_names_every_allow_listed_zone_the_host_lacks()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => ZoneAllowList.EnsureHostSupportsAll(z => z is not ("America/New_York" or "Europe/Kyiv")));
+        Assert.Contains("America/New_York", ex.Message);
+        Assert.Contains("Europe/Kyiv", ex.Message);
+        Assert.Contains("tzdata", ex.Message);
+    }
+
+    [Fact]
+    public void This_host_resolves_every_allow_listed_zone_and_still_detects_the_spring_forward_gap()
+    {
+        ZoneAllowList.EnsureHostSupportsAll();
+        Assert.True(Local.IsInDstGap(new DateOnly(2026, 3, 8), new TimeOnly(2, 30), "America/New_York"));
     }
 }

@@ -31,6 +31,10 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <summary>The gateway uses the FIRST probe registered for a scope kind, so fixtures that register a fake document probe (AiScopeTests) need the real Syllabus probe out of the way.</summary>
     protected virtual bool KeepRealSyllabusProbe => false;
     protected virtual IEnumerable<KeyValuePair<string, string?>> Settings => [];
+    /// <summary>AllowedHosts for the test host (M1R-N02: "*" is refused outside Development). Null leaves the shipped appsettings value in force.</summary>
+    protected virtual string? AllowedHostsValue => "localhost;api.example.test";
+    /// <summary>Test-only root secret (B1-11). Random-looking, not a documented sample. Override with null to exercise the missing-secret paths.</summary>
+    protected virtual string? RootSecretValue => "p3Qw9ZsXk2VbN7mLr4TyHc8JdFaE5uGiOo1WqSzAeRtYvBnMxCkDlPhUjIgKfLb0";
 
     public string ConnectionString =>
         new NpgsqlConnectionStringBuilder(_adminConnection) { Database = DbName, Pooling = false }.ConnectionString;
@@ -40,6 +44,8 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseEnvironment(EnvironmentName);
         builder.UseSetting("ConnectionStrings:Default", ConnectionString);
         builder.UseSetting("Security:AllowedOrigins:0", Origin);
+        if (AllowedHostsValue is { } ah) builder.UseSetting("AllowedHosts", ah);
+        if (RootSecretValue is { } rs) builder.UseSetting("Security:RootSecret", rs);
         builder.UseSetting("RateLimiting:AuthPermitPerMinute", "100000");
         builder.UseSetting("RateLimiting:ApiPermitPerMinute", "100000");
         builder.UseSetting("RateLimiting:WritePermitPerMinute", "100000");

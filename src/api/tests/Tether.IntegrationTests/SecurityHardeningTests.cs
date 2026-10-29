@@ -394,11 +394,7 @@ public class ProductionHeaderTests(ProductionFactory prod) : IClassFixture<Produ
         Assert.Contains("includeSubDomains", hsts);
     }
 
-    [Fact]
-    public async Task Hsts_is_not_sent_over_plain_http()
-    {
-        Assert.False((await prod.NewClient().GetAsync("/health/live")).Headers.Contains("Strict-Transport-Security"));
-    }
+    // M1R-N02: the old 'not sent over plain http' test was the defect (HSTS never sent behind a TLS terminator); see HstsTests in EdgeConfigTests.cs.
 
     // F-07
     [Fact]

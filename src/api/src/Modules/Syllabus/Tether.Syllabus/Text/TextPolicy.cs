@@ -14,10 +14,17 @@ internal enum TextKind { SingleLine, Notes }
 internal static class TextPolicy
 {
     /// <summary>
-    /// False when the runtime cannot compose: with InvariantGlobalization=true (the repo default in Directory.Build.props) string.Normalize is a no-op for
-    /// non-ASCII text, so NFC is NOT applied and text is stored as submitted. Applying NFC needs ICU (InvariantGlobalization=false); see the P2-B1 report.
+    /// False when the runtime cannot compose: with InvariantGlobalization=true (or no ICU) string.Normalize is a no-op for non-ASCII text, so NFC would
+    /// silently not be applied. The repo default is now InvariantGlobalization=false (Directory.Build.props, B1-10) and the module fails startup when this is false.
     /// </summary>
     public static bool NormalizationAvailable { get; } = "e\u0301".Normalize(NormalizationForm.FormC) == "\u00E9";
+
+    /// <summary>Fail closed (B1-10): refuse to run with text that would be stored un-normalised.</summary>
+    public static void EnsureNormalizationAvailable(bool available)
+    {
+        if (!available)
+            throw new InvalidOperationException("Unicode normalisation (NFC) is not working on this host: ICU is missing or InvariantGlobalization is enabled. Install libicu in the runtime image and set InvariantGlobalization=false; the Syllabus module will not run with un-normalised text.");
+    }
 
     public static int CodePoints(string s)
     {

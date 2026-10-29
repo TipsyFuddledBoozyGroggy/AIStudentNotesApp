@@ -77,7 +77,10 @@ internal sealed class SyllabusOptions
     };
 }
 
-/// <summary>Server secrets. Without configuration they are random per process (safe, but tags and fingerprints do not survive a restart).</summary>
+/// <summary>
+/// Server secrets, HKDF sub-keys of the per-environment root secret (B1-11). The explicit <c>Security:ETagKey</c>, <c>Security:IdempotencyHmacKey</c>,
+/// <c>Security:IdempotencyHmacKeyPrevious</c> and <c>Security:SyllabusAuditHmacKey</c> settings (base64, >= 32 bytes) remain optional overrides.
+/// </summary>
 internal sealed class SyllabusKeys(byte[] etag, byte[][] idempotencyRing, byte[] audit, string restoreEpoch)
 {
     public byte[] ETag { get; } = etag;
@@ -86,17 +89,20 @@ internal sealed class SyllabusKeys(byte[] etag, byte[][] idempotencyRing, byte[]
     public byte[] Audit { get; } = audit;
     public string RestoreEpoch { get; } = restoreEpoch;
 
-    public static SyllabusKeys From(IConfiguration c)
+    public static SyllabusKeys From(IConfiguration c, Tether.SharedKernel.Security.DerivedKeys derived)
     {
-        static byte[] Key(IConfiguration c, string name)
+        static byte[] Override(IConfiguration c, string name, Func<byte[]> derive)
         {
-            if (c[name] is not { Length: > 0 } b64) return RandomNumberGenerator.GetBytes(32);
+            if (c[name] is not { Length: > 0 } b64) return derive();
             var k = Convert.FromBase64String(b64);
             return k.Length >= 32 ? k : throw new InvalidOperationException($"{name} must decode to at least 32 bytes.");
         }
-        var ring = new List<byte[]> { Key(c, "Security:IdempotencyHmacKey") };
-        if (c["Security:IdempotencyHmacKeyPrevious"] is { Length: > 0 }) ring.Add(Key(c, "Security:IdempotencyHmacKeyPrevious"));
-        return new SyllabusKeys(Key(c, "Security:ETagKey"), [.. ring], Key(c, "Security:SyllabusAuditHmacKey"), c["Syllabus:RestoreEpoch"] ?? "0");
+        var ring = new List<byte[]> { Override(c, "Security:IdempotencyHmacKey", () => derived.Derive(Tether.SharedKernel.Security.DerivedKeys.Labels.Idempotency)) };
+        if (c["Security:IdempotencyHmacKeyPrevious"] is { Length: > 0 }) ring.Add(Override(c, "Security:IdempotencyHmacKeyPrevious", () => throw new InvalidOperationException()));
+        return new SyllabusKeys(
+            Override(c, "Security:ETagKey", () => derived.Derive(Tether.SharedKernel.Security.DerivedKeys.Labels.ETag)), [.. ring],
+            Override(c, "Security:SyllabusAuditHmacKey", () => derived.Derive(Tether.SharedKernel.Security.DerivedKeys.Labels.SyllabusAudit)),
+            c["Syllabus:RestoreEpoch"] ?? "0");
     }
 }
 
@@ -200,15 +206,19 @@ internal static class Local
         DayOfWeek.Friday => "FR", DayOfWeek.Saturday => "SA", _ => "SU",
     };
 
-    /// <summary>A wall-clock time that does not exist (spring-forward gap) in <paramref name="zone"/>. False if the zone is unknown to the host.</summary>
+    /// <summary>
+    /// A wall-clock time that does not exist (spring-forward gap) in <paramref name="zone"/>. Fails closed (B1-14): a zone the host cannot resolve (missing tzdata)
+    /// throws instead of answering false, because "not in a gap" would let a nonexistent local time through unflagged.
+    /// </summary>
     public static bool IsInDstGap(DateOnly d, TimeOnly t, string zone)
     {
-        try
+        TimeZoneInfo tz;
+        try { tz = TimeZoneInfo.FindSystemTimeZoneById(zone); }
+        catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException)
         {
-            var tz = TimeZoneInfo.FindSystemTimeZoneById(zone);
-            return tz.IsInvalidTime(d.ToDateTime(t, DateTimeKind.Unspecified));
+            throw new InvalidOperationException("The host cannot resolve a time zone from the allow-list: install tzdata in the runtime image. DST-gap detection cannot run without it.", ex);
         }
-        catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException) { return false; }
+        return tz.IsInvalidTime(d.ToDateTime(t, DateTimeKind.Unspecified));
     }
 }
 
@@ -234,6 +244,19 @@ internal static class ZoneAllowList
     };
 
     public static bool Contains(string? zone) => zone is not null && Zones.Contains(zone);
+
+    /// <summary>Startup check (B1-14): every allow-listed zone must resolve on this host, or the DST-gap check would be unreliable.</summary>
+    public static void EnsureHostSupportsAll(Func<string, bool>? resolves = null)
+    {
+        resolves ??= static z =>
+        {
+            try { TimeZoneInfo.FindSystemTimeZoneById(z); return true; }
+            catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException) { return false; }
+        };
+        var missing = Zones.Where(z => !resolves(z)).Order(StringComparer.Ordinal).ToArray();
+        if (missing.Length > 0)
+            throw new InvalidOperationException($"The host is missing tzdata for {missing.Length} allow-listed time zone(s): {string.Join(", ", missing)}. Install tzdata in the runtime image; DST-gap detection cannot run without it.");
+    }
 }
 
 /// <summary>Fixed-window counters with an injectable clock, for the per-user and per-syllabus limits the host limiter cannot key on.</summary>

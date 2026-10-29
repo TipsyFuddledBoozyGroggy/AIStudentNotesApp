@@ -25,7 +25,7 @@ public static class LecturesModule
             .UseNpgsql(cs, n => n.MigrationsHistoryTable("__ef_migrations_history", LecturesDbContext.Schema))
             .AddInterceptors(sp.GetRequiredService<OwnershipSaveChangesInterceptor>()));
         builder.Services.AddSingleton<ConsentTextRegistry>();
-        builder.Services.AddSingleton(new SessionETag(ETagKey(builder.Configuration)));
+        builder.Services.AddSingleton(sp => new SessionETag(ETagKey(builder.Configuration, sp.GetRequiredService<Tether.SharedKernel.Security.DerivedKeys>())));
         builder.Services.AddScoped<SessionService>();
         builder.Services.AddScoped<Tether.Courses.Contracts.ICourseLifecycleHandler, CourseLifecycleHandler>();
         builder.Services.AddScoped<ExpiredRowSweeper>();
@@ -56,9 +56,10 @@ public static class LecturesModule
         return builder;
     }
 
-    private static byte[] ETagKey(IConfiguration config)
+    /// <summary>HKDF sub-key of the per-environment root secret (B1-11). <c>Security:ETagKey</c> (base64, >= 32 bytes) remains an optional explicit override.</summary>
+    private static byte[] ETagKey(IConfiguration config, Tether.SharedKernel.Security.DerivedKeys keys)
     {
-        if (config["Security:ETagKey"] is not { Length: > 0 } b64) return System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+        if (config["Security:ETagKey"] is not { Length: > 0 } b64) return keys.Derive(Tether.SharedKernel.Security.DerivedKeys.Labels.ETag);
         var key = Convert.FromBase64String(b64);
         return key.Length >= 32 ? key : throw new InvalidOperationException("Security:ETagKey must decode to at least 32 bytes.");
     }

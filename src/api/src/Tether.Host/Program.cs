@@ -11,6 +11,7 @@ using Tether.Syllabus;
 using Tether.SharedKernel;
 using Tether.SharedKernel.Http;
 using Tether.SharedKernel.Persistence;
+using Tether.SharedKernel.Security;
 using Tether.Transcript;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -25,11 +26,26 @@ builder.WebHost.ConfigureKestrel(o =>
     o.AddServerHeader = false;
 });
 
-// F-08: these framework categories log the exception object (and so any row values / SQL detail inside it) at Error.
-builder.Logging.AddFilter("Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware", LogLevel.None);
-builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Update", LogLevel.None);
-builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.None);
+// F-08 / B1-02: framework categories that can carry student data are switched off IN CODE, so an operator raising
+// Logging:LogLevel:* (or an environment variable) can never turn them back on. Code filters are added after configuration
+// rules and win on equal specificity; the log canary (LogPipelineCanaryTests) forces every category to Trace and proves it.
+//  - ExceptionHandlerMiddleware, EF Update: log the exception object (row values, SQL detail inside it) at Error.
+//  - EF Database.Command, EF Query, Npgsql.Command: SQL text and, if ever enabled, parameter values / expression constants.
+//  - Hosting.Diagnostics: "Request starting ... GET /path?query" carries the full URL, so a token or text in a query string.
+//  - Routing / Http logging: Debug records echo the raw request path of unmatched (attacker-chosen) routes.
+//  - Npgsql.Exception / Npgsql.Connection: with "Include Error Detail" the PostgresException detail echoes the failing row.
+// EF sensitive-data logging and detailed errors must never be switched on (guarded by a source-scan architecture test).
+foreach (var category in new[]
+{
+    "Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware", "Microsoft.AspNetCore.Hosting.Diagnostics",
+    "Microsoft.EntityFrameworkCore.Update", "Microsoft.EntityFrameworkCore.Database.Command", "Microsoft.EntityFrameworkCore.Query",
+    "Npgsql.Command", "Npgsql.Exception", "Npgsql.Connection",
+})
+    builder.Logging.AddFilter(category, LogLevel.None);
+builder.Logging.AddFilter("Microsoft.AspNetCore.Routing", LogLevel.Warning);
+builder.Logging.AddFilter("Npgsql", LogLevel.Warning);
 builder.Services.AddSharedKernel();
+builder.AddRootSecret(); // B1-11: fails startup outside Development without a valid Security:RootSecret; before any module that derives keys
 builder.AddIdentityModule(); // fails startup if dev login is enabled outside Development
 builder.AddCoursesModule();
 builder.AddLecturesModule();
@@ -44,7 +60,9 @@ builder.Services.AddSingleton(new OriginPolicy(allowedOrigins));
 // added at all, so a client can never choose its own IP or scheme.
 var trustedProxies = builder.Configuration.GetSection("Security:TrustedProxies").Get<string[]>() ?? [];
 var trustedNetworks = builder.Configuration.GetSection("Security:TrustedProxyNetworks").Get<string[]>() ?? [];
-var useForwardedHeaders = trustedProxies.Length + trustedNetworks.Length > 0;
+var (parsedProxies, parsedNetworks) = EdgeConfig.ParseTrustedProxies(trustedProxies, trustedNetworks); // M1R-N01: refuses 0.0.0.0/0 and friends
+var useForwardedHeaders = parsedProxies.Length + parsedNetworks.Length > 0;
+EdgeConfig.EnsureAllowedHosts(builder.Configuration["AllowedHosts"], builder.Environment.IsDevelopment()); // M1R-N02
 if (useForwardedHeaders)
 {
     builder.Services.Configure<ForwardedHeadersOptions>(o =>
@@ -53,8 +71,8 @@ if (useForwardedHeaders)
         o.ForwardLimit = 1; // the nearest trusted hop only
         o.KnownProxies.Clear();
         o.KnownIPNetworks.Clear(); // drops the implicit loopback trust
-        foreach (var p in trustedProxies) o.KnownProxies.Add(IPAddress.Parse(p));
-        foreach (var n in trustedNetworks) o.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(n));
+        foreach (var p in parsedProxies) o.KnownProxies.Add(p);
+        foreach (var n in parsedNetworks) o.KnownIPNetworks.Add(n);
     });
 }
 
@@ -130,9 +148,9 @@ if (!app.Environment.IsDevelopment())
         app.Logger.LogWarning("RateLimiting overrides above the shipped defaults outside Development: {Overrides}. The raised values belong in the dev overlay only.", string.Join(", ", raised));
     if (string.IsNullOrEmpty(app.Configuration["DataProtection:KeysPath"]))
         app.Logger.LogWarning("DataProtection:KeysPath is not set: cookie keys are ephemeral, so every restart signs everyone out and instances cannot share sessions.");
-    if (string.IsNullOrEmpty(app.Configuration["Security:ETagKey"]))
-        app.Logger.LogWarning("Security:ETagKey is not set: ETags are random per process and will not match across restarts or instances.");
 }
+foreach (var warning in app.Services.GetRequiredService<Tether.SharedKernel.Security.DerivedKeys>().Warnings)
+    app.Logger.LogWarning("{Warning}", warning);
 
 if (useForwardedHeaders) app.UseForwardedHeaders();
 
@@ -148,7 +166,9 @@ app.Use((ctx, next) =>
         h["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'";
         h["Permissions-Policy"] = "microphone=(self), camera=(), geolocation=(), payment=()";
         h.CacheControl = "no-store";
-        if (!app.Environment.IsDevelopment() && ctx.Request.IsHttps)
+        // M1R-N02: not conditional on Request.IsHttps. Behind a TLS terminator the app sees http, and the scheme is only as trustworthy as the
+        // forwarded-header config. Browsers ignore HSTS received over plain http, so sending it always is harmless and cannot be switched off by a client.
+        if (!app.Environment.IsDevelopment())
             h.StrictTransportSecurity = "max-age=31536000; includeSubDomains";
         return Task.CompletedTask;
     });

@@ -7,6 +7,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AnalysisLevel>latest</AnalysisLevel>
     <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
-    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- B1-10: string.Normalize (NFC) is a no-op under InvariantGlobalization, so ICU must be present at runtime. The dev SDK image ships libicu; a production image must too (never Alpine-without-icu-libs). The Syllabus module refuses to start without working normalisation. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
 </Project>
