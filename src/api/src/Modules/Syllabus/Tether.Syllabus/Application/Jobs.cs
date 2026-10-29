@@ -26,11 +26,20 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
 
     private DateTimeOffset Now() { var t = clock.GetUtcNow(); return new DateTimeOffset(t.Ticks - t.Ticks % 10, TimeSpan.Zero); }
 
+    /// <summary>The claim a worker holds on a job. B1-13: every write is fenced by owner AND attempt, so a worker whose lease was reaped and re-claimed writes nothing.</summary>
+    private sealed record Lease(Guid JobId, string Owner, int Attempt);
+
+    /// <summary>Locks the job row (after the syllabus row: the one lock order) and reports whether this worker still holds it.</summary>
+    private static async Task<bool> HoldsLeaseAsync(SyllabusCore core, Lease lease, CancellationToken ct) =>
+        await core.Sql.ScalarAsync<int?>("""
+            SELECT 1 FROM syllabus.extraction_jobs WHERE id = @p0 AND user_id = @p1 AND state = 'running' AND lease_owner = @p2 AND attempt = @p3 FOR UPDATE
+            """, ct, lease.JobId, core.Uid, lease.Owner, lease.Attempt) is not null;
+
     /// <summary>Processes at most one queued job. Returns true if a job was claimed.</summary>
     public async Task<bool> RunOnceAsync(CancellationToken stop)
     {
         await ReapAsync(stop);
-        (Guid JobId, Guid UserId, Guid SyllabusId)? claimed;
+        (Guid JobId, Guid UserId, Guid SyllabusId, int Attempt)? claimed;
         using (var scope = scopes.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<SyllabusDbContext>();
@@ -41,17 +50,17 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
                 UPDATE syllabus.extraction_jobs SET state = 'running', lease_owner = @p0, lease_expires_at = @p1, heartbeat_at = @p2,
                     started_at = COALESCE(started_at, @p2), attempt = attempt + 1, stage = 'extracting'
                 WHERE id = (SELECT id FROM syllabus.extraction_jobs WHERE state = 'queued' AND available_at <= @p2 ORDER BY available_at FOR UPDATE SKIP LOCKED LIMIT 1)
-                RETURNING id, user_id, syllabus_id
+                RETURNING id, user_id, syllabus_id, attempt
                 """, stop, _owner, now.AddSeconds(opt.LeaseSeconds), now);
             await tx.CommitAsync(stop);
-            claimed = rows.Count == 0 ? null : ((Guid)rows[0][0]!, (Guid)rows[0][1]!, (Guid)rows[0][2]!);
+            claimed = rows.Count == 0 ? null : ((Guid)rows[0][0]!, (Guid)rows[0][1]!, (Guid)rows[0][2]!, Convert.ToInt32(rows[0][3]));
         }
         if (claimed is not { } c) return false;
-        await ProcessAsync(c.JobId, c.UserId, c.SyllabusId, stop);
+        await ProcessAsync(new Lease(c.JobId, _owner, c.Attempt), c.UserId, c.SyllabusId, stop);
         return true;
     }
 
-    private async Task ProcessAsync(Guid jobId, Guid userId, Guid syllabusId, CancellationToken stop)
+    private async Task ProcessAsync(Lease lease, Guid userId, Guid syllabusId, CancellationToken stop)
     {
         await using var scope = scopes.CreateUserScope(userId);
         var core = scope.ServiceProvider.GetRequiredService<SyllabusCore>();
@@ -62,68 +71,72 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
         {
             var syl = await core.Db.Syllabi.AsNoTracking().FirstOrDefaultAsync(s => s.Id == syllabusId, ct);
             if (syl is null) return;                                                   // deleted: nothing to do, nothing written
-            if (!await SetStageAsync(core, jobId, syllabusId, "extracting", ct)) return;
+            if (!await SetStageAsync(core, lease, syllabusId, "extracting", ct)) return;
             await Task.Delay(opt.MockStageDelayMilliseconds, ct);
             if (syl.InputKind == "upload" && syl.FileType is "pdf" or "docx")
             {
                 // No parser exists in this increment (real DOCX/PDF parsing and the sandboxed parser worker are P2-B3). The bytes were hashed and
                 // discarded at intake, so the contract-conformant outcome is a failed syllabus with the existing reason "disabled".
-                await FailAsync(core, jobId, syllabusId, "disabled", ct);
+                await FailAsync(core, lease, syllabusId, "disabled", ct);
                 return;
             }
             var text = await core.Db.CanonicalTexts.AsNoTracking().FirstOrDefaultAsync(t => t.SyllabusId == syllabusId, ct);
-            if (text is null) { await FailAsync(core, jobId, syllabusId, "unreadable_file", ct); return; }
-            if (!await SetStageAsync(core, jobId, syllabusId, "proposing", ct)) return;
+            if (text is null) { await FailAsync(core, lease, syllabusId, "unreadable_file", ct); return; }
+            if (!await SetStageAsync(core, lease, syllabusId, "proposing", ct)) return;
             await Task.Delay(opt.MockStageDelayMilliseconds, ct);
             var output = extractor.Extract(new ExtractorInput(text.Text, syl.TermStart, syl.TermEnd, syl.DefaultTimezone, syl.HiddenContentDropped, syl.InjectionSuspect));
-            await PersistAsync(core, jobId, syl, output, ct);
+            await PersistAsync(core, lease, syl, output, ct);
         }
         catch (OperationCanceledException) { /* deleted while running, or shutting down: the lease expiry re-queues a shutdown case */ }
         catch (Exception ex)
         {
             log.LogWarning("Syllabus extraction failed with {ExceptionType}", ex.GetType().Name);      // type only, never text
-            try { core.Db.ChangeTracker.Clear(); await FailAsync(core, jobId, syllabusId, "invalid_output", CancellationToken.None); }
+            try { core.Db.ChangeTracker.Clear(); await FailAsync(core, lease, syllabusId, "invalid_output", CancellationToken.None); }
             catch (Exception ex2) { log.LogWarning("Syllabus failure handling failed with {ExceptionType}", ex2.GetType().Name); }
         }
         finally { cancels.Unregister(syllabusId); }
     }
 
     /// <summary>Moves the product status and the job stage together under the syllabus row lock; false if the syllabus is gone.</summary>
-    private async Task<bool> SetStageAsync(SyllabusCore core, Guid jobId, Guid syllabusId, string stage, CancellationToken ct)
+    private async Task<bool> SetStageAsync(SyllabusCore core, Lease lease, Guid syllabusId, string stage, CancellationToken ct)
     {
         var now = Now();
         await using var tx = await core.Db.Database.BeginTransactionAsync(ct);
-        if (!await core.LockSyllabusAsync(syllabusId, ct)) { await tx.RollbackAsync(ct); return false; }
+        if (!await core.LockSyllabusAsync(syllabusId, ct) || !await HoldsLeaseAsync(core, lease, ct)) { await tx.RollbackAsync(ct); return false; }
         await core.Sql.ExecAsync("UPDATE syllabus.syllabi SET status = @p0, updated_at = @p1, purge_after = NULL WHERE id = @p2 AND user_id = @p3", ct, stage, now, syllabusId, core.Uid);
-        var n = await core.Sql.ExecAsync("""
-            UPDATE syllabus.extraction_jobs SET stage = @p0, heartbeat_at = @p1, lease_expires_at = @p2 WHERE id = @p3 AND user_id = @p4 AND state = 'running'
-            """, ct, stage, now, now.AddSeconds(opt.LeaseSeconds), jobId, core.Uid);
-        if (n == 0) { await tx.RollbackAsync(ct); return false; }
+        await core.Sql.ExecAsync("""
+            UPDATE syllabus.extraction_jobs SET stage = @p0, heartbeat_at = @p1, lease_expires_at = @p2 WHERE id = @p3 AND user_id = @p4
+            """, ct, stage, now, now.AddSeconds(opt.LeaseSeconds), lease.JobId, core.Uid);
         await tx.CommitAsync(ct);
         return true;
     }
 
-    private async Task FailAsync(SyllabusCore core, Guid jobId, Guid syllabusId, string reason, CancellationToken ct)
+    private async Task FailAsync(SyllabusCore core, Lease lease, Guid syllabusId, string reason, CancellationToken ct)
     {
         var now = Now();
         await using var tx = await core.Db.Database.BeginTransactionAsync(ct);
-        if (!await core.LockSyllabusAsync(syllabusId, ct)) { await tx.RollbackAsync(ct); return; }
+        if (!await core.LockSyllabusAsync(syllabusId, ct) || !await HoldsLeaseAsync(core, lease, ct)) { await tx.RollbackAsync(ct); return; }
         // debris: purged 7 days after the last job state change (data section 8); a failed syllabus never holds student work
         await core.Sql.ExecAsync("UPDATE syllabus.syllabi SET status = 'failed', status_reason = @p0, updated_at = @p1, purge_after = @p2 WHERE id = @p3 AND user_id = @p4",
             ct, reason, now, now.AddDays(opt.DebrisDays), syllabusId, core.Uid);
         await core.Sql.ExecAsync("""
             UPDATE syllabus.extraction_jobs SET state = 'failed', last_error_code = @p0, finished_at = @p1, lease_owner = NULL, lease_expires_at = NULL, stage = NULL
             WHERE id = @p2 AND user_id = @p3
-            """, ct, reason, now, jobId, core.Uid);
+            """, ct, reason, now, lease.JobId, core.Uid);
         await tx.CommitAsync(ct);
     }
 
-    private async Task PersistAsync(SyllabusCore core, Guid jobId, SyllabusDoc syl, ExtractorOutput output, CancellationToken ct)
+    private async Task PersistAsync(SyllabusCore core, Lease lease, SyllabusDoc syl, ExtractorOutput output, CancellationToken ct)
     {
         var db = core.Db; var uid = core.Uid; var now = Now();
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         // the DELETE handler takes this same lock: it either waits for this step or this step finds the syllabus gone and writes nothing
         if (!await core.LockSyllabusAsync(syl.Id, ct)) { await tx.RollbackAsync(ct); return; }
+        // B1-13: persist only while this worker still owns the job (same owner and attempt), the syllabus is still being extracted, and nothing was persisted yet
+        if (!await HoldsLeaseAsync(core, lease, ct)
+            || await core.Sql.ScalarAsync<int?>("SELECT 1 FROM syllabus.syllabi WHERE id = @p0 AND user_id = @p1 AND status IN ('extracting','proposing')", ct, syl.Id, uid) is null
+            || await db.Items.AsNoTracking().AnyAsync(i => i.SyllabusId == syl.Id && i.Origin == "ai", ct))
+        { await tx.RollbackAsync(ct); return; }
         try
         {
             var items = new List<SyllabusItem>(); var alts = new List<ItemAlternative>(); var proposals = new List<ItemProposal>();
@@ -170,7 +183,7 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
             await core.Sql.ExecAsync("""
                 UPDATE syllabus.extraction_jobs SET state = 'succeeded', finished_at = @p0, lease_owner = NULL, lease_expires_at = NULL, stage = NULL
                 WHERE id = @p1 AND user_id = @p2
-                """, ct, now, jobId, uid);
+                """, ct, now, lease.JobId, uid);
             await tx.CommitAsync(ct);
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.ForeignKeyViolation })
@@ -186,14 +199,21 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
         var db = scope.ServiceProvider.GetRequiredService<SyllabusDbContext>();
         var sql = new Sql(db); var now = Now();
         await using var tx = await db.Database.BeginTransactionAsync(ct);
+        // B1-01: lock order is syllabus row first, then job row, as in DELETE, SetStage, Fail and Persist. Take the syllabus locks of every expired lease
+        // in id order, then touch only jobs of the syllabi locked here (a lease that expires after this select is handled by the next pass).
+        var locked = (await sql.RowsAsync("""
+            SELECT id FROM syllabus.syllabi WHERE id IN (SELECT syllabus_id FROM syllabus.extraction_jobs WHERE state = 'running' AND lease_expires_at < @p0)
+            ORDER BY id FOR UPDATE
+            """, ct, now)).Select(r => (Guid)r[0]!).ToArray();
+        if (locked.Length == 0) { await tx.CommitAsync(ct); return; }
         await sql.ExecAsync("""
             UPDATE syllabus.extraction_jobs SET state = 'queued', lease_owner = NULL, lease_expires_at = NULL, available_at = @p0
-            WHERE state = 'running' AND lease_expires_at < @p0 AND attempt < @p1
-            """, ct, now, opt.MaxAttempts);
+            WHERE state = 'running' AND lease_expires_at < @p0 AND attempt < @p1 AND syllabus_id = ANY(@p2)
+            """, ct, now, opt.MaxAttempts, locked);
         var dead = await sql.RowsAsync("""
             UPDATE syllabus.extraction_jobs SET state = 'failed', lease_owner = NULL, lease_expires_at = NULL, finished_at = @p0, last_error_code = 'timeout', stage = NULL
-            WHERE state = 'running' AND lease_expires_at < @p0 AND attempt >= @p1 RETURNING syllabus_id, user_id
-            """, ct, now, opt.MaxAttempts);
+            WHERE state = 'running' AND lease_expires_at < @p0 AND attempt >= @p1 AND syllabus_id = ANY(@p2) RETURNING syllabus_id, user_id
+            """, ct, now, opt.MaxAttempts, locked);
         foreach (var r in dead)
             await sql.ExecAsync("""
                 UPDATE syllabus.syllabi SET status = 'failed', status_reason = 'timeout', updated_at = @p0, purge_after = @p1
@@ -209,11 +229,11 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
 /// sweeps (idempotency keys at 24 h, finished job rows at 24 h, creation counters after 2 days). Runs as a system actor with explicit user
 /// ids in every statement; deletion of debris uses the same code path as DELETE, in the owner's scope.
 /// </summary>
-internal sealed class SyllabusMaintenance(IServiceScopeFactory scopes, TimeProvider clock, ILogger<SyllabusMaintenance> log)
+internal sealed class SyllabusMaintenance(IServiceScopeFactory scopes, TimeProvider clock, SyllabusOptions opt, ILogger<SyllabusMaintenance> log)
 {
     private DateTimeOffset Now() { var t = clock.GetUtcNow(); return new DateTimeOffset(t.Ticks - t.Ticks % 10, TimeSpan.Zero); }
 
-    public sealed record Result(int TextsPurged, int DebrisDeleted, int KeysSwept, int JobsSwept, int CountersSwept);
+    public sealed record Result(int TextsPurged, int DebrisDeleted, int KeysSwept, int JobsSwept, int CountersSwept, int AuditPurged = 0);
 
     public async Task<Result> RunOnceAsync(CancellationToken ct)
     {
@@ -262,7 +282,32 @@ internal sealed class SyllabusMaintenance(IServiceScopeFactory scopes, TimeProvi
             counters = await sql.ExecAsync("DELETE FROM syllabus.creation_counters WHERE day <= @p0", ct, DateOnly.FromDateTime(now.UtcDateTime).AddDays(-2));
             await tx.CommitAsync(ct);
         }
-        return new Result(purged, deleted, keys, jobs, counters);
+        var auditPurged = await PurgeAuditAsync(now, ct);
+        return new Result(purged, deleted, keys, jobs, counters, auditPurged);
+    }
+
+    /// <summary>
+    /// B1-04: retention purge of decision_audit (content-free rows) older than <see cref="SyllabusOptions.AuditRetentionDays"/> (default 400 days: a PROPOSAL pending
+    /// Product Owner approval). The append-only trigger allows a DELETE only inside a transaction that sets syllabus.evidence_purge, the switch purge_evidence uses.
+    /// Bounded batches so one pass cannot hold a long lock.
+    /// </summary>
+    private async Task<int> PurgeAuditAsync(DateTimeOffset now, CancellationToken ct)
+    {
+        var cutoff = now.AddDays(-opt.AuditRetentionDays); var total = 0;
+        for (var pass = 0; pass < 10; pass++)
+        {
+            using var scope = scopes.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<SyllabusDbContext>();
+            var sql = new Sql(db);
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            await sql.ScalarAsync<string>("SELECT set_config('syllabus.evidence_purge', 'on', true)", ct);
+            var n = await sql.ExecAsync("DELETE FROM syllabus.decision_audit WHERE id IN (SELECT id FROM syllabus.decision_audit WHERE occurred_at < @p0 LIMIT 5000)", ct, cutoff);
+            await sql.ScalarAsync<string>("SELECT set_config('syllabus.evidence_purge', 'off', true)", ct);
+            await tx.CommitAsync(ct);
+            total += n;
+            if (n < 5000) break;
+        }
+        return total;
     }
 
     /// <summary>Deletes the canonical text and nulls every snippet text and context (and keeps the offsets), then stamps the syllabus. One transaction.</summary>

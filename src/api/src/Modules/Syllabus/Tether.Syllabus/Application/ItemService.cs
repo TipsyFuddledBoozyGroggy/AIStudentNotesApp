@@ -4,6 +4,7 @@ using Tether.Syllabus.Domain;
 using Tether.Syllabus.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Tether.Syllabus.Application;
 
@@ -67,18 +68,9 @@ internal sealed class ItemService(SyllabusCore core, SyllabusService syllabi, Mo
         if (failure == JsonBody.Failure.TooLarge) return SyllabusProblem.TooLarge();
         if (failure == JsonBody.Failure.Unsupported) return SyllabusProblem.Unsupported();
         if (!JsonBody.TryBind<ItemCreateRequest>(bytes!, out var req) || req is null) return SyllabusProblem.InvalidBare();
-        var material = $"POST|{Routes.ItemTemplate}|/syllabi/{Ids2.Syl(syllabusId)}/items|{req.Kind}|{req.Title}|{req.Notes}|{req.Date}|{req.EndDate}|{req.Time}|{req.EndTime}|{req.AllDay}|{req.Timezone}";
-        if (hit is not null)
-        {
-            if (!syllabi.FingerprintMatches(hit.Record, material)) return SyllabusProblem.InvalidBare();
-            if (hit.Record.ResultId is not { } rid) return SyllabusProblem.NotFound();
-            var existing = await db.Items.AsNoTracking().FirstOrDefaultAsync(i => i.Id == rid && i.SyllabusId == syllabusId, ct);
-            if (existing is null) return SyllabusProblem.NotFound();
-            http.Response.Headers["Idempotency-Replayed"] = "true";
-            http.Response.Headers.ETag = core.ETags.ForItem(existing);
-            http.Response.Headers.Location = $"/api/v1/syllabi/{Ids2.Syl(syllabusId)}/items/{Ids2.Itm(existing.Id)}";
-            return Results.Json(await core.RepresentItemAsync(existing, ct), JsonBody.Out, statusCode: 201);
-        }
+        var material = SyllabusService.Material("POST", Routes.ItemTemplate, "/syllabi/" + Ids2.Syl(syllabusId) + "/items", req.Kind, req.Title, req.Notes, req.Date, req.EndDate, req.Time, req.EndTime,
+            req.AllDay is null ? null : req.AllDay.Value ? "1" : "0", req.Timezone);
+        if (hit is not null) return await ReplayItemAsync(http, syllabusId, hit, material, ct);
 
         // validation (step 8)
         if (!ItemRules.EditableKinds.Contains(req.Kind)) return SyllabusProblem.Invalid("kind");
@@ -98,6 +90,16 @@ internal sealed class ItemService(SyllabusCore core, SyllabusService syllabi, Mo
         var now = core.Now();
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         if (!await core.LockSyllabusAsync(syllabusId, ct)) { await tx.RollbackAsync(ct); return SyllabusProblem.NotFound(); }
+        if (idemKey is not null)
+        {
+            // B1-06: decide the key under the syllabus lock. A simultaneous create with the same key has committed by now (replay it); an
+            // expired record is removed so the new insert cannot hit the unique index.
+            var keyHash = Hashing.Sha256(idemKey);
+            await core.Sql.ExecAsync("DELETE FROM syllabus.idempotency_keys WHERE user_id = @p0 AND method = 'POST' AND route_template = @p1 AND key_hash = @p2 AND expires_at <= @p3",
+                ct, uid, Routes.ItemTemplate, keyHash, now);
+            var winner = await syllabi.LookupKeyAsync(Routes.ItemTemplate, idemKey, ct);
+            if (winner is not null) { await tx.RollbackAsync(ct); return await ReplayItemAsync(http, syllabusId, winner, material, ct); }
+        }
         var syl = await db.Syllabi.AsNoTracking().FirstAsync(s => s.Id == syllabusId, ct);
         if (syl.Status is not ("ready" or "partial")) { await tx.RollbackAsync(ct); return SyllabusProblem.InvalidState(); }   // hand entry only into ready/partial (R3-13)
         var total = await db.Items.CountAsync(i => i.SyllabusId == syllabusId, ct);
@@ -116,22 +118,44 @@ internal sealed class ItemService(SyllabusCore core, SyllabusService syllabi, Mo
             Confidence = confidence, ConfidenceReason = ItemRules.StudentReason, Flags = [.. flags], Edited = false, Decision = "undecided", SyncState = "not_synced",
             Revision = 1, CreatedAt = now, UpdatedAt = now,
         };
-        db.Items.Add(item);
-        await db.SaveChangesAsync(ct);
-        if (idemKey is not null)
-            db.IdempotencyKeys.Add(new IdempotencyRecord
-            {
-                Id = Ids.New(), UserId = uid, CourseId = syl.CourseId, SyllabusId = syllabusId, Method = "POST", RouteTemplate = Routes.ItemTemplate,
-                KeyHash = Hashing.Sha256(idemKey), Fingerprint = syllabi.Fingerprint(material), ResultKind = "item", ResultId = id, CreatedAt = now, ExpiresAt = now.AddHours(24),
-            });
-        await core.TouchActivityAsync(syllabusId, now, ct);
-        await core.Sql.ExecAsync("UPDATE syllabus.syllabi SET purge_after = NULL WHERE id = @p0 AND user_id = @p1 AND purge_after IS NOT NULL", ct, syllabusId, uid);   // never swept: it holds student work
-        await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
+        try
+        {
+            db.Items.Add(item);
+            await db.SaveChangesAsync(ct);
+            if (idemKey is not null)
+                db.IdempotencyKeys.Add(new IdempotencyRecord
+                {
+                    Id = Ids.New(), UserId = uid, CourseId = syl.CourseId, SyllabusId = syllabusId, Method = "POST", RouteTemplate = Routes.ItemTemplate,
+                    KeyHash = Hashing.Sha256(idemKey), Fingerprint = syllabi.Fingerprint(material), ResultKind = "item", ResultId = id, CreatedAt = now, ExpiresAt = now.AddHours(24),
+                });
+            await core.TouchActivityAsync(syllabusId, now, ct);
+            await core.Sql.ExecAsync("UPDATE syllabus.syllabi SET purge_after = NULL WHERE id = @p0 AND user_id = @p1 AND purge_after IS NOT NULL", ct, syllabusId, uid);   // never swept: it holds student work
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+        }
+        catch (DbUpdateException ex) when (idemKey is not null && ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "ux_idempotency_keys_scope" })
+        {
+            // the same key was committed for ANOTHER syllabus of this user between our check and our insert (the syllabus lock does not cover that)
+            await tx.RollbackAsync(ct); db.ChangeTracker.Clear();
+            var winner = await syllabi.LookupKeyAsync(Routes.ItemTemplate, idemKey, ct);
+            return winner is not null ? await ReplayItemAsync(http, syllabusId, winner, material, ct) : SyllabusProblem.InvalidBare();
+        }
         var saved = await db.Items.AsNoTracking().FirstAsync(i => i.Id == id, ct);
         http.Response.Headers.ETag = core.ETags.ForItem(saved);
         http.Response.Headers.Location = $"/api/v1/syllabi/{Ids2.Syl(syllabusId)}/items/{Ids2.Itm(id)}";
         return Results.Json(await core.RepresentItemAsync(saved, ct), JsonBody.Out, statusCode: 201);
+    }
+
+    private async Task<IResult> ReplayItemAsync(HttpContext http, Guid syllabusId, IdemHit hit, string material, CancellationToken ct)
+    {
+        if (!syllabi.FingerprintMatches(hit.Record, material)) return SyllabusProblem.InvalidBare();
+        if (hit.Record.ResultId is not { } rid) return SyllabusProblem.NotFound();
+        var existing = await core.Db.Items.AsNoTracking().FirstOrDefaultAsync(i => i.Id == rid && i.SyllabusId == syllabusId, ct);
+        if (existing is null) return SyllabusProblem.NotFound();
+        http.Response.Headers["Idempotency-Replayed"] = "true";
+        http.Response.Headers.ETag = core.ETags.ForItem(existing);
+        http.Response.Headers.Location = $"/api/v1/syllabi/{Ids2.Syl(syllabusId)}/items/{Ids2.Itm(existing.Id)}";
+        return Results.Json(await core.RepresentItemAsync(existing, ct), JsonBody.Out, statusCode: 201);
     }
 
     // ---------------------------------------------------------------- shared locked mutation scaffold
@@ -250,7 +274,7 @@ internal sealed class ItemService(SyllabusCore core, SyllabusService syllabi, Mo
                 if (r.Outcome == "applied")
                 {
                     l.Item.UpdatedAt = now;
-                    if (req.Action != "approve") core.Audit(syllabusId, req.Action == "skip" ? "skipped" : "undecided", now, id, l.Item.Revision);
+                    core.Audit(syllabusId, req.Action switch { "approve" => "approved", "skip" => "skipped", _ => "undecided" }, now, id, l.Item.Revision);   // B1-03: one row per item and revision, approvals included
                     await core.TouchActivityAsync(syllabusId, now, ct);
                     await db.SaveChangesAsync(ct);
                     applied++; if (req.Action == "approve") appliedApprovals++;
@@ -269,7 +293,7 @@ internal sealed class ItemService(SyllabusCore core, SyllabusService syllabi, Mo
         }
         if (appliedApprovals > 0)
         {
-            core.Audit(syllabusId, "batch_approved", core.Now(), count: appliedApprovals);
+            await core.AuditNoisyAsync(syllabusId, "batch_approved", core.Now(), appliedApprovals, ct);
             await db.SaveChangesAsync(ct);
         }
         return Results.Json(new BatchResult(results, new BatchCounts(applied, unchanged, rejected)), JsonBody.Out);

@@ -284,7 +284,7 @@ internal static class SyllabusEndpoints
         var unclaimed = await core.Db.Unclaimed.AsNoTracking().Where(u => u.SyllabusId == sid).OrderBy(u => u.SnippetStart).ThenBy(u => u.Id).Take(200).ToListAsync(ct);
         var events = await core.Db.Events.AsNoTracking().Where(e => e.SyllabusId == sid).OrderBy(e => e.StartDate).ThenBy(e => e.Id).Take(opt.MaxEventsPerSyllabus).ToListAsync(ct);
         var now = core.Now();
-        core.Audit(sid, "exported", now, count: items.Count);
+        await core.AuditNoisyAsync(sid, "exported", now, items.Count, ct);
         await core.Db.SaveChangesAsync(ct);
         var h = http.Response.Headers;
         h.CacheControl = "no-store"; h.XContentTypeOptions = "nosniff"; h.ContentDisposition = "attachment; filename=\"syllabus-export.json\"";

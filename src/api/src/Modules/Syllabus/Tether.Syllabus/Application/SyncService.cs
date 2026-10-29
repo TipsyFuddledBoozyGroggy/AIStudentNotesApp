@@ -125,8 +125,8 @@ internal sealed class SyncService(SyllabusCore core, SyllabusService syllabi, Mo
         if (!rates.TryAcquire("sync:syl:" + syllabusId, o.SyncPerSyllabusPerMinute) || !rates.TryAcquire("sync:usr:" + uid, o.SyncPerUserPerMinute))
             return SyllabusProblem.RateLimited();       // limits also apply to candidate replays
         if (req.Confirm.Provider != "mock" || !req.Confirm.AcknowledgedDemo) return SyllabusProblem.Invalid("confirm");
-        var material = $"POST|{Routes.SyncTemplate}|/syllabi/{Ids2.Syl(syllabusId)}/calendar-sync|" +
-            string.Join(",", revs.OrderBy(k => k.Key).Select(k => $"{Ids2.Itm(k.Key)}:{k.Value}")) + "|mock|1";
+        var material = SyllabusService.Material("POST", Routes.SyncTemplate, "/syllabi/" + Ids2.Syl(syllabusId) + "/calendar-sync",
+            string.Join(",", revs.OrderBy(k => k.Key).Select(k => $"{Ids2.Itm(k.Key)}:{k.Value}")), "mock", "1");
         if (hit is not null)
         {
             if (!syllabi.FingerprintMatches(hit.Record, material) || hit.Record.ResultId is not { } runId) return SyllabusProblem.InvalidBare();
@@ -140,6 +140,9 @@ internal sealed class SyncService(SyllabusCore core, SyllabusService syllabi, Mo
         try
         {
             if (!await core.LockSyllabusAsync(syllabusId, ct)) { await tx.RollbackAsync(ct); return SyllabusProblem.NotFound(); }
+            // B1-06: an expired record for this key is removed here (under the lock) so the insert below cannot hit the unique index
+            await core.Sql.ExecAsync("DELETE FROM syllabus.idempotency_keys WHERE user_id = @p0 AND method = 'POST' AND route_template = @p1 AND key_hash = @p2 AND expires_at <= @p3",
+                ct, uid, Routes.SyncTemplate, Hashing.Sha256(idemKey), now);
             var ids = revs.Keys.ToArray();
             // lock the item rows in the defined processing order (sort date, then id) before checking anything
             var found = (await core.Sql.RowsAsync("SELECT id FROM syllabus.items WHERE syllabus_id = @p0 AND user_id = @p1 AND id = ANY(@p2) ORDER BY sort_date, id FOR UPDATE", ct, syllabusId, uid, ids))
@@ -203,9 +206,10 @@ internal sealed class SyncService(SyllabusCore core, SyllabusService syllabi, Mo
                 Id = Ids.New(), UserId = uid, CourseId = syl0.CourseId, SyllabusId = syllabusId, Method = "POST", RouteTemplate = Routes.SyncTemplate,
                 KeyHash = Hashing.Sha256(idemKey), Fingerprint = syllabi.Fingerprint(material), ResultKind = "sync_run", ResultId = runId, CreatedAt = now, ExpiresAt = now.AddHours(24),
             });
-            core.Audit(syllabusId, "synced", now, count: created + updated + unchanged);
+            await core.AuditNoisyAsync(syllabusId, "synced", now, created + updated + unchanged, ct);
             await core.TouchActivityAsync(syllabusId, now, ct);
             await db.SaveChangesAsync(ct);
+            await PruneRunsAsync(syllabusId, ct);
             await tx.CommitAsync(ct);
             return Results.Json(new SyncResult(WireId.Format(Ids2.Sync, runId), Ids2.Syl(syllabusId), "mock", true, status, now, results, new SyncCounts(created, updated, unchanged, failed, notEligible)), JsonBody.Out);
         }
@@ -221,6 +225,16 @@ internal sealed class SyncService(SyllabusCore core, SyllabusService syllabi, Mo
             return SyllabusProblem.InvalidBare();
         }
     }
+
+    /// <summary>
+    /// B1-04: keeps the newest <see cref="SyllabusOptions.SyncRunsPerSyllabus"/> runs of this syllabus (call inside the locked transaction, after the run rows are saved).
+    /// Older runs go with their items (cascade) and with the idempotency keys that point at them, so a retry of a pruned key re-runs the idempotent sync.
+    /// </summary>
+    private Task PruneRunsAsync(Guid syllabusId, CancellationToken ct) => core.Sql.ExecAsync("""
+        WITH old AS (SELECT id FROM syllabus.sync_runs WHERE syllabus_id = @p0 AND user_id = @p1 ORDER BY created_at DESC, id DESC OFFSET @p2),
+             k AS (DELETE FROM syllabus.idempotency_keys WHERE user_id = @p1 AND result_kind = 'sync_run' AND result_id IN (SELECT id FROM old))
+        DELETE FROM syllabus.sync_runs WHERE user_id = @p1 AND id IN (SELECT id FROM old)
+        """, ct, syllabusId, core.Uid, core.Options.SyncRunsPerSyllabus);
 
     /// <summary>Rebuilds the ORIGINAL result as produced at completedAt from the sync run records. Item states may be stale by design.</summary>
     private async Task<IResult?> ReplayAsync(Guid syllabusId, Guid runId, CancellationToken ct)
@@ -281,9 +295,10 @@ internal sealed class SyncService(SyllabusCore core, SyllabusService syllabi, Mo
         db.SyncRuns.Add(new SyncRun { Id = runId, UserId = uid, SyllabusId = syllabusId, Provider = "mock", Kind = "remove", Status = status, Requested = ids.Count, CreatedAt = now });
         await db.SaveChangesAsync(ct);
         db.SyncRunItems.AddRange(runItems);
-        core.Audit(syllabusId, "sync_removed", now, count: removed);
+        await core.AuditNoisyAsync(syllabusId, "sync_removed", now, removed, ct);
         await core.TouchActivityAsync(syllabusId, now, ct);
         await db.SaveChangesAsync(ct);
+        await PruneRunsAsync(syllabusId, ct);
         await tx.CommitAsync(ct);
         return Results.Json(new RemoveResult(Ids2.Syl(syllabusId), "mock", status, results, new RemoveCounts(removed, notPresent, failed)), JsonBody.Out);
     }

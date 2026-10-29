@@ -47,6 +47,12 @@ internal sealed class SyllabusOptions
     public int DebrisDays { get; init; } = 7;
     public int IdleDays { get; init; } = 180;
     public int AbsoluteDays { get; init; } = 365;
+    /// <summary>B1-04: newest sync/remove runs kept per syllabus (older runs, their items and their replay keys are pruned on write). Bounds a user to SyllabiPerUser x this.</summary>
+    public int SyncRunsPerSyllabus { get; init; } = 20;
+    /// <summary>B1-04: retention of decision_audit rows. PROPOSAL pending Product Owner decision (default 400 days, about 13 months).</summary>
+    public int AuditRetentionDays { get; init; } = 400;
+    /// <summary>B1-04: per-user cap for the high-volume audit actions (synced, sync_removed, exported, batch_approved summary). Decision rows (approved, skipped, undecided) are never dropped.</summary>
+    public int AuditNoisyCapPerUser { get; init; } = 20000;
 
     public static SyllabusOptions From(IConfiguration c) => new()
     {
@@ -65,6 +71,9 @@ internal sealed class SyllabusOptions
         MaintenanceSeconds = Math.Max(5, c.GetValue("Syllabus:MaintenanceIntervalSeconds", 300)),
         MockStageDelayMilliseconds = c.GetValue("Syllabus:Mock:StageDelayMilliseconds", 0),
         CalendarFault = c["Syllabus:Mock:Faults:Calendar"],
+        SyncRunsPerSyllabus = Math.Max(1, c.GetValue("Syllabus:SyncRunsPerSyllabus", 20)),
+        AuditRetentionDays = Math.Max(1, c.GetValue("Syllabus:AuditRetentionDays", 400)),
+        AuditNoisyCapPerUser = Math.Max(1, c.GetValue("Syllabus:AuditNoisyCapPerUser", 20000)),
     };
 }
 
@@ -88,6 +97,18 @@ internal sealed class SyllabusKeys(byte[] etag, byte[][] idempotencyRing, byte[]
         var ring = new List<byte[]> { Key(c, "Security:IdempotencyHmacKey") };
         if (c["Security:IdempotencyHmacKeyPrevious"] is { Length: > 0 }) ring.Add(Key(c, "Security:IdempotencyHmacKeyPrevious"));
         return new SyllabusKeys(Key(c, "Security:ETagKey"), [.. ring], Key(c, "Security:SyllabusAuditHmacKey"), c["Syllabus:RestoreEpoch"] ?? "0");
+    }
+}
+
+/// <summary>PostgreSQL error classification shared by the retry loops.</summary>
+internal static class Pg
+{
+    /// <summary>True when any exception in the chain is deadlock_detected (40P01) or serialization_failure (40001): the transaction rolled back, so a retry is safe.</summary>
+    public static bool IsDeadlockOrSerialization(Exception ex)
+    {
+        for (var e = ex; e is not null; e = e.InnerException)
+            if (e is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.DeadlockDetected or Npgsql.PostgresErrorCodes.SerializationFailure }) return true;
+        return false;
     }
 }
 

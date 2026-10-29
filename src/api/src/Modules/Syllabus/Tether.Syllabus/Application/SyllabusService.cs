@@ -42,6 +42,13 @@ internal sealed class SyllabusService(SyllabusCore core, ICourseOwnership course
         return new IdemHit(rec, rec.TombstonedAt is not null);
     }
 
+    /// <summary>
+    /// Fingerprint material (B1-07): every field is length-prefixed and null is distinct from empty, so no two different field lists can
+    /// produce the same string (a plain "|" join let "X|Y"+"Z" collide with "X"+"Y|Z").
+    /// </summary>
+    public static string Material(params string?[] fields) =>
+        string.Join("|", fields.Select(f => f is null ? "~" : f.Length.ToString(CultureInfo.InvariantCulture) + ":" + f));
+
     public byte[] Fingerprint(string material) => Hashing.Hmac(core.Keys.IdempotencyRing[0], material);
 
     public bool FingerprintMatches(IdempotencyRecord rec, string material) =>
@@ -75,7 +82,7 @@ internal sealed class SyllabusService(SyllabusCore core, ICourseOwnership course
                 if (intake.Error is not null) return intake.Error;
                 req = intake.Metadata!; contentSha = intake.FileSha256!; kind = intake.Kind; uploadText = intake.DecodedText;
                 fileType = kind switch { SniffKind.Pdf => "pdf", SniffKind.Docx => "docx", _ => "txt" };
-                material = $"POST|{Routes.CreateTemplate}|{coursePath}|file|{contentSha}|{intake.MetadataCanonical}";
+                material = Material("POST", Routes.CreateTemplate, coursePath, "file", contentSha, intake.MetadataCanonical);
             }
             else
             {
@@ -85,7 +92,7 @@ internal sealed class SyllabusService(SyllabusCore core, ICourseOwnership course
                 if (!JsonBody.TryBind<CreateSyllabusRequest>(bytes!, out var r) || r is null) return SyllabusProblem.InvalidBare();
                 if (r.Text is null) return SyllabusProblem.Invalid("text", "required");     // exactly one of file or text
                 req = r; uploadText = r.Text; fileType = null; contentSha = "";
-                material = $"POST|{Routes.CreateTemplate}|{coursePath}|paste|{Hashing.Sha256Hex(r.Text)}|{r.Title}|{r.TermStart}|{r.TermEnd}|{r.DefaultTimezone}|{(r.AllowDuplicate ? 1 : 0)}|{r.NoticeVersion}|{r.Attestation.AcceptedAt}";
+                material = Material("POST", Routes.CreateTemplate, coursePath, "paste", Hashing.Sha256Hex(r.Text), r.Title, r.TermStart, r.TermEnd, r.DefaultTimezone, r.AllowDuplicate ? "1" : "0", r.NoticeVersion, r.Attestation.AcceptedAt);
             }
             // candidate replay: compare the fingerprint now (before validation); its bytes are discarded
             if (hit is not null)
@@ -301,6 +308,21 @@ internal sealed class SyllabusService(SyllabusCore core, ICourseOwnership course
     /// </summary>
     public static async Task<bool> DeleteCoreAsync(SyllabusCore core, Guid syllabusId, CancellationToken ct)
     {
+        // B1-01: the cascade can meet a job-row writer in the opposite lock order; PostgreSQL aborts one side (40P01). The whole transaction
+        // rolled back, so the delete is retried a bounded number of times (same approach as the Lectures session delete).
+        for (var attempt = 0; ; attempt++)
+        {
+            try { return await DeleteOnceAsync(core, syllabusId, ct); }
+            catch (Exception ex) when (Pg.IsDeadlockOrSerialization(ex) && attempt < 4)
+            {
+                core.Db.ChangeTracker.Clear();
+                await Task.Delay(Random.Shared.Next(20, 120) * (attempt + 1), ct);
+            }
+        }
+    }
+
+    private static async Task<bool> DeleteOnceAsync(SyllabusCore core, Guid syllabusId, CancellationToken ct)
+    {
         var uid = core.Uid; var now = core.Now();
         await using var tx = await core.Db.Database.BeginTransactionAsync(ct);
         if (!await core.LockSyllabusAsync(syllabusId, ct)) { await tx.RollbackAsync(ct); return false; }
@@ -318,6 +340,8 @@ internal sealed class SyllabusService(SyllabusCore core, ICourseOwnership course
 
     public async Task<IResult> DeleteAsync(Guid id, CancellationToken ct)
     {
+        // B1-05: ownership first (the query filter is user-scoped); only then interrupt a running extraction. A foreign or missing id has no side effect.
+        if (await core.FindSyllabusAsync(id, ct) is null) return SyllabusProblem.NotFound();
         jobs.Cancel(id);
         return await DeleteCoreAsync(core, id, ct) ? Results.NoContent() : SyllabusProblem.NotFound();
     }

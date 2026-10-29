@@ -110,6 +110,19 @@ internal sealed class SyllabusCore(SyllabusDbContext db, ICurrentUser user, Time
             ContentHmac = contentHmac, NoticeVersion = noticeVersion, Action = action, OccurredAt = now,
         });
 
+    private static readonly string[] NoisyActions = ["synced", "sync_removed", "exported", "batch_approved"];
+
+    /// <summary>
+    /// B1-04: the high-volume, low-evidence actions are written only while the user is under the per-user cap; decision rows (approved,
+    /// skipped, undecided, created, deleted) go through <see cref="Audit"/> and are never dropped. Retention purge bounds the rest.
+    /// </summary>
+    public async Task AuditNoisyAsync(Guid syllabusId, string action, DateTimeOffset now, int? count, CancellationToken ct)
+    {
+        var used = await Sql.ScalarAsync<long>("SELECT count(*) FROM syllabus.decision_audit WHERE user_id = @p0 AND action = ANY(@p1)", ct, Uid, NoisyActions);
+        if (used >= options.AuditNoisyCapPerUser) return;
+        Audit(syllabusId, action, now, count: count);
+    }
+
     public async Task<Dictionary<Guid, CountsDto>> CountsAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct)
     {
         var items = await db.Items.AsNoTracking().Where(i => ids.Contains(i.SyllabusId)).GroupBy(i => i.SyllabusId)
