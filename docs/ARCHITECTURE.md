@@ -18,7 +18,7 @@ Detail lives in the specialist documents; this file is the index and the reconci
 Browser (Next.js)
   ├─ mic -> AudioWorklet -> PCM16 16k -> WS (audio, ticket auth) ──> API: SpeechIngest
   ├─ SignalR /hubs/lecture (lecture.v1) <── transcript, summary.revision, catchup.ready
-  └─ REST (cookie, CSRF): courses, sessions, lost-track, notes
+  └─ REST (cookie, CSRF): courses, sessions, quick-recap, notes
 API (modular monolith): Identity | Courses | Lectures | Transcript | AI | Integrations
   ISpeechToTextProvider (mock | real)   IAiClient (mock | Claude)
   Postgres: finals (source) separate from summary_revisions / notes (derived)

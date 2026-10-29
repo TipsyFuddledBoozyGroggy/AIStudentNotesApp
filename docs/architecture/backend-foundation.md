@@ -56,7 +56,7 @@ Choice: **Google OIDC sign-in (authorization code + PKCE) issuing a first-party 
 - Sign-in scopes: `openid email profile` only. Google Docs/Calendar scopes are requested later via a **separate incremental consent flow** in Integrations (least privilege); refresh tokens encrypted with Data Protection / KMS key, never exposed to AI or logs.
 - Dev-only mode: `Auth:Mode=Dev` honored **only when `IHostEnvironment.IsDevelopment()`** (startup fails otherwise). `POST /api/v1/dev/login {email}` creates/uses a seeded user and issues the same cookie; header `X-Dev-User` also accepted in integration tests via test auth handler. Two seeded users (alice, bob) so cross-user denial tests are trivial.
 - Authorization: global fallback policy = authenticated. Resource access through module `IOwnership` checks inside application handlers (not only controllers). Query filters: every owned entity has `UserId`, EF global query filter on `ICurrentUser.Id`. Foreign-owned or missing resource returns **404** (not 403) to avoid enumeration. Ids are GUIDv7.
-- Rate limiting (built-in, SEC-036): a global limiter keyed per authenticated user (`RateLimiting:ApiPermitPerMinute`, default 120) plus a stricter per-user bucket for unsafe methods (`WritePermitPerMinute`, 30); unauthenticated traffic including `/health/*` is keyed per client IP (`AnonymousPermitPerMinute`, 60); login has its own IP policy. `X-Forwarded-For/Proto` are honoured only from `Security:TrustedProxies` / `TrustedProxyNetworks` (none configured means the headers are ignored). Endpoint-specific policies (`lost-track`, audio ingest) come with those endpoints.
+- Rate limiting (built-in, SEC-036): a global limiter keyed per authenticated user (`RateLimiting:ApiPermitPerMinute`, default 120) plus a stricter per-user bucket for unsafe methods (`WritePermitPerMinute`, 30); unauthenticated traffic including `/health/*` is keyed per client IP (`AnonymousPermitPerMinute`, 60); login has its own IP policy. `X-Forwarded-For/Proto` are honoured only from `Security:TrustedProxies` / `TrustedProxyNetworks` (none configured means the headers are ignored). Endpoint-specific policies (`quick-recap`, audio ingest) come with those endpoints.
 - Response hardening (SEC-033): nosniff, Referrer-Policy, CSP, Permissions-Policy, no-store are applied in `OnStarting` so they also appear on 500/429 responses; HSTS is sent over https outside Development; ETags are opaque HMAC weak tags (`Security:ETagKey`), never raw `xmin`.
 - Open decisions: Google Cloud OAuth client creation (Product Owner); account deletion/export endpoints (Phase 1 stretch).
 
@@ -105,7 +105,7 @@ Idempotency: unsafe POSTs that create effects accept `Idempotency-Key` header (s
 | DELETE | `/sessions/{id}` | deletes transcript + derived data | 204 | |
 | GET | `/sessions/{id}/transcript?afterSeq=&limit=` | finalized segments for catch-up after reconnect | 200 | 404 |
 | GET | `/sessions/{id}/summary` | latest summary revision (+ `?rev=`) | 200 (404 if none yet) | |
-| POST | `/sessions/{id}/lost-track` | `{windowMinutes: 2\|5\|10}` returns `202` with `{catchUpId}`; fast path returns deterministic extractive recap of last N min of final segments immediately in body (`extractive`), AI recap arrives by hub event `catchUp.ready`. Never blocked by summarization queue (own priority lane). | 200/202 | 400,409,429,503 degrade to extractive only |
+| POST | `/sessions/{id}/quick-recap` | `{windowMinutes: 2\|5\|10}` returns `202` with `{catchUpId}`; fast path returns deterministic extractive recap of last N min of final segments immediately in body (`extractive`), AI recap arrives by hub event `catchUp.ready`. Never blocked by summarization queue (own priority lane). | 200/202 | 400,409,429,503 degrade to extractive only |
 | GET | `/sessions/{id}/catch-ups/{catchUpId}` | poll fallback | 200 | |
 
 State machine: `Active <-> Paused -> Stopped` (terminal; `Failed` if abandoned, auto-stop after heartbeat timeout of 10 min). Pause means no audio accepted and no transcript produced; UI status is derived from the `session.state` event.
@@ -134,7 +134,7 @@ Server to client events. Every event envelope: `{v:1, type, sessionId, seq, ts}`
 | `transcript.correction` | `{segmentId, text}` | rare late STT fix; supersedes final |
 | `summary.revision` | `{rev, basedOnSeq, tldr, bullets[], coveredFromMs, coveredToMs, status: Draft\|Final, citations:[{segmentId,startMs}]}` | monotonic `rev`; client ignores `rev <= current` |
 | `summary.status` | `{state: Pending\|Running\|Delayed\|Failed, lagSeconds}` | graceful degradation indicator; transcript continues regardless |
-| `catchup.ready` | `{catchUpId, windowMinutes, text, citations[], kind: Extractive\|Ai}` | response to I Lost Track |
+| `catchup.ready` | `{catchUpId, windowMinutes, text, citations[], kind: Extractive\|Ai}` | response to Quick recap |
 | `stt.status` | `{state: Ok\|Degraded\|Down}` | provider health |
 | `error` | `{code, detail}` | non-fatal notices |
 
@@ -148,13 +148,13 @@ Scale-out note: single instance in MVP; a Redis backplane is only added with app
 - Summarization uses a **separate pipeline**: `SegmentFinalized` outbox message -> `SummaryScheduler` (hosted `BackgroundService`) coalesces per session using a debounce (e.g. every ~45s or 12 finalized segments, whichever first, configurable) and stores a single pending "summarize up to seq N" job per session (latest-wins, so backlog cannot grow). Worker drains via bounded `Channel<T>` with per-session single concurrency and global concurrency cap (default 4); durable jobs live in Postgres `ai.jobs` (lease + heartbeat via `FOR UPDATE SKIP LOCKED`) so restarts resume. No Hangfire/Quartz in MVP (avoid new dependency); revisit for scheduled reminders in Phase 2.
 - Summaries are incremental: input = previous summary + new finalized segments since `basedOnSeq` (bounds token cost). Output validated against JSON schema; on invalid output, one repair retry then `summary.status=Failed` with last good revision kept.
 - Resilience: per-call timeout (e.g. 30s), retries with exponential backoff and jitter (max 3), circuit breaker via `Microsoft.Extensions.Http.Resilience`, `CancellationToken` flowed from host shutdown and session stop. Budgets: per-user daily token ceiling and max jobs/min; exceeding returns `summary.status=Delayed` and never silently incurs overspend (needs Product Owner budget number).
-- I Lost Track has a **separate high-priority lane** (dedicated small concurrency slot) and an extractive fallback so it works when Claude is down or slow.
+- Quick recap has a **separate high-priority lane** (dedicated small concurrency slot) and an extractive fallback so it works when Claude is down or slow.
 - On `Stopped`: enqueue final summary + notes generation (timestamped citations) job.
 - Observability: OpenTelemetry traces/metrics (segment ingest latency, summary lag, job queue depth, token usage); structured logs with session id and user id hash only; **no transcript text, audio, or tokens in logs** (log redaction test).
 
 ## 9. Testing plan (needs SDK 10 or Docker SDK image)
 
-Integration (WebApplicationFactory + Testcontainers Postgres): auth boundary (401 anonymous, 404 cross-user for every resource endpoint, parametrized from route table), consent-required 403, state-machine 409s, Idempotency-Key replay, hub: join denied for foreign session, reconnect replay with gap, summary rev monotonicity, summarizer fake delay/failure does not delay `transcript.final` delivery (latency assertion), lost-track fallback when AI down, CSRF and Origin rejection, dev auth disabled outside Development, ProblemDetails shape. Contract tests: JSON Schema validation of events and OpenAPI diff vs frontend.
+Integration (WebApplicationFactory + Testcontainers Postgres): auth boundary (401 anonymous, 404 cross-user for every resource endpoint, parametrized from route table), consent-required 403, state-machine 409s, Idempotency-Key replay, hub: join denied for foreign session, reconnect replay with gap, summary rev monotonicity, summarizer fake delay/failure does not delay `transcript.final` delivery (latency assertion), quick-recap fallback when AI down, CSRF and Origin rejection, dev auth disabled outside Development, ProblemDetails shape. Contract tests: JSON Schema validation of events and OpenAPI diff vs frontend.
 
 Not run: nothing has been executed; no SDK present.
 

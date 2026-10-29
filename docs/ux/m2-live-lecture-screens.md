@@ -33,10 +33,10 @@ Reduced motion (all screens)
 - Honor `prefers-reduced-motion` and the in-app Reduce motion toggle. No animation is required to understand any state. Default behavior is already non-animated: no pulsing REC dot, no sliding panels, no smooth scrolling, "Updated" tags appear and disappear instantly. Scroll jumps are instant.
 
 Touch and size
-- Primary controls (Pause, Resume, Stop, I lost track, Start recording, Try again) at least 48x48 CSS px (I lost track 56). All others at least 44x44 where feasible (AA floor 24x24, SC 2.5.8). No drag-only interactions (SC 2.5.7).
+- Primary controls (Pause, Resume, Stop, Quick recap, Start recording, Try again) at least 48x48 CSS px (Quick recap 56). All others at least 44x44 where feasible (AA floor 24x24, SC 2.5.8). No drag-only interactions (SC 2.5.7).
 
 Shortcuts (SC 2.1.4: remappable and disable-able; none single-key)
-- `Alt+L` I lost track, `Alt+P` Pause/Resume, `Alt+J` Jump to live. Listed under a "Keyboard help" button in the status bar. Pending conflict check with NVDA/JAWS/VoiceOver (device-accessibility-validation). Alt+P only works when the control is enabled; it never starts a first recording.
+- `Alt+L` Quick recap, `Alt+P` Pause/Resume, `Alt+J` Jump to live. Listed under a "Keyboard help" button in the status bar. Pending conflict check with NVDA/JAWS/VoiceOver (device-accessibility-validation). Alt+P only works when the control is enabled; it never starts a first recording.
 
 Copy rules: sentences under about 20 words, no guilt words, say what is true now plus the next action. All strings below are DRAFT.
 
@@ -81,7 +81,7 @@ Acceptance criteria
 
 ## 2. Live view (Active)
 
-Layout: as `student-experience.md` §5.1 (desktop two columns, phone single column with sticky bottom I lost track), with these M2 specifics.
+Layout: as `student-experience.md` §5.1 (desktop two columns, phone single column with sticky bottom Quick recap), with these M2 specifics.
 
 ```
 [Status bar]  (o) Recording  00:42  Connected    [Pause] [Stop]   Help: Quiet
@@ -89,7 +89,7 @@ Layout: as `student-experience.md` §5.1 (desktop two columns, phone single colu
   seg lines, timestamps mm:ss        |   TL;DR (3 bullets, Show more)
   muted partial line (reserved ht)   |   "Updated at 00:41, revision 7"
   Gap markers                        |   [Hold updates]
-  [Jump to live] (when scrolled up)  |  [ I LOST TRACK ]  Last: (2)(5)(10) min
+  [Jump to live] (when scrolled up)  |  [ QUICK RECAP ]  Last: (2)(5)(10) min
                                      |  Catch-up result area
 ```
 - Transcript: finals append; the partial line is one reserved-height row in muted style, replaced in place by the final with the same `segmentId` (no reflow above). Corrections replace text in place and add a visually subtle "edited" text tag with `title`-independent accessible name (keeps original in data).
@@ -98,7 +98,7 @@ Layout: as `student-experience.md` §5.1 (desktop two columns, phone single colu
 - Hold updates: toggle button (`aria-pressed`); while on, new revisions are buffered and a text label "Newer summary available" appears; "Show latest" applies. Default off.
 - Elapsed time counts active time only (contract §3 timecodes exclude paused time).
 
-Keyboard order (DOM = visual): skip links (Skip to transcript, Skip to I lost track) -> status bar (Pause/Resume, Stop, Help label, Focus toggle) -> transcript region (scrollable, `tabindex=0`, labeled "Transcript") -> Jump to live (if shown) -> TL;DR panel (Hold updates, Show more, citations) -> I lost track window radios -> I lost track button -> Ask (post-M2, placeholder hidden). Arrow keys scroll the transcript when focused; `End` jumps to live.
+Keyboard order (DOM = visual): skip links (Skip to transcript, Skip to Quick recap) -> status bar (Pause/Resume, Stop, Help label, Focus toggle) -> transcript region (scrollable, `tabindex=0`, labeled "Transcript") -> Jump to live (if shown) -> TL;DR panel (Hold updates, Show more, citations) -> Quick recap window radios -> Quick recap button -> Ask (post-M2, placeholder hidden). Arrow keys scroll the transcript when focused; `End` jumps to live.
 
 Screen reader: landmarks `header` (status bar), `main`, `region` "Transcript", `complementary` "TL;DR". Each final is an `article`-less paragraph with a visually-subtle but programmatic timestamp ("12 minutes 3 seconds").
 
@@ -120,7 +120,7 @@ PO direction (contract §9): clear "recording is paused" state, Resume button, p
 Recommendation: a **persistent in-page panel, not a blocking dialog.**
 Reasons (hypotheses, unvalidated):
 1. Pause is a state the student is in, not a question they must answer; a modal implies urgency and is dismissible, which would hide the state. A panel cannot be dismissed and stays true for as long as the state lasts.
-2. Students may want to read the existing transcript and TL;DR or use I lost track while paused; a modal blocks that and the focus trap adds cost for keyboard and screen-reader users.
+2. Students may want to read the existing transcript and TL;DR or use Quick recap while paused; a modal blocks that and the focus trap adds cost for keyboard and screen-reader users.
 3. Modal-on-pause plus modal-on-stop would stack dialogs and increase interruption.
 4. Persistence matters for safety: a quiet panel plus the status bar and the title prefix keep the "not recording" fact visible after the student switches tabs or returns after an interruption.
 
@@ -157,11 +157,11 @@ Acceptance criteria
 
 ---
 
-## 4. I lost track
+## 4. Quick recap
 
 Layout: as student-experience §5.6; large fixed control, `Last (2)(5)(10) min` radio group (`aria-label="How far back"`, default 5, remembered per student). Pressing a window runs immediately. The button is available in Active and Paused states and disabled (with reason text) in Stopped. When hub is disconnected the button still works for the already-received transcript (see §6).
 
-Flow: POST `/lost-track {windowMinutes}` -> 200 `CatchUp{kind:"Extractive"}` rendered at once -> `catchup.ready{kind:"Ai", catchUpId}` upgrades the same panel.
+Flow: POST `/quick-recap {windowMinutes}` -> 200 `CatchUp{kind:"Extractive"}` rendered at once -> `catchup.ready{kind:"Ai", catchUpId}` upgrades the same panel.
 1. Extractive result (immediately): label "Quick view: lines from the last 5 minutes" (kind Extractive; plain text; citations as timestamps). Shows up to ~5 lines, newest last, with "Show all lines in this window".
 2. While the AI version is pending: static text "Making a clearer summary..." (no spinner required; if a spinner is used it must stop under reduced motion and be `aria-hidden`).
 3. On `catchup.ready` with matching `catchUpId`: replace in place with "Here is where you are": 1-2 sentences, up to 3 bullets, "Right now:" line, citations. Keep the extractive text available behind "Show the raw lines". If the student expanded or is reading the panel, do not move focus or scroll; update the label text and announce once via status-region "A clearer summary is ready." (not the content).
@@ -173,7 +173,7 @@ Flow: POST `/lost-track {windowMinutes}` -> 200 `CatchUp{kind:"Extractive"}` ren
 
 Focus and screen reader
 - On open (press): focus moves to the panel heading (`tabindex=-1`, h2 "Catching up: last 5 minutes"). The extractive content is read by navigation, not announced as live.
-- "Got it" closes and returns focus to the transcript's latest line container (Jump to live position); Escape closes and returns focus to the I lost track button. Opening again with a different window re-runs and re-focuses the heading.
+- "Got it" closes and returns focus to the transcript's latest line container (Jump to live position); Escape closes and returns focus to the Quick recap button. Opening again with a different window re-runs and re-focuses the heading.
 - A second press while a request is in flight is ignored (button `aria-busy`); no duplicate panels.
 
 Acceptance criteria
@@ -224,7 +224,7 @@ Banner (persistent, in status bar area, under it if wide; text + icon; `role` no
 - Honest-copy rule: do not say "still recording on your device" or "we will fill it in" (the ring buffer is bounded and gaps are possible; Speech engineer to confirm what is claimed). After reconnect: status-region "Back online. Recording is on." only if hub state is Active and mic track live; otherwise show §3 or §8.
 - Gap handling: `gap` events add marker rows "Audio not available 00:10 to 00:14 (connection)" to the transcript; never fabricated text. Reasons map to words: paused / connection / device / speech service.
 - On reconnect: hub `Join{lastSeq}`; replayed finals are deduped; if `truncated:true`, page `GET /transcript` showing "Loading earlier lines" (static) and keep position.
-- Offline and I lost track: works on already-received lines; if none available, "I need a connection to catch you up. Try again." with Try again.
+- Offline and Quick recap: works on already-received lines; if none available, "I need a connection to catch you up. Try again." with Try again.
 - Actions available offline: Stop (queued: shows "Stopping... will finish when you are back online"; the local mic is stopped immediately), Resume disabled with reason.
 
 Keyboard/SR: banner is a `div` with text, not focusable; focus unchanged. One alert, then silent.
@@ -244,7 +244,7 @@ Acceptance criteria
 Driven by `summary.status{state, lagSeconds}`. The transcript is never blocked by it.
 - Pending/Running: no extra UI beyond "Updated at ..." text.
 - Delayed: under the TL;DR, static text "The summary is running behind. The transcript is up to date." (DRAFT) Last good TL;DR stays. No lag counter ticking; show lag in minutes only on request ("Details").
-- Failed: "Couldn't update the summary. Your transcript is safe. The last summary is from 00:36." with "Try again" only if the contract adds a retry endpoint (not in v1; otherwise omit the button and say "It will try again automatically."). I lost track keeps working (extractive).
+- Failed: "Couldn't update the summary. Your transcript is safe. The last summary is from 00:36." with "Try again" only if the contract adds a retry endpoint (not in v1; otherwise omit the button and say "It will try again automatically."). Quick recap keeps working (extractive).
 - Recovery: when a `summary.revision` arrives, the note disappears; a status-region "Summary updated" is sent only if Announce TL;DR is on.
 - No red styling; use neutral note style with an info icon and text.
 
@@ -292,7 +292,7 @@ Acceptance criteria
 
 ## 10. Quiet mode (M2 default and only mode)
 
-- Allowed UI: status bar, transcript, TL;DR, I lost track, student-initiated panels, safety-critical notices in §3, §5, §6, §8, §9.
+- Allowed UI: status bar, transcript, TL;DR, Quick recap, student-initiated panels, safety-critical notices in §3, §5, §6, §8, §9.
 - Not allowed: suggestions, chips, check-ins, sounds, vibration, browser notifications, toasts, badges, auto-opening panels, "welcome back" popups beyond the static restored state, attention prompts, any content derived from camera, mic level, pointer activity or inactivity.
 - Settings available in M2: Announce new transcript lines (off), Announce TL;DR updates (off), Reduce motion, text size/spacing, theme (including high contrast). Settings persist locally and are applied without leaving the lecture.
 - The Help level label is read-only text "Quiet" until Balanced/Active exist.
@@ -309,7 +309,7 @@ Acceptance criteria
 - 1.4.3/1.4.11 contrast: text 4.5:1, indicators and focus rings 3:1, in light, dark and forced-colors.
 - 1.4.10 reflow at 320px; 1.4.4 resize to 200%; 1.4.12 text spacing overrides do not clip.
 - 2.1.1/2.1.2 keyboard with no trap (only the Stop confirm is modal); 2.4.3 focus order; 2.4.7/2.4.11/2.4.12 focus visible and not obscured by sticky status bar or bottom sheet; 2.5.8 target size.
-- 3.2.2/3.2.6 consistent placement of Pause/Resume, Stop, I lost track; 3.3.7 no redundant re-entry (consent attestation reuse, kept notes draft).
+- 3.2.2/3.2.6 consistent placement of Pause/Resume, Stop, Quick recap; 3.3.7 no redundant re-entry (consent attestation reuse, kept notes draft).
 - 4.1.3 status messages via the three regions only; no other `aria-live` anywhere.
 - 2.2.1 no time limit imposed except documented auto-stop rules, which are stated in static text and preserve the transcript.
 - Axe: zero serious/critical issues in every state in §1-§9 using fixtures; manual NVDA/JAWS/VoiceOver/TalkBack passes are tracked by `device-accessibility-validation` (NOT RUN).
@@ -324,4 +324,4 @@ Acceptance criteria
 - Not done: no code, no prototype, no screen-reader run, no human validation. Every threshold and string here is unvalidated.
 
 ## Implementation decisions (Lead Architect, 2026-10-27, after F2)
-Unvalidated by humans (G4); all copy DRAFT (G1). Accepted from the F2 report: (1) resume = REST resume then mic request, re-pause on mic failure; (2) pending pause clears after 3 s and shows true state; (3) server-driven pause/stop with a system reason stops the track and shows the section 9 panel, not the mismatch panel; (4) mismatch panel stays latched until "Check again", which never restarts capture; (5) Stop always asks for confirmation, initial focus on "Keep recording"; (6) mic denied stops the session and Try again starts a new one; (7) disconnect alert only after reconnecting/failed, not on first connect. Open for adhd-ux-specialist / design: sticky header plus status bar eating space at 320px and 400% zoom, two-column layout at lg being cramped, and whether the finals live region (role=log with nested aria-live) matches "three regions". Deferred to F3: I Lost Track, summary Delayed/Failed UI, 60 s no-audio note, notes, "Loading earlier lines", gap announcements, Focus toggle.
+Unvalidated by humans (G4); all copy DRAFT (G1). Accepted from the F2 report: (1) resume = REST resume then mic request, re-pause on mic failure; (2) pending pause clears after 3 s and shows true state; (3) server-driven pause/stop with a system reason stops the track and shows the section 9 panel, not the mismatch panel; (4) mismatch panel stays latched until "Check again", which never restarts capture; (5) Stop always asks for confirmation, initial focus on "Keep recording"; (6) mic denied stops the session and Try again starts a new one; (7) disconnect alert only after reconnecting/failed, not on first connect. Open for adhd-ux-specialist / design: sticky header plus status bar eating space at 320px and 400% zoom, two-column layout at lg being cramped, and whether the finals live region (role=log with nested aria-live) matches "three regions". Deferred to F3: Quick recap, summary Delayed/Failed UI, 60 s no-audio note, notes, "Loading earlier lines", gap announcements, Focus toggle.

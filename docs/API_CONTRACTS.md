@@ -32,7 +32,7 @@ Errors, `Idempotency-Key`, ETag and `If-Match` follow `backend-foundation.md` §
 | POST | `/sessions/{id}/audio-ticket` | | 200 `{ticket, expiresAt}` | 403 `consent_required`, 409 unless `Active` |
 | GET | `/sessions/{id}/transcript?afterSeq&limit` | | 200 `{events: TranscriptFinal[], hasMore}` | 404 |
 | GET | `/sessions/{id}/summary?revision` | | 200 `SummaryRevision` | 404 if none yet |
-| POST | `/sessions/{id}/lost-track` | `{windowMinutes: 2\|5\|10}` | 200 `CatchUp{kind:"Extractive"}` immediately; AI version follows as `catchup.ready` | 400, 404, 409 unless Active/Paused, 429 |
+| POST | `/sessions/{id}/quick-recap` | `{windowMinutes: 2\|5\|10}` | 200 `CatchUp{kind:"Extractive"}` immediately; AI version follows as `catchup.ready` | 400, 404, 409 unless Active/Paused, 429 |
 | GET | `/sessions/{id}/catch-ups/{catchUpId}` | | 200 `CatchUp` (poll fallback) | 404 |
 | GET | `/sessions/{id}/notes` | | 200 `Notes` (after Stopped) | 404, 409 until generated |
 | POST | `/sessions/{id}/export/doc` | `{}` + `Idempotency-Key` | 202 `{exportId}`; M2 uses a mock exporter, real Google is M3 | 409, 404 |
@@ -74,7 +74,7 @@ Timecodes: `startMs`/`endMs` are offsets from session start **excluding paused t
 
 ## 5. STT and AI provider seams (server internal, not wire)
 
-`ISpeechToTextProvider`/`ISttStream` as sketched in `speech-pipeline.md` §5. `IAiSummarizer` (incremental: previous summary + new finals -> `SummaryRevision`, schema-validated, one repair retry) and `ILostTrackRecapper` (extractive fallback always available). **M2 ships only `ReplaySttProvider` (fixture-driven, deterministic, fault injection) and `MockAi`.** A real adapter requires Product Owner authorization of PO-2/3/4 and gates G1 and G2; nothing in this contract authorizes real classroom audio.
+`ISpeechToTextProvider`/`ISttStream` as sketched in `speech-pipeline.md` §5. `IAiSummarizer` (incremental: previous summary + new finals -> `SummaryRevision`, schema-validated, one repair retry) and `IQuickRecapRecapper` (extractive fallback always available). **M2 ships only `ReplaySttProvider` (fixture-driven, deterministic, fault injection) and `MockAi`.** A real adapter requires Product Owner authorization of PO-2/3/4 and gates G1 and G2; nothing in this contract authorizes real classroom audio.
 
 ## 6. Contract tests required before parallel work
 
@@ -117,7 +117,7 @@ Numeric values are the reviewer's **proposals**, configurable, not measured. Max
 - **Unattended limits (C-17, proposals):** heartbeat = hub `Ping` and audio frame arrival. Active with no frames for 60 s emits a `gap`; after 5 min auto-pause. Paused auto-stops after 30 min. Hard cap 3 h of total elapsed time including paused.
 - **Speaker (C-20):** `speaker` is off by default in M2 (never emitted), is on the G1 legal checklist, and no cross-session voice identification.
 - **Errors (C-24):** `detail` comes from a fixed server vocabulary keyed by `code`; never exception text, input echo or model output.
-- **Abuse limits (C-26):** hub `MaximumReceiveMessageSize` 4 KB; 3 concurrent hub connections per user; `lost-track` 6/min per session with a per-session AI call budget (extractive always returned); maximum `limit` on every list.
+- **Abuse limits (C-26):** hub `MaximumReceiveMessageSize` 4 KB; 3 concurrent hub connections per user; `quick-recap` 6/min per session with a per-session AI call budget (extractive always returned); maximum `limit` on every list.
 - **AI output is untrusted plain text (C-28):** `text`, `tldr`, `bullets[]` are rendered as text nodes; no markdown, HTML or links. Summarizer inputs are delimited untrusted data; output is schema-validated with one repair retry; no tool access. Red-team fixtures (injection speech, markdown image URL, script payload) must render inert.
 - **Audit (C-30):** each lifecycle transition, delete, export and repeated ticket failure writes an audit event (user id, session id, action, timestamp only).
 - **Idempotency (C-32):** `Idempotency-Key` on session creation; a replay returns the original session without a second consent event.

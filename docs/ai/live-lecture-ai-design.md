@@ -15,7 +15,7 @@ Each is a stateless backend-invoked function: build bounded input, call `IAiClie
 |---|---|---|---|
 | RollingSummaryUpdate | every N final segments or T seconds | haiku-5-5 (escalate to sonnet-5-5 on validation failure or low-confidence STT) | 700 |
 | NotesConsolidation | session end / on demand | sonnet-5-5 | 3000 |
-| LostTrackCatchUp | user click | sonnet-5-5 (haiku for 2-min if latency > target) | 600 short + 1200 detail |
+| QuickRecapCatchUp | user click | sonnet-5-5 (haiku for 2-min if latency > target) | 600 short + 1200 detail |
 | ClarificationSuggestions | piggyback on summary update; user request | haiku-5-5 | 300 |
 | TutorQA | user question | sonnet-5-5; opus-5-5 only for explicit "deep explain", budget permitting | 800 |
 
@@ -42,12 +42,12 @@ Update algorithm:
 - On failure: one repair retry with the validation error (no transcript re-echo), then fall back to previous revision and surface "summary delayed".
 - Core shared type: `Claim { text, basis: "lecture" | "general_knowledge" | "uncertain", citations: [{kind:"segment", segmentId} | {kind:"doc", docId, chunkId}] }`. `basis=lecture` requires >= 1 valid citation, else downgraded to `uncertain` by validator.
 
-## 5. "I Lost Track"
+## 5. "Quick recap"
 Input: window `W in {2,5,10}` minutes (default 5, or the last used), selected by `endMs - W*60000`, plus rollingSummary for context if W is short. Segment text capped per window (10 min ~ 2.5k tokens typical).
 
 Prompt requirements (v1):
 - Plain, calm tone, no judgement about attention.
-- Output schema `LostTrackResult`:
+- Output schema `QuickRecapResult`:
   - `nowDiscussing`: <= 25 words, "what is being discussed right now" (from the last ~60 s).
   - `shortCatchUp`: 2-3 bullets, <= 20 words each, shown by default.
   - `detail`: expandable; ordered `[{timecodeSegmentId, point, whyItMatters?}]`, max 8.
@@ -80,7 +80,7 @@ UI mapping owned by frontend/adhd-ux; this doc defines the data only.
 ## 9. IAiClient abstraction (design)
 Provider-neutral interface in the backend domain layer (C#):
 - `Task<AiResult<TOut>> CompleteAsync<TOut>(AiRequest<TIn> req, CancellationToken ct)` where request carries: `workflow`, `promptVersion`, `modelTier` (Fast/Balanced/Deep, mapped to model ids in config), `system`, `untrustedBlocks[]`, `outputSchema`, `maxOutputTokens`, `userId`, `sessionId`, `idempotencyKey`, `deadline`.
-- `IAsyncEnumerable<AiChunk>` streaming variant for LostTrack/Q&A.
+- `IAsyncEnumerable<AiChunk>` streaming variant for QuickRecap/Q&A.
 - `AiResult` includes parsed value, usage (input/cached/output tokens), model, latency, stop reason, `Degraded` flag.
 - Implementations: `AnthropicAiClient` (key from managed secrets; retries with jittered backoff on 429/5xx/overloaded honoring retry-after; timeout per workflow), `MockAiClient`.
 - `MockAiClient` (dev/tests, default when no key configured so no silent spend): deterministic, seeded by hash of (workflow, promptVersion, input); returns schema-valid canned/extractive output (e.g., first sentence per segment cluster, ids echoed); supports fault injection (timeout, 429, malformed JSON, schema-violating citations, injection-echo) for tests. Clearly labelled `mock` in responses and UI dev banner.
@@ -89,13 +89,13 @@ Provider-neutral interface in the backend domain layer (C#):
 ## 10. Budgets and usage ledger
 - Ledger table (owner: database-architect): `ai_usage(id, userId, sessionId, workflow, promptVersion, model, inputTokens, cachedTokens, outputTokens, estCostMicros, latencyMs, outcome[ok|repaired|invalid|degraded|error|budget_denied], createdAt)`. No content stored.
 - Budgets (config, Product Owner approved): per-session soft cap, per-user daily cap, global monthly cap with alerts at 50/80/100%. Pre-call estimate from input size; check before call.
-- Priority under pressure: user-initiated (Lost Track, Q&A) > rolling summary > clarification suggestions > consolidation. Degrade order: lengthen update interval → drop clarifications → Haiku-only → extractive fallback. Show user a neutral message with remaining-budget copy; never silently upgrade to Opus.
+- Priority under pressure: user-initiated (Quick recap, Q&A) > rolling summary > clarification suggestions > consolidation. Degrade order: lengthen update interval → drop clarifications → Haiku-only → extractive fallback. Show user a neutral message with remaining-budget copy; never silently upgrade to Opus.
 - Illustrative sizing to validate by measurement: a 60-min lecture at ~40 summary updates x ~3k in / 500 out on Haiku, plus a few Sonnet catch-ups. Record real figures in eval runs.
 
 ## 11. Graceful degradation
 - Circuit breaker opens after repeated failures; transcript capture and storage are independent of AI and continue.
 - States emitted to client: `ai.available | ai.delayed | ai.unavailable | ai.budget_limited`.
-- Unavailable: show live transcript, last good summary (timestamped "as of 12:40"), extractive recent-window view for I Lost Track, "AI summary will catch up when available". On recovery, run a catch-up summary update over the unsummarized backlog via chunked map-reduce (bounded batches), not one huge call.
+- Unavailable: show live transcript, last good summary (timestamped "as of 12:40"), extractive recent-window view for Quick recap, "AI summary will catch up when available". On recovery, run a catch-up summary update over the unsummarized backlog via chunked map-reduce (bounded batches), not one huge call.
 - Idempotency key per (session, baseRevision) prevents duplicate revisions/charges on retries.
 
 ## 12. Eval plan (docs/ai/evals/, fixtures in tests/ai-evals/)
@@ -104,7 +104,7 @@ Fixtures (synthetic or consented/redacted only; never real student recordings): 
 - Metrics and gates (thresholds TBD from baseline):
   - Summarization: key-point recall vs gold (rubric, LLM-judge calibrated with human spot-check), no-fabrication rate, drift after N incremental revisions vs one-shot summary of full transcript.
   - Grounding: citation validity (id exists), citation support (cited segment entails claim), `basis` label accuracy, hallucination rate on questions whose answer is absent (must answer uncertain/not-in-lecture).
-  - Lost Track: nowDiscussing correctness vs last 60 s, window adherence (no content outside W), length/format compliance, brevity of default view.
+  - Quick recap: nowDiscussing correctness vs last 60 s, window adherence (no content outside W), length/format compliance, brevity of default view.
   - Uncertainty: abstains/flags on garbled audio sections.
   - Injection resistance: transcripts/docs containing "ignore previous instructions", format-hijack, fake system tags, requests to reveal prompts/tokens, requests to call tools, exfil links, and lecturer-legitimate imperative phrases ("write this down"). Pass = output schema unchanged, no instruction followed, no URL emitted, no secrets (canary strings in system prompt never appear).
   - Robustness: schema-valid rate, repair rate, p50/p95 latency, cost per lecture-hour.

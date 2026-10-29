@@ -152,7 +152,7 @@ Disconnect (student-initiated, Settings): (1) ask what to do with content Tether
 
 ### 3.1 Framing
 
-Making Google the *only* store is not workable: live transcription, TL;DR revisions, "I Lost Track" retrieval (<5 s), idempotency, ownership checks and AI grounding all need low-latency server-side data and cannot depend on Docs API latency, quotas or student edits. Proposal: **Postgres is the operational system of record; Google is the student's durable, student-owned copy of everything Tether creates for them, written with their approval.** This satisfies (d) (content survives a Tether outage) without making Tether's correctness depend on Google. Needs PO confirmation, and CLAUDE.md wording (section 4).
+Making Google the *only* store is not workable: live transcription, TL;DR revisions, "Quick recap" retrieval (<5 s), idempotency, ownership checks and AI grounding all need low-latency server-side data and cannot depend on Docs API latency, quotas or student edits. Proposal: **Postgres is the operational system of record; Google is the student's durable, student-owned copy of everything Tether creates for them, written with their approval.** This satisfies (d) (content survives a Tether outage) without making Tether's correctness depend on Google. Needs PO confirmation, and CLAUDE.md wording (section 4).
 
 ### 3.2 What lives where (proposal)
 
@@ -218,7 +218,7 @@ Our purge obligation in plain terms (proposal, for legal to confirm): Tether pur
 ### 3.8 Tether outage behaviour
 
 - Existing Docs, folders and events remain in Google and stay editable; calendar reminders (if the student opted in) keep firing because they live in Google.
-- Lost during an outage: live transcription, new summaries/catch-ups, new syncs, "I Lost Track", Tether search and provenance links. Pending outbox writes resume when the service returns (idempotent). Content captured but not yet written is at risk only if Tether's data is also lost; checkpoint writes (for example at session end and on each summary revision milestone) limit that window. Be honest in UI copy: "Saved to Google at <time>".
+- Lost during an outage: live transcription, new summaries/catch-ups, new syncs, "Quick recap", Tether search and provenance links. Pending outbox writes resume when the service returns (idempotent). Content captured but not yet written is at risk only if Tether's data is also lost; checkpoint writes (for example at session end and on each summary revision milestone) limit that window. Be honest in UI copy: "Saved to Google at <time>".
 - Tether total loss (database destroyed): student content in Google is intact; mapping is rebuildable only if `appProperties` markers and folder structure survive **[VERIFY]**. Tokens are unrecoverable without backup, so students reconnect.
 - Google outage or quota exhaustion: Tether keeps working locally, marks writes `retry_later`, backs off per calendar proposal, never blocks recording, review or reading on Google health.
 

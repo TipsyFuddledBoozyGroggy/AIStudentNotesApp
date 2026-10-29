@@ -12,7 +12,7 @@ Milestones per the master prompt. Status is honest: only design exists.
 | Test harness (Vitest, Playwright, xUnit) | qa-engineer | scaffolds | not started |
 
 ## Milestone 2 — Live lecture slice (highest priority)
-Contract freeze (`API_CONTRACTS.md`) -> mock STT replay provider + mock AI -> sessions/consent -> transcript stream -> rolling TL;DR -> I Lost Track -> notes with timestamps -> mock-backed Docs export. Real STT/Claude only after PO-2/3/4.
+Contract freeze (`API_CONTRACTS.md`) -> mock STT replay provider + mock AI -> sessions/consent -> transcript stream -> rolling TL;DR -> Quick recap -> notes with timestamps -> mock-backed Docs export. Real STT/Claude only after PO-2/3/4.
 
 ## Later
 M3 Google (needs PO-6), M4 adaptive study, M5 coaching, M6 hardening.

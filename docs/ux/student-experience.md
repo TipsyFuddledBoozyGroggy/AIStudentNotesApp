@@ -28,7 +28,7 @@ Open questions for Lead Architect / Product Owner
 7. Nothing is lost on interruption: drafts (course form), the lecture session, scroll position and the open answer persist locally and server-side, and resume with "Welcome back. Pick up where you left off?" (dismissible).
 8. No timers, streaks, badges, red alerts or countdown pressure. Color is never the only signal.
 9. Notifications are off by default except safety-critical in-session status (recording, connection). Students choose reminders, timing and channel.
-10. Never infer distraction from camera, mic content, mouse activity or inactivity. All support is student-initiated (I Lost Track) or opt-in scheduled prompts.
+10. Never infer distraction from camera, mic content, mouse activity or inactivity. All support is student-initiated (Quick recap) or opt-in scheduled prompts.
 11. Defaults over decisions: forms prefill; optional fields collapsed.
 12. Consistent placement: the same control is always in the same place across sessions.
 
@@ -36,7 +36,7 @@ Open questions for Lead Architect / Product Owner
 
 | Mode | Behavior |
 |---|---|
-| Quiet (default) | Transcript and TL;DR only. No suggestions, no sounds, no prompts. I Lost Track is always available. |
+| Quiet (default) | Transcript and TL;DR only. No suggestions, no sounds, no prompts. Quick recap is always available. |
 | Balanced | Quiet plus discreet clarification chips (max 1 visible, section 5.7) and an optional end-of-session recap offer. |
 | Active | Balanced plus optional check-in questions the student can dismiss, at a cadence they set (e.g., every 10/15/20 min, or off). Never blocks content. |
 
@@ -110,7 +110,7 @@ Desktop / wide tablet (focus mode default):
 | TRANSCRIPT                   | TL;DR            (updated 1m) |
 | ...older lines (muted)       | - Mitosis has 4 phases        |
 | ...latest line (emphasis)    | - Prophase: chromosomes form  |
-| [Jump to live]               | [ I LOST TRACK ]  big, fixed  |
+| [Jump to live]               | [ QUICK RECAP ]  big, fixed  |
 |                              |  Last: (2) (5) (10) min       |
 | Ask: [_______________]       | Answer area                   |
 +------------------------------+-------------------------------+
@@ -119,10 +119,10 @@ Desktop / wide tablet (focus mode default):
 Phone / narrow (single column, bottom sheet):
 - Top: sticky status bar (recording state, Pause, Stop).
 - Middle: TL;DR card (collapsible, 3 bullets by default), then transcript.
-- Bottom: sticky large I Lost Track button; Ask opens a bottom sheet.
+- Bottom: sticky large Quick recap button; Ask opens a bottom sheet.
 - Transcript and TL;DR never both fully expanded at once on phone; expanding one collapses the other (student can override).
 
-Focus mode (toggle "Focus", default on during a session): hides tabs, dashboard chrome and non-essential controls; leaves status bar, transcript, TL;DR, I Lost Track, Ask. Exiting focus is one button, state preserved. Responsive: on narrow screens focus mode is the only layout.
+Focus mode (toggle "Focus", default on during a session): hides tabs, dashboard chrome and non-essential controls; leaves status bar, transcript, TL;DR, Quick recap, Ask. Exiting focus is one button, state preserved. Responsive: on narrow screens focus mode is the only layout.
 
 ### 5.2 Consent-first start
 
@@ -162,9 +162,9 @@ States: Not started, Requesting mic, Recording, Paused, Stopped, Mic blocked, Of
 - Revisions swap content without animation by default; a subtle "Updated" text tag for 5s (not color-only; honors reduced motion). Option to "Pause updates" so the student can read in peace; "Catch up to latest" resumes.
 - Sources: each bullet may reveal timestamp links to the transcript on request.
 
-### 5.6 I Lost Track
+### 5.6 Quick recap
 
-- Largest control in the workspace, fixed position (bottom-right/bottom on phone; right panel top on desktop), high contrast, label "I lost track" (text, not icon-only), minimum 56x56 CSS px target.
+- Largest control in the workspace, fixed position (bottom-right/bottom on phone; right panel top on desktop), high contrast, label "Quick recap" (text, not icon-only), minimum 56x56 CSS px target.
 - Flow: press the button. The window is the default last-used (5 min initially) and shown on the button group: `Last [2] [5] [10] min`. One press on a window runs recovery immediately; no extra confirmation. Keyboard shortcut: `Alt+L` (customizable; must not collide with screen reader keys, and is documented in a Help list).
 - Response (short by default):
   1. "Here's where you are." One to two sentences.
@@ -174,7 +174,7 @@ States: Not started, Requesting mic, Recording, Paused, Stopped, Mic blocked, Of
 - The transcript continues behind the panel; recovery does not pause recording. Panel is non-modal on desktop (side panel) and a bottom sheet on phone.
 - If the lecture is shorter than the window: "You've only been here 3 minutes. Here's all of it."
 - If the AI/network fails: show the raw last-N-minutes transcript excerpt, labeled "Summary isn't available right now. Here's what was said." (graceful degradation).
-- Non-shaming copy only. No logging shown to the student as "times you lost track".
+- Non-shaming copy only. No logging shown to the student as "times you asked for a recap".
 
 ### 5.7 Ask and clarification suggestions
 
@@ -200,13 +200,13 @@ How to turn it on:  [Browser steps for Chrome / Safari / Firefox]
 
 - Banner (persistent, text + icon): "Connection lost. Still recording on your device; we'll catch up when you're back." Only claim local buffering if Speech/Frontend verify it. Otherwise: "Connection lost. Transcript is paused. Audio isn't being saved." Must reflect truth (open question for Speech Engineer).
 - On reconnect: "Back online. Filled in 00:10 to 00:14." Missing portions marked as gaps in the transcript ("Gap 00:10 to 00:14") instead of silently omitted.
-- I Lost Track offline: uses cached transcript if available; else states plainly it needs a connection, with a "Try again" and raw-transcript fallback.
+- Quick recap offline: uses cached transcript if available; else states plainly it needs a connection, with a "Try again" and raw-transcript fallback.
 - Retries use backoff without user spam; no repeated alerts after the first (see live-region rules).
 
 ## 6. WCAG 2.2 AA requirements (target)
 
 Structure and landmarks
-- Landmarks: `header`, `main`, `complementary` (TL;DR), `region` named (transcript). Single `h1` per view. Skip link "Skip to transcript" and "Skip to I lost track".
+- Landmarks: `header`, `main`, `complementary` (TL;DR), `region` named (transcript). Single `h1` per view. Skip link "Skip to transcript" and "Skip to Quick recap".
 - Order in DOM matches visual order.
 
 Live regions (avoid screen reader spam)
@@ -218,12 +218,12 @@ Live regions (avoid screen reader spam)
 
 Focus management
 - Focus visible: 2px+ outline with 3:1 contrast, not obscured by sticky bars (SC 2.4.11/2.4.12; use scroll-padding).
-- Opening Stop dialog: trap focus, Escape closes, focus returns to Stop. Closing recovery panel returns focus to I Lost Track (or the transcript if "Got it").
+- Opening Stop dialog: trap focus, Escape closes, focus returns to Stop. Closing recovery panel returns focus to Quick recap (or the transcript if "Got it").
 - No focus movement on transcript or TL;DR updates.
 - Mode changes keep focus on the control.
 
 Keyboard
-- All functions operable without pointer; no keyboard traps. Documented shortcuts are single-modifier combos, remappable/disable-able (SC 2.1.4). Suggested: `Alt+L` Lost Track, `Alt+P` Pause/Resume, `Alt+J` Jump to live, `Alt+K` Ask. Verify against screen reader and browser conflicts.
+- All functions operable without pointer; no keyboard traps. Documented shortcuts are single-modifier combos, remappable/disable-able (SC 2.1.4). Suggested: `Alt+L` Quick recap, `Alt+P` Pause/Resume, `Alt+J` Jump to live, `Alt+K` Ask. Verify against screen reader and browser conflicts.
 - Segmented controls use radio-group semantics with arrow keys; 2/5/10 window is a radio group with `aria-label="How far back"`.
 - Dragging is never required (SC 2.5.7); target size at least 44x44 (AA minimum 24x24, SC 2.5.8), primary controls 56px.
 
@@ -268,7 +268,7 @@ Lecture workspace
 7. Pause turns the mic off within 1s and the UI says so; Stop requires one confirm; no transcript is received after pause (backend test).
 8. Partial-to-final replacement does not shift layout of lines above it, and does not move focus.
 9. Scrolling up halts autoscroll; "Jump to live" appears and works via keyboard.
-10. I Lost Track is reachable by one Tab-stop skip link and one shortcut; the response appears in under 5s at p90 (target to confirm with AI team), with a fallback raw excerpt within 1s if AI fails.
+10. Quick recap is reachable by one Tab-stop skip link and one shortcut; the response appears in under 5s at p90 (target to confirm with AI team), with a fallback raw excerpt within 1s if AI fails.
 11. Recovery response default shows at most 1-2 sentences plus 3 bullets; "Show more detail" is keyboard operable and persisted.
 12. 2, 5 and 10 minute windows each map to the correct transcript span (verified by fixture); shorter lectures handled with the plain message.
 13. Quiet mode shows zero suggestions and zero prompts across a 60-minute fixture; Balanced shows at most 1 chip at a time.

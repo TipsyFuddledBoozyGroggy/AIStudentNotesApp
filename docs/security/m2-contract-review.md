@@ -76,7 +76,7 @@ Severity scale follows `docs/SECURITY.md`.
 | ID | Sev | Finding | Fix to contract text |
 |---|---|---|---|
 | C-25 | High | Ingest limits are only implied. The contract has no maximum frame size, no maximum byte rate, no per-user socket cap, and no STT minutes budget. A client can send audio faster than real time, send huge frames, or run many sockets, burning provider cost (SEC-037) and server memory. Also, the server buffer is "~5 s" but unbounded memory per socket is not ruled out if frames are large. | Add an "Ingest limits" subsection: max binary frame size (derived from format; C-04), accepted audio rate at most 1.1 x real time measured over a sliding window (excess is dropped and reported as `error{code:"rate_limited"}`, repeated violation closes with 1008), 1 audio socket per session and 1 recording session per user (C-18), per-user daily STT minutes budget with a graceful `stt.status Degraded` / stop at the limit, a global kill switch, and `gap` accounting for dropped data. The numbers are config, but the existence of every limit is part of the contract. Memory per session is bounded by the 5 s channel cap. A load test returning the documented codes goes in section 6. |
-| C-26 | Medium | Hub and REST abuse limits are missing for M2 endpoints: `lost-track` (AI cost), `Join` replay (up to 5000 events per call), `GET /transcript` page size, `Ping` rate, hub message size, connection count per user. m1-rereview N-04 (IPv6 /64) and N-09 remain open and the new surface depends on them. | "Hub `MaximumReceiveMessageSize` 4 KB. Max 3 concurrent hub connections per user. `Join` limited to 10/min per session. `lost-track` limited to 6/min per session and a per-session AI call budget, with the extractive result always returned. `limit` maximum on every list. IPv6 limiter keys on /64 (N-04). Architecture test banning `ExecuteUpdate`/`ExecuteDelete` on user-owned sets lands before M2 persistence code (N-09)." |
+| C-26 | Medium | Hub and REST abuse limits are missing for M2 endpoints: `quick-recap` (AI cost), `Join` replay (up to 5000 events per call), `GET /transcript` page size, `Ping` rate, hub message size, connection count per user. m1-rereview N-04 (IPv6 /64) and N-09 remain open and the new surface depends on them. | "Hub `MaximumReceiveMessageSize` 4 KB. Max 3 concurrent hub connections per user. `Join` limited to 10/min per session. `quick-recap` limited to 6/min per session and a per-session AI call budget, with the extractive result always returned. `limit` maximum on every list. IPv6 limiter keys on /64 (N-04). Architecture test banning `ExecuteUpdate`/`ExecuteDelete` on user-owned sets lands before M2 persistence code (N-09)." |
 | C-27 | Low | Replay cap of 5000 events per `Join` is an amplification vector: one cheap call returns a large payload to a peer that reconnects in a loop. | Cap at a smaller default (for example 500) with `truncated:true`, and count `Join` against the limiter. |
 
 ### H. Missing items
@@ -97,7 +97,7 @@ Severity scale follows `docs/SECURITY.md`.
 5. Pause and stop discard buffered frames, no finals for later offsets.
 6. Delete during in-flight summary and while Active; every sub-resource 404 afterward.
 7. Canary run per C-23 including fault injection.
-8. Rate limits: audio faster than real time, frame size, socket cap, `lost-track`, `Join`, ticket issuance.
+8. Rate limits: audio faster than real time, frame size, socket cap, `quick-recap`, `Join`, ticket issuance.
 
 ## Not checked
 - No code, config, migrations or CI were inspected. All findings are against the draft text.

@@ -1,6 +1,6 @@
 # Tether
 
-An ADHD-friendly college academic assistant: consented live lecture transcription, a continuously updated TL;DR, one-click **I Lost Track** catch-up, contextual tutoring, editable study guides, and student-approved Google Docs/Calendar workflows.
+An ADHD-friendly college academic assistant: consented live lecture transcription, a continuously updated TL;DR, one-click **Quick recap** catch-up, contextual tutoring, editable study guides, and student-approved Google Docs/Calendar workflows.
 
 Status: pre-implementation. This repository currently contains project instructions and Claude Code specialist agents only. There is no application code yet.
 

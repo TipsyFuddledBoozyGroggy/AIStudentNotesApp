@@ -52,7 +52,7 @@
 **Known issue:** production build includes `/dev/lecture-harness/*` test fixture pages (being gated).
 **Still no real capability:** no hub, no audio socket, no transcript persistence, no AI summaries, no real STT. Everything lecture-related is mock-backed or UI-only. All 5 release gates remain unpassed.
 **In progress:** B2 (SignalR hub, ticketed audio WebSocket relay, replay STT with "Demo source" flag, transcript persistence, B1 deferrals incl. F-04 WebSocket Origin).
-**Next:** B3 AI summaries (TL;DR, I Lost Track) on MockAi; frontend wiring to the hub; Opus security review of B2 before the audio socket is treated as done.
+**Next:** B3 AI summaries (TL;DR, Quick recap) on MockAi; frontend wiring to the hub; Opus security review of B2 before the audio socket is treated as done.
 
 ## Iteration 5 — B3 AI module verification and review (2026-10-27/28, overnight, uncommitted tree)
 **State found:** uncommitted B3 (`src/api/src/Modules/Ai`, `Tether.AiTests`, `Transcript.Contracts`) and frontend realtime wiring, not yet verified.
@@ -68,11 +68,11 @@
 **Results:** build 0 warnings; 107 contract + 105 AI + 15 architecture + 338 integration tests pass (single run; concurrency tests not repeated).
 **Known gaps:** sanitizer turns "ASP.NET" into "[link removed]"; no NFKC normalisation; `catchup.schema.json` does not describe the real catch-up wire; hub Join summary replay untested; fixes not independently re-reviewed.
 **Open for Product Owner:** B3-06 (AI work after Pause/Stop/Delete), B3-12 (PII redaction before vendor calls). Open for backend: audio-socket cap/reconnect flake (see Iteration 5).
-**Next:** frontend calls to summary / lost-track / catch-up, socket reaping fix, independent re-review, then commit once the Product Owner agrees.
+**Next:** frontend calls to summary / quick-recap / catch-up, socket reaping fix, independent re-review, then commit once the Product Owner agrees.
 
 ## Iteration 6 — B3-06 (2026-10-28, PO decision: cancel and re-check)
 Pause/Stop/Delete cancel in-flight AI calls (`SessionCutoff`), and the gateway re-checks the session is Active and owned right before each provider call. Verified by Lead re-run: 107 contract + 105 AI + 15 architecture + 353 integration pass.
-**Behaviour change:** no provider call after Pause or Stop, so the "Final" summary on Stop is no longer produced (the spec was silent; the DB still allows the value). Lost Track on a Paused session returns the extractive answer only. A final summary after Stop needs a spec and a PO decision.
+**Behaviour change:** no provider call after Pause or Stop, so the "Final" summary on Stop is no longer produced (the spec was silent; the DB still allows the value). Quick recap on a Paused session returns the extractive answer only. A final summary after Stop needs a spec and a PO decision.
 **Not yet re-reviewed** by security-engineer; tests were written alongside the code, not shown red first.
 
 ## Iteration 7 — E2E flake root cause, catch-up schema, UX must-fixes (2026-10-28)
@@ -81,7 +81,7 @@ Pause/Stop/Delete cancel in-flight AI calls (`SessionCutoff`), and the gateway r
 **Schema:** `catchup.schema.json` now describes the real wire; 9 fixtures added; real-response validation test added.
 **Verified by Lead re-run:** 116 contract + 105 AI + 15 architecture + 356 integration pass; web 325 unit tests; Playwright full serial run 19/20 before the courses fix, `courses.spec.ts` 11/11 after it (dev limits raised).
 **Caveats:** E2E has not been run at production rate limits; the two new rate-limit regression tests were not shown failing on the old code; the TL;DR E2E takes ~1.6 min (waits for the 90s summary flush); `lecture.spec.ts` `beforeAll` lists all of alice's courses and grows each run.
-**UX:** AI specialist review `docs/ux/m2-lost-track-review.md`; must-fixes M1-M7 implemented (commit cbfb38b). Not human-validated.
+**UX:** AI specialist review `docs/ux/m2-quick-recap-review.md`; must-fixes M1-M7 implemented (commit cbfb38b). Not human-validated.
 
 ## Iteration 8 — B3 re-review fixes (2026-10-28)
 Security re-review `docs/security/m2-b3-rereview.md`: 0 Critical/High, 1 Medium (N-03), 4 Low, 5 Info; earlier B3 fixes confirmed (B3-05 partial).

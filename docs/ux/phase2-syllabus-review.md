@@ -4,7 +4,7 @@
 
 ## 0. Scope, assumptions, dependencies
 
-Sources read: `docs/PRODUCT_REQUIREMENTS.md` section 6 (syllabus bullet, line 135), `docs/ux/student-experience.md` (rules, WCAG, saving/resuming), `docs/ux/m2-live-lecture-screens.md` (live-region architecture, shortcuts, demo tag pattern), `docs/ux/m2-lost-track-review.md` (copy and focus lessons), `src/web/src/components/CourseDetailPage.tsx` and `CourseDetailView.tsx` (course page layout: `h1` with focus on load, `card` sections with an `h2`, `btn-primary` / `btn-secondary`, `space-y-6`).
+Sources read: `docs/PRODUCT_REQUIREMENTS.md` section 6 (syllabus bullet, line 135), `docs/ux/student-experience.md` (rules, WCAG, saving/resuming), `docs/ux/m2-live-lecture-screens.md` (live-region architecture, shortcuts, demo tag pattern), `docs/ux/m2-quick-recap-review.md` (copy and focus lessons), `src/web/src/components/CourseDetailPage.tsx` and `CourseDetailView.tsx` (course page layout: `h1` with focus on load, `card` sections with an `h2`, `btn-primary` / `btn-secondary`, `space-y-6`).
 
 Scope: syllabus upload or paste, extraction processing state, student review of extracted items, and a **mock** Calendar sync. No Google connection and no external write exist in this increment. Everything the student sees about sync must say it is a demo.
 
@@ -273,7 +273,7 @@ p   You can change or remove any of these later.
 [ See the demo calendar ]   [ Back to Biology 101 ]
 ```
 
-- Focus lands on the result `h1`. The status region is not also used (avoids the double announcement flagged in `m2-lost-track-review.md` M7).
+- Focus lands on the result `h1`. The status region is not also used (avoids the double announcement flagged in `m2-quick-recap-review.md` M7).
 - Partial result: "Added 10 of 12. 2 didn't go through." with a list of the two, each with `Try again` and reason in words. Successful ones are not repeated or lost. Never report full success when any failed.
 - Re-run (idempotent): items already added show "Already in the demo calendar". Changed items show "Changed since added: update?" with a checkbox defaulting to checked only if the student pressed "Update" on the confirm step; nothing updates silently.
 - Removing: each synced item has "Remove from the demo calendar" with Undo. Wording about the real calendar waits until Google is connected.

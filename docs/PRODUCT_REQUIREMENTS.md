@@ -13,7 +13,7 @@ Owner: Product Manager. Reviewers needed: Lead Architect, security-engineer, adh
 | Tier | Capability | Milestone |
 |---|---|---|
 | P0 MVP | Auth foundation, course model, dashboard, local dev, CI | M1 |
-| P0 MVP | Consented mic capture, streaming transcript, live TL;DR, I Lost Track (2/5/10), timestamped notes, save study guide, deliberate export to Google Doc | M2 |
+| P0 MVP | Consented mic capture, streaming transcript, live TL;DR, Quick recap (2/5/10), timestamped notes, save study guide, deliberate export to Google Doc | M2 |
 | P1 | Clarification suggestions; lecture Q&A labeling lecture-stated vs general knowledge (grounded, cited) | M2.5 (after slice is stable) |
 | P1 | Quiet/Balanced/Active modes (Quiet as the default behavior in M2: no unsolicited prompts) | M2 default, full modes M3 |
 | P2 | Syllabus intelligence with confirm-before-calendar-write; Google Calendar | Phase 2 |
@@ -21,7 +21,7 @@ Owner: Product Manager. Reviewers needed: Lead Architect, security-engineer, adh
 | P3 | Executive-function coach, concept evidence tracking, spaced review, knowledge map | Phase 3 |
 | Later | Authorized supporter access, mobile native, multi-language | Unscheduled |
 
-Core vs delight: core = consent, transcript, TL;DR, Lost Track, saved notes. Delight = clarification nudges, Q&A, Docs formatting polish, themes.
+Core vs delight: core = consent, transcript, TL;DR, Quick recap, saved notes. Delight = clarification nudges, Q&A, Docs formatting polish, themes.
 
 ## 3. Cross-cutting requirements
 - Per-user ownership enforced server-side on every resource (cross-user access returns 404/403, tested).
@@ -100,7 +100,7 @@ As a student I must knowingly start capture so I never record unintentionally.
 - AC5: If the model fails or times out, last good TL;DR remains with "could not update" note; transcript continues.
 - AC6: Output is schema-validated; nothing asserted that is absent from transcript (eval fixtures by ai-agent-engineer).
 
-### M2-S5 I Lost Track
+### M2-S5 Quick recap
 As a distracted student I want one click to catch up.
 - AC1: One primary button, always visible during recording, with choice of last 2, 5, or 10 minutes (default 5; remembered).
 - AC2: Result appears in <= target 5 s p95 (D6), as: what was just being discussed (1-2 sentences), key points (<= 5 bullets), and "where we are now" line, each with timestamps.
@@ -150,7 +150,7 @@ As a distracted student I want one click to catch up.
 
 ## 8. Success measures (to validate, not claimed)
 - Activation: % of new users completing first consented session within 7 days.
-- Lost Track: median time to usable recap <= 5 s; student-rated helpfulness (optional thumbs) >= 80% helpful.
+- Quick recap: median time to usable recap <= 5 s; student-rated helpfulness (optional thumbs) >= 80% helpful.
 - Reliability: sessions ending with complete transcript (no unmarked gaps) >= 95%.
 - Accessibility: zero critical/serious axe issues; manual screen-reader pass on M2 flows.
 - Trust: zero cross-user data access in tests; no recording before consent in tests.
@@ -174,7 +174,7 @@ As a distracted student I want one click to catch up.
 - Assumption: 2/5/10 min windows are the right recovery granularity; validate with pilot.
 
 ## 11. Dependencies and sequencing
-M1-S4 (dev/CI) and M1-S1 (auth) first, then S2/S3 in parallel. M2 requires: versioned transcript/summary event contract (Lead Architect), STT provider interface and choice (speech-engineer), consent record schema (database-architect/security-engineer), eval fixtures for TL;DR and Lost Track (ai-agent-engineer). Suggested M2 order: S1 -> S2 -> S3 -> S4 -> S5 -> S6 -> S7 (S8 is a constraint on all).
+M1-S4 (dev/CI) and M1-S1 (auth) first, then S2/S3 in parallel. M2 requires: versioned transcript/summary event contract (Lead Architect), STT provider interface and choice (speech-engineer), consent record schema (database-architect/security-engineer), eval fixtures for TL;DR and Quick recap (ai-agent-engineer). Suggested M2 order: S1 -> S2 -> S3 -> S4 -> S5 -> S6 -> S7 (S8 is a constraint on all).
 
 ## 12. Ranked risks
 1. Recording legality/consent misunderstanding (high impact). Mitigation: D1, consent flow, no real use until cleared.
@@ -191,12 +191,12 @@ M1-S4 (dev/CI) and M1-S1 (auth) first, then S2/S3 in parallel. M2 requires: vers
 - D3: Approve STT provider candidates and spend for a spike; budget ceiling per student-hour.
 - D4: Auth method: Google sign-in only, or also email/password? Proposed: Google only for M1.
 - D5: Monthly cost cap and behavior at cap (degrade to transcript-only proposed).
-- D6: Approve latency targets (transcript <= 2 s, Lost Track <= 5 s p95).
+- D6: Approve latency targets (transcript <= 2 s, Quick recap <= 5 s p95).
 - D7: Reconnect buffer duration (proposed 60 s) and gap-marker behavior.
 - D8: Minimum age and handling of under-18 users.
 - D9: Is Q&A (lecture-stated vs general) part of the first release or deferred to M2.5 (proposed deferred)?
 - D10: Target hosting/region for data, and whether the pilot is single-institution.
-- D11: Default Lost Track window (proposed 5 min) and TL;DR cadence.
+- D11: Default Quick recap window (proposed 5 min) and TL;DR cadence.
 
 ## 14. Verification status
 Nothing in this document has been tested or implemented. Acceptance criteria are proposals for qa-engineer to convert into automated and manual tests; items marked "target" need measurement before being treated as commitments.

@@ -11,7 +11,7 @@ Note: the agent file lists `docs/validation/*` deliverables; this task was scope
 - Criteria: `docs/ux/student-experience.md` section 6 (WCAG 2.2 AA, live-region rules) and section 9 criteria 5-9, 15-22 (A11y 18-22 are the manual-gated ones).
 - Strategy: `docs/qa/test-strategy.md` M1-09, M2-02, M2-10, M2-11, M2-19; release gate requires a manual keyboard/screen-reader pass.
 - Audio: `docs/architecture/speech-pipeline.md` sections 10-11.
-- Testability today: M1 screens exist in `src/web/src/app` (`/signin`, `/` dashboard, `/courses`, `/courses/new`, `/courses/[id]`). The lecture workspace, consent start, recording status, transcript, TL;DR, I Lost Track and denied-mic screens are **not implemented**; their scripts are written now so they are ready, marked NOT-YET-TESTABLE.
+- Testability today: M1 screens exist in `src/web/src/app` (`/signin`, `/` dashboard, `/courses`, `/courses/new`, `/courses/[id]`). The lecture workspace, consent start, recording status, transcript, TL;DR, Quick recap and denied-mic screens are **not implemented**; their scripts are written now so they are ready, marked NOT-YET-TESTABLE.
 
 ## 2. Automated evidence (exists vs NOT RUN)
 
@@ -148,11 +148,11 @@ W5 TL;DR
 3. "Pause updates" holds content; "Catch up to latest" resumes. "Show more" expands up to 7.
 4. Source timestamp links reveal on request and are keyboard operable.
 
-W6 I Lost Track
-1. Skip link "Skip to I lost track" works; shortcut Alt+L works and does not collide with the AT or browser (record collisions per AT: NVDA, JAWS, VoiceOver, TalkBack/hardware keyboard, Firefox Alt-menu behaviour).
+W6 Quick recap
+1. Skip link "Skip to Quick recap" works; shortcut Alt+L works and does not collide with the AT or browser (record collisions per AT: NVDA, JAWS, VoiceOver, TalkBack/hardware keyboard, Firefox Alt-menu behaviour).
 2. 2/5/10 window is a radio group "How far back"; arrow keys work; activating a window runs recovery immediately.
 3. On open: focus moves to the response heading (`tabindex=-1`); content read by navigation, not auto-dumped.
-4. "Show more detail" operable; state persists. "Got it, back to lecture" returns focus to transcript; closing otherwise returns focus to I Lost Track.
+4. "Show more detail" operable; state persists. "Got it, back to lecture" returns focus to transcript; closing otherwise returns focus to Quick recap.
 5. Failure path (take API offline): raw excerpt with the plain message shown and announced once.
 6. Recovery does not pause recording.
 
@@ -195,7 +195,7 @@ V3 Forced colors / high contrast
 2. Repeat with `prefers-contrast: more` on macOS/iOS (V4).
 
 V6 Touch / orientation (physical phone and tablet)
-1. Primary controls at least 44 CSS px, I Lost Track 56 px (workspace); minimum 24 px (SC 2.5.8) for all.
+1. Primary controls at least 44 CSS px, Quick recap 56 px (workspace); minimum 24 px (SC 2.5.8) for all.
 2. Portrait and landscape both usable (SC 1.3.4). Pinch zoom not disabled (check viewport meta).
 3. Layout at 320 px width; bottom sheet and sticky bars do not cover focused field or keyboard-opened input.
 4. Dragging never required (SC 2.5.7).

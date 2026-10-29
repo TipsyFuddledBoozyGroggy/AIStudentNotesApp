@@ -60,7 +60,7 @@ Out of scope for M1-2: parent access (not authorized; no sharing feature until a
 - SEC-035 (Medium) SSRF: server never fetches user-supplied URLs in M1-2; if syllabus URL import is added, allowlist http(s), block private/link-local/metadata IPs, redirects, and DNS rebinding. Verify: tests against 169.254.169.254 and localhost.
 
 ### Rate limiting and cost abuse
-- SEC-036 (High) Per-user and per-IP rate limits on API, hub messages, and AI endpoints (summaries, I Lost Track, tutoring). Verify: load test returns 429 beyond limits.
+- SEC-036 (High) Per-user and per-IP rate limits on API, hub messages, and AI endpoints (summaries, Quick recap, tutoring). Verify: load test returns 429 beyond limits.
 - SEC-037 (High) Per-user daily and monthly AI/STT budgets (tokens, audio minutes), a global kill switch and spend alert, a max session length, and summary debouncing and caching. Paid-provider enablement needs Product Owner approval. Verify: a simulated overrun halts calls and returns a graceful degraded state; budget-exceeded test.
 - SEC-038 (Medium) Concurrent session cap per user; only one active recording per session id. Verify: second start is rejected.
 

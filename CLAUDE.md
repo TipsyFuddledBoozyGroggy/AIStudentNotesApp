@@ -1,7 +1,7 @@
 # Tether — Project Instructions for Claude Code
 
 ## Mission
-Build an ADHD-friendly college academic assistant. Prioritize the real student experience: explicit-consent live lecture transcription, a continuously updated TL;DR, one-click **I Lost Track** catch-up, contextual tutoring, editable study guides, and student-approved Google Docs/Calendar workflows. Support practice-test remediation, syllabus-based planning, knowledge tracking, and low-pressure executive-function coaching in later increments.
+Build an ADHD-friendly college academic assistant. Prioritize the real student experience: explicit-consent live lecture transcription, a continuously updated TL;DR, one-click **Quick recap** catch-up, contextual tutoring, editable study guides, and student-approved Google Docs/Calendar workflows. Support practice-test remediation, syllabus-based planning, knowledge tracking, and low-pressure executive-function coaching in later increments.
 
 ## Who is in charge
 - Human Product Owner approves product tradeoffs, spending, external system permissions, production deployment and any high-risk actions.
@@ -63,7 +63,7 @@ Build an ADHD-friendly college academic assistant. Prioritize the real student e
 8. Present decisions requiring human approval; never deploy, spend money, record others, or modify external calendars without authorization.
 
 ## MVP definition of done
-A student can sign in, create a course, voluntarily start and stop a lecture session, see streaming transcription, read an incrementally updated TL;DR, click **I Lost Track** to recover the last 2/5/10 minutes, view generated notes with source timestamps, and deliberately export notes to a Google Doc. Provide safe denied-microphone and disconnected-network states. Protect data per user. Validate with automated tests and documented real-provider smoke testing where configured.
+A student can sign in, create a course, voluntarily start and stop a lecture session, see streaming transcription, read an incrementally updated TL;DR, click **Quick recap** to recover the last 2/5/10 minutes, view generated notes with source timestamps, and deliberately export notes to a Google Doc. Provide safe denied-microphone and disconnected-network states. Protect data per user. Validate with automated tests and documented real-provider smoke testing where configured.
 
 ## Next milestones
 - Phase 1: working vertical slice above.

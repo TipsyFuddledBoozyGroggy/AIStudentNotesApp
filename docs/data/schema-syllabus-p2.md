@@ -736,7 +736,7 @@ Rollback safety
 
 ## 11. AI usage / ledger generalisation: proposed `A003_AiScope` (outline only)
 
-Gap (from `syllabus-extraction-design.md` section 3, and the code I read): `ai.ai_usage.session_id uuid NOT NULL` with no FK; `ck_ai_usage_workflow IN ('RollingSummary','Compaction','LostTrack')`; `ix_ai_usage_session_created`; the ledger sums per session for `PerSessionMicro` (`Ledger.cs:122`); reservations are `ai_usage` rows with outcome `reserved` (A002); `AiRequest.SessionId` and `AiGateway` check `LectureState.Active`. A document job has no lecture, so the ledger needs a scope.
+Gap (from `syllabus-extraction-design.md` section 3, and the code I read): `ai.ai_usage.session_id uuid NOT NULL` with no FK; `ck_ai_usage_workflow IN ('RollingSummary','Compaction','QuickRecap')`; `ix_ai_usage_session_created`; the ledger sums per session for `PerSessionMicro` (`Ledger.cs:122`); reservations are `ai_usage` rows with outcome `reserved` (A002); `AiRequest.SessionId` and `AiGateway` check `LectureState.Active`. A document job has no lecture, so the ledger needs a scope.
 
 Approach: **expand now, contract later**, because the ledger is spend evidence that must not be rewritten or lose rows.
 
@@ -755,7 +755,7 @@ ALTER TABLE ai.ai_usage
   ADD CONSTRAINT ck_ai_usage_scope_session CHECK ((scope_kind = 'lecture' AND session_id = scope_id) OR (scope_kind = 'syllabus' AND session_id IS NULL));
 ALTER TABLE ai.ai_usage DROP CONSTRAINT ck_ai_usage_workflow;       -- recreate, as A002 did for the outcome list
 ALTER TABLE ai.ai_usage ADD CONSTRAINT ck_ai_usage_workflow CHECK (
-     (scope_kind = 'lecture'  AND workflow IN ('RollingSummary','Compaction','LostTrack'))
+     (scope_kind = 'lecture'  AND workflow IN ('RollingSummary','Compaction','QuickRecap'))
   OR (scope_kind = 'syllabus' AND workflow = 'SyllabusExtract'));
 CREATE INDEX ix_ai_usage_scope_created ON ai.ai_usage (user_id, scope_kind, scope_id, created_at);
 CREATE INDEX ix_ai_usage_user_pool_created ON ai.ai_usage (user_id, pool, created_at);          -- per-user daily cap PER POOL (replaces the use of ix_ai_usage_user_created for cap checks)
@@ -788,7 +788,7 @@ Rollback of A003
 - **Failure modes covered by schema:** concurrent delete vs job (FK), duplicate sync (unique), double create (unique), approve of undated item (CHECK), cross-user references (composite FKs), stuck leases (reaper index), stale-tab approve/skip (row_version CAS), retention extension bug (`ck_syllabi_retention`), tmpfs loss on restart (job fails `unreadable_file`/`timeout`, student re-uploads).
 - **Backups.** Deletes are hard, so a restore from a backup taken before a deletion resurrects the deleted syllabus until the application re-applies it. There is no tombstone table in the same database that survives a restore (it would be restored too; the 24 h create-key tombstones do not help here). Mitigation for the restore runbook: re-run deletions from the content-free application log of `syllabus_deleted` audit events exported outside the database. The **retention purge has the same property**: a restored backup brings back purged snippet text and canonical text until the purge job runs again (it will, because `canonical_text_purge_at` is restored too and is in the past). Needs devops and security to agree; known limitation, not solved here. With uploads off the database there is no `--no-unlogged-table-data` requirement any more, and the byte volume is excluded from any snapshot (tmpfs) by construction; devops X-07 verifies it.
 - **Ownership of the byte volume** (replaces the v0 UNLOGGED discussion): the volume is not a database object, so none of the schema guarantees apply to it. Controls are in 3.3 (random file name, mode 0600, read-only bind to the parser, 1 h sweeper, size-capped tmpfs). Residual: bytes live in RAM or swap while a job runs; the host must have swap encrypted or disabled (devops).
-- **Rate limits (R2-14, backend/devops, not DB objects).** Syllabus routes get their **own** write and read buckets, separate from the global 30/min write bucket used by live-lecture writes and "I Lost Track", so a syllabus flood or buggy client cannot throttle a student mid-lecture. Per-user caps for `calendar-sync` and batch decisions need numbers (contract dependency, R2-15).
+- **Rate limits (R2-14, backend/devops, not DB objects).** Syllabus routes get their **own** write and read buckets, separate from the global 30/min write bucket used by live-lecture writes and "Quick recap", so a syllabus flood or buggy client cannot throttle a student mid-lecture. Per-user caps for `calendar-sync` and batch decisions need numbers (contract dependency, R2-15).
 - Not stored anywhere in this module: OAuth tokens (none; mock provider), student calendar contents, filenames (only `file_type`), upload bytes.
 
 ## 13. Open questions

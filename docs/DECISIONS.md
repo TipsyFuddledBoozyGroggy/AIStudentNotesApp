@@ -31,7 +31,7 @@ Status: **Proposed** = Lead Architect decision within existing authority, revers
 | PO-5 | Retention defaults (proposal: 180-day transcripts, 30-day deletion SLA), audio retention (proposal: none), ledger handling on deletion. | Production |
 | PO-6 | Google OAuth client creation; identity provider; token key management. | Real sign-in, Docs |
 | PO-7 | Minimum age / under-18 handling (D8); hosting region, pilot scope (D10). | Production |
-| PO-8 | Latency targets (transcript <2 s, Lost Track <5 s p95): proposals only. | Perf gates |
+| PO-8 | Latency targets (transcript <2 s, Quick recap <5 s p95): proposals only. | Perf gates |
 
 ## Added after Milestone 1 reviews (2026-10-27)
 
@@ -104,3 +104,12 @@ These are Lead Architect choices under delegation. Reversible. They approve no s
 | PO-10o | Students get a "let Tether manage this again" action only for entries whose content-free record still exists, via the reconnect flow with preview. | |
 | PO-10p | Custom CSRF header name `X-Tether-CSRF` (finding B1-09). | |
 | PO-10q | Google quota: per-user daily budget plus a global soft limit well below Google's charged threshold; exact numbers for devops to set and PO to approve. | Review CV-06. |
+
+## Language rule and feature rename (2026-10-29)
+
+| ID | Decision | Status |
+|---|---|---|
+| PO-11 | Sensitive-language rule: wording around attention and recall must not frame the student as failing, lacking or at fault. Applies to all UI copy, AI prompts and outputs, notifications, docs and feature names. Guide: `docs/ux/language-guide.md`. | PO decided |
+| PO-11a | The one-click catch-up feature, previously named "I Lost Track", is now **Quick recap**. Renamed everywhere: UI, AI prompts, docs, CLAUDE.md, agent definitions, code, REST route (`/lost-track` -> `/quick-recap`), wire fields (`lostTrack*` -> `quickRecap*`), persisted workflow value (`LostTrack` -> `QuickRecap`, migration) and frozen `lecture.v1` schema names (old -> new recorded in `src/shared/contracts/RENAMES.md`). No alias kept: nothing was deployed and there was no real data. The neutral `catchup` resource names are unchanged. | PO decided; implementation in progress |
+| PO-12 | Security severity policy: CRITICAL = tell the PO immediately; HIGH = resolve before pushing to git; MEDIUM = resolve before production; LOW = note in the register. See `docs/security/severity-policy.md`. | PO decided (2026-10-29) |
+| PO-12a | GR-1 (transcript or study guide copied into an institution-managed Google account) stays **HIGH / OPEN** until qualified counsel has reviewed it. No downgrade. A push to git stays blocked while it is open. Ruling made 2026-10-29 (option 1). | PO decided |

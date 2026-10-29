@@ -18,8 +18,8 @@ All stages require Product Owner written authorization before recruiting, spendi
 ### Stage 1: Expert review
 Reviewers (placeholders, none engaged): clinician(s) with ADHD expertise; ADHD coach or disability-services specialist; learning scientist; accessibility specialist.
 Review targets:
-- UX: Quiet default, prompt/reminder copy, Lost Track flow, chip behavior, absence of pressure mechanics.
-- AI-eval criteria: TL;DR faithfulness, Lost Track recap quality, clarification chip quality, quiz scoring, partial credit, mastery thresholds, spaced-review assumptions, "single miss is not a gap" rule.
+- UX: Quiet default, prompt/reminder copy, Quick recap flow, chip behavior, absence of pressure mechanics.
+- AI-eval criteria: TL;DR faithfulness, Quick recap recap quality, clarification chip quality, quiz scoring, partial credit, mastery thresholds, spaced-review assumptions, "single miss is not a gap" rule.
 - Harm/risk statements and the claims list in section 6.
 Output: rubric-scored written reviews logged in VALIDATION_LOG; roadmap changes tracked for each adverse finding.
 
@@ -71,7 +71,7 @@ Resume only with written human sign-off and a recorded fix.
 
 ## 7. Measures
 Formative, descriptive only; no inferential claims at these sample sizes.
-- Task success and assistance needed (Lost Track recovery, next-action identification).
+- Task success and assistance needed (Quick recap, next-action identification).
 - Time-to-usable-recap and time-on-task (PRD target 5 s is system latency, measured separately).
 - Perceived helpfulness (PRD target 80% helpful is unvalidated).
 - Attention burden/cognitive load (e.g., short self-report, brief interview).
