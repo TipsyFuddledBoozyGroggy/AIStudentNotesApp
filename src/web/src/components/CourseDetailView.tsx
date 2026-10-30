@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import type { Course } from "@/lib/api";
+import { SyllabusCard } from "./syllabus/SyllabusCard";
 
 interface Props {
   course: Course;
@@ -47,6 +48,8 @@ export function CourseDetailView({ course, justAdded }: Props) {
           Start a lecture
         </Link>
       </section>
+
+      <SyllabusCard courseId={course.id} />
 
       <Link href="/" className="btn-quiet px-0">
         Back to dashboard

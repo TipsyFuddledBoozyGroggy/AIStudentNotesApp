@@ -1,5 +1,6 @@
 import { http, HttpResponse } from "msw";
 import * as db from "./db";
+import { syllabusHandlers } from "./syllabusHandlers";
 
 // Wildcard host so handlers match both relative (browser) and absolute (tests) URLs.
 const P = "*/api/v1";
@@ -121,4 +122,7 @@ export const handlers = [
       gaps: [],
     });
   }),
+
+  // syllabus.v1 (Phase 2, mock calendar only): see syllabusHandlers.ts for scenarios.
+  ...syllabusHandlers,
 ];
