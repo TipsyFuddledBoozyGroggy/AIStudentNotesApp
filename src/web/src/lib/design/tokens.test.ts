@@ -291,6 +291,6 @@ it("no raw hex colours in components (themes add colour through tokens only)", (
 });
 
 it("aria-live appears only in the transcript finals region (live-region allow-list, section 7)", () => {
-  const withLive = files.filter((f) => /aria-live=/.test(readFileSync(f, "utf8"))).map((f) => path.relative(SRC, f));
+  const withLive = files.filter((f) => /aria-live=/.test(readFileSync(f, "utf8"))).map((f) => path.relative(SRC, f).split(path.sep).join("/"));
   expect(withLive.sort()).toEqual(["components/lecture/TldrPanel.tsx", "components/lecture/Transcript.tsx"].sort());
 });
