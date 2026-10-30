@@ -99,7 +99,7 @@ internal static class SyllabusEndpoints
         if (!TryId(null, courseId, out var cid)) return SyllabusProblem.Invalid("courseId", "not_canonical");
         var ctype = http.Request.ContentType ?? "";
         var multipart = ctype.StartsWith("multipart/form-data", StringComparison.OrdinalIgnoreCase);
-        if (!multipart && !ctype.StartsWith("application/json", StringComparison.OrdinalIgnoreCase)) return SyllabusProblem.Unsupported();
+        if (!multipart && !JsonBody.IsJson(ctype)) return SyllabusProblem.UnsupportedMediaType();
         if (multipart)
         {
             // Kestrel's global 64 KB cap does not fit an upload: lift it for this request only, never for the whole app.
@@ -182,7 +182,7 @@ internal static class SyllabusEndpoints
         if (!TryId(Ids2.Syllabus, id, out var sid)) return SyllabusProblem.Invalid("id", "not_canonical");
         var (bytes, failure) = await JsonBody.ReadBytesAsync(http, opt.JsonBodyBytes, ct);
         if (failure == JsonBody.Failure.TooLarge) return SyllabusProblem.TooLarge();
-        if (failure == JsonBody.Failure.Unsupported) return SyllabusProblem.Unsupported();
+        if (failure == JsonBody.Failure.Unsupported) return SyllabusProblem.UnsupportedMediaType();
         if (!JsonBody.TryBind<BatchRequest>(bytes!, out var req) || req is null) return SyllabusProblem.InvalidBare();
         if (req.Action is not ("approve" or "skip" or "undecide")) return SyllabusProblem.Invalid("action");
         if (req.ItemEtags.Count is < 1 or > 100) return SyllabusProblem.Invalid("itemEtags", "out_of_range");
@@ -204,7 +204,7 @@ internal static class SyllabusEndpoints
         if (!TryId(Ids2.Syllabus, id, out var sid)) return SyllabusProblem.Invalid("id", "not_canonical");
         var (bytes, failure) = await JsonBody.ReadBytesAsync(http, opt.JsonBodyBytes, ct);
         if (failure == JsonBody.Failure.TooLarge) return SyllabusProblem.TooLarge();
-        if (failure == JsonBody.Failure.Unsupported) return SyllabusProblem.Unsupported();
+        if (failure == JsonBody.Failure.Unsupported) return SyllabusProblem.UnsupportedMediaType();
         if (!JsonBody.TryBind<SyncRequest>(bytes!, out var req) || req is null) return SyllabusProblem.InvalidBare();
         if (req.ItemRevisions.Count is < 1 or > 100) return SyllabusProblem.Invalid("itemRevisions", "out_of_range");
         var revs = new Dictionary<Guid, int>();
@@ -222,7 +222,7 @@ internal static class SyllabusEndpoints
         if (!TryId(Ids2.Syllabus, id, out var sid)) return SyllabusProblem.Invalid("id", "not_canonical");
         var (bytes, failure) = await JsonBody.ReadBytesAsync(http, opt.JsonBodyBytes, ct);
         if (failure == JsonBody.Failure.TooLarge) return SyllabusProblem.TooLarge();
-        if (failure == JsonBody.Failure.Unsupported) return SyllabusProblem.Unsupported();
+        if (failure == JsonBody.Failure.Unsupported) return SyllabusProblem.UnsupportedMediaType();
         if (!JsonBody.TryBind<RemoveRequest>(bytes!, out var req) || req is null) return SyllabusProblem.InvalidBare();
         if (req.ItemIds.Count is < 1 or > 100) return SyllabusProblem.Invalid("itemIds", "out_of_range");
         var ids = new List<Guid>();

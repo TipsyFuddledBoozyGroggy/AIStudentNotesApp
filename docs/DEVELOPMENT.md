@@ -29,3 +29,6 @@ project), gitleaks full-history secret scan, npm audit / dotnet vulnerable-packa
 Not yet implemented (SEC-039/041, test-strategy gate): CodeQL, container image scan,
 Dependabot, security regression suite, Playwright, AI evals. Branch protection must be configured
 in GitHub settings by the repo owner (SEC-040).
+
+## Running integration tests next to the dev API
+`PersistenceTests.Rolling_back_every_migration_leaves_no_module_tables_behind` (and the migrate-down/up test) roll migrations back on the **shared dev database**. If the dev API container (`aistudentnotesapp-api-1`) or a Playwright run is using the same database, the rollback test can fail (seen 2026-10-30). Stop the API first (`docker stop aistudentnotesapp-api-1`), run `dotnet test`, then start it again for E2E. A separate test database per run would remove this coupling (not done).

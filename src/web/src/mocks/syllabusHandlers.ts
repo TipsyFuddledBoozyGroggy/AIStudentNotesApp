@@ -111,7 +111,13 @@ function createSyllabus(email: string, courseId: string, key: string, body: Wire
     const att = body.attestation as Wire | undefined;
     if (!att || typeof att !== "object" || att.accepted !== true || typeof att.acceptedAt !== "string" || !TS.test(att.acceptedAt) || unknownMember(att, ["accepted", "acceptedAt"]))
       return invalid("attestation");
+    // Term dates are both or neither, as the real server enforces (SyllabusService.Validate): one alone -> termStart: required.
+    if ((body.termStart == null) !== (body.termEnd == null)) return invalid("termStart", "required");
     for (const k of ["termStart", "termEnd"] as const) if (body[k] != null && (typeof body[k] !== "string" || !realDate(body[k] as string))) return invalid(k);
+    if (body.termStart != null) {
+      const days = (Date.parse(body.termEnd as string) - Date.parse(body.termStart as string)) / 86_400_000;
+      if (days < 0 || days > 400) return invalid("termEnd", "out_of_range");
+    }
     if (body.title != null && (typeof body.title !== "string" || BAD_SINGLE_LINE.test(body.title) || codePoints(body.title) > 200)) return invalid("title");
     if (sdb.anyInFlight(email)) return problem(409, "extraction_in_progress");
     if (sdb.listForCourse(email, courseId).length >= 5) return problem(409, "syllabus_limit_reached");

@@ -78,6 +78,14 @@ describe("Review list (F1)", () => {
     expect(within(row("Office hours")).getByText("Not decided")).toBeInTheDocument();
   });
 
+  it("a weekly item names its weekday once in the recurrence line (no 'Tue, Tue'); no axe violations", async () => {
+    const r = await mount();
+    const line = within(row("Office hours")).getByText(/^Repeats every /);
+    expect(line.textContent).toMatch(/^Repeats every Tuesday, Aug 25 to Dec 8(, 2026)?\.$/);
+    expect(line.textContent).not.toMatch(/Tue,/);
+    expect(await axeViolations(r.container)).toEqual([]);
+  });
+
   it("skip becomes Undo in the skip position", async () => {
     await mount();
     const skip = screen.getByRole("button", { name: "Skip Office hours" });

@@ -344,11 +344,18 @@ internal static class JsonBody
 
     public enum Failure { None, TooLarge, Unsupported, Invalid }
 
+    /// <summary>Exactly the media type application/json (parameters such as charset allowed). application/merge-patch+json and application/json-patch+json are NOT accepted.</summary>
+    public static bool IsJson(string? contentType)
+    {
+        if (string.IsNullOrWhiteSpace(contentType)) return false;
+        var semi = contentType.IndexOf(';');
+        return string.Equals((semi < 0 ? contentType : contentType[..semi]).Trim(), "application/json", StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <summary>Reads at most <paramref name="cap"/> bytes (counted while reading; Content-Length is never trusted).</summary>
     public static async Task<(byte[]? Bytes, Failure Failure)> ReadBytesAsync(HttpContext http, int cap, CancellationToken ct)
     {
-        var ct0 = http.Request.ContentType;
-        if (ct0 is null || !ct0.StartsWith("application/json", StringComparison.OrdinalIgnoreCase)) return (null, Failure.Unsupported);
+        if (!IsJson(http.Request.ContentType)) return (null, Failure.Unsupported);
         if (http.Request.ContentLength is { } cl && cl > cap) return (null, Failure.TooLarge);
         using var ms = new MemoryStream();
         var buffer = new byte[8192];

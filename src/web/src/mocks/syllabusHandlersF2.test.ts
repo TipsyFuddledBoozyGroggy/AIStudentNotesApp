@@ -161,6 +161,55 @@ describe("multipart create (mock route)", () => {
   });
 });
 
+describe("term dates: both or neither (mock agrees with the real server)", () => {
+  const paste = (key: string, term: Record<string, unknown>) =>
+    fetch(`${BASE}/courses/${COURSE}/syllabi`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: JSON.stringify({ text: "Quiz 1 Sept 14", defaultTimezone: meta.defaultTimezone, noticeVersion: meta.noticeVersion, attestation: { accepted: true, acceptedAt: meta.acceptedAt }, ...term }),
+    });
+
+  it.each([
+    ["termStart only", { termStart: "2026-08-24" }],
+    ["termEnd only", { termEnd: "2026-12-11" }],
+    ["termStart with termEnd null", { termStart: "2026-08-24", termEnd: null }],
+  ])("%s -> 400 validation_failed, termStart: required, nothing created", async (_n, term) => {
+    setup();
+    sdb.remove(EMAIL, "syl_ready");
+    const res = await paste("key-term-0001", term);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    valid("syllabus-problem", body);
+    expect(body).toMatchObject({ code: "validation_failed", errors: { termStart: ["required"] } });
+    expect(sdb.listForCourse(EMAIL, COURSE)).toHaveLength(0);
+  });
+
+  it("the multipart metadata part follows the same rule", async () => {
+    setup();
+    sdb.remove(EMAIL, "syl_ready");
+    const m = multipart(
+      { name: "bio.txt", type: "text/plain", body: "Quiz 1 on Sept 14" },
+      JSON.stringify({ defaultTimezone: meta.defaultTimezone, noticeVersion: meta.noticeVersion, attestation: { accepted: true, acceptedAt: meta.acceptedAt }, termEnd: "2026-12-11" }),
+    );
+    const res = await fetch(`${BASE}/courses/${COURSE}/syllabi`, { method: "POST", headers: { "Content-Type": m.contentType, "Idempotency-Key": "key-term-0002" }, body: m.body });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: "validation_failed", errors: { termStart: ["required"] } });
+  });
+
+  it("both or neither is accepted; an end before the start is termEnd: out_of_range", async () => {
+    setup();
+    sdb.remove(EMAIL, "syl_ready");
+    expect((await paste("key-term-0003", {})).status).toBe(202);
+    sdb.remove(EMAIL, sdb.listForCourse(EMAIL, COURSE)[0].id as string);
+    const back = await paste("key-term-0004", { termStart: "2026-12-11", termEnd: "2026-08-24" });
+    expect(back.status).toBe(400);
+    expect(await back.json()).toMatchObject({ errors: { termEnd: ["out_of_range"] } });
+    const both = await paste("key-term-0005", { termStart: "2026-08-24", termEnd: "2026-12-11" });
+    expect(both.status).toBe(202);
+    expect((await both.json()).context).toMatchObject({ termStart: "2026-08-24", termEnd: "2026-12-11" });
+  });
+});
+
 describe("client multipart request shape", () => {
   it("one metadata part (schema-valid, no text) and one file part with its name; no JSON Content-Type header", async () => {
     let seen: { init: RequestInit; url: string } | null = null;

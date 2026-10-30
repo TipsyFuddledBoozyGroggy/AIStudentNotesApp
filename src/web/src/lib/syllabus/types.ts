@@ -161,8 +161,8 @@ export interface Page<T> {
 /** Members shared by the JSON (paste) body and the multipart `metadata` part (syllabus-create-request). */
 export interface CreateMeta {
   /**
-   * Term dates are sent both or neither: the contract allows either alone, but the real server answers 400
-   * `termStart: required` unless both are present (recorded as a contract/server mismatch in the F2 hand-off).
+   * Term dates are sent both or neither (API_CONTRACTS_P2 2.3, Lead decision 61): one alone is 400
+   * `validation_failed` with `errors.termStart: ["required"]` from the real server and the MSW mock alike.
    */
   termStart?: string | null;
   termEnd?: string | null;

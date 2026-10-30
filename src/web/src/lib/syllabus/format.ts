@@ -73,8 +73,32 @@ export function browserTimezone(): string {
   return "Etc/UTC";
 }
 
-const WEEKDAY_NAMES: Record<Weekday, string> = { MO: "Mon", TU: "Tue", WE: "Wed", TH: "Thu", FR: "Fri", SA: "Sat", SU: "Sun" };
-export const weekdayNames = (days: Weekday[]) => days.map((d) => WEEKDAY_NAMES[d]).join(", ");
+const WEEKDAY_NAMES: Record<Weekday, string> = { MO: "Monday", TU: "Tuesday", WE: "Wednesday", TH: "Thursday", FR: "Friday", SA: "Saturday", SU: "Sunday" };
+const WEEK_ORDER: Weekday[] = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
+
+/** "Tuesday", "Tuesday and Thursday", "Monday, Wednesday and Friday" (Monday-first order, no duplicates). */
+export function weekdayList(days: Weekday[]): string {
+  const names = WEEK_ORDER.filter((d) => days.includes(d)).map((d) => WEEKDAY_NAMES[d]);
+  return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/** "Aug 25" (no weekday), plus the year when it is not `thisYear`. */
+function monthDay(ymd: string, withYear: boolean): string {
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", timeZone: "UTC" };
+  if (withYear) opts.year = "numeric";
+  return new Intl.DateTimeFormat("en-US", opts).format(utc(ymd));
+}
+
+/**
+ * A date range without weekdays, for a line that already names the weekday: "Aug 25 to Dec 11";
+ * "Aug 25 to Dec 11, 2027" when both are in another year; each date carries its year when the years differ.
+ */
+export function dateRange(from: string, until: string, thisYear = new Date().getFullYear()): string {
+  const fy = utc(from).getUTCFullYear();
+  const uy = utc(until).getUTCFullYear();
+  if (fy === uy) return `${monthDay(from, false)} to ${monthDay(until, uy !== thisYear)}`;
+  return `${monthDay(from, true)} to ${monthDay(until, true)}`;
+}
 
 export const KIND_LABEL: Record<ItemKind, string> = {
   exam: "Exam",

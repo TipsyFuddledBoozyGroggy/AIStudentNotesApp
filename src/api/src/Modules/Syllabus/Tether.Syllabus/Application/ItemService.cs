@@ -66,7 +66,7 @@ internal sealed class ItemService(SyllabusCore core, SyllabusService syllabi, Mo
         if (idemKey is not null) hit = await syllabi.LookupKeyAsync(Routes.ItemTemplate, idemKey, ct);
         var (bytes, failure) = await JsonBody.ReadBytesAsync(http, core.Options.JsonBodyBytes, ct);
         if (failure == JsonBody.Failure.TooLarge) return SyllabusProblem.TooLarge();
-        if (failure == JsonBody.Failure.Unsupported) return SyllabusProblem.Unsupported();
+        if (failure == JsonBody.Failure.Unsupported) return SyllabusProblem.UnsupportedMediaType();
         if (!JsonBody.TryBind<ItemCreateRequest>(bytes!, out var req) || req is null) return SyllabusProblem.InvalidBare();
         var material = SyllabusService.Material("POST", Routes.ItemTemplate, "/syllabi/" + Ids2.Syl(syllabusId) + "/items", req.Kind, req.Title, req.Notes, req.Date, req.EndDate, req.Time, req.EndTime,
             req.AllDay is null ? null : req.AllDay.Value ? "1" : "0", req.Timezone);
@@ -181,7 +181,7 @@ internal sealed class ItemService(SyllabusCore core, SyllabusService syllabi, Mo
             return SyllabusProblem.NotFound();
         var (bytes, failure) = await JsonBody.ReadBytesAsync(http, core.Options.JsonBodyBytes, ct);
         if (failure == JsonBody.Failure.TooLarge) return SyllabusProblem.TooLarge();
-        if (failure == JsonBody.Failure.Unsupported) return SyllabusProblem.Unsupported();
+        if (failure == JsonBody.Failure.Unsupported) return SyllabusProblem.UnsupportedMediaType();
         if (!JsonBody.TryBind<DecisionRequest>(bytes!, out var req) || req is null) return SyllabusProblem.InvalidBare();
         if (req.Decision is not ("undecided" or "approved" or "skipped")) return SyllabusProblem.Invalid("decision");
 
@@ -308,7 +308,7 @@ internal sealed class ItemService(SyllabusCore core, SyllabusService syllabi, Mo
             return SyllabusProblem.NotFound();
         var (bytes, failure) = await JsonBody.ReadBytesAsync(http, core.Options.JsonBodyBytes, ct);
         if (failure == JsonBody.Failure.TooLarge) return SyllabusProblem.TooLarge();
-        if (failure == JsonBody.Failure.Unsupported) return SyllabusProblem.Unsupported();
+        if (failure == JsonBody.Failure.Unsupported) return SyllabusProblem.UnsupportedMediaType();
         if (!JsonBody.TryBindMembers(bytes!, out var m) || m is null || m.Count == 0) return SyllabusProblem.InvalidBare();
 
         var parsed = ParsePatch(m, out var invalid);

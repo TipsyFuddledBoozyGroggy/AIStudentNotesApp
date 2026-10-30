@@ -10,7 +10,7 @@ namespace Tether.Syllabus.Application;
 /// closed vocabulary that never echoes the rejected value (API_CONTRACTS_P2 section 2 and 9).
 /// </summary>
 internal sealed class SyllabusProblem(int status, string code, string? existingSyllabusId = null, int? retryAfterSeconds = null,
-    IReadOnlyDictionary<string, string[]>? errors = null) : IResult
+    IReadOnlyDictionary<string, string[]>? errors = null, string? textKey = null) : IResult
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -18,6 +18,8 @@ internal sealed class SyllabusProblem(int status, string code, string? existingS
     };
 
     public const string TypeBase = "https://errors.tether.invalid/";
+
+    private const string MediaTypeText = "unsupported_type:media";
 
     private static readonly Dictionary<string, (string Title, string Detail)> Fixed = new()
     {
@@ -32,7 +34,9 @@ internal sealed class SyllabusProblem(int status, string code, string? existingS
         ["rate_limited"] = ("Too many requests.", "Too many requests. Please slow down."),
         ["provider_unavailable"] = ("Service unavailable.", "A required service is temporarily unavailable."),
         ["unsupported_type"] = ("Unsupported file type.", "The content is not a PDF, DOCX or plain text file."),
-        ["too_large"] = ("Too large.", "The request is over the size, page or character limit."),
+        // Same wire code (unsupported_type), neutral fixed wording for routes that take no file (JSON routes, wrong create content type).
+        [MediaTypeText] = ("Unsupported media type.", "The content type of the request is not supported."),
+        ["too_large"] =("Too large.", "The request is over the size, page or character limit."),
         ["duplicate_syllabus"] = ("Duplicate syllabus.", "This syllabus is already in the course."),
         ["extraction_in_progress"] = ("Extraction in progress.", "An extraction is already running."),
         ["syllabus_limit_reached"] = ("Syllabus limit reached.", "The syllabus limit was reached."),
@@ -51,7 +55,7 @@ internal sealed class SyllabusProblem(int status, string code, string? existingS
 
     public Task ExecuteAsync(HttpContext http)
     {
-        var (title, detail) = Fixed.TryGetValue(code, out var f) ? f : ("Error.", "The request could not be completed.");
+        var (title, detail) = Fixed.TryGetValue(textKey ?? code, out var f) ? f : ("Error.", "The request could not be completed.");
         var body = new Body
         {
             Type = TypeBase + code, Title = title, Status = status, Detail = detail, Code = code,
@@ -87,7 +91,10 @@ internal sealed class SyllabusProblem(int status, string code, string? existingS
     public static IResult Conflict(string code, string? existing = null) => new SyllabusProblem(409, code, existingSyllabusId: existing);
     public static IResult RateLimited(int retryAfter = 60) => new SyllabusProblem(429, "rate_limited", retryAfterSeconds: retryAfter);
     public static IResult TooLarge() => new SyllabusProblem(413, "too_large");
+    /// <summary>415 for file content (upload route): the message names the accepted document types.</summary>
     public static IResult Unsupported() => new SyllabusProblem(415, "unsupported_type");
+    /// <summary>415 for a wrong request Content-Type: same wire code, neutral wording (no file is involved).</summary>
+    public static IResult UnsupportedMediaType() => new SyllabusProblem(415, "unsupported_type", textKey: MediaTypeText);
     public static IResult ProviderUnavailable() => new SyllabusProblem(503, "provider_unavailable");
     public static IResult Csrf() => new SyllabusProblem(403, "csrf_failed");
 

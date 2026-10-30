@@ -68,6 +68,24 @@ public sealed class SyllabusContractTests
     }
 
     [Fact]
+    public void Create_request_pairs_term_dates_in_both_directions_and_the_decision_is_recorded()
+    {
+        var schema = JsonNode.Parse(File.ReadAllText(Path.Combine(SchemaDir, "syllabus-create-request.schema.json")))!;
+        var dep = schema["dependentRequired"]!.AsObject();
+        Assert.Equal("termEnd", dep["termStart"]!.AsArray().Single()!.GetValue<string>());
+        Assert.Equal("termStart", dep["termEnd"]!.AsArray().Single()!.GetValue<string>());
+        var files = Fixtures("valid").Concat(Fixtures("invalid")).Select(f => f.File).ToList();
+        foreach (var f in new[] { "syllabus-create-request--no-term.json", "syllabus-create-request--term-only-start.json",
+                     "syllabus-create-request--term-only-end.json", "syllabus-create-request--term-start-with-null-end.json" })
+            Assert.Contains(f, files);
+        var doc = DocText();
+        if (doc.Length == 0) return;
+        Assert.Contains("termStart` and `termEnd` are sent together or not at all", doc);
+        Assert.Contains("`application/merge-patch+json` and `application/json-patch+json` are not accepted", doc);
+        Assert.Contains("`If-Match: *` is not accepted", doc);
+    }
+
+    [Fact]
     public void Every_object_schema_is_strict()
     {
         foreach (var name in SchemaNames())

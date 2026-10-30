@@ -73,11 +73,13 @@ describe("syllabus.v1 schemas under ajv with the u flag (code-point engine, R3-0
 });
 
 describe("request builders produce schema-valid bodies", () => {
-  it("paste create (with and without the optional first day of classes)", () => {
+  it("paste create (term dates both or neither: Lead decision 61)", () => {
     const base = { text: "Week 1: Quiz 1 due Sept 14.", defaultTimezone: "America/New_York", noticeVersion: NOTICE_VERSION, acceptedAt: "2026-10-30T12:00:00.000Z" };
     const v = cp.byName("syllabus-create-request");
     expect(v(createFromTextBody(base)), cp.explain("syllabus-create-request")).toBe(true);
-    expect(v(createFromTextBody({ ...base, termStart: "2026-08-24" }))).toBe(true);
+    expect(v(createFromTextBody({ ...base, termStart: "2026-08-24", termEnd: "2026-12-11" }))).toBe(true);
+    expect(v(createFromTextBody({ ...base, termStart: "2026-08-24" }))).toBe(false); // a lone date is invalid under the amended schema
+    expect(v(createFromTextBody({ ...base, termEnd: "2026-12-11" }))).toBe(false);
     expect(createFromTextBody(base)).not.toHaveProperty("termStart");
     expect(createFromTextBody(base)).not.toHaveProperty("allowDuplicate");
   });

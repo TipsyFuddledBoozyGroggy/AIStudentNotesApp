@@ -164,7 +164,8 @@ export const ITEM_COPY = {
   allDay: "All day",
   past: "Date has passed",
   edited: "You edited this",
-  repeats: (days: string, from: string, until: string) => `Repeats weekly on ${days}, ${from} to ${until}.`,
+  /** `days` from weekdayList ("Tuesday and Thursday"), `range` from dateRange ("Aug 25 to Dec 11"): the weekday is named once. */
+  repeats: (days: string, range: string) => `Repeats every ${days}, ${range}.`,
   sourceToggle: "See where this came from",
   sourceFrom: (page: number | null) => (page ? `From your syllabus, page ${page}:` : "From your syllabus:"),
   sourceAround: "The line around it:",

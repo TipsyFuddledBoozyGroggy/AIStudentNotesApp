@@ -88,7 +88,7 @@ internal sealed class SyllabusService(SyllabusCore core, ICourseOwnership course
             {
                 var (bytes, failure) = await JsonBody.ReadBytesAsync(http, core.Options.PasteBodyBytes, ct);
                 if (failure == JsonBody.Failure.TooLarge) return SyllabusProblem.TooLarge();
-                if (failure == JsonBody.Failure.Unsupported) return SyllabusProblem.Unsupported();
+                if (failure == JsonBody.Failure.Unsupported) return SyllabusProblem.UnsupportedMediaType();
                 if (!JsonBody.TryBind<CreateSyllabusRequest>(bytes!, out var r) || r is null) return SyllabusProblem.InvalidBare();
                 if (r.Text is null) return SyllabusProblem.Invalid("text", "required");     // exactly one of file or text
                 req = r; uploadText = r.Text; fileType = null; contentSha = "";

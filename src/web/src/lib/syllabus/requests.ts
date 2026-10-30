@@ -9,7 +9,7 @@ export const NOTICE_VERSION = "draft-2026-10";
 
 /** The `metadata` part of a multipart create (syllabus-create-request without `text`; at most 4 KB). */
 export function createMetadataBody(input: CreateMeta): Record<string, unknown> {
-  // Contract-valid either way; the form asks for both or neither because the real server rejects one alone (CreateMeta).
+  // Term dates are both or neither (contract Lead decision 61); the form enforces it, the schema and server reject one alone.
   return {
     ...(input.title ? { title: input.title } : {}),
     ...(input.termStart ? { termStart: input.termStart } : {}),

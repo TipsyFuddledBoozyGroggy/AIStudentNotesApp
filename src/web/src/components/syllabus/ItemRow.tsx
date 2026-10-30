@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ApiError } from "@/lib/api/errors";
 import { PlainText } from "@/lib/lecture/PlainTextSpan";
 import type { SyllabusApi } from "@/lib/syllabus/client";
-import { formatDate, KIND_LABEL, todayYmd, weekdayNames, whenLine } from "@/lib/syllabus/format";
+import { dateRange, formatDate, KIND_LABEL, todayYmd, weekdayList, whenLine } from "@/lib/syllabus/format";
 import type { Decision, SyllabusItem } from "@/lib/syllabus/types";
 import { useAnnouncer } from "../lecture/Announcer";
 import { ActionProblem } from "./ActionProblem";
@@ -144,7 +144,7 @@ export function ItemRow({ api, item, defaultTimezone, purged, onChange }: ItemRo
             {past && <span className="text-muted">{C.past}</span>}
           </p>
           {item.recurrence && (
-            <p className="text-sm text-muted">{C.repeats(weekdayNames(item.recurrence.byDay), formatDate(item.recurrence.from), formatDate(item.recurrence.until))}</p>
+            <p className="text-sm text-muted">{C.repeats(weekdayList(item.recurrence.byDay), dateRange(item.recurrence.from, item.recurrence.until))}</p>
           )}
           {needsDate && item.when.unknownReason && (
             <p className="text-sm">

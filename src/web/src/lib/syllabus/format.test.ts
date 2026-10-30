@@ -1,4 +1,5 @@
-import { formatDate, formatTime, isRealDate, weekRangeLabel, weekStart } from "./format";
+import { ITEM_COPY } from "@/components/syllabus/copy";
+import { dateRange, formatDate, formatTime, isRealDate, weekdayList, weekRangeLabel, weekStart } from "./format";
 import { groupItems, firstOpenGroup } from "./grouping";
 import { loadFixtures } from "@/lib/lecture/schemas.node";
 import { parseItem } from "./parse";
@@ -20,6 +21,28 @@ it("formats wall-clock dates and times without shifting by the browser zone", ()
   expect(weekStart("2026-10-18")).toBe("2026-10-12");
   expect(weekStart("2026-10-12")).toBe("2026-10-12");
   expect(weekRangeLabel("2026-10-26")).toBe("Oct 26 to Nov 1");
+});
+
+describe("recurrence line (weekday named once)", () => {
+  it("weekdayList: full names, Monday-first, 'and' before the last, no duplicates", () => {
+    expect(weekdayList(["TU"])).toBe("Tuesday");
+    expect(weekdayList(["TH", "TU"])).toBe("Tuesday and Thursday");
+    expect(weekdayList(["FR", "MO", "WE", "MO"])).toBe("Monday, Wednesday and Friday");
+  });
+
+  it("dateRange: no weekdays; year only when not this year, once when both share it", () => {
+    expect(dateRange("2026-08-25", "2026-12-11", 2026)).toBe("Aug 25 to Dec 11");
+    expect(dateRange("2027-01-12", "2027-05-04", 2026)).toBe("Jan 12 to May 4, 2027");
+    expect(dateRange("2026-08-25", "2027-01-15", 2026)).toBe("Aug 25, 2026 to Jan 15, 2027");
+  });
+
+  it("ITEM_COPY.repeats reads naturally and never repeats the weekday", () => {
+    const line = ITEM_COPY.repeats(weekdayList(["TU"]), dateRange("2026-08-25", "2026-12-11", 2026));
+    expect(line).toBe("Repeats every Tuesday, Aug 25 to Dec 11.");
+    expect(line.match(/Tue/g)).toHaveLength(1);
+    expect(line).not.toMatch(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun),/);
+    expect(ITEM_COPY.repeats(weekdayList(["TU", "TH"]), dateRange("2026-08-25", "2026-12-10", 2026))).toBe("Repeats every Tuesday and Thursday, Aug 25 to Dec 10.");
+  });
 });
 
 it("groups: weeks ascending, then Course policies, then Needs a date last; first undecided group opens", () => {

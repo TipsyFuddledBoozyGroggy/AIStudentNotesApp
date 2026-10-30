@@ -112,6 +112,7 @@ public class SyllabusUploadTests(ApiFactory factory) : SyllabusTestBase(factory)
             await res.AssertProblemAsync(HttpStatusCode.UnsupportedMediaType, "unsupported_type");
             var raw = await res.Content.ReadAsStringAsync();
             Assert.DoesNotContain(c.File, raw);                                                  // neither is the filename
+            Assert.Equal("The content is not a PDF, DOCX or plain text file.", (await res.BodyAsync()).GetProperty("detail").GetString());   // the upload route keeps its file wording
         }
         Assert.Equal(0, await F.ScalarAsync($"select count(*) from syllabus.syllabi where user_id = '{a.UserId}'"));
     }
@@ -150,7 +151,9 @@ public class SyllabusUploadTests(ApiFactory factory) : SyllabusTestBase(factory)
         await (await Upload(a.Client, course, Form(text, metadata: withFilename))).AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
         var notMultipart = new HttpRequestMessage(HttpMethod.Post, $"{Api}/courses/{course}/syllabi") { Content = new StringContent("x", Encoding.UTF8, "text/plain") };
         notMultipart.Headers.TryAddWithoutValidation("Idempotency-Key", NewKey());
-        await (await a.Client.SendAsync(notMultipart)).AssertProblemAsync(HttpStatusCode.UnsupportedMediaType, "unsupported_type");
+        var nm = await a.Client.SendAsync(notMultipart);
+        await nm.AssertProblemAsync(HttpStatusCode.UnsupportedMediaType, "unsupported_type");
+        Assert.Equal("The content type of the request is not supported.", (await nm.BodyAsync()).GetProperty("detail").GetString());   // neutral: no file involved
         Assert.Equal(0, await F.ScalarAsync($"select count(*) from syllabus.syllabi where user_id = '{a.UserId}'"));
     }
 
