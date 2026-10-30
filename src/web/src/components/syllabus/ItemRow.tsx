@@ -7,8 +7,10 @@ import type { SyllabusApi } from "@/lib/syllabus/client";
 import { formatDate, KIND_LABEL, todayYmd, weekdayNames, whenLine } from "@/lib/syllabus/format";
 import type { Decision, SyllabusItem } from "@/lib/syllabus/types";
 import { useAnnouncer } from "../lecture/Announcer";
-import { ITEM_COPY as C } from "./copy";
+import { ActionProblem } from "./ActionProblem";
+import { ACTION_COPY, ITEM_COPY as C } from "./copy";
 import { ConfidenceIcon, DecisionIcon } from "./icons";
+import { ItemCalendar } from "./ItemCalendar";
 import { hasDraft, ItemEditForm } from "./ItemEditForm";
 
 export interface ItemRowProps {
@@ -40,7 +42,7 @@ export function ItemRow({ api, item, defaultTimezone, purged, onChange }: ItemRo
   const [editing, setEditing] = useState<false | "title" | "date">(() => (hasDraft(item) ? (needsDate ? "date" : "title") : false));
   const [sourceOpen, setSourceOpen] = useState(item.confidence === "please_check");
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState<null | { kind: "save" | "conflict"; retry: Pending | null }>(null);
+  const [failed, setFailed] = useState<null | { kind: "save" | "conflict" | "session"; retry: Pending | null }>(null);
   const editBtn = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef(false);
 
@@ -62,7 +64,10 @@ export function ItemRow({ api, item, defaultTimezone, purged, onChange }: ItemRo
       const t = next.title;
       announcer.status(p.target === "approved" ? C.approvedMsg(t) : p.target === "skipped" ? C.skippedMsg(t) : C.undoneMsg(t));
     } catch (e) {
-      if (e instanceof ApiError && e.status === 412) {
+      if (e instanceof ApiError && e.isUnauthenticated) {
+        setFailed({ kind: "session", retry: null });
+        announcer.alert("syllabus-session", ACTION_COPY.sessionHeading);
+      } else if (e instanceof ApiError && e.status === 412) {
         try {
           onChange(await api.getItem(item.syllabusId, item.id));
         } catch {
@@ -191,7 +196,8 @@ export function ItemRow({ api, item, defaultTimezone, purged, onChange }: ItemRo
         </p>
       )}
 
-      {failed && (
+      {failed?.kind === "session" && <ActionProblem kind="session" className="mt-3" />}
+      {failed && failed.kind !== "session" && (
         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
           <p className="font-semibold">{failed.kind === "conflict" ? C.changedElsewhere : C.saveFailed}</p>
           {failed.retry && (
@@ -220,6 +226,8 @@ export function ItemRow({ api, item, defaultTimezone, purged, onChange }: ItemRo
           }}
         />
       )}
+
+      {!isPolicy && !editing && <ItemCalendar api={api} item={item} onChange={onChange} />}
 
       {snippetPurged && !skipped && <p className="mt-2 text-sm text-muted">{C.purgedSnippet}</p>}
 

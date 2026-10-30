@@ -158,15 +158,31 @@ export interface Page<T> {
   nextCursor: string | null;
 }
 
-/** POST /courses/{courseId}/syllabi, JSON (paste) form. Upload (multipart) is increment F2. */
-export interface CreateFromTextInput {
-  text: string;
+/** Members shared by the JSON (paste) body and the multipart `metadata` part (syllabus-create-request). */
+export interface CreateMeta {
+  /**
+   * Term dates are sent both or neither: the contract allows either alone, but the real server answers 400
+   * `termStart: required` unless both are present (recorded as a contract/server mismatch in the F2 hand-off).
+   */
   termStart?: string | null;
+  termEnd?: string | null;
   defaultTimezone: string;
   noticeVersion: string;
   /** Advisory only: the server records its own receipt time as notice.attestedAt (R3-11). */
   acceptedAt: string;
   title?: string | null;
+}
+
+/** POST /courses/{courseId}/syllabi, JSON (paste) form. */
+export interface CreateFromTextInput extends CreateMeta {
+  text: string;
+}
+
+/** POST /courses/{courseId}/syllabi, multipart form: exactly one `file` part plus one `metadata` part (no `text`). */
+export interface CreateFromFileInput extends CreateMeta {
+  file: Blob;
+  /** Sent as the part filename only so the server can compare the extension; the server discards it (5.1 item 1). */
+  fileName: string;
 }
 
 /** JSON merge-patch: absent = unchanged; null only where the schema allows it. */
@@ -198,4 +214,24 @@ export type ItemErrorCode =
 export interface BatchResult {
   results: { itemId: string; outcome: "applied" | "unchanged" | "rejected"; errorCode: ItemErrorCode | null; item: SyllabusItem | null }[];
   counts: { applied: number; unchanged: number; rejected: number };
+}
+
+export type RunStatus = "all_succeeded" | "partial" | "failed" | "nothing_to_do";
+export type SyncOutcome = "created" | "updated" | "unchanged" | "failed" | "not_eligible";
+
+/** syllabus-calendar-sync-result. A replay (Idempotency-Replayed) is history: callers re-read items for state. */
+export interface SyncResult {
+  syncId: string;
+  syllabusId: string;
+  status: RunStatus;
+  completedAt: string;
+  results: { itemId: string; itemKey: string; outcome: SyncOutcome; errorCode: ItemErrorCode | null; eventCount: number; syncState: SyncState }[];
+  counts: { created: number; updated: number; unchanged: number; failed: number; notEligible: number };
+}
+
+export interface RemoveResult {
+  syllabusId: string;
+  status: RunStatus;
+  results: { itemId: string; outcome: "removed" | "not_present" | "failed"; errorCode: ItemErrorCode | null; syncState: SyncState }[];
+  counts: { removed: number; notPresent: number; failed: number };
 }

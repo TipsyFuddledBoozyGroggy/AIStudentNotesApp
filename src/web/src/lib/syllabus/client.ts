@@ -1,7 +1,19 @@
 import { ApiError } from "@/lib/api/errors";
-import { isId, parseBatchResult, parseItem, parseItemPage, parseSyllabus, parseSyllabusPage } from "./parse";
-import { batchDecisionBody, createFromTextBody, decisionBody, isIdempotencyKey, patchBody } from "./requests";
-import type { BatchAction, BatchResult, CreateFromTextInput, Decision, ItemPatch, Page, Syllabus, SyllabusItem } from "./types";
+import { isExportOf, isId, parseBatchResult, parseItem, parseItemPage, parseRemoveResult, parseSyllabus, parseSyllabusPage, parseSyncResult } from "./parse";
+import { batchDecisionBody, calendarRemoveBody, calendarSyncBody, createFromTextBody, createMetadataBody, decisionBody, isIdempotencyKey, patchBody } from "./requests";
+import type {
+  BatchAction,
+  BatchResult,
+  CreateFromFileInput,
+  CreateFromTextInput,
+  Decision,
+  ItemPatch,
+  Page,
+  RemoveResult,
+  Syllabus,
+  SyllabusItem,
+  SyncResult,
+} from "./types";
 
 /** Error for a body that does not match syllabus.v1. The UI shows a calm "could not show this" state. */
 export class SyllabusParseError extends ApiError {
@@ -42,8 +54,18 @@ export interface SyllabusApi {
   updateItem(id: string, itemId: string, patch: ItemPatch, etag: string): Promise<SyllabusItem>;
   /** POST decision with If-Match. `acknowledgeCheck` is required to approve a please_check item. */
   decide(id: string, itemId: string, decision: Decision, etag: string, acknowledgeCheck?: boolean): Promise<SyllabusItem>;
-  /** Batch (map-keyed by item id). Not used by the F1 UI. */
+  /** Batch (map-keyed by item id, 1 to 100). Per-item outcomes; never full success when any item was rejected. */
   decideBatch(id: string, action: BatchAction, itemEtags: ReadonlyMap<string, string>): Promise<BatchResult>;
+  /** POST multipart (one `metadata` part, one `file` part). Same Idempotency-Key rule as createFromText. */
+  createFromFile(courseId: string, input: CreateFromFileInput, idempotencyKey: string): Promise<Created>;
+  /** DELETE /syllabi/{id}: no parameters. Cancels a running read and removes everything, demo calendar events included. */
+  deleteSyllabus(id: string): Promise<void>;
+  /** Mock calendar sync. One Idempotency-Key per press; reuse it only to retry the same body after a network failure. */
+  syncCalendar(id: string, itemRevisions: ReadonlyMap<string, number>, idempotencyKey: string): Promise<{ result: SyncResult; replayed: boolean }>;
+  /** Removes demo calendar events; the items stay approved. */
+  removeFromCalendar(id: string, itemIds: readonly string[]): Promise<RemoveResult>;
+  /** The export body as text (downloaded, never rendered), after checking it is this syllabus's syllabus.v1 export. */
+  exportSyllabus(id: string): Promise<string>;
 }
 
 export interface SyllabusApiOptions {
@@ -65,7 +87,8 @@ export function createSyllabusApi({ baseUrl, fetchImpl }: SyllabusApiOptions): S
         ...init,
         headers: {
           Accept: "application/json, application/problem+json",
-          ...(init.body ? { "Content-Type": "application/json" } : {}),
+          // JSON bodies only. A FormData body gets its multipart boundary from the browser, so no Content-Type here.
+          ...(typeof init.body === "string" ? { "Content-Type": "application/json" } : {}),
           ...init.headers,
         },
       });
@@ -171,6 +194,54 @@ export function createSyllabusApi({ baseUrl, fetchImpl }: SyllabusApiOptions): S
       requireId(id, ...itemEtags.keys());
       const res = await request(`/syllabi/${enc(id)}/decisions`, { method: "POST", body: JSON.stringify(batchDecisionBody(action, itemEtags)) });
       return json(res, parseBatchResult);
+    },
+    async createFromFile(courseId, input, idempotencyKey) {
+      requireId(courseId);
+      if (!isIdempotencyKey(idempotencyKey)) throw new SyllabusApiError(400, "validation_failed", undefined);
+      const form = new FormData();
+      form.append("metadata", JSON.stringify(createMetadataBody(input)));
+      form.append("file", input.file, input.fileName);
+      const res = await request(`/courses/${enc(courseId)}/syllabi`, { method: "POST", headers: { "Idempotency-Key": idempotencyKey }, body: form });
+      const syllabus = await json(res, parseSyllabus);
+      return { syllabus, replayed: res.headers.get("Idempotency-Replayed") === "true" };
+    },
+    async deleteSyllabus(id) {
+      requireId(id);
+      await request(`/syllabi/${enc(id)}`, { method: "DELETE" });
+    },
+    async syncCalendar(id, itemRevisions, idempotencyKey) {
+      requireId(id, ...itemRevisions.keys());
+      if (!isIdempotencyKey(idempotencyKey)) throw new SyllabusApiError(400, "validation_failed", undefined);
+      const res = await request(`/syllabi/${enc(id)}/calendar-sync`, {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify(calendarSyncBody(itemRevisions)),
+      });
+      const result = await json(res, parseSyncResult);
+      return { result, replayed: res.headers.get("Idempotency-Replayed") === "true" };
+    },
+    async removeFromCalendar(id, itemIds) {
+      requireId(id, ...itemIds);
+      const res = await request(`/syllabi/${enc(id)}/calendar-sync/remove`, { method: "POST", body: JSON.stringify(calendarRemoveBody(itemIds)) });
+      return json(res, parseRemoveResult);
+    },
+    async exportSyllabus(id) {
+      requireId(id);
+      const res = await request(`/syllabi/${enc(id)}/export`);
+      let text: string;
+      try {
+        text = await res.text();
+      } catch {
+        throw new SyllabusParseError();
+      }
+      let body: unknown;
+      try {
+        body = JSON.parse(text);
+      } catch {
+        throw new SyllabusParseError();
+      }
+      if (!isExportOf(body, id)) throw new SyllabusParseError();
+      return text;
     },
   };
 }

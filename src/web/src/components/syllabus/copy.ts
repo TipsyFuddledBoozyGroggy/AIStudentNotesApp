@@ -226,3 +226,199 @@ export const EDIT_COPY = {
 
 /** Card copy key for each extraction status (in progress vs finished-without-items). */
 export const isNotRead = (s: ExtractionStatus) => s === "failed" || s === "needs_text";
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Increment P2-F2 (mock only). Same rules: language guide, copy lint, NOT human-validated (G4 NOT_RUN).
+
+const items = (n: number) => `${n} ${n === 1 ? "item" : "items"}`;
+
+/** File intake (UX 3 and 8). The backend reads plain text only in this increment; PDF and Word end "disabled". */
+export const FILE_COPY = {
+  methodLegend: "How to add your syllabus",
+  methodPaste: "Paste text",
+  methodFile: "Upload a file",
+  label: "Syllabus file",
+  hint: "Plain text files (.txt) up to 10 MB. PDF and Word files can't be read yet.",
+  selected: (name: string, size: string) => `Selected: ${name} (${size})`,
+  remove: "Remove",
+  removeName: "Remove the chosen file",
+  hintNeedFile: "Choose a file first.",
+  hintOtherFile: "Choose another file first.",
+  lastDayLabel: "Last day of classes (optional)",
+  termHint: "Add both dates, or leave both empty.",
+  errors: {
+    type: "We can't use that kind of file. Use a plain text file, or paste the text.",
+    notYet: "Tether can't read PDF or Word files yet. Paste the text instead, or use a plain text file.",
+    size: "That file is too big. The limit is 10 MB. Try a smaller file or paste the text.",
+    empty: "This file is empty. Choose another file or paste the text.",
+    network: "We could not reach the server. Your syllabus wasn't sent. Try again when you're back online.",
+    termPair: "Add both the first and last day of classes, or leave both empty.",
+    termOrder: "The last day of classes is before the first day. Check both dates.",
+  },
+} as const;
+
+/** A PDF or Word upload ends `failed` with `disabled`: no parser exists in this increment. */
+export const NOT_READ_FILE_NOT_YET = {
+  heading: "Tether can't read this kind of file yet.",
+  body: "PDF and Word files are not read in this version. Nothing was saved from this file. You can paste the text instead.",
+} as const;
+
+export const STOP_COPY = {
+  button: "Stop reading",
+  heading: "Stop reading this syllabus?",
+  body: "Nothing is saved from it.",
+  confirm: "Stop reading",
+  keep: "Keep going",
+  busy: "Stopping...",
+  done: "Stopped. Nothing was saved from this syllabus.",
+} as const;
+
+/** UX 5.4. Batch approve is optional, never the default, and only for clear items. */
+export const BATCH_COPY = {
+  week: (n: number) => `Approve the clear ones in this week (${n})`,
+  group: (n: number) => `Approve the clear ones in this group (${n})`,
+  /** Accessible name: the visible label first (WCAG 2.5.3), then the group, so each group's button is unique. */
+  groupName: (visible: string, group: string) => `${visible}: ${group}`,
+  menu: "More ways to decide",
+  all: (n: number) => `Approve all clear items (${n})`,
+  what: "Clear items have a date and look right. Items that need a check are never included.",
+  explain: (n: number) => `This will approve ${items(n)} that have a date and look right. You can undo it.`,
+  readEach: "Read each date against its source before you approve.",
+  sourceLabel: "From your syllabus:",
+  go: (n: number) => `Approve ${items(n)}`,
+  busy: "Approving...",
+  cancel: "Cancel",
+  done: (n: number) => `Approved ${items(n)}.`,
+  partial: (k: number, n: number) => `Approved ${k} of ${n}. The others are unchanged and can be decided one by one.`,
+  undo: "Undo this",
+  undoBusy: "Undoing...",
+  undone: (n: number) => `Undone: ${items(n)}.`,
+} as const;
+
+/** UX 5.5. Position is text ("Item 3 of 24"); no progress bar, no "left" language. */
+export const ONE_COPY = {
+  open: "Review one at a time",
+  h1: "Review one at a time",
+  position: (i: number, n: number) => `Item ${i} of ${n}`,
+  next: "Next, decide later",
+  back: "Back",
+  exit: "Back to the list",
+  endHeading: "That's all of them.",
+  endCounts: (a: number, s: number, u: number) => `${a} approved, ${s} skipped, ${u} not decided.`,
+  reviewLeft: "Review the ones left",
+  toCalendar: "Go to calendar step",
+  empty: "There is nothing to decide here.",
+} as const;
+
+/**
+ * Mock calendar sync (UX 6, contract 6.3). `confirmDemo` and `resultDemo` are verbatim from the UX spec (sync.confirm.demo,
+ * sync.result.demo; gate G1, not reworded). The tag word "Demo calendar" sits beside every calendar Demo line.
+ */
+export const SYNC_COPY = {
+  tagWord: "Demo calendar",
+  confirmDemo: "Demo only. Nothing is sent to Google Calendar. Your Google account is not connected.",
+  resultDemo: "This is a demo. Nothing was sent to Google Calendar.",
+  bar: (n: number) => `Add ${n} approved ${n === 1 ? "item" : "items"} to the demo calendar`,
+  barHint: "Approve an item to continue.",
+  barRegion: "Calendar step",
+  skipTo: "Skip to calendar step",
+  confirmH1: "Add approved items to the demo calendar",
+  lead: (n: number) => `You approved ${items(n)}:`,
+  state: {
+    new: "New",
+    already: "Already in the demo calendar",
+    changed: "Changed since it was added",
+    retry: "Did not go through last time",
+  },
+  updateLabel: "Update it in the demo calendar",
+  notUpdated: (n: number) => (n === 1 ? "1 changed item stays as it was in the demo calendar." : `${n} changed items stay as they were in the demo calendar.`),
+  notAdded: (u: number, s: number, d: number) => `Not added: ${u} not decided, ${s} skipped, ${d} need a date.`,
+  noneChosen: "Check an item above to send it.",
+  go: (n: number) => `Add ${items(n)} to the demo calendar`,
+  busy: "Adding...",
+  back: "Back to review",
+  resultDone: (n: number) => `Done. ${n} ${n === 1 ? "item is" : "items are"} in the demo calendar.`,
+  resultAlready: "These items are already in the demo calendar.",
+  resultPartial: (k: number, n: number) => `Added ${k} of ${n}. ${n - k} didn't go through.`,
+  resultNone: "None of these items went into the demo calendar.",
+  later: "You can change or remove any of these later.",
+  outcome: {
+    created: "Added",
+    updated: "Updated",
+    unchanged: "Already in the demo calendar",
+    failed: "Didn't go through",
+    not_eligible: "Not added",
+  },
+  reason: {
+    item_not_approved: "It is no longer approved.",
+    item_needs_date: "It needs a date first.",
+    item_not_syncable: "Course policies are never added to a calendar.",
+    precondition_failed: "It changed after you reviewed it. Check it, then try again.",
+    not_found: "It is no longer in this syllabus.",
+    provider_unavailable: "The demo calendar was not available.",
+    event_limit_reached: "The demo calendar holds no more entries for this syllabus.",
+    other: "That did not work. Nothing was changed for this item.",
+  },
+  retry: "Try again",
+  retryName: (t: string) => `Try again: ${t}`,
+  retryBusy: "Trying...",
+  backToCourse: "Back to course",
+  // Item row (review list)
+  rowIn: "In the demo calendar",
+  rowChanged: "Changed since it was added",
+  rowChangedNote: "The demo calendar keeps the earlier version until you add it again.",
+  rowNotThrough: "This did not go through to the demo calendar. You can try again from the calendar step.",
+  withdrawNote: "Undo or Skip also removes it from the demo calendar.",
+  remove: "Remove from the demo calendar",
+  removeName: (t: string) => `Remove from the demo calendar: ${t}`,
+  removedMsg: (t: string) => `Removed from the demo calendar: ${t}.`,
+  removedNote: "Removed from the demo calendar. It is still approved.",
+  undoRemoveName: (t: string) => `Undo removal of ${t}`,
+  addedBackMsg: (t: string) => `Added back to the demo calendar: ${t}.`,
+} as const;
+
+export const DELETE_COPY = {
+  button: "Delete this syllabus",
+  heading: "Delete this syllabus?",
+  body: "This deletes the syllabus, the items Tether found and your decisions. Its items in the demo calendar are removed too.",
+  copies: "Copies you downloaded are not deleted.",
+  confirm: "Delete syllabus",
+  keep: "Keep it",
+  busy: "Deleting...",
+  done: "The syllabus was deleted.",
+} as const;
+
+export const EXPORT_COPY = {
+  heading: "Your data",
+  button: "Download a copy (JSON)",
+  hint: "A file with the items, the source wording and the demo calendar entries. The original file is not kept, so it is not in the copy.",
+  busy: "Preparing...",
+  done: "Your copy is ready.",
+  fileName: "syllabus-export.json",
+} as const;
+
+/** Messages for a press that did not go through (UX 8). Never a status code, never the server's text. */
+export const ACTION_COPY = {
+  network: "We could not reach the server. Nothing was changed. Try again.",
+  rateLimited: "One moment. Try again in about a minute. Nothing was changed.",
+  generic: "That did not work. Nothing was changed.",
+  gone: "This syllabus is no longer here. It may have been deleted in another tab.",
+  sessionHeading: "Please sign in again.",
+  sessionBody: "What you decided is saved.",
+  signIn: "Sign in",
+} as const;
+
+/** Several syllabi per course are allowed (contract decision 8, row 5). */
+export const LIST_COPY = {
+  h1: "Syllabi for this course",
+  intro: (course: string) => `${course}. A course can hold up to 5 syllabi, for example an updated version.`,
+  added: (when: string) => `Added ${when}`,
+  source: { paste: "Pasted text", txt: "Text file", pdf: "PDF file", docx: "Word file" },
+  reading: "Being read",
+  notRead: "Could not be read",
+  found: (n: number) => `${items(n)} found`,
+  open: "Open",
+  openName: (when: string) => `Open the syllabus added ${when}`,
+  addAnother: "Add another syllabus",
+  all: "All syllabi for this course",
+} as const;

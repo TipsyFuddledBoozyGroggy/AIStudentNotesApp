@@ -14,12 +14,18 @@ interface Entry {
   /** Poll steps left before it finishes (0 = finished). */
   stepsLeft: number;
   ownerEmail: string;
+  /** Fields applied on top of the finished scenario (an upload's fileType, a PDF that ends failed/disabled). */
+  override?: Wire;
+  /** Mock demo calendar: one event per synced item, keyed by item id (recurrences are not expanded in the mock). */
+  events?: Record<string, Wire>;
 }
 
 interface State {
   entries: Record<string, Entry>;
   /** `${email}|${key}` -> fingerprint and resulting syllabus id. */
   idem: Record<string, { fingerprint: string; syllabusId: string }>;
+  /** `${email}|sync|${key}` -> fingerprint and the original sync result body (a replay returns it as history). */
+  syncIdem?: Record<string, { fingerprint: string; syllabusId: string; body: Wire }>;
   seq: number;
 }
 
@@ -47,7 +53,7 @@ export function saveSyllabusDb(): void {
 }
 
 export function resetSyllabusDb(): void {
-  state = { entries: {}, idem: {}, seq: 100 };
+  state = { entries: {}, idem: {}, syncIdem: {}, seq: 100 };
   saveSyllabusDb();
 }
 
@@ -71,8 +77,18 @@ export function recount(e: Entry): void {
 function finish(e: Entry): void {
   const s = e.syllabus;
   const done = buildSyllabus(s.id as string, s.courseId as string, e.outcome, s.createdAt as string);
-  e.syllabus = { ...done, context: s.context, notice: s.notice, inputKind: s.inputKind, contentSha256: s.contentSha256, etag: `W/"${s.id as string}-${++state.seq}"`, updatedAt: new Date().toISOString() };
-  e.items = buildItems(s.id as string, s.courseId as string, e.outcome);
+  e.syllabus = {
+    ...done,
+    context: s.context,
+    notice: s.notice,
+    inputKind: s.inputKind,
+    fileType: s.fileType,
+    contentSha256: s.contentSha256,
+    etag: `W/"${s.id as string}-${++state.seq}"`,
+    updatedAt: new Date().toISOString(),
+    ...(e.override ?? {}),
+  };
+  e.items = e.override?.status === "failed" ? [] : buildItems(s.id as string, s.courseId as string, e.outcome);
   recount(e);
 }
 
@@ -96,6 +112,33 @@ export function createFromPaste(email: string, courseId: string, body: Wire, out
   state.entries[id] = e;
   saveSyllabusDb();
   return syllabus;
+}
+
+/** A multipart upload. Plain text follows the paste path; PDF and Word end `failed`/`disabled` (no parser, as on the server). */
+export function createFromUpload(email: string, courseId: string, meta: Wire, file: { fileType: "txt" | "pdf" | "docx"; text: string | null; hash: string }, outcome: Scenario): Wire {
+  const s = createFromPaste(email, courseId, { ...meta, text: file.text ?? "" }, outcome);
+  const e = state.entries[s.id as string];
+  e.syllabus = { ...e.syllabus, inputKind: "upload", fileType: file.fileType, contentSha256: file.hash };
+  if (file.fileType !== "txt") e.override = { status: "failed", statusReason: "disabled", pollAfterSeconds: null, document: { ...(e.syllabus.document as Wire), charCount: 0 } };
+  saveSyllabusDb();
+  return e.syllabus;
+}
+
+/** DELETE: everything goes, the demo calendar events included (contract 5.2). Idempotency records stay as tombstones. */
+export function remove(email: string, id: string): boolean {
+  const e = find(email, id);
+  if (!e) return false;
+  delete state.entries[id];
+  saveSyllabusDb();
+  return true;
+}
+
+export function syncIdemGet(email: string, key: string) {
+  return state.syncIdem?.[`${email}|sync|${key}`];
+}
+export function syncIdemPut(email: string, key: string, fingerprint: string, syllabusId: string, body: Wire): void {
+  state.syncIdem = { ...(state.syncIdem ?? {}), [`${email}|sync|${key}`]: { fingerprint, syllabusId, body } };
+  saveSyllabusDb();
 }
 
 /** Owner-scoped lookup: a foreign id is indistinguishable from a missing one. */

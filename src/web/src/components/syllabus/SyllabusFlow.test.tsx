@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { syllabusApi } from "@/lib/syllabus/client";
@@ -115,17 +115,38 @@ describe("create (paste text)", () => {
     expect(screen.getByLabelText("Syllabus text")).toHaveAccessibleDescription(/We kept what you pasted\./);
   });
 
-  it("the first day of classes is optional, collapsed under Add options, and sent as termStart when given", async () => {
+  it("the term dates are optional, collapsed under Add options, and sent as termStart and termEnd when both are given", async () => {
     signedInWithCourse();
     flow();
     await fillAndAttest();
     expect(screen.getByText("Add options").closest("details")).not.toHaveAttribute("open");
     await userEvent.click(screen.getByText("Add options"));
     fireEvent.change(screen.getByLabelText("First day of classes (optional)"), { target: { value: "2026-08-24" } });
+    fireEvent.change(screen.getByLabelText("Last day of classes (optional)"), { target: { value: "2026-12-11" } });
     await userEvent.click(screen.getByRole("button", { name: "Read my syllabus" }));
     await screen.findByRole("heading", { level: 1, name: "Reading your syllabus" });
     const [s] = sdb.listForCourse(EMAIL, COURSE);
-    expect((s.context as { termStart: string }).termStart).toBe("2026-08-24");
+    expect(s.context).toMatchObject({ termStart: "2026-08-24", termEnd: "2026-12-11" });
+  });
+
+  it("one term date alone is refused beside the fields (the real server needs both), nothing is sent, the text is kept", async () => {
+    signedInWithCourse();
+    const keys = trackPosts();
+    flow();
+    await fillAndAttest();
+    await userEvent.click(screen.getByText("Add options"));
+    const first = screen.getByLabelText("First day of classes (optional)");
+    fireEvent.change(first, { target: { value: "2026-08-24" } });
+    await userEvent.click(screen.getByRole("button", { name: "Read my syllabus" }));
+    expect(await screen.findByText("Add both the first and last day of classes, or leave both empty.")).toBeInTheDocument();
+    expect(first).toHaveFocus();
+    expect(first).toHaveAttribute("aria-invalid", "true");
+    expect(keys).toHaveLength(0);
+    fireEvent.change(screen.getByLabelText("Last day of classes (optional)"), { target: { value: "2026-08-01" } });
+    await userEvent.click(screen.getByRole("button", { name: "Read my syllabus" }));
+    expect(await screen.findByText("The last day of classes is before the first day. Check both dates.")).toBeInTheDocument();
+    expect(keys).toHaveLength(0);
+    expect(screen.getByLabelText("Syllabus text")).toHaveValue("Week 1: Quiz 1 due Sept 14.");
   });
 });
 
@@ -206,12 +227,19 @@ describe("arriving at an existing syllabus", () => {
     expect(screen.getByRole("button", { name: action })).toBeInTheDocument();
   });
 
-  it("the newest syllabus is shown when there are several", async () => {
+  it("several syllabi: a list, newest first, each with Open; Open shows that one (F2: several per course)", async () => {
     signedInWithCourse();
     sdb.seedSyllabus(EMAIL, COURSE, "failed", "syl_old", "2026-10-01T00:00:00.000Z");
     sdb.seedSyllabus(EMAIL, COURSE, "ready", "syl_new", "2026-10-20T00:00:00.000Z");
     flow(await syllabusApi.listSyllabi(COURSE));
+    expect(await screen.findByRole("heading", { level: 1, name: "Syllabi for this course" })).toHaveFocus();
+    const rows = screen.getAllByRole("listitem");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("Pasted text · 11 items found");
+    expect(rows[1]).toHaveTextContent("Pasted text · Could not be read");
+    await userEvent.click(within(rows[0]).getByRole("button", { name: /^Open the syllabus added / }));
     expect(await screen.findByRole("heading", { level: 1, name: "Review your syllabus items" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All syllabi for this course" })).toBeInTheDocument();
   });
 });
 

@@ -14,6 +14,12 @@ export const USERS = {
   reload: `e2e-reload-${id}@dev.local`,
   axe: `e2e-axe-${id}@dev.local`,
   axeEmpty: `e2e-axeempty-${id}@dev.local`,
+  // Syllabus specs: one user per test keeps each inside the per-user syllabus write bucket (20/min) and the daily
+  // create quota (10/day).
+  sylMain: `e2e-syl-main-${id}@dev.local`,
+  sylOther: `e2e-syl-other-${id}@dev.local`,
+  sylHostile: `e2e-syl-hostile-${id}@dev.local`,
+  sylUpload: `e2e-syl-upload-${id}@dev.local`,
 } as const;
 export const authFile = (email: string) => path.join(AUTH_DIR, `${email}.json`);
 export const stateFor = (k: keyof typeof USERS) => authFile(USERS[k]);

@@ -87,20 +87,10 @@ function realDate(ymd: string): boolean {
   return dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }
 
-export const syllabusHandlers = [
-  http.post(`${P}/courses/:courseId/syllabi`, async ({ params, request }) => {
-    const email = user();
-    if (!email) return problem(401, "unauthenticated");
-    const key = request.headers.get("Idempotency-Key");
-    if (!key || !KEY.test(key)) return invalid("Idempotency-Key", key ? "invalid" : "required");
-    const courseId = String(params.courseId);
-    if (!ID.test(courseId)) return invalid("courseId", "not_canonical");
-    if (!db.findCourse(courseId)) return problem(404, "not_found");
-    if (!(request.headers.get("Content-Type") ?? "").startsWith("application/json")) return problem(415, "unsupported_type");
-    const parsed = await readJson(request);
-    if (!parsed.ok) return problem(400, "validation_failed");
-    const body = parsed.body;
-    const fingerprint = `${courseId}|${JSON.stringify(body, Object.keys(body).sort())}|${JSON.stringify(body.attestation ?? null)}`;
+/** Shared by the JSON (paste) and multipart (upload) create. `upload` carries the file facts the mock needs. */
+function createSyllabus(email: string, courseId: string, key: string, body: Wire, upload?: { fileType: "txt" | "pdf" | "docx"; text: string | null; fingerprint: string }): Response {
+    const sorted = JSON.stringify(body, Object.keys(body).sort());
+    const fingerprint = `${courseId}|${upload ? `upload|${upload.fingerprint}|` : ""}${sorted}|${JSON.stringify(body.attestation ?? null)}`;
     const prior = sdb.idemGet(email, key);
     if (prior) {
       if (prior.fingerprint !== fingerprint) return invalid("Idempotency-Key", "reused");
@@ -110,8 +100,9 @@ export const syllabusHandlers = [
     }
     const extra = unknownMember(body, ["title", "text", "termStart", "termEnd", "defaultTimezone", "allowDuplicate", "noticeVersion", "attestation"]);
     if (extra) return invalid(extra, "unknown_member");
-    const text = body.text;
-    if (typeof text !== "string" || text.length < 1) return invalid("text", "required");
+    if (upload && "text" in body) return invalid("text", "not_allowed"); // the metadata part has no text
+    const text = upload ? (upload.text ?? "") : body.text;
+    if (typeof text !== "string" || (!upload && text.length < 1)) return invalid("text", "required");
     if (text.includes("mock:rate-limited")) return problem(429, "rate_limited", { retryAfterSeconds: 30 });
     if (codePoints(text) > 50000 || text.includes("mock:too-large")) return problem(413, "too_large");
     if (text.includes("\u0000")) return invalid("text");
@@ -124,13 +115,30 @@ export const syllabusHandlers = [
     if (body.title != null && (typeof body.title !== "string" || BAD_SINGLE_LINE.test(body.title) || codePoints(body.title) > 200)) return invalid("title");
     if (sdb.anyInFlight(email)) return problem(409, "extraction_in_progress");
     if (sdb.listForCourse(email, courseId).length >= 5) return problem(409, "syllabus_limit_reached");
-    const dup = sdb.findDuplicate(email, courseId, sdb.textHash(text));
+    const dup = sdb.findDuplicate(email, courseId, sdb.textHash(upload ? upload.fingerprint : text));
     if (dup && body.allowDuplicate !== true) return problem(409, "duplicate_syllabus", { existingSyllabusId: dup });
     const m = /mock:([a-z-]+)/.exec(text);
     const outcome: Scenario = m && (SCENARIOS as string[]).includes(m[1]) ? (m[1] as Scenario) : "ready";
-    const s = sdb.createFromPaste(email, courseId, body, outcome);
+    const s = upload ? sdb.createFromUpload(email, courseId, body, { fileType: upload.fileType, text: upload.text, hash: sdb.textHash(upload.fingerprint) }, outcome) : sdb.createFromPaste(email, courseId, body, outcome);
     sdb.idemPut(email, key, fingerprint, s.id as string);
     return HttpResponse.json(s, { status: 202, headers: { Location: `/api/v1/syllabi/${s.id as string}` } });
+}
+
+export const syllabusHandlers = [
+  http.post(`${P}/courses/:courseId/syllabi`, async ({ params, request }) => {
+    const email = user();
+    if (!email) return problem(401, "unauthenticated");
+    const key = request.headers.get("Idempotency-Key");
+    if (!key || !KEY.test(key)) return invalid("Idempotency-Key", key ? "invalid" : "required");
+    const courseId = String(params.courseId);
+    if (!ID.test(courseId)) return invalid("courseId", "not_canonical");
+    if (!db.findCourse(courseId)) return problem(404, "not_found");
+    const ctype = request.headers.get("Content-Type") ?? "";
+    if (ctype.startsWith("multipart/form-data")) return createFromMultipart(email, courseId, key, request);
+    if (!ctype.startsWith("application/json")) return problem(415, "unsupported_type");
+    const parsed = await readJson(request);
+    if (!parsed.ok) return problem(400, "validation_failed");
+    return createSyllabus(email, courseId, key, parsed.body);
   }),
 
   http.get(`${P}/courses/:courseId/syllabi`, ({ params }) => {
@@ -263,9 +271,329 @@ export const syllabusHandlers = [
     if (body.decision !== "approved") {
       next.syncState = "not_synced"; // withdrawing removes the mock event in the same transaction (6.1)
       next.syncedRevision = null;
+      if (e.events) delete e.events[it.id as string];
     }
     e.items[idx] = next;
     touch(e);
     return HttpResponse.json(next, { headers: { ETag: next.etag as string } });
   }),
+  ...f2Handlers(),
 ];
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Increment F2: multipart create, delete, batch decisions, mock calendar sync and remove, export. Same faithfulness rule:
+// every body is validated against the real schemas in syllabusHandlers.test.ts. Mock-only scenario switches: an item
+// title containing "mock:sync-fail" does not go through at sync (provider_unavailable).
+
+const MAX_FILE = 10 * 1024 * 1024;
+
+interface Part {
+  name: string;
+  filename: string | null;
+  bytes: Uint8Array;
+}
+
+/**
+ * Minimal multipart/form-data reader for the mock (binary-safe via latin1). Request.formData() is not used: under
+ * vitest's jsdom globals Node's multipart parser fails, and the mock must behave the same in tests and the browser.
+ */
+async function readParts(request: Request): Promise<Part[] | null> {
+  const m = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(request.headers.get("Content-Type") ?? "");
+  const boundary = m?.[1] ?? m?.[2];
+  if (!boundary) return null;
+  const raw = new Uint8Array(await request.arrayBuffer());
+  if (raw.length > MAX_FILE + 64 * 1024) return null;
+  let latin = "";
+  for (let i = 0; i < raw.length; i += 8192) latin += String.fromCharCode(...raw.subarray(i, i + 8192));
+  const chunks = latin.split(`--${boundary}`);
+  if (chunks.length < 3 || !chunks[chunks.length - 1].startsWith("--")) return null;
+  const parts: Part[] = [];
+  for (const c of chunks.slice(1, -1)) {
+    const sep = c.indexOf("\r\n\r\n");
+    if (!c.startsWith("\r\n") || sep < 0 || !c.endsWith("\r\n")) return null;
+    const headers = c.slice(2, sep);
+    const cd = /content-disposition:\s*form-data;\s*name="([^"]*)"(?:;\s*filename="([^"]*)")?/i.exec(headers);
+    if (!cd) return null;
+    const content = c.slice(sep + 4, c.length - 2);
+    parts.push({ name: cd[1], filename: cd[2] ?? null, bytes: Uint8Array.from(content, (ch) => ch.charCodeAt(0)) });
+  }
+  return parts;
+}
+
+async function createFromMultipart(email: string, courseId: string, key: string, request: Request): Promise<Response> {
+  const parts = await readParts(request);
+  if (!parts) return problem(400, "validation_failed");
+  // Exactly one file part and one metadata part (contract 5.1 item 2).
+  const metaParts = parts.filter((p) => p.name === "metadata");
+  const fileParts = parts.filter((p) => p.name === "file");
+  if (parts.length !== 2 || metaParts.length !== 1 || fileParts.length !== 1) return problem(400, "validation_failed");
+  const [metaPart] = metaParts;
+  const [file] = fileParts;
+  if (metaPart.bytes.length > 4096) return problem(400, "validation_failed");
+  let body: Wire;
+  try {
+    const v: unknown = JSON.parse(new TextDecoder().decode(metaPart.bytes));
+    if (!v || typeof v !== "object" || Array.isArray(v)) return problem(400, "validation_failed");
+    body = v as Wire;
+  } catch {
+    return problem(400, "validation_failed");
+  }
+  if (file.bytes.length > MAX_FILE) return problem(413, "too_large");
+  const bytes = file.bytes;
+  const head = String.fromCharCode(...bytes.slice(0, 5));
+  const name = file.filename?.toLowerCase() ?? "";
+  const ext = name.includes(".") ? name.slice(name.lastIndexOf(".")) : "";
+  let fileType: "txt" | "pdf" | "docx";
+  if (head === "%PDF-") fileType = "pdf";
+  else if (head.startsWith("PK\u0003\u0004")) fileType = "docx";
+  else if (bytes.some((b) => b === 0)) return problem(415, "unsupported_type");
+  else fileType = "txt";
+  if (ext && ext !== `.${fileType}`) return problem(415, "unsupported_type"); // extension and signature must agree
+  let text: string | null = null;
+  if (fileType === "txt") {
+    try {
+      text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes);
+    } catch {
+      return problem(415, "unsupported_type");
+    }
+    if (!text) return problem(415, "unsupported_type");
+  }
+  return createSyllabus(email, courseId, key, body, { fileType, text, fingerprint: `${fileType}|${bytes.length}|${sdb.textHash(text ?? String(bytes.length))}` });
+}
+
+function eventFor(it: Wire, syllabusId: string): Wire {
+  const w = it.when as Wire;
+  const allDay = w.allDay === true;
+  const time = (w.time as string | null) ?? null;
+  const endTime = (w.endTime as string | null) ?? (time ? `${String((Number(time.slice(0, 2)) + 1) % 24).padStart(2, "0")}${time.slice(2)}` : null);
+  return {
+    eventId: `evt_${String(it.id).replace(/^itm_/, "")}`,
+    syllabusId,
+    itemId: it.id,
+    itemKey: it.itemKey,
+    occurrenceDate: null,
+    title: it.title,
+    kind: it.kind,
+    allDay,
+    start: { date: w.date, time: allDay ? null : time, timezone: w.timezone },
+    end: { date: (w.endDate as string | null) ?? w.date, time: allDay ? null : endTime },
+    endDerived: !allDay && w.endTime == null,
+    syncedRevision: it.revision,
+    syncedAt: new Date().toISOString(),
+    demo: true,
+  };
+}
+
+function owned(params: Record<string, unknown>): { email: string; e: NonNullable<ReturnType<typeof sdb.find>> } | Response {
+  const email = user();
+  if (!email) return problem(401, "unauthenticated");
+  const id = String(params.id);
+  if (!ID.test(id)) return invalid("id", "not_canonical");
+  const e = sdb.find(email, id);
+  if (!e) return problem(404, "not_found");
+  return { email, e };
+}
+
+function f2Handlers() {
+  return [
+    http.delete(`${P}/syllabi/:id`, ({ params, request }) => {
+      const o = owned(params);
+      if (o instanceof Response) return o;
+      if (new URL(request.url).search) return invalid("query", "not_allowed"); // DELETE takes no parameters
+      sdb.remove(o.email, String(params.id));
+      return new HttpResponse(null, { status: 204 });
+    }),
+
+    http.post(`${P}/syllabi/:id/decisions`, async ({ params, request }) => {
+      const o = owned(params);
+      if (o instanceof Response) return o;
+      const parsed = await readJson(request);
+      if (!parsed.ok) return problem(400, "validation_failed");
+      const body = parsed.body;
+      const extra = unknownMember(body, ["action", "itemEtags"]);
+      if (extra) return invalid(extra, "unknown_member");
+      if (body.action !== "approve" && body.action !== "skip" && body.action !== "undecide") return invalid("action");
+      const etags = body.itemEtags as Wire | undefined;
+      if (!etags || typeof etags !== "object" || Array.isArray(etags)) return invalid("itemEtags");
+      const ids = Object.keys(etags);
+      if (ids.length < 1 || ids.length > 100) return invalid("itemEtags", "out_of_range");
+      if (ids.some((k) => !ID.test(k))) return invalid("itemEtags", "not_canonical");
+      const { e } = o;
+      const s = e.syllabus;
+      const allowed = s.batchApproveAllowed === true;
+      const results: Wire[] = [];
+      const counts = { applied: 0, unchanged: 0, rejected: 0 };
+      const reject = (itemId: string, code: string, item: Wire | null) => {
+        counts.rejected++;
+        results.push({ itemId, outcome: "rejected", errorCode: code, item });
+      };
+      for (const itemId of ids) {
+        const idx = e.items.findIndex((i) => i.id === itemId);
+        if (idx < 0) {
+          reject(itemId, "not_found", null);
+          continue;
+        }
+        const it = e.items[idx];
+        if (etags[itemId] !== it.etag) {
+          reject(itemId, "precondition_failed", it);
+          continue;
+        }
+        const target = body.action === "approve" ? "approved" : body.action === "skip" ? "skipped" : "undecided";
+        if (target === "approved") {
+          const w = it.when as Wire;
+          if (w.status !== "resolved") {
+            reject(itemId, it.kind === "policy" ? "item_not_syncable" : "item_needs_date", it);
+            continue;
+          }
+          const snippet = it.snippet as Wire | null;
+          if (!allowed || it.confidence !== "looks_right" || it.edited === true || !snippet || snippet.text == null) {
+            reject(itemId, "batch_not_eligible", it);
+            continue;
+          }
+        }
+        if (it.decision === target) {
+          counts.unchanged++;
+          results.push({ itemId, outcome: "unchanged", errorCode: null, item: it });
+          continue;
+        }
+        const next: Wire = { ...it, decision: target, etag: sdb.nextEtag(itemId), updatedAt: new Date().toISOString() };
+        if (target !== "approved") {
+          next.syncState = "not_synced";
+          next.syncedRevision = null;
+          if (e.events) delete e.events[itemId];
+        }
+        e.items[idx] = next;
+        counts.applied++;
+        results.push({ itemId, outcome: "applied", errorCode: null, item: next });
+      }
+      touch(e);
+      return HttpResponse.json({ results, counts });
+    }),
+
+    http.post(`${P}/syllabi/:id/calendar-sync`, async ({ params, request }) => {
+      const key = request.headers.get("Idempotency-Key");
+      const o = owned(params);
+      if (o instanceof Response) return o;
+      if (!key || !KEY.test(key)) return invalid("Idempotency-Key", key ? "invalid" : "required");
+      const parsed = await readJson(request);
+      if (!parsed.ok) return problem(400, "validation_failed");
+      const body = parsed.body;
+      const extra = unknownMember(body, ["itemRevisions", "confirm"]);
+      if (extra) return invalid(extra, "unknown_member");
+      const confirm = body.confirm as Wire | undefined;
+      if (!confirm || confirm.provider !== "mock" || confirm.acknowledgedDemo !== true || unknownMember(confirm, ["provider", "acknowledgedDemo"])) return invalid("confirm");
+      const revs = body.itemRevisions as Wire | undefined;
+      if (!revs || typeof revs !== "object" || Array.isArray(revs)) return invalid("itemRevisions");
+      const ids = Object.keys(revs);
+      if (ids.length < 1 || ids.length > 100) return invalid("itemRevisions", "out_of_range");
+      if (ids.some((k) => !ID.test(k) || typeof revs[k] !== "number" || !Number.isInteger(revs[k]) || (revs[k] as number) < 1)) return invalid("itemRevisions");
+      const { email, e } = o;
+      const sid = String(params.id);
+      const fingerprint = `${sid}|${JSON.stringify(Object.entries(revs).sort())}`;
+      const prior = sdb.syncIdemGet(email, key);
+      if (prior) {
+        if (prior.fingerprint !== fingerprint) return invalid("Idempotency-Key", "reused");
+        return HttpResponse.json(prior.body, { headers: { "Idempotency-Replayed": "true" } });
+      }
+      if (e.syllabus.status !== "ready" && e.syllabus.status !== "partial") return problem(409, "invalid_state");
+      e.events ??= {};
+      const results: Wire[] = [];
+      const counts = { created: 0, updated: 0, unchanged: 0, failed: 0, notEligible: 0 };
+      const order = [...ids].sort((a, b) => {
+        const da = String(((e.items.find((i) => i.id === a)?.when as Wire | undefined)?.date as string | undefined) ?? "9999");
+        const dbb = String(((e.items.find((i) => i.id === b)?.when as Wire | undefined)?.date as string | undefined) ?? "9999");
+        return da.localeCompare(dbb) || a.localeCompare(b);
+      });
+      for (const itemId of order) {
+        const idx = e.items.findIndex((i) => i.id === itemId);
+        const it = idx >= 0 ? e.items[idx] : null;
+        const itemKey = it ? it.itemKey : `ik_${"A".repeat(32)}`;
+        if (!it) {
+          counts.notEligible++;
+          results.push({ itemId, itemKey, outcome: "not_eligible", errorCode: "not_found", eventCount: 0, syncState: "not_synced" });
+          continue;
+        }
+        const w = it.when as Wire;
+        if (it.kind === "policy" || w.status !== "resolved" || it.decision !== "approved") {
+          counts.notEligible++;
+          const code = it.kind === "policy" ? "item_not_syncable" : w.status !== "resolved" ? "item_needs_date" : "item_not_approved";
+          results.push({ itemId, itemKey, outcome: "not_eligible", errorCode: code, eventCount: 0, syncState: it.syncState });
+          continue;
+        }
+        if (it.revision !== revs[itemId]) {
+          counts.failed++;
+          results.push({ itemId, itemKey, outcome: "failed", errorCode: "precondition_failed", eventCount: 0, syncState: it.syncState });
+          continue;
+        }
+        if (String(it.title).includes("mock:sync-fail")) {
+          counts.failed++;
+          e.items[idx] = { ...it, syncState: "sync_failed", etag: sdb.nextEtag(itemId), updatedAt: new Date().toISOString() };
+          results.push({ itemId, itemKey, outcome: "failed", errorCode: "provider_unavailable", eventCount: 0, syncState: "sync_failed" });
+          continue;
+        }
+        const existing = e.events[itemId];
+        const ev = eventFor(it, sid);
+        const outcome = !existing ? "created" : existing.syncedRevision === it.revision && existing.title === it.title ? "unchanged" : "updated";
+        if (outcome === "unchanged") counts.unchanged++;
+        else if (outcome === "created") counts.created++;
+        else counts.updated++;
+        if (outcome !== "unchanged") e.events[itemId] = ev;
+        if (it.syncState !== "synced" || it.syncedRevision !== it.revision)
+          e.items[idx] = { ...it, syncState: "synced", syncedRevision: it.revision, etag: sdb.nextEtag(itemId), updatedAt: new Date().toISOString() };
+        results.push({ itemId, itemKey, outcome, errorCode: null, eventCount: 1, syncState: "synced" });
+      }
+      const ok = counts.created + counts.updated + counts.unchanged;
+      const problems = counts.failed + counts.notEligible;
+      const status = problems === 0 ? (counts.created + counts.updated === 0 ? "nothing_to_do" : "all_succeeded") : ok === 0 ? "failed" : "partial";
+      const out = { syncId: `syn_${(Date.now() % 1e9).toString(36)}${Math.random().toString(36).slice(2, 8)}`, syllabusId: sid, provider: "mock", demoCalendar: true, status, completedAt: new Date().toISOString(), results, counts };
+      sdb.syncIdemPut(email, key, fingerprint, sid, out);
+      touch(e);
+      return HttpResponse.json(out);
+    }),
+
+    http.post(`${P}/syllabi/:id/calendar-sync/remove`, async ({ params, request }) => {
+      const o = owned(params);
+      if (o instanceof Response) return o;
+      const parsed = await readJson(request);
+      if (!parsed.ok) return problem(400, "validation_failed");
+      const body = parsed.body;
+      const extra = unknownMember(body, ["itemIds"]);
+      if (extra) return invalid(extra, "unknown_member");
+      const ids = body.itemIds;
+      if (!Array.isArray(ids) || ids.length < 1 || ids.length > 100 || new Set(ids).size !== ids.length || ids.some((x) => typeof x !== "string" || !ID.test(x))) return invalid("itemIds");
+      const { e } = o;
+      e.events ??= {};
+      const results: Wire[] = [];
+      const counts = { removed: 0, notPresent: 0, failed: 0 };
+      for (const itemId of ids as string[]) {
+        const idx = e.items.findIndex((i) => i.id === itemId);
+        const it = idx >= 0 ? e.items[idx] : null;
+        if (!it) {
+          counts.failed++;
+          results.push({ itemId, itemKey: `ik_${"A".repeat(32)}`, outcome: "failed", errorCode: "not_found", eventCount: 0, syncState: "not_synced" });
+          continue;
+        }
+        if (e.events[itemId]) {
+          delete e.events[itemId];
+          counts.removed++;
+          e.items[idx] = { ...it, syncState: "not_synced", syncedRevision: null, etag: sdb.nextEtag(itemId), updatedAt: new Date().toISOString() };
+          results.push({ itemId, itemKey: it.itemKey, outcome: "removed", errorCode: null, eventCount: 1, syncState: "not_synced" });
+        } else {
+          counts.notPresent++;
+          results.push({ itemId, itemKey: it.itemKey, outcome: "not_present", errorCode: null, eventCount: 0, syncState: it.syncState });
+        }
+      }
+      touch(e);
+      const status = counts.failed > 0 ? (counts.removed + counts.notPresent > 0 ? "partial" : "failed") : counts.removed === 0 ? "nothing_to_do" : "all_succeeded";
+      return HttpResponse.json({ syllabusId: String(params.id), provider: "mock", status, results, counts });
+    }),
+
+    http.get(`${P}/syllabi/:id/export`, ({ params }) => {
+      const o = owned(params);
+      if (o instanceof Response) return o;
+      const { e } = o;
+      const body = { schemaVersion: "syllabus.v1", exportedAt: new Date().toISOString(), syllabus: e.syllabus, items: e.items, unclaimedDates: [], calendarEvents: Object.values(e.events ?? {}) };
+      return HttpResponse.json(body, { headers: { "Cache-Control": "no-store", "Content-Disposition": 'attachment; filename="syllabus-export.json"', "X-Content-Type-Options": "nosniff" } });
+    }),
+  ];
+}

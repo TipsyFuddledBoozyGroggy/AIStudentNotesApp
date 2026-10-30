@@ -29,6 +29,31 @@ it("Demo tags are verbatim from the UX spec (gate G1: Demo wording is not reword
   expect(spec).toContain(`\`review.demoTag\`: "${copy.DEMO_TAGS.calendar}"`);
 });
 
+it("F2 calendar Demo lines are verbatim from the UX spec, and no copy offers reminders (contract row 13)", () => {
+  const spec = fs.readFileSync(path.resolve(process.cwd(), "../../docs/ux/phase2-syllabus-review.md"), "utf8");
+  expect(spec).toContain(`\`sync.confirm.demo\`: "${copy.SYNC_COPY.confirmDemo}"`);
+  expect(spec).toContain(`\`sync.result.demo\`: "${copy.SYNC_COPY.resultDemo}"`);
+  expect(copy.SYNC_COPY.tagWord).toBe("Demo calendar");
+  expect(collectStrings(copy.SYNC_COPY).filter((s) => /remind/i.test(s))).toEqual([]);
+});
+
+it("the delete confirmation says demo events go too and exported copies stay (contract 5.2, row 25)", () => {
+  expect(copy.DELETE_COPY.body).toMatch(/demo calendar are removed too/);
+  expect(copy.DELETE_COPY.copies).toMatch(/not deleted/);
+  expect(copy.DELETE_COPY.body).not.toMatch(/stay there/);
+});
+
+it("F2 accessible names start with the visible text (WCAG 2.5.3)", () => {
+  const t = "Midterm exam";
+  const S = copy.SYNC_COPY;
+  const B = copy.BATCH_COPY;
+  expect(S.removeName(t).startsWith(S.remove)).toBe(true);
+  expect(S.undoRemoveName(t).startsWith(copy.ITEM_COPY.undo)).toBe(true);
+  expect(S.retryName(t).startsWith(S.retry)).toBe(true);
+  expect(B.groupName(B.week(2), "Week of Oct 12 to 18").startsWith(B.week(2))).toBe(true);
+  expect(copy.LIST_COPY.openName("Oct 30, 3:05 PM").startsWith(copy.LIST_COPY.open)).toBe(true);
+});
+
 it("the notice is labelled DRAFT and placeholder, and claims no permission check (P2-D5)", () => {
   const n = collectStrings(copy.NOTICE_DRAFT).join(" ");
   expect(n).toMatch(/draft/i);

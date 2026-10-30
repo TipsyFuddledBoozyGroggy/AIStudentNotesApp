@@ -40,7 +40,10 @@ describe("Review list (F1)", () => {
     expect(groupButton(/^Needs a date, 3 items, 3 not decided$/)).toHaveAttribute("aria-expanded", "false");
     expect(groupButton(/^Course policies, 1 item$/)).toBeInTheDocument();
     // Needs a date is the last group
-    const groups = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    const groups = screen
+      .getAllByRole("heading", { level: 2 })
+      .filter((h) => h.querySelector("button[aria-expanded]"))
+      .map((h) => h.textContent);
     expect(groups[groups.length - 1]).toMatch(/^Needs a date/);
   });
 

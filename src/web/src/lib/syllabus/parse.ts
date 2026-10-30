@@ -10,10 +10,14 @@ import type {
   ItemWhen,
   Page,
   Recurrence,
+  RemoveResult,
+  RunStatus,
   Snippet,
   StatusReason,
   Syllabus,
   SyllabusItem,
+  SyncOutcome,
+  SyncResult,
   SyncState,
   TimezoneSource,
   UnknownReason,
@@ -405,4 +409,53 @@ export function parseBatchResult(v: unknown): BatchResult | null {
     results.push({ itemId: x.itemId, outcome: x.outcome, errorCode: x.errorCode, item });
   }
   return { results, counts: { applied: c.applied, unchanged: c.unchanged, rejected: c.rejected } };
+}
+
+const RUN_STATUSES = ["all_succeeded", "partial", "failed", "nothing_to_do"] as const satisfies readonly RunStatus[];
+const SYNC_OUTCOMES = ["created", "updated", "unchanged", "failed", "not_eligible"] as const satisfies readonly SyncOutcome[];
+const isEventCount = (x: unknown): x is number => isInt(x, 0, 200);
+
+/** syllabus-calendar-sync-result. provider and demoCalendar are mock constants; anything else is refused. */
+export function parseSyncResult(v: unknown): SyncResult | null {
+  if (!isObj(v) || !isObj(v.counts) || !Array.isArray(v.results) || v.results.length > 100) return null;
+  if (!isId(v.syncId) || !isId(v.syllabusId) || v.provider !== "mock" || v.demoCalendar !== true || !oneOf(RUN_STATUSES)(v.status) || !isTimestamp(v.completedAt)) return null;
+  const c = v.counts;
+  if (!isInt(c.created) || !isInt(c.updated) || !isInt(c.unchanged) || !isInt(c.failed) || !isInt(c.notEligible)) return null;
+  const results: SyncResult["results"] = [];
+  for (const x of v.results) {
+    if (!isObj(x) || !isId(x.itemId) || !isStr(x.itemKey) || !ITEM_KEY.test(x.itemKey) || !oneOf(SYNC_OUTCOMES)(x.outcome)) return null;
+    if (!nullable(x.errorCode, oneOf(ITEM_ERRORS)) || !isEventCount(x.eventCount) || !oneOf(SYNC_STATES)(x.syncState)) return null;
+    results.push({ itemId: x.itemId, itemKey: x.itemKey, outcome: x.outcome, errorCode: x.errorCode, eventCount: x.eventCount, syncState: x.syncState });
+  }
+  return {
+    syncId: v.syncId,
+    syllabusId: v.syllabusId,
+    status: v.status,
+    completedAt: v.completedAt,
+    results,
+    counts: { created: c.created, updated: c.updated, unchanged: c.unchanged, failed: c.failed, notEligible: c.notEligible },
+  };
+}
+
+/** syllabus-calendar-remove-result. */
+export function parseRemoveResult(v: unknown): RemoveResult | null {
+  if (!isObj(v) || !isObj(v.counts) || !Array.isArray(v.results) || v.results.length > 100) return null;
+  if (!isId(v.syllabusId) || v.provider !== "mock" || !oneOf(RUN_STATUSES)(v.status)) return null;
+  const c = v.counts;
+  if (!isInt(c.removed) || !isInt(c.notPresent) || !isInt(c.failed)) return null;
+  const results: RemoveResult["results"] = [];
+  for (const x of v.results) {
+    if (!isObj(x) || !isId(x.itemId) || !isStr(x.itemKey) || !ITEM_KEY.test(x.itemKey)) return null;
+    if (!oneOf(["removed", "not_present", "failed"] as const)(x.outcome) || !nullable(x.errorCode, oneOf(ITEM_ERRORS)) || !isEventCount(x.eventCount) || !oneOf(SYNC_STATES)(x.syncState)) return null;
+    results.push({ itemId: x.itemId, outcome: x.outcome, errorCode: x.errorCode, syncState: x.syncState });
+  }
+  return { syllabusId: v.syllabusId, status: v.status, results, counts: { removed: c.removed, notPresent: c.notPresent, failed: c.failed } };
+}
+
+/**
+ * The export body is downloaded as-is, never rendered. This checks only that it is the syllabus.v1 export of the
+ * syllabus asked for (so a wrong body is not saved as the student's copy); the schema test covers the full shape.
+ */
+export function isExportOf(v: unknown, syllabusId: string): boolean {
+  return isObj(v) && v.schemaVersion === "syllabus.v1" && isTimestamp(v.exportedAt) && isObj(v.syllabus) && v.syllabus.id === syllabusId && Array.isArray(v.items);
 }
