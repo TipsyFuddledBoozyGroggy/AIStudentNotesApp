@@ -23,8 +23,11 @@ import type { LectureSettings } from "./settings";
 export const GUTTERS = "px-4 sm:px-6 lg:px-8";
 /** Lecture container: 72rem, 80rem from 1536px (redesign-round2 2.3), content-box so the gutters sit outside it (R2 / R3). */
 export const LECTURE_CONTAINER = "mx-auto box-content max-w-content 2xl:max-w-lecture";
-/** Panel slot directly under the lecture bar (section 4 "Panel"): stripe + shape + words, never colour alone. */
-export const NOTICE_SLOT = `mt-3 ${LECTURE_CONTAINER} ${GUTTERS}`;
+/**
+ * Panel slot directly under the lecture bar (section 4 "Panel"): stripe + shape + words, never colour alone. The first slot
+ * sits 12px under the bar; every later slot is 24px below the one before it (`.notice-slot + .notice-slot`, slice 8b).
+ */
+export const NOTICE_SLOT = `notice-slot mt-3 ${LECTURE_CONTAINER} ${GUTTERS}`;
 const slot = NOTICE_SLOT;
 
 function PanelIcon({ kind }: { kind: "bars" | "slash" | "square" | "alert" | "info" }) {
@@ -85,7 +88,7 @@ export function PausedPanel(props: {
   const disabled = props.busy || !!props.resumeDisabledReason;
   return (
     <div className={slot}>
-      <section aria-labelledby="paused-h2" data-panel="paused" className="note note-notice">
+      <section aria-labelledby="paused-h2" data-panel="paused" className="note note-notice note-filled">
         <div className="flex gap-3">
           <span className="text-warning">
             <PanelIcon kind="bars" />
@@ -134,7 +137,7 @@ export function PausedPanel(props: {
 export function MismatchPanel(props: { micOff: boolean; onCheck(): void; onStop(): void }) {
   return (
     <div className={slot}>
-      <section aria-labelledby="mismatch-h2" data-panel="mismatch" className="note note-safety">
+      <section aria-labelledby="mismatch-h2" data-panel="mismatch" className="note note-safety note-filled">
         <div className="flex gap-3">
           <span className="text-recording">
             <PanelIcon kind="alert" />
@@ -193,7 +196,7 @@ export function StoppedPanel(props: { reason: string | null; failed: boolean; on
 export function OfflineBanner({ stopQueued }: { stopQueued: boolean }) {
   return (
     <div className={slot}>
-      <div data-banner="offline" className="note note-notice flex items-start gap-3">
+      <div data-banner="offline" className="note note-notice note-filled flex items-start gap-3">
         <span className="text-warning">
           <PanelIcon kind="slash" />
         </span>
@@ -319,31 +322,35 @@ export function SettingsPanel({ settings, onChange, extra }: { settings: Lecture
 }
 
 /**
- * Demo source notice. Never dismissible. While a safety panel is open (compact) only the body collapses behind "Details";
- * the Demo heading itself always stays visible (review M4).
+ * Demo source notice (PO-18c, slice 8b): a one-line Note under the bar in every state. The heading (wording unchanged) is
+ * always visible; "Details" is a disclosure button whose body (wording unchanged) stays in the DOM, `hidden` until opened.
+ * Never dismissible, never focused by the app, not a live region. The open state lives here, so it survives Live ->
+ * Paused -> Stopped (the component stays mounted in its slot).
  */
-export function DemoNotice({ compact = false }: { compact?: boolean }) {
+export function DemoNotice() {
+  const [open, setOpen] = useState(false);
   return (
     <div className={slot}>
-      <section data-testid="demo-notice" aria-labelledby="demo-notice-h2" className="panel panel-notice flex gap-3 py-3">
-        <span className="text-warning">
+      <section data-testid="demo-notice" aria-labelledby="demo-notice-h2" className="note note-notice demo-note">
+        <span className="demo-note-icon flex text-warning">
           <PanelIcon kind="info" />
         </span>
-        <div className="min-w-0">
-          <h2 id="demo-notice-h2" className="font-bold">
-            {DEMO_NOTICE_COPY.heading}
-          </h2>
-          {compact ? (
-            <details className="text-sm">
-              <summary className="inline-flex min-h-[44px] cursor-pointer items-center font-semibold text-accent underline underline-offset-[0.2em]">
-                Details
-              </summary>
-              <p className="pb-1 text-muted">{DEMO_NOTICE_COPY.body}</p>
-            </details>
-          ) : (
-            <p className="mt-1 text-sm text-muted">{DEMO_NOTICE_COPY.body}</p>
-          )}
-        </div>
+        <h2 id="demo-notice-h2" className="note-title demo-note-title">
+          {DEMO_NOTICE_COPY.heading}
+        </h2>
+        <button
+          type="button"
+          className="btn-tertiary btn-sm demo-note-toggle"
+          aria-expanded={open}
+          aria-controls="demo-notice-body"
+          aria-describedby="demo-notice-h2"
+          onClick={() => setOpen((o) => !o)}
+        >
+          Details
+        </button>
+        <p id="demo-notice-body" className="demo-note-body text-sm text-muted" hidden={!open}>
+          {DEMO_NOTICE_COPY.body}
+        </p>
       </section>
     </div>
   );

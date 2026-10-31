@@ -322,6 +322,8 @@ export const SYNC_COPY = {
   bar: (n: number) => `Add ${n} approved ${n === 1 ? "item" : "items"} to the demo calendar`,
   barHint: "Approve an item to continue.",
   barRegion: "Calendar step",
+  /** Slice 8c (make-notes-rail-demo-notice 3.2): the counts inside the Calendar step, in the summary line's own words. */
+  railCounts: (approved: number, skipped: number, undecided: number) => `${approved} approved, ${skipped} skipped, ${undecided} not decided.`,
   skipTo: "Skip to calendar step",
   confirmH1: "Add approved items to the demo calendar",
   lead: (n: number) => `You approved ${items(n)}:`,

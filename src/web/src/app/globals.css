@@ -761,6 +761,47 @@ html:has([data-lecture-root]) {
   .note-title {
     @apply text-lg font-bold text-ink;
   }
+  /* Slice 8b (PO-18c; make-notes-rail-demo-notice 2.4): a safety note is tinted and its state glyph keeps its shape; an
+     information note is untinted with an outlined glyph. Only Paused / Offline (warning tint) and Mismatch (recording tint)
+     are filled: there is no danger-subtle role, so Fatal stays unfilled. Colour is never the only cue (stripe, glyph and
+     word remain); Low-stimulation does not strip these fills (safety surfaces are never reduced); forced colours drop the
+     fill and keep the CanvasText outline, stripe, glyph and word. Pairs in PRIMITIVE_PAIRS ("filled note ..."). */
+  .note-filled.note-notice { background-color: var(--c-warning-subtle); }
+  .note-filled.note-safety { background-color: var(--c-recording-subtle); }
+  /* Notes under the lecture bar: the first sits 12px under the bar (mt-3), every later one 24px below the one before. */
+  .notice-slot + .notice-slot { margin-top: 1.5rem; }
+  /* The Demo-source note (slice 8b): one line, glyph | heading | "Details", body under the whole line when opened. The
+     heading column grows to its own width and wraps when the line is short, so "Details" follows the heading's last word
+     instead of the far end of a 1152px line. The toggle keeps a 44px hit area without growing the 28px line (padding
+     inside, equal negative margin outside, as .item-source-toggle and .cite do). */
+  .demo-note {
+    display: grid;
+    grid-template-columns: auto minmax(0, max-content) minmax(max-content, 1fr);
+    grid-template-areas: "icon title toggle" ". body body";
+    column-gap: 0.75rem;
+    align-items: baseline;
+  }
+  .demo-note-icon { grid-area: icon; align-self: start; }
+  .demo-note-title { grid-area: title; }
+  .demo-note-toggle {
+    grid-area: toggle;
+    justify-self: start;
+    margin-block: -0.5rem;
+  }
+  .demo-note-body {
+    grid-area: body;
+    margin-block-start: 0.5rem;
+  }
+  /* Phones: "Details" takes its own line under the heading, on the heading's text edge, so the heading keeps the width. */
+  @media (max-width: 639px) {
+    .demo-note {
+      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-areas: "icon title" ". toggle" ". body";
+    }
+    .demo-note-toggle {
+      margin-inline-start: calc(-1 * (var(--btn-px) + var(--btn-border-w)));
+    }
+  }
   /* Stamp: Demo / Draft / Demo summary in one style: xs 700, warning text, 1px warning border, warning tint, radius 4,
      28px tall (R4 tag height). .stamp-line sets it beside its sentence (sm muted) on one line where it fits. */
   .stamp {
@@ -1086,10 +1127,48 @@ html:has([data-lecture-root]) {
     padding-block: 0.5rem;
     margin-block: -0.5rem;
   }
-  /* The calendar step (.calendar-step): a Note in the flow after the groups, holding the screen's one filled button. It was
-     built sticky to the viewport bottom from 1024 (plan row 6) and reverted in the same slice: a bar stuck over the list
-     covers the Approve / Skip / Edit targets of whichever row is scrolled beneath it, which axe reports as target-size
-     (WCAG 2.5.8, caught by the real-stack e2e at 1280 x 900 with the Needs-a-date row under it). No positioning rule. */
+  /* The calendar step: a Note holding the screen's one filled button. Slice 6 built it sticky to the viewport bottom and
+     reverted it: a bar stuck over the list covers the row targets scrolled beneath it (axe target-size, WCAG 2.5.8). Slice
+     8c (PO-18b; make-notes-rail-demo-notice 3): below 1280 it stays a Note in the flow after the groups inside a 68ch
+     block (no positioning rule); from 1280 it sits in a reserved 20rem track beside the groups (.review-rail, below), so
+     its stickiness only ever moves it within space no row occupies. */
+  .review-body {
+    max-width: 68ch;
+  }
+  .review-groups {
+    min-width: 0;
+  }
+  @media (min-width: 1280px) {
+    .review-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) var(--aside-w);
+      column-gap: 2.5rem;
+      align-items: start;
+      max-width: none;
+    }
+    /* Sticky at the html scroll-padding-top (header 56 + 24) on the ledger tint; scrolls inside itself only if text
+       spacing or zoom makes it taller than the viewport. The tint is the edge, so the note's stripe is not drawn here. */
+    .review-rail {
+      position: sticky;
+      top: 5rem;
+      max-height: calc(100vh - 6rem);
+      overflow-y: auto;
+      background: var(--ledger-bg);
+      --ledger-inset: 1rem;
+    }
+    .review-rail .calendar-step {
+      margin-top: 0;
+      padding: 1rem;
+    }
+    .review-rail .calendar-step::before {
+      content: none;
+    }
+    /* The fill takes the rail's width and wraps its words; the reason sits under it. */
+    .review-rail .calendar-step-action {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
 }
 
 /* Transcript reading layout (section 4 "Transcript line"): hanging timestamp column, 68ch measure, 17/28 line boxes
@@ -1212,7 +1291,9 @@ html:has([data-lecture-root]) {
    head 57 + bottom rule 1 + root padding 32 = 100vh - 16rem; Focus adds the collapsed TL;DR note and the dock: 100vh -
    26rem; phone 100dvh - 23rem (the harness test "newest transcript line is not hidden behind the dock" pins log height
    <= dock top - bar bottom). With a recap sheet open above the transcript the page scrolls; that is the student's own
-   action. dvh keeps mobile browser bars into account. */
+   action. dvh keeps mobile browser bars into account. Slice 8b: the collapsed Demo note is 60px at 1280 (16 + 28 + 16)
+   instead of the 106px panel, so the desktop bound is now about 46px conservative; it is kept at 16rem on purpose (one
+   bound for a lecture with or without a safety note above the Demo note, and no transcript height change in this slice). */
 [data-lecture-root] .transcript {
   max-height: max(12rem, calc(100dvh - 23rem));
 }

@@ -71,3 +71,12 @@ it("accessible names start with the visible text (WCAG 2.5.3)", () => {
   expect(I.undoApproveName(t).startsWith(I.undo)).toBe(true);
   expect(I.undoSkipName(t).startsWith(I.undo)).toBe(true);
 });
+
+it("slice 8c: the Calendar step's counts sentence is the summary line's second half in the same words", () => {
+  const S = copy.SYNC_COPY;
+  expect(S.railCounts(2, 0, 4)).toBe("2 approved, 0 skipped, 4 not decided.");
+  expect(S.railCounts(1, 1, 1)).toBe("1 approved, 1 skipped, 1 not decided.");
+  for (const [n, a, s, u] of [[6, 2, 0, 4], [1, 0, 0, 1], [11, 3, 2, 6]] as const) {
+    expect(copy.REVIEW_COPY.summary(n, a, s, u).endsWith(` ${S.railCounts(a, s, u)}`)).toBe(true);
+  }
+});

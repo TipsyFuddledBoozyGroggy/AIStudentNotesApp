@@ -396,3 +396,54 @@ describe("Review: partial, hostile and purged syllabi", () => {
     expect(within(row("Midterm exam")).getByText("Approved")).toBeInTheDocument();
   });
 });
+
+// Slice 8c (PO-18b; docs/ux/make-notes-rail-demo-notice.md 3): the Calendar step in a reserved rail track from 1280. jsdom
+// has no layout, so this pins the structure (DOM order, hooks, the counts sentence, names); the rail geometry and the
+// no-intersection scan are in e2e-screens/geometry.spec.ts.
+describe("Calendar step rail (redesign-round2 slice 8c)", () => {
+  it("the groups and the step share .review-body: groups first, then .review-rail holding the step (DOM order = Tab order)", async () => {
+    const { container } = await mount();
+    const body = container.querySelector(".review-body")!;
+    const groups = body.querySelector(":scope > .review-groups")!;
+    const rail = body.querySelector(":scope > .review-rail")!;
+    expect(Array.from(body.children)).toEqual([groups, rail]);
+    const step = screen.getByRole("region", { name: "Calendar step" });
+    expect(rail.contains(step)).toBe(true);
+    expect(step).toHaveAttribute("data-calendar-step");
+    expect(groups.querySelectorAll("h2 > button.group-head").length).toBe(8);
+    // Prose blocks keep their 68ch measure; the body is the only block that may widen (from 1280, in CSS).
+    expect(screen.getByRole("heading", { level: 1 }).closest(".max-w-prose")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Your data" }).closest(".max-w-prose")).not.toBeNull();
+    expect(body.closest(".max-w-prose")).toBeNull();
+  });
+
+  it("the rail holds exactly the h2, the counts sentence, the one fill and its reason; the counts are plain text", async () => {
+    await mount();
+    const step = screen.getByRole("region", { name: "Calendar step" });
+    expect(within(step).getByRole("heading", { level: 2, name: "Calendar step" })).toHaveAttribute("id", "calendar-step-h");
+    const counts = step.querySelector("[data-calendar-counts]")!;
+    expect(counts.textContent).toBe("0 approved, 0 skipped, 11 not decided.");
+    expect(counts.closest("[aria-live], [role=status], [role=alert]")).toBeNull();
+    expect(within(step).getAllByRole("button")).toHaveLength(1);
+    expect(within(step).getByRole("button", { name: "Add 0 approved items to the demo calendar" })).toHaveClass("btn-primary");
+    expect(within(step).getByText("Approve an item to continue.")).toBeInTheDocument();
+  });
+
+  it("the counts match the summary after Approve, Skip and Undo, and nothing is announced because of them", async () => {
+    const r = await mount();
+    const counts = () => document.querySelector("[data-calendar-counts]")!.textContent;
+    const summaryTail = () => /We found \d+ items\. (.*)$/.exec(screen.getByText(/^We found \d+ items\./).textContent ?? "")?.[1];
+    expect(counts()).toBe(summaryTail());
+    await userEvent.click(screen.getByRole("button", { name: "Approve Office hours" }));
+    await screen.findByRole("button", { name: "Undo approval of Office hours" });
+    expect(counts()).toBe("1 approved, 0 skipped, 10 not decided.");
+    expect(counts()).toBe(summaryTail());
+    expect(screen.getByRole("button", { name: "Add 1 approved item to the demo calendar" })).toBeInTheDocument();
+    await waitFor(() => expect(r.statusLog).toEqual(["Approved: Office hours."]));
+    await userEvent.click(screen.getByRole("button", { name: "Undo approval of Office hours" }));
+    await screen.findByRole("button", { name: "Approve Office hours" });
+    expect(counts()).toBe("0 approved, 0 skipped, 11 not decided.");
+    expect(counts()).toBe(summaryTail());
+    expect(r.statusLog.some((t) => /approved, .* skipped/.test(t))).toBe(false);
+  });
+});

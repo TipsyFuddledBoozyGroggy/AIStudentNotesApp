@@ -111,8 +111,12 @@ test("start needs consent; no mic prompt before Start; demo transcript arrives o
   await checkAndStart(page);
   await expect(page.getByTestId("state-label")).toHaveText("Recording");
   expect(await gumCalls(page)).toBe(1);
-  await expect(page.getByTestId("demo-tag")).toBeVisible();
+  // Slice 8b (PO-18c, Lead answer 1): the bar's Demo tag is retired at every width (was `toBeVisible()`); the Demo fact is
+  // the one-line Demo note under the bar: its heading visible, its body behind a collapsed "Details" (wording unchanged).
+  await expect(page.getByTestId("demo-tag")).toHaveCount(0);
   await expect(page.getByTestId("demo-notice")).toContainText("not from your microphone");
+  await expect(page.getByTestId("demo-notice").getByRole("heading", { name: "Demo source: these words are not from your microphone" })).toBeVisible();
+  await expect(page.getByTestId("demo-notice").getByRole("button", { name: "Details" })).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByTestId("connection")).toHaveText("Connected");
   await expect(transcript(page)).toContainText(DEMO_LINE_1);
   await expect(page).toHaveTitle(/^Recording \|/);

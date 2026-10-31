@@ -195,7 +195,6 @@ export function LectureScreen(props: LectureScreenProps) {
         serverPaused={serverState === "Paused"}
         elapsedMs={s.elapsedMs}
         connected={s.connection === "connected"}
-        demoSource={props.runtime.demoSource}
         onPause={() => void s.pause()}
         onResume={() => void s.resume()}
         onStop={() => setStopOpen(true)}
@@ -227,10 +226,12 @@ export function LectureScreen(props: LectureScreenProps) {
           </p>
         </div>
       ) : null}
-      {/* Safety state first: directly under the lecture bar (design-direction 5.4), then informational notes. */}
+      {/* Safety state first: directly under the lecture bar (design-direction 5.4), then informational notes, 24px apart.
+          The Demo note is one line with its body behind "Details" in every state (PO-18c); it never comes first in a
+          safety state. */}
       {offline ? <OfflineBanner stopQueued={s.stopQueued} /> : null}
       {notice}
-      {props.runtime.demoSource ? <DemoNotice compact={notice !== null || offline} /> : null}
+      {props.runtime.demoSource ? <DemoNotice /> : null}
       {s.audioSkippedMs > 0 ? <AudioSkippedNote ms={s.audioSkippedMs} /> : null}
       {/* Lecture template (redesign-round2 2.3): gutters 16 / 24 / 32 on the wrapper; the inner element's box IS the column,
           so the fixed/sticky dock with the same max-width shares its edges (A11). Standard: transcript 1fr | aside 22.5rem,

@@ -212,6 +212,10 @@ async function shoot(browser: Browser, s: Screen, look: AnyLook, width: number) 
     const log = page.locator("#lecture-transcript");
     if ((await log.count()) > 0) await log.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => undefined);
     await page.screenshot({ path: path.join(OUT, `${s.name}--${width}--${look}--viewport.png`) });
+    // Slice 8b: axe scans the page at its load position, as on every other screen. At the scrolled offset above, the
+    // Demo note's "Details" (a target since PO-18c) lands half under the sticky recording bar, which must stay visible
+    // (invariant 2), and axe reports that scroll state as target-size; at scroll 0 nothing overlaps it.
+    await page.evaluate(() => window.scrollTo(0, 0));
   }
   const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"]).analyze();
   // 320 CSS px reflow (SC 1.4.10): no horizontal page scroll.

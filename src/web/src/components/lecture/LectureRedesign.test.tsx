@@ -167,20 +167,23 @@ describe("Lecture screen redesign (design-direction slices 4-5)", () => {
     expect(tldr.compareDocumentPosition(log) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("the transcript is the sheet (heading inside); safety states are notes with a shape and a word; the Demo-source notice is unchanged (G1)", async () => {
+  // Slice 8b (PO-18c) re-pointed the last four assertions: the Demo-source notice is a one-line Note (was the G1-frozen
+  // panel), its heading the note title (was bold body text), "Details" a disclosure button (was a <summary> shown only in
+  // safety states), and the bar's Demo tag is gone at every width. The Paused note gained the state tint (note-filled).
+  it("the transcript is the sheet (heading inside); safety states are notes with a shape and a word; the Demo-source notice is a one-line Note (PO-18c)", async () => {
     await mountLecture({ events: baseEvents("Paused", "user"), track: "ended" });
     const sheet = document.querySelector(".transcript-panel")!;
     expect(sheet.className).toMatch(/\blecture-sheet\b/);
     expect(within(sheet as HTMLElement).getByRole("heading", { name: "Transcript" })).toBeInTheDocument();
     const paused = document.querySelector('[data-panel="paused"]')!;
-    expect(paused.className).toBe("note note-notice");
+    expect(paused.className).toBe("note note-notice note-filled");
     expect(paused.querySelector("svg[aria-hidden='true']")).not.toBeNull();
     expect(within(paused as HTMLElement).getByRole("heading", { name: "Recording is paused" }).className).toBe("note-title");
     const demo = screen.getByTestId("demo-notice");
-    expect(demo.className).toBe("panel panel-notice flex gap-3 py-3");
-    expect(within(demo).getByRole("heading", { name: "Demo source: these words are not from your microphone" }).className).toBe("font-bold");
-    expect(within(demo).getByText("Details")).toBeInTheDocument();
-    expect(screen.getByTestId("demo-tag").className).toBe("tag tag-warning hidden sm:inline-flex");
+    expect(demo.className).toBe("note note-notice demo-note");
+    expect(within(demo).getByRole("heading", { name: "Demo source: these words are not from your microphone" }).className).toBe("note-title demo-note-title");
+    expect(within(demo).getByRole("button", { name: "Details" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("demo-tag")).toBeNull();
   });
 
   it("the usual Quick recap window is the only filled button in the dock; busy never greys the buttons out", async () => {
@@ -190,5 +193,97 @@ describe("Lecture screen redesign (design-direction slices 4-5)", () => {
     const others = screen.getAllByRole("button", { name: /recap of the last \d+ minutes$/ }).filter((b) => b !== usual);
     for (const b of others) expect(b.className).not.toMatch(/btn-primary/);
     for (const b of [usual, ...others]) expect(b.className).toMatch(/btn-steady/);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Slice 8b (PO-18c; docs/ux/make-notes-rail-demo-notice.md 2.1 to 2.6): the Demo-source notice as a one-line Note with
+// its body behind "Details" in every state. The strings below are the notice's wording as it was before this slice, typed
+// out literally (not imported), so any change to DEMO_NOTICE_COPY fails here: wording is byte-identical (gate G1).
+describe("Demo-source notice as a one-line Note (redesign-round2 slice 8b, PO-18c)", () => {
+  const HEADING_BEFORE = "Demo source: these words are not from your microphone";
+  const BODY_BEFORE =
+    "The transcript is a fixed test script that plays as audio arrives. No real speech service is listening, so what you say is not turned into text. Audio is only used to time the script and is not kept. (Draft wording.)";
+
+  const demoParts = () => {
+    const notice = screen.getByTestId("demo-notice");
+    const toggle = within(notice).getByRole("button", { name: "Details" });
+    const body = document.getElementById(toggle.getAttribute("aria-controls") ?? "")!;
+    return { notice, toggle, body };
+  };
+
+  it("heading and body are byte-identical to the previous wording; the body is in the DOM, hidden, controlled by a Details button", async () => {
+    const m = await mountLecture();
+    const { notice, toggle, body } = demoParts();
+    expect(within(notice).getByRole("heading", { level: 2 }).textContent).toBe(HEADING_BEFORE);
+    expect(notice).toHaveAttribute("aria-labelledby", "demo-notice-h2");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveAttribute("aria-controls", "demo-notice-body");
+    expect(toggle).toHaveAttribute("aria-describedby", "demo-notice-h2");
+    expect(body.textContent).toBe(BODY_BEFORE);
+    expect(notice.contains(body)).toBe(true);
+    expect(body.hidden).toBe(true);
+    // Never dismissible: no control other than Details, and nothing named close / dismiss / hide.
+    expect(within(notice).getAllByRole("button")).toEqual([toggle]);
+    expect(within(notice).queryByRole("button", { name: /close|dismiss|hide/i })).toBeNull();
+    expect(notice.querySelector("details, summary, [aria-live], [role=status], [role=alert]")).toBeNull();
+    expect(await axeViolations(m.container)).toEqual([]);
+  });
+
+  it("Details opens and closes the body instantly, keeps focus on the button and announces nothing", async () => {
+    const m = await mountLecture();
+    const { toggle, body } = demoParts();
+    m.statusLog.length = 0;
+    m.alertLog.length = 0;
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(body.hidden).toBe(false);
+    expect(toggle).toHaveFocus();
+    expect(await axeViolations(m.container)).toEqual([]);
+    await userEvent.keyboard("{Enter}");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(body.hidden).toBe(true);
+    expect(toggle).toHaveFocus();
+    expect(m.statusLog).toEqual([]);
+    expect(m.alertLog).toEqual([]);
+  });
+
+  it.each([
+    ["Paused", { events: baseEvents("Paused", "user"), track: "ended" as const }, '[data-panel="paused"]'],
+    ["Stopped", { events: baseEvents("Stopped", "user"), track: "ended" as const }, '[data-panel="stopped"]'],
+    ["Mismatch", { events: baseEvents("Paused", "user"), track: "live" as const }, '[data-panel="mismatch"]'],
+    ["Offline", { online: false }, "[data-banner=offline]"],
+  ])("%s: the safety or state note comes first, then the collapsed Demo note in the next slot", async (_state, opts, selector) => {
+    await mountLecture(opts);
+    await waitFor(() => expect(document.querySelector(selector)).not.toBeNull());
+    const { notice, toggle, body } = demoParts();
+    const first = document.querySelector(selector)!;
+    expect(first.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(body.hidden).toBe(true);
+    expect(within(notice).getByRole("heading", { name: HEADING_BEFORE })).toBeInTheDocument();
+    // Separate slots (24px apart through `.notice-slot + .notice-slot`).
+    const slotOf = (el: Element) => el.closest(".notice-slot")!;
+    expect(slotOf(first)).not.toBe(slotOf(notice));
+    expect(slotOf(notice).classList.contains("notice-slot")).toBe(true);
+  });
+
+  it("the open state survives Live -> Paused (the note stays mounted); the bar has no Demo tag in either state", async () => {
+    await mountLecture();
+    await userEvent.click(demoParts().toggle);
+    expect(screen.queryByTestId("demo-tag")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Pause" }));
+    await waitFor(() => expect(screen.getByRole("region", { name: "Recording is paused" })).toBeInTheDocument());
+    const { toggle, body } = demoParts();
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(body.hidden).toBe(false);
+    expect(screen.queryByTestId("demo-tag")).toBeNull();
+  });
+
+  it("safety notes are filled (Paused, Mismatch, Offline); the Stopped note and the Demo note are not", async () => {
+    await mountLecture({ online: false, events: baseEvents("Paused", "user"), track: "ended" });
+    await waitFor(() => expect(document.querySelector("[data-banner=offline]")).not.toBeNull());
+    expect(document.querySelector("[data-banner=offline]")!.className).toMatch(/\bnote-filled\b/);
+    expect(screen.getByTestId("demo-notice").className).not.toMatch(/\bnote-filled\b/);
   });
 });

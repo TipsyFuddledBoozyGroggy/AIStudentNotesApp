@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode, Ref } from "react";
-import { DEMO_SOURCE_TAG, STATUS_COPY as S } from "./copy";
+import { STATUS_COPY as S } from "./copy";
 import { formatMs } from "./format";
 import { GUTTERS, LECTURE_CONTAINER } from "./Notices";
 import type { DisplayIndicator } from "./useLectureSession";
@@ -12,7 +12,6 @@ export interface StatusBarProps {
   serverPaused: boolean;
   elapsedMs: number;
   connected: boolean;
-  demoSource: boolean;
   onPause(): void;
   onResume(): void;
   onStop(): void;
@@ -104,7 +103,8 @@ const STOP_ICON = icon("M3.5 3.5h9v9h-9z");
 
 /**
  * The lecture bar. On the live screen it replaces the site header (one sticky bar). Always shows the true state as shape +
- * word, elapsed active time and connection, with Pause/Resume and Stop in fixed places (SC 3.2.6).
+ * word, elapsed active time and connection, with Pause/Resume and Stop in fixed places (SC 3.2.6). The Demo-source tag
+ * left the bar at every width (PO-18c, slice 8b): the one-line Demo note under the bar carries the Demo fact.
  */
 export function StatusBar(p: StatusBarProps) {
   const { label, shape } = indicatorLabel(p.display);
@@ -171,11 +171,6 @@ export function StatusBar(p: StatusBarProps) {
           {p.settings}
           {p.leave}
         </div>
-        {p.demoSource ? (
-          <span data-testid="demo-tag" className="tag tag-warning hidden sm:inline-flex">
-            {DEMO_SOURCE_TAG}
-          </span>
-        ) : null}
       </div>
     </header>
   );

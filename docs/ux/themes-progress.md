@@ -37,7 +37,15 @@ new `e2e-screens/gamer-glass.spec.ts` (emulateMedia + CDP reduced-transparency f
 DOM scan, no-glow scan, real-DOM contrast over every decoration stop, axe with the switches on, Low-stimulation captures per
 skin, report-only frame trace); landmark gate with the switches on and off. The Glass enter animation was NOT built
 (redesign-round2 2.6 forbids transforms and limits opacity to the scrim; recorded there). **T5-T6 NOT STARTED** (T5's
-lecture pass over 10 looks can reuse slice 3's harness tests).
+lecture pass over 10 looks can reuse slice 3's harness tests). **Redesign-round2 slices 8b and 8c IMPLEMENTED 2026-10-31**
+("Slice 8b results" / "Slice 8c results" in `redesign-round2.md`; spec `make-notes-rail-demo-notice.md`; not committed):
+8b (PO-18c) renders the lecture Demo-source notice as a one-line Note with its unchanged body behind "Details" in every
+state, removes the Demo tag from the bar at every width (the bar is one 56px row at 1280 in every lecture fixture now),
+fills the Paused / Offline / Mismatch notes with their state tint (Fatal stays unfilled: there is no `danger-subtle` role)
+and sets notes under the bar 24px apart; wording byte-identical, recording pill unchanged, consent files untouched. 8c
+(PO-18b) moves the syllabus Calendar step into a reserved 20rem sticky track beside the groups from 1280 (in the flow
+below), with a scroll-scan geometry test. Themes impact: paint only; the landmark gate (14 looks) stays green; no skin
+rule touches the new note fill, the Demo note or the review rail. 8a (Make notes UI) waits for a backend change.
 
 ## T0 token plumbing (DONE)
 Files changed:

@@ -13,11 +13,14 @@ afterEach(() => {
 const stateLabel = () => screen.getByTestId("state-label").textContent;
 
 describe("Live view (UX section 2)", () => {
-  it("renders status bar with Recording label, Demo source tag (non-dismissible), Prompts: Quiet, and axe-clean", async () => {
+  // Slice 8b (PO-18c, Lead answer 1): the bar's Demo tag ("Demo source: replayed test audio") left the bar at every width;
+  // the two tag assertions now assert its absence and that the Demo fact is carried, non-dismissible, by the Demo note.
+  it("renders status bar with Recording label, the Demo-source note (non-dismissible, no bar tag), Prompts: Quiet, and axe-clean", async () => {
     const m = await mountLecture();
     expect(stateLabel()).toBe("Recording");
-    expect(screen.getByTestId("demo-tag")).toHaveTextContent("Demo source: replayed test audio");
-    expect(within(screen.getByTestId("demo-tag")).queryByRole("button")).toBeNull();
+    expect(screen.queryByTestId("demo-tag")).toBeNull();
+    expect(within(screen.getByTestId("demo-notice")).getByRole("heading", { name: "Demo source: these words are not from your microphone" })).toBeInTheDocument();
+    expect(within(screen.getByTestId("demo-notice")).queryByRole("button", { name: /close|dismiss|hide/i })).toBeNull();
     expect(screen.getByText("Prompts: Quiet")).toBeInTheDocument();
     expect(screen.getByTestId("connection")).toHaveTextContent("Connected");
     expect(document.title).toBe("Recording |");

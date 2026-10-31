@@ -418,6 +418,20 @@ export const PRIMITIVE_PAIRS: { primitive: string; fg: Role; bg: Role; min: 4.5 
   { primitive: "ledger row chevron (hover)", fg: "muted", bg: "sunken", min: 3 },
   { primitive: "form error summary title", fg: "danger", bg: "surface", min: 4.5 },
   { primitive: "course added line", fg: "success", bg: "canvas", min: 4.5 },
+  // Slice 8b (PO-18c; make-notes-rail-demo-notice 2.4): the four safety notes under the lecture bar take their state tint
+  // (.note-filled): Paused and Offline on warning-subtle, Mismatch on recording-subtle (Fatal: see below). Body and
+  // helper text on each tint, the secondary button's border-strong edge inside a filled note, the stripe colour and the
+  // filled glyph on its own tint. A pair failing in any palette drops the fill for that variant (no token change).
+  { primitive: "filled note (paused, offline)", fg: "ink", bg: "warning-subtle", min: 4.5 },
+  { primitive: "filled note (paused, offline) helper", fg: "muted", bg: "warning-subtle", min: 4.5 },
+  { primitive: "filled note (paused, offline) secondary edge", fg: "border-strong", bg: "warning-subtle", min: 3 },
+  { primitive: "filled note (paused, offline) stripe and glyph", fg: "warning", bg: "warning-subtle", min: 3 },
+  { primitive: "filled note (mismatch)", fg: "ink", bg: "recording-subtle", min: 4.5 },
+  { primitive: "filled note (mismatch) helper", fg: "muted", bg: "recording-subtle", min: 4.5 },
+  { primitive: "filled note (mismatch) secondary edge", fg: "border-strong", bg: "recording-subtle", min: 3 },
+  { primitive: "filled note (mismatch) stripe and glyph", fg: "recording", bg: "recording-subtle", min: 3 },
+  // Fatal: the spec's danger-subtle tint is not a role in any palette (ROLES has no "danger-subtle"); adding one would be
+  // a token change, which 2.4 rules out, so the Fatal note stays unfilled (stripe + heading + words, as before).
 ];
 
 /**

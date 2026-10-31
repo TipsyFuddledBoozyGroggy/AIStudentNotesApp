@@ -1028,3 +1028,133 @@ Not viewed one by one: the 104 new Gamer-grid / Glass captures in `screens.spec.
 - **Consent page under non-Paper themes:** no page decoration and an opaque header (it is on the lecture route). Accepted (PO-18a). Paper is identical.
 - **No Glass enter animation, mic-blocked keeps Gamer corner ticks, reduced transparency keeps the grid/gradient:** accepted.
 - **Verified by the Lead on the final code:** tsc clean; eslint 0 errors; vitest 2614; real-stack e2e 23/23; reuse harness 59/59; geometry + skins + gamer-glass 25/25; ConsentDialog/ConsentStart/Notices no diff. Screens + axe (0 violations in 372 captures) is the agent's run, not re-run by the Lead. The agent reported 2592 unit tests; the Lead counted 2614 (it added tests after its report).
+
+## Slice 8b results (PO-18c: the Demo-source notice as a one-line Note)
+
+Status: IMPLEMENTED in `src/web`, 2026-10-31, by frontend-engineer; written as the work went; not committed. Spec: `docs/ux/make-notes-rail-demo-notice.md` section 2 and the Lead answers at its end. Nothing here is human-validated (gate G4 NOT_RUN); gate G1 stays BLOCKED (PO-18c is a PO risk acceptance for the personal-use scope, not counsel clearance). Baseline before any change: `npx vitest run` 39 files, **2614 passed**. The previous screenshot set (447 files) was copied to the session scratchpad (`before8/`) before any change. No second `next dev` was started; the plain harness config was not used.
+
+### Contrast pairs first (2.4)
+- Added to `PRIMITIVE_PAIRS` before any CSS: `ink` and `muted` (4.5), `border-strong` (3) and the stripe / glyph colour (3) on `warning-subtle` (Paused, Offline) and `recording-subtle` (Mismatch). `npx vitest run src/lib/design/tokens.test.ts`: all pass in all 12 palettes (1836 passed).
+- **Fatal is not filled.** The spec's `--c-danger-subtle` is not a role: `ROLES` has no `danger-subtle` in any palette, so the four Fatal pairs failed (48 assertions, undefined colour). Adding the role would be a token change, which 2.4 rules out ("drop the fill for that variant rather than change a token"), so the Fatal note keeps its stripe, heading and words without a tint.
+
+### PO-18c and gate G1 handling
+- **Wording byte-identical.** `DEMO_NOTICE_COPY.heading` and `.body` are untouched in `copy.ts`; "Details" unchanged. A new unit test types both strings out literally as they were before the slice and compares the rendered heading and the body's `textContent` to them; `skinBlocks.test.ts` quotes the two `copy.ts` lines too. `DEMO_SOURCE_TAG` stays in `copy.ts`, unrendered (Lead answer 1).
+- **Recording status untouched:** `StatusBar.tsx` lost only the tag and its `demoSource` prop; the pill markup, classes, shape, word, minutes, the 44px box, Pause / Resume / Stop and their positions are unchanged. A byte compare of the pill region (x 40-300 at 1280, x 0-260 at 390; y 0-56) in the before / after captures of the lecture screens in the four base looks: **76 identical, 8 differ**: Mismatch and Disconnected at 1280. Cropped and viewed: the pill is the same pixels, **2px lower**, because those two bars were two rows before (the tag wrapped to a second row) and are now the one 56px row every other state has, so the pill now sits at the same y as in Live / Paused / Stopped. Recorded rather than hidden.
+- `ConsentDialog.tsx`, `ConsentStart.tsx`: no diff. `consent-look.spec.ts` green (harness run). Consent captures: 35 byte-identical, `consent--390--fog` 37 px in rows 1111-1122 (the same rendering noise slice 7 recorded at the same rows).
+- Never dismissible, never focused by the app, not a live region, collapsed in every state: asserted (below).
+
+### What landed (`src/web`: `lecture/Notices.tsx`, `lecture/StatusBar.tsx`, `lecture/LectureScreen.tsx`, `app/globals.css`, `lib/design/tokens.ts`)
+- **`DemoNotice`** is `section.note.note-notice.demo-note` (no `compact` prop): outlined info glyph (unchanged), `h2#demo-notice-h2.note-title` (sans 700 20/28; was bold 17/28), `button.btn-tertiary.btn-sm.demo-note-toggle` "Details" with `aria-expanded`, `aria-controls="demo-notice-body"`, `aria-describedby="demo-notice-h2"`, and `p#demo-notice-body` kept in the DOM with `hidden` until opened. The open state is component state, so it survives Live -> Paused -> Stopped (the note stays mounted in its slot). Toggling announces nothing and does not move focus.
+- **Layout** (`.demo-note`): a grid `auto | minmax(0, max-content) | minmax(max-content, 1fr)`, areas `icon title toggle` / `. body body`, baseline-aligned; below 640 `icon title` / `. toggle` / `. body` with the toggle's ink on the heading's text edge. The toggle keeps its 44px hit area inside a 28px line (padding inside, `margin-block: -0.5rem` outside).
+- **Tag out of the bar** at every width (`demo-tag` gone).
+- **Fill** (`.note-filled`): Paused and Offline `warning-subtle`, Mismatch `recording-subtle`. Stopped, Fatal and the Demo note stay unfilled. No Low-stimulation rule touches them; forced colours keep the existing `CanvasText` outline.
+- **Gap**: `NOTICE_SLOT` carries `notice-slot`; `.notice-slot + .notice-slot { margin-top: 1.5rem }`, so the first note sits 12px under the bar and every later one 24px below the one before.
+- **Transcript bound kept at `100vh - 16rem`** (the comment re-derived: the collapsed Demo note is 60-62px at 1280 instead of the 106px panel, so the bound is now about 46px conservative; kept on purpose so this slice changes no transcript height).
+
+### Deviations from the spec, with reasons
+1. **Fatal is not filled** (2.4 names `danger-subtle`): no such role exists in any palette; adding one is a token change, which 2.4 rules out. See "Contrast pairs first".
+2. **"Details" follows the heading's last word, not the far end of the line.** The spec's `auto | minmax(0,1fr) | auto` puts the toggle on the right edge of a 1152px note, about 500px from the heading's end at 1280; `minmax(0, max-content)` for the heading keeps it beside the words and still lets the heading wrap when the line is short. [J]
+3. **Below 640 "Details" takes its own line under the heading.** Beside the heading at 320 the 20px heading had about 130px and wrapped to five lines; under it the heading gets the full text width. Measured (geometry, phone emulation): **116px at 390, 144px at 320** (heading 3 lines + Details line + padding). The spec's "at most 112px at 320" is **not met**; it would need the heading at a smaller size than `.note-title`. Reported as measured. At 1280 and 1440 the note is **62px** (spec <= 64): met.
+4. **The state glyphs keep their shapes.** 2.4's rule "a safety note's glyph is filled" is met by Paused (filled bars) only; Mismatch keeps the outlined warning triangle and Offline the slashed circle, which is the pill's "Not recording" shape. Changing state glyphs was not in the 8b file list and would change a safety cue; flagged for the UX lead.
+5. **The gap between the Demo note and the TL;DR note below it (phone, Focus) stays 16px** (`lecture-columns mt-4`): the TL;DR note is in the columns, not a notice slot; 2.4's 24px rule is applied to the notes under the bar.
+6. **Screens spec: axe now scans phone lecture captures at scroll 0** (recorded test change below). At the spec's scrolled offset (transcript scrolled into view) "Details" lands half under the sticky recording bar and axe reports `target-size (serious): .demo-note-toggle` ("partially obscured, 76 x 14"); at scroll 0 nothing overlaps it. The bar must stay visible (invariant 2), so any target scrolls under it at some offset. For the Lead: if this reading of axe's obscured-target heuristic is not acceptable, the alternative is a layout change, not a CSS switch.
+
+### Recorded test changes (each with its reason)
+- `skinBlocks.test.ts` "safety surfaces are notes; the Demo-source notice is not (G1) ..." **rewritten** (now "... the Demo-source notice is a one-line Note with Details; no Demo tag in the bar (PO-18c)"): PO-18c supersedes the G1 presentation pin for this item only. It now pins the filled Paused / Mismatch / Offline notes, the unfilled Stopped and Fatal notes, the Demo note's classes, heading class, toggle and hidden body, no `<details>` / `compact` / `text-accent` in `DemoNotice`, no `.panel` in `Notices.tsx`, the two fill rules, the 24px slot gap, the two `copy.ts` lines quoted verbatim, and no `demo-tag` / `DEMO_SOURCE_TAG` / `demoSource` in `StatusBar.tsx`.
+- `skinBlocks.test.ts` `text-accent` ratchet: `components/lecture/Notices.tsx: 1` **removed** (1 -> 0): the accent "Details" summary became an ink tertiary button (spec 2.1 "Accent").
+- `LectureRedesign.test.tsx` "the transcript is the sheet ...": the Paused class `note note-notice` -> `note note-notice note-filled` (the fill); the Demo notice class, heading class and "Details" (now a button with `aria-expanded="false"`) re-pointed; `demo-tag` asserted absent. Test name says "a one-line Note (PO-18c)" instead of "unchanged (G1)".
+- `LectureScreen.test.tsx` "renders status bar with Recording label, Demo source tag (non-dismissible) ...": the two tag assertions (lines 19-20) **replaced** by: no `demo-tag`; the Demo note's heading present; no close / dismiss / hide button in it. Name updated accordingly.
+- `e2e/lecture.spec.ts:114` `getByTestId("demo-tag")).toBeVisible()` **became** `toHaveCount(0)` (Lead answer 1), plus the Demo note's heading visible and "Details" `aria-expanded="false"`; line 115 unchanged.
+- `e2e-screens/screens.spec.ts`: phone lecture captures scroll back to 0 after the `--viewport` screenshot, before axe (deviation 6). The captures themselves are unchanged in procedure.
+- `e2e-screens/geometry.spec.ts`: a stale comment about the tag wrapping the bar corrected (no assertion changed).
+- **Added:** `LectureRedesign.test.tsx` describe "Demo-source notice as a one-line Note (slice 8b)" (8 tests: byte-identical wording against literal before-strings, `aria-*` wiring, body in the DOM and hidden, only one control, no live region, axe; Details opens and closes, focus stays, nothing announced, axe while open; Paused / Stopped / Mismatch / Offline: the state note first and the collapsed Demo note in the next slot; the open state survives Live -> Paused; Offline filled, Demo note unfilled). `tokens.ts` `PRIMITIVE_PAIRS` +8 pairs (96 assertions over 12 palettes). `geometry.spec.ts` "slice 8b" test (Paper, `live` / `paused` / `disconnected` / `mismatch` / `stopped` at 320, 390, 1280, 1440: bar 57px from 1280 in every fixture, pill 44, no tag, collapsed note <= 64 at 1280, body not visible, every notice on the column's edges, first note 12px under the bar, notes 24px apart).
+
+### Test and verification record (actual runs, 2026-10-31, `src/web`; the clean `npm run dev:real` already on :3000, the forwarder on :3100, the API on :5080 answering `/health/live` 200 before each browser run)
+| Check | Command | Result |
+|---|---|---|
+| Unit, before any change | `npx vitest run` | 39 files, **2614 passed** |
+| Contrast pairs | `npx vitest run src/lib/design/tokens.test.ts` | with Fatal: 48 failed (no `danger-subtle` role); after dropping Fatal: **1836 passed** |
+| Unit, first pass after the code change | `npx vitest run src/components/lecture src/lib/design` | 3 failed, exactly the three pinned assertions above; after the edits 1 failed (my own `<details>` check matched the Lecture settings popover; narrowed to `DemoNotice`) |
+| Unit, final 8b code | `npx vitest run` | 39 files, **2718 passed** (+104: 96 contrast, 8 notice tests) |
+| Typecheck / lint | `npx tsc --noEmit`; `npx eslint src e2e e2e-harness e2e-screens` | clean; 0 errors, 1 pre-existing warning (`_label` in `e2e/lecture.spec.ts`) |
+| Harness e2e | `npx playwright test -c playwright.harness.reuse.config.ts --workers=1` | **59 passed (1.1 min)**, unedited (`consent-look.spec.ts` and "Paused panel needs no scrolling at 320" included) |
+| Geometry | `npx playwright test -c playwright.screens.config.ts e2e-screens/geometry.spec.ts --workers=1` | **6 passed (1.5 min)** (the 5 existing + "slice 8b"); landmarks equal across 14 looks at 390 and 1280 |
+| Skins / Gamer-Glass | `... e2e-screens/skins.spec.ts`, `... e2e-screens/gamer-glass.spec.ts` | **5 passed**, **15 passed** |
+| Screens + axe, lecture + consent | `SCREENS=lecture-live,lecture-quick-recap,lecture-focus,lecture-paused,lecture-disconnected,lecture-mismatch,lecture-stopped,lecture-mic-denied,consent npx playwright test -c playwright.screens.config.ts e2e-screens/screens.spec.ts --workers=1` | first run 6 passed, **3 failed** (`lecture-live`, `-quick-recap`, `-focus`: `target-size` on `.demo-note-toggle` at 390, deviation 6); after the scroll-to-0 change those three re-run: **3 passed**. All 9 screens: 0 axe violations |
+| Real-stack lecture e2e | `npx playwright test -c playwright.reuse.config.ts e2e/lecture.spec.ts --workers=1` | **9 passed (2.1 min)** with the edited line 114 |
+
+Measured by the "slice 8b" geometry test (Paper): collapsed Demo note **62px** at 1280 / 1440, **116px** at 390, **144px** at 320; bar **57px** at 1280 and 1440 in all five fixtures (Mismatch and Disconnected were two rows before); Paused + Demo at 1280 = 184 + 24 + 62.
+
+### Screenshots viewed (new captures against the scratch copy `before8/`)
+- `lecture-paused--1280--paper`: Paused note on the amber tint with its filled bars glyph, "Resume recording" the one fill; 24px below, the Demo note on one line with "Details" after the heading, unfilled, outlined glyph, amber 4px stripe. The 6px-over-4px two-stripe stack is gone.
+- `lecture-mismatch--1280--paper`: one 56px bar ("Not available at the moment" fits the row now); the Mismatch note on the recording tint; the Demo note one line below.
+- `lecture-stopped--1280--night`: Stopped note with the grey stripe, unfilled; the Demo note one line; the search toolbar and transcript unchanged.
+- `lecture-paused--390--paper`: Paused note tinted; the Demo note heading on three lines with "Details" on its own line under it; the TL;DR note 16px below (deviation 5).
+- `lecture-live--1280--gamer-dark-grid`: the note in Gamer dark: legible, no tint, heading in the body face.
+- `lecture-disconnected--390--night--viewport`: the viewport capture scrolled to the transcript; the notes are above the fold (as before).
+- Pixel diff: every lecture capture changed (the layout under the bar); `lecture-live` is 44px shorter at 1280 and 86px at 390.
+Not viewed one by one: the remaining lecture captures in Fog / Dusk and the skin looks (axe-clean).
+
+### Open for the Lead
+1. Deviation 3: the collapsed note is 144px at 320 (spec bound 112). Options: keep, or set the heading smaller below 640.
+2. Deviation 6: axe at scroll 0 for phone lecture captures (a target half under the sticky recording bar at an arbitrary scroll offset).
+3. Deviation 4: Mismatch / Offline glyph shapes unchanged; a filled-triangle variant is a UX-lead call.
+4. G1 stays BLOCKED; nothing here is human-validated (G4). Whether "Details" tells a student enough is the spec's G4 question 5.
+
+## Slice 8c results (PO-18b: the Calendar step in a reserved rail from 1280)
+
+Status: IMPLEMENTED in `src/web`, 2026-10-31, by frontend-engineer, after 8b in the same session (both touch `globals.css`); written as the work went; not committed. Spec: `docs/ux/make-notes-rail-demo-notice.md` section 3. Nothing here is human-validated (gate G4 NOT_RUN); gate G1 stays BLOCKED (the two Demo lines on the review page are untouched in wording, position and presentation). Baseline: the final 8b code, `npx vitest run` **2718 passed**. Screens compared against the same `before8/` copy.
+
+### What landed (`src/web`: `syllabus/Review.tsx`, `syllabus/copy.ts`, `app/globals.css`)
+- **Structure** (`Review.tsx`): the outer `max-w-prose` wrapper is gone; the blocks above the list (h1, Demo lines, notes, summary, time zone, skip link, toolbar, "More ways to decide") and below it ("Your data", the links) keep `max-w-prose` in two wrappers. Between them `.review-body` holds `.review-groups` (every group section, unchanged) and then `.review-rail` (the unchanged `section.note.note-neutral.calendar-step[data-calendar-step]`). DOM order is the same as before (groups, then the step), so the Tab order, the "Skip to calendar step" button and the `#calendar-step-h` target are unchanged; `Review.test.tsx`'s focus-map tests pass unedited.
+- **Below 1280** `.review-body` is a plain `68ch` block (the old wrapper's measure), the rail wrapper is an ordinary block and the step is the Note in the flow after the groups, exactly where slice 6 put it.
+- **From 1280** `.review-body` is a grid `minmax(0, 1fr) | var(--aside-w)` (20rem), `column-gap: 2.5rem`, `align-items: start`, no max-width; `.review-rail` is `position: sticky; top: 5rem` (= `html` scroll-padding-top), `max-height: calc(100vh - 6rem)`, `overflow-y: auto`, `background: var(--ledger-bg)`; inside it the step drops its stripe (`::before { content: none }`, the tint is the edge), takes `padding: 1rem` and `margin-top: 0`, and its button row becomes a column so the fill takes the rail's width and wraps its words, with the reason under it.
+- **Counts sentence** (`SYNC_COPY.railCounts(approved, skipped, undecided)` = `${a} approved, ${s} skipped, ${u} not decided.`), the second half of the existing summary line in the same words, rendered as plain `.help` text (not live) under the "Calendar step" heading at every width (one component).
+- No skin rule touches the rail (as `.lecture-rail`: paint only, no Portal edge, no Calm radius); forced colours keep the note's `CanvasText` outline.
+
+### Deviations from the spec, with reasons
+1. **The rows get narrower at 1280, not wider.** 3.1 assumed slice 6's rows were 636px (`max-w-prose`); in this face `68ch` at 17px is **749px** (measured in the before capture: row tint 153 to 934). With the rail the rows are **680px** at 1280, 1440 and 1920 (the Desk container is 72rem at every width; only the lecture template grows to 80rem from 1536, so the spec's "808px at 1536" does not occur). The fixture's title line (title, date, "Date has passed", Approve / Skip / Edit) still fits one line at 680 (capture viewed). Reported as measured.
+2. **The counts sentence also changes the flow version below 1280**, as the spec asks ("one component, both widths"): heading, counts, then the button row. The old single wrapping row (heading beside the button) is now stacked; the 390 page is 28px taller (1928 -> 1956).
+3. **The landmark-rect gate does not include the review page** (3.5 item 8 says "if the review page is added"); not added. The rail takes only `--ledger-bg` (a palette role) and no skin rule, which `skinBlocks.test.ts` guards for every skin block.
+4. **The rows' 16px ledger bleed (R8) stays**, so the visible gap between the row tint and the rail is 24px; the grid gap between the groups column and the rail is the specified 40px (measured).
+
+### Recorded test changes (each with its reason)
+- `skinBlocks.test.ts` "the calendar step is a Note in the flow at every width: no rule positions .calendar-step ..." **replaced** by "the calendar step is never positioned itself; from 1280 only its reserved rail track (.review-rail) is sticky; below 1280 it is in the flow" (spec 3.5 / build plan row 8c). Slice 6 pinned "no rule mentions .calendar-step" because a sticky bar covered row targets; the new test pins: the only rules naming `calendar-step` are the three `.review-rail ...` rules, all inside `min-width: 1280px` and none setting `position`; the only positioned `.review-*` rule is `.review-rail` (sticky, top 5rem, max-height, overflow, ledger tint) inside the 1280 query; the 1280 grid of `.review-body`; its 68ch base; `--aside-w` 20rem; DOM order groups -> rail -> step.
+- `e2e-screens/geometry.spec.ts` Paper 7-width review check: the existing "calendar step position static or relative" kept; **added** below 1280: the rail wrapper is static / relative, the step is below the last group and on the column's left edge. The comment updated.
+- **Added:** `geometry.spec.ts` "slice 8c" (1280, 1440, 1920 x 900; first group open and all groups open: the step inside `.review-rail`; rail `sticky`, `top` 80px; width 320 +- 1; right edge = column right +- 1; top = first group head top +- 1; groups -> rail gap 40 +- 1; then a scroll scan every 200px from 0 to the page bottom: no `li.ledger-row`, no button in a row and no `.group-head` intersects the rail, the fill stays inside the viewport below the header, and axe `target-size` reports nothing at each sampled position). `Review.test.tsx` describe "Calendar step rail (slice 8c)" (3 tests: `.review-body` children are exactly groups then rail; the step in the rail; prose blocks still in `max-w-prose`; the rail holds the h2, the counts, one `.btn-primary` and the reason; counts not in a live region; counts equal the summary's tail after Approve and Undo and nothing is announced for them). `syllabus/copy.test.ts` +1 (the counts string and its equality with `REVIEW_COPY.summary`'s tail). No existing Review, F2 or SyllabusFlow assertion edited.
+
+### Test and verification record (actual runs, 2026-10-31, `src/web`; same dev server, forwarder and API; the API was stopped twice by the backend agent during this slice, see below)
+| Check | Command | Result |
+|---|---|---|
+| Unit, first pass | `npx vitest run src/components/syllabus src/lib/design` | 1 failed: exactly the slice-6 "no rule positions .calendar-step" pin, replaced as recorded |
+| Unit, final code | `npx vitest run` | 39 files, **2735 passed**. +4 are this slice (1 copy, 3 Review); **+13 are not mine**: `src/lib/lecture/schemas.test.ts` runs one case per `lecture.v1` fixture in `src/shared/contracts`, and the backend agent added 13 notes fixtures there during this session (untracked files in `git status`). No test removed |
+| Typecheck / lint | `npx tsc --noEmit`; `npx eslint src e2e e2e-harness e2e-screens` | clean; 0 errors, 1 pre-existing warning |
+| Geometry, "slice 8c" alone | `npx playwright test -c playwright.screens.config.ts e2e-screens/geometry.spec.ts -g "slice 8c" --workers=1` | first attempt failed in the page load ("Getting your syllabus." forever): the API answered `000` (the backend agent's stop); after `/health/live` returned 200: **1 passed** |
+| Geometry, full | same without `-g` | **7 passed (1.7 min)** |
+| Screens + axe, syllabus | `SCREENS=syllabus-review,syllabus-new npx playwright test -c playwright.screens.config.ts e2e-screens/screens.spec.ts --workers=1` | first attempt 2 failed (API `000` again, sign-in in `beforeAll`); after 200: **2 passed, 48 captures, 0 axe violations** |
+| Harness e2e | `npx playwright test -c playwright.harness.reuse.config.ts --workers=1` | **59 passed (1.1 min)** |
+| Skins / Gamer-Glass | `... e2e-screens/skins.spec.ts`, `... e2e-screens/gamer-glass.spec.ts` | **5 passed**, **15 passed (1.9 min)** |
+| Real-stack e2e | `npx playwright test -c playwright.reuse.config.ts e2e --workers=1` | **23 passed (2.9 min)**: courses 11, lecture 9, syllabus 3 (its axe scans at 1280 x 900 green with the rail) |
+
+Measured by the "slice 8c" geometry test: rows **680px**, rail **320 x 191** at 1280, 1440 and 1920; the scan covered 0-322px (first group open) and 0-949px (all open) with no intersection, the fill always in view and no `target-size` finding.
+
+### Screenshots viewed (against `before8/`)
+- `syllabus-review--1280--paper`: h1, the two Demo lines (unchanged), summary, toolbar at 68ch; the open group's two ledger rows (680px, title line with date, "Date has passed" and Approve / Skip / Edit on one line); on the right the rail on the ledger tint, its top level with "Week of Sep 14 to 20": "Calendar step", "0 approved, 0 skipped, 5 not decided.", the disabled fill on two lines across the rail, "Approve an item to continue."; "Your data" and the links below at 68ch. Page 1354 -> 1222px (the step no longer adds a block after the groups).
+- `syllabus-review--390--paper`: the step in the flow after "Needs a date", with its stripe; heading, counts, the fill (wrapping to two lines), the reason; everything else as before.
+- Byte compare: all 24 `syllabus-new` captures identical; every `syllabus-review` capture changed (this slice) and 0 axe violations.
+Not viewed one by one: the review captures in the other looks (axe-clean).
+
+### Open for the Lead
+1. Deviation 1: rows 749 -> 680px at desktop widths (the spec expected wider). Long titles will wrap earlier beside the rail. If that matters, the rail could start at 1440, or the Desk container could grow on the review page (a layout decision).
+2. The counts sentence stacks the in-flow step on phones (deviation 2).
+3. G4: the spec's question 4 (did the rail help or distract while deciding) is the evidence still missing.
+
+Not run for 8b + 8c: the full 20-screen `screens.spec.ts` (only the touched screens were re-captured: the 8 lecture screens, consent, syllabus-new and syllabus-review; the other screens' CSS is untouched). Not verified: screen readers, real devices and human review (G4 NOT_RUN); the rail under 200% / 400% browser zoom was checked through the 320 / 390 / 768 / 1024 layout widths in the geometry run, not by zooming a real browser.
+
+### Lead decisions on slices 8b and 8c (2026-10-31)
+- **Fatal note without tint:** accepted (no `danger-subtle` colour exists; the spec's drop-the-fill rule applies).
+- **Demo note height on small phones** (144px at 320, 116px at 390 vs the spec's 112): accepted for now; a smaller heading below 640 is a follow-up.
+- **Phone lecture captures scanned by axe at scroll 0** (the sticky recording bar half-covers "Details" at the old scrolled position): accepted as a scroll-position artefact of a transient overlap, unlike the permanent calendar bar that failed SC 2.5.8. Keep `scroll-padding` so focus is never hidden under the bar. A real-device check is still owed (G3).
+- **Pill 2px lower in Mismatch/Disconnected at 1280, syllabus rows 680px instead of 749px with the rail:** accepted.
+- **Demo-source notice** is a risk acceptance by the PO (PO-18c), not counsel clearance; G1 stays BLOCKED. All Demo wording is byte-identical (unit-tested against the old strings).
+- **Verified by the Lead on the final code:** tsc clean; eslint 0 errors; vitest 2735; real-stack e2e 23/23; reuse harness 59/59; geometry + skins + gamer-glass 27/27; ConsentDialog/ConsentStart/consent-look.spec no diff. Screens + axe (0 violations) is the agent's run.

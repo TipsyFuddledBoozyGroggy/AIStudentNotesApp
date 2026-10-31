@@ -249,8 +249,17 @@ test("Paper, 7 widths: shell pages share edges, one column start per template, 4
         const bordered = await li.locator("button.btn-secondary, button.btn-primary, button.btn-danger").count();
         expect(bordered, `syllabus-review@${width} bordered buttons in a row`).toBeLessThanOrEqual(1);
       }
-      // The calendar step is a note in the flow (never fixed or sticky: a bar over the list would cover row targets).
+      // The calendar step itself is never fixed or sticky (a bar over the list would cover row targets). Slice 8c: below 1280
+      // its rail wrapper is in the flow too and the step sits after the last group, visually and in the DOM; from 1280 the
+      // rail is checked in the "slice 8c" test below.
       expect(await page.locator(".calendar-step").evaluate((el) => getComputedStyle(el).position), `syllabus-review@${width} calendar step position`).toMatch(/^(static|relative)$/);
+      if (width < 1280) {
+        expect(await page.locator(".review-rail").evaluate((el) => getComputedStyle(el).position), `syllabus-review@${width} rail position`).toMatch(/^(static|relative)$/);
+        const lastGroup = await box(page.locator(".review-groups > section").last());
+        const step = await box(page.locator("[data-calendar-step]"));
+        expect(step.y, `syllabus-review@${width} calendar step below the last group`).toBeGreaterThanOrEqual(lastGroup.y + lastGroup.height);
+        expect(near(step.x, colX, 1.5), `syllabus-review@${width} calendar step on the column ${step.x} vs ${colX}`).toBe(true);
+      }
       await close();
     }
     // Add a course (sheet) and sign-in (auth).
@@ -282,9 +291,8 @@ test("Paper, 7 widths: lecture bar 56px with 44px pill and controls, columns sha
       const bar = page.locator("[data-lecture-status-bar]");
       const barInner = bar.locator("> div");
       const bb = await box(bar);
-      // One 56px row (plus the 1px rule) from 1280: with the Demo-source tag (shown from 640, gate G1) and the Focus button
-      // (from 1024) the bar's content is about 1090px, so between 640 and ~1170 it is two rows (<= 112 + 1), as it was
-      // before slice 1. Two rows from 390px of layout width on phones; below that Pause / Stop / Lecture settings (350px)
+      // One 56px row (plus the 1px rule) from 1280. Before slice 8b the Demo-source tag (shown from 640) made the bar two
+      // rows between 640 and ~1170 (<= 112 + 1); the tag left the bar in slice 8b (PO-18c), the <= 113 bound stays. Two rows from 390px of layout width on phones; below that Pause / Stop / Lecture settings (350px)
       // need a third row, and at 320 the pill (211px) and "Connected" (94px) cannot share a row either, so four rows
       // (189px). All recorded in redesign-round2 "Slice 1 results"; the pill stays in view at 320 (harness e2e).
       const layoutWidth = await page.evaluate(() => document.body.clientWidth);
@@ -360,6 +368,114 @@ test("Paper, 7 widths: lecture bar 56px with 44px pill and controls, columns sha
       await close();
     }
   }
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Slice 8b (PO-18c; make-notes-rail-demo-notice 2.6 item 6): with the Demo tag out of the bar, the bar is one 57px row at
+// 1280 in every lecture fixture (Mismatch and Disconnected included, which wrapped to two rows before); the collapsed Demo
+// note is one line at 1280; notes under the bar are 24px apart (the first 12px under the bar); every notice slot shares
+// the column's edges; the recording pill stays 44px. Measured values are attached as an annotation.
+const NOTE_FIXTURES = ["live", "paused", "disconnected", "mismatch", "stopped"] as const;
+test("slice 8b: lecture bar one row at 1280 in every fixture; one-line Demo note; notes 24px apart; pill 44px", async () => {
+  test.setTimeout(600_000);
+  const measured: string[] = [];
+  for (const width of [320, 390, 1280, 1440] as const) {
+    for (const fixture of NOTE_FIXTURES) {
+      const { page, close } = await open(browser, `/dev/lecture-harness/${fixture}`, width);
+      await expect(page.getByText(/^Fixture:/)).toBeVisible();
+      const problems: string[] = [];
+      const bar = await box(page.locator("[data-lecture-status-bar]"));
+      if (width >= 1280 && !near(bar.height, 57, 1)) problems.push(`bar height ${bar.height} (one 56px row + rule expected)`);
+      const pill = await box(page.getByTestId("state-label").locator("xpath=ancestor::div[contains(@class,'rounded-full')]"));
+      if (!near(pill.height, 44, 1)) problems.push(`pill height ${pill.height}`);
+      if (await page.getByTestId("demo-tag").count()) problems.push("demo tag present in the bar");
+      const demo = await box(page.getByTestId("demo-notice"));
+      if (width >= 1280 && demo.height > 64) problems.push(`collapsed Demo note ${demo.height}px tall at ${width} (one line, <= 64 expected)`);
+      if (await page.locator("#demo-notice-body").isVisible()) problems.push("Demo note body visible while collapsed");
+      const col = await box(page.locator("[data-layout]"));
+      const slots = await Promise.all((await page.locator(".notice-slot > *").all()).map(box));
+      for (const s of slots) if (!near(s.x, col.x, 1) || !near(s.width, col.width, 1)) problems.push(`notice ${s.x} w${s.width} vs column ${col.x} w${col.width}`);
+      if (slots.length && !near(slots[0].y - (bar.y + bar.height), 12, 1)) problems.push(`first note ${slots[0].y - (bar.y + bar.height)}px under the bar (12 expected)`);
+      for (let i = 1; i < slots.length; i++) {
+        const gap = slots[i].y - (slots[i - 1].y + slots[i - 1].height);
+        if (!near(gap, 24, 1)) problems.push(`gap between notes ${i - 1} and ${i}: ${gap} (24 expected)`);
+      }
+      measured.push(`${fixture}@${width}: bar ${Math.round(bar.height)}, demo note ${Math.round(demo.height)}, notes ${slots.map((s) => Math.round(s.height)).join("+")}`);
+      expect(problems, `${fixture} @ ${width}`).toEqual([]);
+      await close();
+    }
+  }
+  test.info().annotations.push({ type: "slice-8b", description: measured.join("; ") });
+  console.log(`[slice 8b] ${measured.join("; ")}`);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Slice 8c (PO-18b; make-notes-rail-demo-notice 3.5 items 1 and 2): from 1280 the Calendar step sits in a reserved 20rem
+// sticky track to the right of the groups. Rail geometry at scroll 0, then a scroll scan every 200px from the top to the
+// bottom of the page, with the first group open and with every group open: no item row, no button in a row and no group
+// head ever intersects the rail's box; the one fill stays inside the viewport below the header; and axe's target-size rule
+// reports nothing at any sampled position.
+test("slice 8c: Calendar step rail from 1280: 20rem sticky track, shared edges, no row or head under it at any scroll position", async () => {
+  test.setTimeout(600_000);
+  const { default: AxeBuilder } = await import("@axe-core/playwright");
+  const measured: string[] = [];
+  for (const width of [1280, 1440, 1920] as const) {
+    for (const allOpen of [false, true]) {
+      const { page, close } = await open(browser, `/courses/${ctx.syllabusCourseId}/syllabus`, width, { auth: true });
+      await expect(page.getByRole("heading", { level: 1, name: "Review your syllabus items" })).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByText(/^We found \d+ items\./)).toBeVisible();
+      if (allOpen) {
+        await page.getByRole("button", { name: "Expand all" }).click();
+        await expect(page.getByRole("button", { name: "Collapse all" })).toBeVisible();
+      }
+      const where = `syllabus-review@${width}${allOpen ? " all open" : ""}`;
+      const problems: string[] = [];
+      const rail = page.locator(".review-rail");
+      expect(await rail.locator("[data-calendar-step]").count(), `${where}: the step is inside the rail`).toBe(1);
+      const style = await rail.evaluate((el) => ({ position: getComputedStyle(el).position, top: getComputedStyle(el).top }));
+      if (style.position !== "sticky" || style.top !== "80px") problems.push(`rail ${style.position} top ${style.top} (sticky 80px expected)`);
+      expect(await page.locator("[data-calendar-step]").evaluate((el) => getComputedStyle(el).position)).toMatch(/^(static|relative)$/);
+      const col = await box(column(page));
+      const rb = await box(rail);
+      const groups = await box(page.locator(".review-groups"));
+      const firstHead = await box(page.locator("main .group-head").first());
+      if (!near(rb.width, 320, 1)) problems.push(`rail width ${rb.width}`);
+      if (!near(rb.x + rb.width, col.x + col.width, 1)) problems.push(`rail right ${rb.x + rb.width} vs column right ${col.x + col.width}`);
+      if (!near(rb.y, firstHead.y, 1)) problems.push(`rail top ${rb.y} vs first group head top ${firstHead.y}`);
+      if (!near(rb.x - (groups.x + groups.width), 40, 1)) problems.push(`gap groups -> rail ${rb.x - (groups.x + groups.width)}`);
+      measured.push(`${where}: rows ${Math.round(groups.width)}, rail ${Math.round(rb.width)}x${Math.round(rb.height)}`);
+      // Scroll scan.
+      const total = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+      const header = await box(page.locator("[data-site-header]"));
+      const viewportH = page.viewportSize()!.height;
+      for (let y = 0; ; y = Math.min(total, y + 200)) {
+        await page.evaluate((top) => window.scrollTo(0, top), y);
+        await page.waitForTimeout(30);
+        const hits = await page.evaluate(() => {
+          const r = document.querySelector(".review-rail")!.getBoundingClientRect();
+          const out: string[] = [];
+          const targets = document.querySelectorAll<HTMLElement>("main li.ledger-row, main li.ledger-row button, main .group-head");
+          for (const el of Array.from(targets)) {
+            const b = el.getBoundingClientRect();
+            if (b.width === 0 || b.height === 0) continue;
+            if (b.left < r.right && b.right > r.left && b.top < r.bottom && b.bottom > r.top) out.push(`${el.tagName.toLowerCase()}.${el.className.toString().split(" ")[0]} "${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 30)}"`);
+          }
+          return out;
+        });
+        if (hits.length) problems.push(`scroll ${y}: ${hits.join(", ")} under the rail`);
+        const fill = await box(page.locator(".review-rail .btn-primary"));
+        if (fill.y < header.height - 0.5 || fill.y + fill.height > viewportH + 0.5) problems.push(`scroll ${y}: the fill ${Math.round(fill.y)}-${Math.round(fill.y + fill.height)} is not inside the viewport below the header`);
+        const axe = await new AxeBuilder({ page }).withRules(["target-size"]).analyze();
+        for (const v of axe.violations) problems.push(`scroll ${y}: axe ${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`);
+        if (y >= total) break;
+      }
+      measured.push(`${where}: scanned 0-${total}px`);
+      expect(problems, where).toEqual([]);
+      await close();
+    }
+  }
+  test.info().annotations.push({ type: "slice-8c", description: measured.join("; ") });
+  console.log(`[slice 8c] ${measured.join("; ")}`);
 });
 
 // ---------------------------------------------------------------------------------------------------------------------

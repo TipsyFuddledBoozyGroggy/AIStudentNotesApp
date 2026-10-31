@@ -375,17 +375,37 @@ describe("lecture screen (redesign-round2 slice 3)", () => {
     expect(RULES.filter((r) => r.selector.includes(".btn-primary:hover")).map((r) => r.selector)).toEqual(["[data-lecture-root] .btn-primary:hover"]);
   });
 
-  it("safety surfaces are notes; the Demo-source notice is not (G1): its panel, heading, Details and wording are unchanged", () => {
+  // Rewritten in slice 8b (PO-18c supersedes the PO-17b / G1 presentation pin for the Demo-source notice only): the notice
+  // is now a one-line Note with its body behind "Details", the bar's Demo tag is gone, and the four safety notes carry the
+  // state tint except Fatal (no danger-subtle role). The wording stays byte-identical: the two strings are quoted here as
+  // they were before the slice (make-notes-rail-demo-notice 2.1 / 2.6 item 4).
+  it("safety surfaces are notes (Paused, Offline, Mismatch filled; Stopped and Fatal unfilled); the Demo-source notice is a one-line Note with Details; no Demo tag in the bar (PO-18c)", () => {
     const notices = readFileSync(path.join(SRC, "components/lecture/Notices.tsx"), "utf8");
-    for (const panel of ["paused", "mismatch", "stopped"]) expect(notices).toMatch(new RegExp(`data-panel="${panel}" className="note note-`));
-    expect(notices).toContain('data-banner="offline" className="note note-notice');
+    expect(notices).toContain('data-panel="paused" className="note note-notice note-filled"');
+    expect(notices).toContain('data-panel="mismatch" className="note note-safety note-filled"');
+    expect(notices).toContain('data-banner="offline" className="note note-notice note-filled');
+    expect(notices).toContain('data-panel="stopped" className="note note-neutral"');
     expect(notices).toContain('data-testid="fatal-panel" aria-labelledby="fatal-h2" className="note note-danger"');
-    expect(notices).toContain('data-testid="demo-notice" aria-labelledby="demo-notice-h2" className="panel panel-notice flex gap-3 py-3"');
-    expect(notices).toContain('<h2 id="demo-notice-h2" className="font-bold">');
-    expect(notices).toContain('<summary className="inline-flex min-h-[44px] cursor-pointer items-center font-semibold text-accent underline underline-offset-[0.2em]">');
-    expect(notices).toContain('<p className="mt-1 text-sm text-muted">{DEMO_NOTICE_COPY.body}</p>');
+    expect(notices).toContain('data-testid="demo-notice" aria-labelledby="demo-notice-h2" className="note note-notice demo-note"');
+    expect(notices).toContain('<h2 id="demo-notice-h2" className="note-title demo-note-title">');
+    expect(notices).toContain('className="btn-tertiary btn-sm demo-note-toggle"');
+    expect(notices).toContain('aria-controls="demo-notice-body"');
+    expect(notices).toContain('<p id="demo-notice-body" className="demo-note-body text-sm text-muted" hidden={!open}>');
+    const demo = notices.slice(notices.indexOf("export function DemoNotice("), notices.indexOf("export function FatalPanel("));
+    expect(demo).toMatch(/^export function DemoNotice\(\) \{/); // the compact prop is gone
+    expect(demo).not.toMatch(/<details|<summary|compact|text-accent/);
+    expect(notices).not.toMatch(/className="[^"]*\bpanel\b/);
+    expect(decls(".note-filled.note-notice")).toEqual({ "background-color": "var(--c-warning-subtle)" });
+    expect(decls(".note-filled.note-safety")).toEqual({ "background-color": "var(--c-recording-subtle)" });
+    expect(RULES.some((r) => r.selector.includes("note-danger") && r.selector.includes("note-filled"))).toBe(false);
+    expect(decls(".notice-slot + .notice-slot")).toEqual({ "margin-top": "1.5rem" });
+    const copy = readFileSync(path.join(SRC, "components/lecture/copy.ts"), "utf8");
+    expect(copy).toContain('heading: "Demo source: these words are not from your microphone",');
+    expect(copy).toContain(
+      'body: "The transcript is a fixed test script that plays as audio arrives. No real speech service is listening, so what you say is not turned into text. Audio is only used to time the script and is not kept. (Draft wording.)",',
+    );
     const bar = readFileSync(path.join(SRC, "components/lecture/StatusBar.tsx"), "utf8");
-    expect(bar).toContain('<span data-testid="demo-tag" className="tag tag-warning hidden sm:inline-flex">');
+    expect(bar).not.toMatch(/demo-tag|DEMO_SOURCE_TAG|demoSource/);
   });
 });
 
@@ -481,9 +501,43 @@ describe("Syllabus review density (redesign-round2 slice 6)", () => {
     expect(g).toMatchObject({ "font-family": "var(--font-verbatim)", "font-size": "var(--type-sm)", "line-height": "var(--leading-sm)" });
   });
 
-  it("the calendar step is a Note in the flow at every width: no rule positions .calendar-step (a sticky bar covered row targets; axe target-size)", () => {
-    expect(RULES.filter((r) => r.selector.includes(".calendar-step"))).toEqual([]);
-    expect(structureCss).not.toMatch(/calendar-step/);
+  // Rewritten in slice 8c (PO-18b; make-notes-rail-demo-notice 3.5): slice 6 pinned "no rule mentions .calendar-step"
+  // because a sticky bar over the list covered row targets. The step now sits in a reserved rail track from 1280; it is
+  // still never positioned itself, and the only positioned box is `.review-rail` (sticky) inside the 1280 media query, in
+  // a grid track no row occupies. Below 1280 nothing positions either.
+  it("the calendar step is never positioned itself; from 1280 only its reserved rail track (.review-rail) is sticky; below 1280 it is in the flow", () => {
+    const stepRules = RULES.filter((r) => r.selector.includes("calendar-step"));
+    expect(stepRules.map((r) => r.selector).sort()).toEqual([".review-rail .calendar-step", ".review-rail .calendar-step-action", ".review-rail .calendar-step::before"]);
+    for (const r of stepRules) {
+      expect([r.selector, inMedia(r, "min-width: 1280px")]).toEqual([r.selector, true]);
+      expect(r.decls.map(([k]) => k)).not.toContain("position");
+    }
+    const positioned = RULES.filter((r) => /\.review-(rail|body|groups)/.test(r.selector) && r.decls.some(([k]) => k === "position" || k === "inset" || k === "top" || k === "bottom"));
+    expect(positioned.map((r) => r.selector)).toEqual([".review-rail"]);
+    expect(inMedia(positioned[0], "min-width: 1280px")).toBe(true);
+    expect(Object.fromEntries(positioned[0].decls)).toEqual({
+      position: "sticky",
+      top: "5rem",
+      "max-height": "calc(100vh - 6rem)",
+      "overflow-y": "auto",
+      background: "var(--ledger-bg)",
+      "--ledger-inset": "1rem",
+    });
+    expect(Object.fromEntries(RULES.find((r) => r.selector === ".review-body" && inMedia(r, "min-width: 1280px"))?.decls ?? [])).toEqual({
+      display: "grid",
+      "grid-template-columns": "minmax(0, 1fr) var(--aside-w)",
+      "column-gap": "2.5rem",
+      "align-items": "start",
+      "max-width": "none",
+    });
+    // Below 1280 the body is the 68ch block slice 6 had (the old outer max-w-prose), with no grid or position.
+    expect(Object.fromEntries(RULES.find((r) => r.selector === ".review-body" && !r.context.some((c) => c.startsWith("@media")))?.decls ?? [])).toEqual({ "max-width": "68ch" });
+    expect(LAYER_C.get("--aside-w")?.default).toBe("20rem");
+    // DOM order: the groups, then the rail holding the step (Tab order, skip link and h2 target unchanged).
+    const review = src("components/syllabus/Review.tsx");
+    expect(review.indexOf('className="review-groups space-y-4"')).toBeGreaterThan(0);
+    expect(review.indexOf('<div className="review-rail">')).toBeGreaterThan(review.indexOf('className="review-groups space-y-4"'));
+    expect(review.indexOf('className="note note-neutral calendar-step mt-6"')).toBeGreaterThan(review.indexOf('<div className="review-rail">'));
   });
 
   it("no card, panel or bordered box remains in the slice 6 files; the review is ledgers, notes, one sheet (the edit form) and the v2 dialog", () => {
@@ -785,15 +839,15 @@ describe("source lints (redesign-round2 slice 0)", () => {
   // it from quiet buttons, links, disclosure summaries and step numerals; slice 3 from the Focus toggle's pressed state
   // and the recap citations (`.cite` draws accent from the token, baseline tightened 2026-10-31). What remains:
   // globals.css (.btn-quiet and the consent link carve-out, both G1; .tag-accent), layout.tsx (theme-color), the consent
-  // page's "What does this mean" summary (G1), the lecture skip links' focus style (focus is an allowed use) and the
-  // Demo-source notice's "Details" summary in Notices.tsx (presentation frozen under G1, PO deferral of Q2).
+  // page's "What does this mean" summary (G1) and the lecture skip links' focus style (focus is an allowed use). Slice 8b
+  // (PO-18c): the Demo-source notice's accent "Details" summary became an ink tertiary button, so Notices.tsx left the
+  // baseline (1 -> 0).
   it("accent-text usage ratchet: no new text-accent outside today's files", () => {
     ratchet(countBy(/\btext-accent\b/g), {
       "app/globals.css": 3,
       "app/layout.tsx": 1,
       "components/lecture/ConsentStart.tsx": 1,
       "components/lecture/LectureScreen.tsx": 1,
-      "components/lecture/Notices.tsx": 1,
     });
   });
 

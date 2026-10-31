@@ -319,10 +319,16 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
     ) : null;
 
   // Redesign-round2 slice 6 (wireframe 5.4): one display h1, the Demo lines (wording and tag presentation unchanged, G1),
-  // a two-line summary, one toolbar row, then each group as a label-style disclosure over a ledger of item rows. The
-  // calendar step is a Note after the groups (in the flow: a sticky bar would cover the row targets scrolled under it).
+  // a two-line summary, one toolbar row, then each group as a label-style disclosure over a ledger of item rows.
+  // Slice 8c (PO-18b; make-notes-rail-demo-notice 3): the groups and the Calendar step share `.review-body`. Below 1280 it
+  // is a plain 68ch block and the step is a Note in the flow after the groups, as slice 6 built it. From 1280 it is a grid
+  // and the step sits in `.review-rail`, a reserved 20rem track to the right of the groups, sticky under the header: no row
+  // can scroll under it, so "one fill always in view" holds on desktop without covering a target (SC 2.5.8). DOM order is
+  // unchanged (groups, then the step), so the Tab order, the skip link and the h2 target are unchanged. The prose blocks
+  // above and below keep their 68ch measure.
   return (
-    <div className="max-w-prose">
+    <div>
+      <div className="max-w-prose">
       <h1 ref={headingRef} tabIndex={-1} className="display text-display">
         {C.h1}
       </h1>
@@ -439,8 +445,13 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
               {batchPanel("all")}
             </div>
           )}
+        </>
+      )}
+      </div>
 
-          <div className="mt-6 space-y-4">
+      {items && d.length > 0 && (
+        <div className="review-body mt-6">
+          <div className="review-groups space-y-4">
             {groups.map((g) => {
               const isOpen = open?.has(g.key) ?? false;
               const label = groupLabel(g);
@@ -493,30 +504,37 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
             })}
           </div>
 
-          <section aria-labelledby="calendar-step-h" className="note note-neutral calendar-step mt-6" data-calendar-step="">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="review-rail">
+            <section aria-labelledby="calendar-step-h" className="note note-neutral calendar-step mt-6" data-calendar-step="">
               <h2 id="calendar-step-h" ref={calendarStepRef} tabIndex={-1} className="note-title">
                 {S.barRegion}
               </h2>
-              <button
-                type="button"
-                className="btn-primary"
-                aria-disabled={candidates.length === 0 ? true : undefined}
-                aria-describedby={candidates.length === 0 ? "calendar-step-hint" : undefined}
-                onClick={() => candidates.length > 0 && toMode({ m: "confirm" })}
-              >
-                {S.bar(candidates.length)}
-              </button>
-              {candidates.length === 0 && (
-                <p id="calendar-step-hint" className="help">
-                  {S.barHint}
-                </p>
-              )}
-            </div>
-          </section>
-        </>
+              {/* Plain text, not live: the status region already announces each decision. */}
+              <p className="help" data-calendar-counts="">
+                {S.railCounts(approved, skipped, undecided)}
+              </p>
+              <div className="calendar-step-action mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+                <button
+                  type="button"
+                  className="btn-primary"
+                  aria-disabled={candidates.length === 0 ? true : undefined}
+                  aria-describedby={candidates.length === 0 ? "calendar-step-hint" : undefined}
+                  onClick={() => candidates.length > 0 && toMode({ m: "confirm" })}
+                >
+                  {S.bar(candidates.length)}
+                </button>
+                {candidates.length === 0 && (
+                  <p id="calendar-step-hint" className="help">
+                    {S.barHint}
+                  </p>
+                )}
+              </div>
+            </section>
+          </div>
+        </div>
       )}
 
+      <div className="max-w-prose">
       {items && (
         <section aria-labelledby="syllabus-data-h" className="mt-12 space-y-3">
           <h2 id="syllabus-data-h" className="font-semibold text-ink">
@@ -549,6 +567,7 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
         <Link href={`/courses/${encodeURIComponent(courseId)}`} className={`btn-tertiary ${onAddAnother || onShowAll ? "" : "optical-start"}`}>
           {C.back}
         </Link>
+      </div>
       </div>
 
       <ConfirmDialog
