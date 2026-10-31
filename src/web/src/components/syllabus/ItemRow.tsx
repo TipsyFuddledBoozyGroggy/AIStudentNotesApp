@@ -182,7 +182,7 @@ export function ItemRow({ api, item, defaultTimezone, purged, onChange }: ItemRo
             {approveBtn}
             {skipBtn}
             {!needsDate && (
-              <button ref={editBtn} data-edit-button="" type="button" className="btn-quiet btn-sm" aria-label={C.editName(title)} aria-expanded={editing ? true : false} onClick={() => setEditing("title")}>
+              <button ref={editBtn} data-edit-button="" type="button" className="btn-tertiary btn-sm" aria-label={C.editName(title)} aria-expanded={editing ? true : false} onClick={() => setEditing("title")}>
                 {C.edit}
               </button>
             )}
@@ -233,7 +233,7 @@ export function ItemRow({ api, item, defaultTimezone, purged, onChange }: ItemRo
 
       {showSource && snippet && snippet.text !== null && !skipped && !editing && (
         <div className="mt-2">
-          <button type="button" className="btn-quiet btn-sm px-0" aria-expanded={sourceOpen} aria-controls={sourceId} onClick={() => setSourceOpen((o) => !o)}>
+          <button type="button" className="btn-tertiary btn-sm px-0" aria-expanded={sourceOpen} aria-controls={sourceId} onClick={() => setSourceOpen((o) => !o)}>
             {C.sourceToggle}
           </button>
           <div id={sourceId} hidden={!sourceOpen} className="mt-1 space-y-2 border-l-4 border-line pl-3 text-sm">

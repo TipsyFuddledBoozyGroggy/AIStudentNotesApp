@@ -47,7 +47,7 @@ export function SignInView() {
       </h1>
       <p className="text-muted">This is a development sign-in. Enter any school-style email. Google sign-in arrives later.</p>
       <div>
-        <label htmlFor="email" className="label">
+        <label htmlFor="email" className="field-label">
           Email
         </label>
         <input

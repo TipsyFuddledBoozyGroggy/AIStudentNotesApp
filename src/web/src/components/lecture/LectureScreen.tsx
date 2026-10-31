@@ -245,7 +245,7 @@ export function LectureScreen(props: LectureScreenProps) {
             // Toolbar grid (A10 / R9): the search field takes the column, the action ends on the column edge, helper below.
             <section aria-label="Review this lecture" className="grid gap-x-6 gap-y-3 sm:grid-cols-[minmax(0,1fr)_auto]">
               <div className="min-w-0">
-                <label htmlFor="lecture-search" className="label">
+                <label htmlFor="lecture-search" className="field-label">
                   Search this lecture
                 </label>
                 <input id="lecture-search" type="search" className="field" value={query} autoComplete="off" aria-describedby="lecture-search-count" onChange={(e) => setQuery(e.target.value)} />

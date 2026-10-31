@@ -93,12 +93,15 @@
 /* Layer B: structure per look (themes-spec 2.5; redesign-round2 3.1). A skin is paint only: it may set colour, radius,
    shadow, heading face and decoration, never padding, margin, gap, width, height, display, position or order (rule R11;
    skinBlocks.test.ts lints every [data-skin] rule). The one sanctioned exception is Calm's roomier --pad-card (a step of
-   the 4px scale), and only at Comfortable density. --scrim is per mode (redesign-round2 2.7 proposed .6 light / .7 dark; kept at .55 in both modes, same as before, because the consent pop-up shares the backdrop: PO-17b, gate G1). */
+   the 4px scale), and only at Comfortable density. --scrim is per mode (redesign-round2 2.7 proposed .6 light / .7 dark; kept at .55 in both modes, same as before, because the consent pop-up shares the backdrop: PO-17b, gate G1).
+   --scrim-dialog (slice 2) carries the spec's value for every other dialog (.dialog-scrim: Stop, Delete, command palette);
+   the consent pop-up keeps --scrim, so its backdrop is unchanged. */
 :root {
   --shadow-1: 0 1px 2px rgba(28, 27, 25, 0.06);
   --shadow-2: 0 8px 24px rgba(28, 27, 25, 0.14);
   --shadow-3: 0 16px 40px rgba(28, 27, 25, 0.2);
   --scrim: rgba(20, 22, 27, 0.55);
+  --scrim-dialog: rgba(20, 22, 27, 0.6);
   --dur-fast: 120ms;
   --dur-base: 200ms;
   --gap-block: 1.5rem;
@@ -120,6 +123,7 @@
   --shadow-2: none;
   --shadow-3: none;
   --scrim: rgba(20, 22, 27, 0.55);
+  --scrim-dialog: rgba(0, 0, 0, 0.7);
   color-scheme: dark;
 }
 /* Layer C: component tokens (redesign-round2 3.1 / 3.2), set once here from Layers A and B. Components consume only these
@@ -443,7 +447,11 @@ html:has([data-lecture-root]) {
 @layer components {
   /* Buttons (section 4). One filled accent button per region. Press/hover change border or text only: no scale, no glow. */
   .btn {
-    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-control border-2 px-5 py-2 text-base font-semibold leading-tight;
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 px-5 py-2 text-base font-semibold leading-tight;
+    /* Radius and border width are Layer C tokens (--btn-radius follows the skin's --r-control; --btn-border-w never varies). */
+    border-radius: var(--btn-radius);
+    border-width: var(--btn-border-w);
+    border-style: solid;
     /* Horizontal padding as a variable so .optical-start / .optical-end can pull the visible ink onto the column edge (R6). */
     --btn-px: 1.25rem;
     transition-property: color, background-color, border-color, text-decoration-color;
@@ -465,13 +473,25 @@ html:has([data-lecture-root]) {
   .btn-secondary:hover {
     @apply bg-sunken;
   }
-  /* Quiet text button: for tertiary actions. Keeps a 44px target. */
+  /* Legacy quiet text button (accent text, hair border on hover). Since slice 2 it is used ONLY by the consent surfaces
+     (ConsentStart "Not now", ConsentDialog "Cancel"), whose presentation is frozen under gate G1; everything else uses
+     .btn-tertiary. skinBlocks.test.ts pins the call sites. Do not restyle without the Product Owner and counsel. */
   .btn-quiet {
     @apply btn border-transparent bg-transparent px-3 text-accent;
     --btn-px: 0.75rem;
   }
   .btn-quiet:hover {
     @apply border-hair;
+  }
+  /* Tertiary (redesign-round2 2.7): ink text, 44px hit area, underline on hover and focus, no border, no fill. Replaces
+     the accent quiet button so accent is spent only on the one primary, the focus ring and citations (2.2). */
+  .btn-tertiary {
+    @apply btn border-transparent bg-transparent px-3 text-ink;
+    --btn-px: 0.75rem;
+  }
+  .btn-tertiary:hover,
+  .btn-tertiary:focus-visible {
+    text-decoration-color: currentColor;
   }
   /* Destructive: never filled (section 4). */
   .btn-danger {
@@ -509,10 +529,20 @@ html:has([data-lecture-root]) {
   .wordmark {
     padding-top: 2px;
   }
+  /* Disabled (redesign-round2 2.7 Button tiers): aria-disabled (stays focusable), muted text, 2px hair border, SOLID
+     (the dashed edge was loud for a control that simply cannot be used now), never opacity; the reason is text or a
+     description. */
   .btn-disabled,
   .btn[aria-disabled="true"]:not(.btn-steady) {
-    @apply cursor-not-allowed border-dashed border-line bg-sunken text-muted;
+    @apply cursor-not-allowed border-solid border-hair bg-sunken text-muted;
     text-decoration-color: transparent;
+  }
+  /* Gate G1: the consent surfaces keep the pre-slice-2 disabled look (dashed border-strong) so the consent page's busy
+     "Start recording" and the pop-up's unticked "Confirm and start recording" are byte-identical. Keyed on attributes
+     the consent components already carry; e2e-harness/consent-look.spec.ts asserts the computed values. */
+  section:has(> #consent-h1) .btn[aria-disabled="true"],
+  [data-consent-dialog-overlay] .btn[aria-disabled="true"] {
+    @apply border-dashed border-line;
   }
   /* Busy buttons that must not flash grey (Quick recap windows): keep their look, block the pointer cue only. */
   .btn-steady[aria-disabled="true"] {
@@ -525,8 +555,21 @@ html:has([data-lecture-root]) {
   .field[aria-invalid="true"] {
     @apply border-danger;
   }
-  .label {
+  /* Form field label (was `.label` before slice 2; the look is unchanged, the Field row of redesign-round2 2.7 says
+     "unchanged"). Renamed so `.label` can be the section label the spec defines. */
+  .field-label {
     @apply font-semibold text-ink;
+  }
+  /* Label (redesign-round2 2.1 / 2.7 "Margin label"): replaces the uppercase tracked eyebrow. Sentence case, sans 15/24,
+     muted, no tracking, no transform. Hangs in the margin column from 1024 (slice 4) and stacks above its content below. */
+  .label {
+    font-family: var(--font-verbatim);
+    font-size: var(--type-sm);
+    line-height: var(--leading-sm);
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--label-ink);
   }
   .help {
     @apply text-sm text-muted;
@@ -580,11 +623,174 @@ html:has([data-lecture-root]) {
     letter-spacing: var(--head-track);
     font-optical-sizing: auto;
   }
+  /* Link (redesign-round2 2.7): ink text, 2px accent underline, offset 0.2em; hover: accent text. Weight stays 600 so a
+     link is still found when scanning (re-entry after an interruption); the colour no longer competes with the primary. */
   .link {
-    @apply font-semibold text-accent underline underline-offset-[0.2em];
+    @apply font-semibold underline underline-offset-[0.2em];
+    /* An inline link's own box is the font's content area (~22px at 17px); 4px of vertical padding lifts the hit area to
+       ~30px (themes-spec 5.3 item 4: prose links >= 24px) without moving a line, since padding on an inline box does not
+       affect layout and the link has no fill. */
+    padding-block: 0.25rem;
+    color: var(--link-ink);
+    text-decoration-color: var(--link-line);
+    text-decoration-thickness: 2px;
+    transition-property: color, text-decoration-color;
+    transition-duration: var(--dur-fast);
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+  .link:hover {
+    color: var(--c-accent);
+  }
+  /* Gate G1: inside the consent page the link keeps its pre-slice-2 look (accent text, 1px underline in the text colour). */
+  section:has(> #consent-h1) .link,
+  section:has(> #consent-h1) .link:hover {
+    @apply text-accent;
+    padding-block: 0;
+    text-decoration-color: currentColor;
+    text-decoration-thickness: auto;
   }
   .rule {
     @apply border-t border-hair;
+  }
+
+  /* ---- Slice 2 primitives (redesign-round2 2.7). Each consumes Layer C tokens and Layer A roles only. ---- */
+
+  /* Sheet: the one white reading surface per screen (transcript, consent text, forms, recap result, the item being
+     edited). Hair border, --sheet-radius on desktop, square-edged on phones; padding --pad-card (24, Calm 32). The
+     phone full-bleed is opt-in (.sheet-bleed: the 16px gutter below 640px) so a sheet inside another box stays put. */
+  .sheet {
+    background: var(--sheet-bg);
+    border: 1px solid var(--sheet-border);
+    border-radius: var(--sheet-radius);
+    padding: var(--pad-card);
+  }
+  @media (max-width: 639px) {
+    .sheet {
+      border-radius: 0;
+      border-inline-width: 0;
+    }
+    .sheet-bleed {
+      margin-inline: -1rem;
+    }
+  }
+  /* Ledger: a list on the ledger tint, rows parted by hair rules, no outer border. Row text sits on the column's left
+     edge: the tint bleeds 16px outward (R8) and the row carries the same 16px inset, so text never moves. A whole-row
+     link (.ledger-row-link, usually the title) stretches over the row with ::after; the trailing word (.ledger-row-end,
+     "Open" + chevron) is visual only, so the row has one tab stop and one name. */
+  .ledger {
+    --ledger-inset: 1rem;
+    background: var(--ledger-bg);
+    margin-inline: calc(-1 * var(--ledger-inset));
+  }
+  .ledger-row {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    column-gap: 1rem;
+    row-gap: 0.25rem;
+    padding: 1rem var(--ledger-inset);
+  }
+  .ledger-row + .ledger-row {
+    border-top: 1px solid var(--ledger-rule);
+  }
+  .ledger-row-link {
+    color: var(--c-ink);
+    font-weight: 600;
+    padding-block: 0.25rem;
+    text-decoration-line: underline;
+    text-decoration-color: transparent;
+    text-underline-offset: 0.2em;
+  }
+  .ledger-row-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+  .ledger-row:has(.ledger-row-link:hover) {
+    background: var(--c-sunken);
+  }
+  .ledger-row:has(.ledger-row-link:hover) .ledger-row-link {
+    text-decoration-color: var(--c-ink);
+  }
+  .ledger-row:has(.ledger-row-link:focus-visible) {
+    background: var(--c-sunken);
+  }
+  .ledger-row-end {
+    @apply inline-flex items-center gap-1 text-sm font-semibold text-muted;
+  }
+  /* Note: inline, non-modal; a 4px stripe carries the kind beside a shape and a word (never colour alone), 16px padding,
+     no outer border on canvas. Heading sans 700 lg; one or two sentences; at most two actions. */
+  .note {
+    position: relative;
+    padding: 1rem;
+    padding-inline-start: calc(1rem + var(--note-stripe-w));
+    --note-stripe: var(--c-border-strong);
+  }
+  .note::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: var(--note-stripe-w);
+    background: var(--note-stripe);
+  }
+  .note-neutral { --note-stripe: var(--c-border-strong); }
+  .note-notice { --note-stripe: var(--c-warning); }
+  .note-safety { --note-stripe: var(--c-recording); }
+  .note-danger { --note-stripe: var(--c-danger); }
+  .note-title {
+    @apply text-lg font-bold text-ink;
+  }
+  /* Stamp: Demo / Draft / Demo summary in one style: xs 700, warning text, 1px warning border, warning tint, radius 4,
+     28px tall (R4 tag height). .stamp-line sets it beside its sentence (sm muted) on one line where it fits. */
+  .stamp {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 1.75rem;
+    padding-inline: 0.5rem;
+    border: 1px solid var(--stamp-border);
+    border-radius: var(--stamp-radius);
+    background: var(--stamp-bg);
+    color: var(--stamp-ink);
+    font-family: var(--font-verbatim);
+    font-size: var(--type-xs);
+    line-height: var(--leading-xs);
+    font-weight: 700;
+  }
+  .stamp-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 0.5rem;
+    row-gap: 0.25rem;
+    font-size: var(--type-sm);
+    line-height: var(--leading-sm);
+    color: var(--c-muted);
+  }
+  /* Dialog: a sheet behind the spec's scrim, max 28rem, dialog shadow (none in dark: raised step plus hair rule). The
+     consent pop-up does NOT use these classes (G1): it keeps bg-[var(--scrim)], bg-raised and its own box. */
+  .dialog-scrim {
+    background: var(--scrim-dialog);
+  }
+  .dialog {
+    @apply w-full max-w-narrow shadow-3;
+    background: var(--sheet-bg);
+    border: 1px solid var(--sheet-border);
+    border-radius: var(--sheet-radius);
+    padding: var(--pad-card);
+  }
+  /* A5 / R8: a row with a hover background bleeds 8px outward so its text aligns with its siblings and the hover area,
+     not the text, carries the inset (Switch rows in Preferences). */
+  .hover-row {
+    @apply -mx-2 px-2;
+    width: calc(100% + 1rem);
+  }
+  /* Disclosure chevron: muted, no transform (2.6: no transforms anywhere); open state swaps the glyph instead. */
+  .chevron {
+    @apply shrink-0 text-muted;
   }
 }
 
@@ -664,6 +870,11 @@ html:has([data-lecture-root]) {
 
 /* Low-stimulation look: borders instead of tints and shadows; hover changes the border, not the fill (section 2.4). */
 :root[data-quiet="true"] .btn-secondary:hover { @apply border-ink bg-surface; }
+:root[data-quiet="true"] .ledger-row:has(.ledger-row-link:hover),
+:root[data-quiet="true"] .ledger-row:has(.ledger-row-link:focus-visible) {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--c-border-strong);
+}
 :root[data-quiet="true"] .card { box-shadow: none; }
 :root[data-quiet="true"] .decorative { display: none; }
 
@@ -681,9 +892,11 @@ html:has([data-lecture-root]) {
 }
 [data-skin="glass"] .card { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), var(--shadow-1); }
 [data-skin="glass"][data-theme="dark"] .card { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), var(--shadow-1); }
-/* Gamer: monospace for labels, tags and timestamps only (never prose). Tabular figures kept. */
+/* Gamer: monospace for labels, tags, stamps and timestamps only (never prose). Tabular figures kept. */
 [data-skin="gamer"] .eyebrow,
+[data-skin="gamer"] .label,
 [data-skin="gamer"] .tag,
+[data-skin="gamer"] .stamp,
 [data-skin="gamer"] .transcript-time {
   font-family: var(--f-jetbrains-mono), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
@@ -697,6 +910,8 @@ html:has([data-lecture-root]) {
 :root[data-quiet="true"][data-skin] .card { box-shadow: none; background-image: none; }
 
 @media (forced-colors: active) {
-  .btn, .field, .card, .panel, .tag { border-color: CanvasText; }
+  .btn, .field, .card, .panel, .tag, .sheet, .dialog, .stamp { border-color: CanvasText; }
+  .note { border: 1px solid CanvasText; }
+  .ledger-row + .ledger-row { border-top-color: CanvasText; }
   [data-skin] .card { background-image: none; box-shadow: none; }
 }

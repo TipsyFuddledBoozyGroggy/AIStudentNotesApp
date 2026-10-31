@@ -15,6 +15,21 @@ const LOOKS = {
 } as const;
 type Look = keyof typeof LOOKS;
 const WIDTHS = [390, 1280] as const;
+// The ui-kit is captured in all 12 palettes (redesign-round2 slice 2: every primitive in every look, with axe). The
+// stored skin selects the palette; Fog / Dusk are Paper + Low-stimulation.
+const ALL_LOOKS = {
+  ...LOOKS,
+  "portal-light": { skin: "portal", theme: "light", quiet: false },
+  "portal-dark": { skin: "portal", theme: "dark", quiet: false },
+  "gamer-light": { skin: "gamer", theme: "light", quiet: false },
+  "gamer-dark": { skin: "gamer", theme: "dark", quiet: false },
+  "calm-light": { skin: "calm", theme: "light", quiet: false },
+  "calm-dark": { skin: "calm", theme: "dark", quiet: false },
+  "glass-light": { skin: "glass", theme: "light", quiet: false },
+  "glass-dark": { skin: "glass", theme: "dark", quiet: false },
+} as const;
+type AnyLook = keyof typeof ALL_LOOKS;
+const ALL_PALETTES = ["ui-kit"];
 
 type Ctx = { courseId: string; courseName: string };
 interface Screen {
@@ -120,10 +135,10 @@ const report: Record<string, string[]> = {};
 const KNOWN_RULES = new Set<string>();
 const known: Record<string, string[]> = {};
 
-async function shoot(browser: Browser, s: Screen, look: Look, width: number) {
+async function shoot(browser: Browser, s: Screen, look: AnyLook, width: number) {
   const context = await browser.newContext({
     viewport: { width, height: width < 600 ? 844 : 800 },
-    colorScheme: LOOKS[look].theme,
+    colorScheme: ALL_LOOKS[look].theme,
     storageState: s.auth === "none" ? undefined : states[s.auth],
   });
   const page = await context.newPage();
@@ -133,7 +148,7 @@ async function shoot(browser: Browser, s: Screen, look: Look, width: number) {
     } catch {
       /* ignore */
     }
-  }, { ...LOOKS[look], ...(s.prefs ?? {}) });
+  }, { ...ALL_LOOKS[look], ...(s.prefs ?? {}) });
   await page.goto(s.url(ctx));
   await s.ready(page, ctx);
   if (s.act) await s.act(page);
@@ -163,7 +178,8 @@ async function shoot(browser: Browser, s: Screen, look: Look, width: number) {
 
 for (const s of SCREENS.filter((x) => !only || only.includes(x.name))) {
   test(`screens: ${s.name}`, async ({ browser }) => {
-    for (const width of WIDTHS) for (const look of looks) await shoot(browser, s, look, width);
+    const perScreen: AnyLook[] = ALL_PALETTES.includes(s.name) && !process.env.LOOKS ? (Object.keys(ALL_LOOKS) as AnyLook[]) : looks;
+    for (const width of WIDTHS) for (const look of perScreen) await shoot(browser, s, look, width);
     const bad = Object.entries(report).filter(([k, v]) => k.startsWith(`${s.name}--`) && v.length > 0);
     expect.soft(bad).toEqual([]);
   });

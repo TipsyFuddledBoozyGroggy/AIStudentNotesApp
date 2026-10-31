@@ -222,13 +222,13 @@ export function StopDialog(props: { open: boolean; paused: boolean; onConfirm():
     queueMicrotask(() => opener.current?.focus());
   };
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-[var(--scrim)] p-4 sm:items-center">
+    <div className="dialog-scrim fixed inset-0 z-40 flex items-end justify-center p-4 sm:items-center">
       <div
         ref={ref}
         role="dialog"
         aria-modal="true"
         aria-labelledby="stop-h2"
-        className="w-full max-w-md rounded-sheet border border-hair bg-raised p-6 shadow-3"
+        className="dialog"
         onKeyDown={(e) => {
           if (e.key === "Escape") {
             e.stopPropagation();
@@ -247,7 +247,7 @@ export function StopDialog(props: { open: boolean; paused: boolean; onConfirm():
           }
         }}
       >
-        <h2 id="stop-h2" className="display text-2xl">
+        <h2 id="stop-h2" className="display text-xl">
           {D.heading}
         </h2>
         <p className="mt-2 text-muted">The transcript so far is kept.</p>
@@ -294,13 +294,13 @@ export function SettingsPanel({ settings, onChange, extra }: { settings: Lecture
         }
       }}
     >
-      <summary className="btn-quiet cursor-pointer list-none px-2 sm:px-3 [&::-webkit-details-marker]:hidden">{ST.heading}</summary>
+      <summary className="btn-tertiary cursor-pointer list-none px-2 sm:px-3 [&::-webkit-details-marker]:hidden">{ST.heading}</summary>
       <div className="absolute right-0 top-full z-30 mt-2 max-h-[70vh] w-[min(26rem,calc(100vw-2rem))] overflow-y-auto rounded-sheet border border-line bg-raised p-5 shadow-2">
-        <p className="eyebrow">Look</p>
+        <p className="label">Look</p>
         <div className="mt-3">
           <LookControls compact />
         </div>
-        <p className="eyebrow mt-6">During the lecture</p>
+        <p className="label mt-6">During the lecture</p>
         <div className="mt-2 space-y-1">
           {rows.map(([k, label, checked, set]) => (
             <label key={k} className="flex min-h-[44px] cursor-pointer items-start gap-3 rounded-control px-1 py-2 hover:bg-sunken">

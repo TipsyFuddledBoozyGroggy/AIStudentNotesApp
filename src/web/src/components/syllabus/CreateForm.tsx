@@ -247,7 +247,7 @@ export function CreateForm({ api, courseId, courseName, demoExpected, initialMet
 
         {method === "paste" ? (
           <div>
-            <label htmlFor={ids.text} className="label">
+            <label htmlFor={ids.text} className="field-label">
               {C.pasteLabel}
             </label>
             <p id={ids.textHint} className="help mt-1">
@@ -281,7 +281,7 @@ export function CreateForm({ api, courseId, courseName, demoExpected, initialMet
           </div>
         ) : (
           <div>
-            <label htmlFor={ids.file} className="label">
+            <label htmlFor={ids.file} className="field-label">
               {F.label}
             </label>
             <p id={ids.fileHint} className="help mt-1">
@@ -300,7 +300,7 @@ export function CreateForm({ api, courseId, courseName, demoExpected, initialMet
             {file && (
               <p className="mt-2 flex flex-wrap items-center gap-3 text-sm">
                 <span className="break-all">{F.selected(file.name, fileSize(file.size))}</span>
-                <button type="button" className="btn-quiet btn-sm" aria-label={F.removeName} onClick={removeFile}>
+                <button type="button" className="btn-tertiary btn-sm" aria-label={F.removeName} onClick={removeFile}>
                   {F.remove}
                 </button>
               </p>
@@ -319,7 +319,7 @@ export function CreateForm({ api, courseId, courseName, demoExpected, initialMet
               {C.firstDayHint} {F.termHint}
             </p>
             <div>
-              <label htmlFor={ids.day} className="label">
+              <label htmlFor={ids.day} className="field-label">
                 {C.firstDayLabel}
               </label>
               <input
@@ -345,7 +345,7 @@ export function CreateForm({ api, courseId, courseName, demoExpected, initialMet
               )}
             </div>
             <div>
-              <label htmlFor={ids.last} className="label">
+              <label htmlFor={ids.last} className="field-label">
                 {F.lastDayLabel}
               </label>
               <input
@@ -419,11 +419,11 @@ export function CreateForm({ api, courseId, courseName, demoExpected, initialMet
             {busy ? C.submitBusy : C.submit}
           </button>
           {onCancel ? (
-            <button type="button" className="btn-quiet" onClick={onCancel}>
+            <button type="button" className="btn-tertiary" onClick={onCancel}>
               {C.cancel}
             </button>
           ) : (
-            <Link href={cancelLink} className="btn-quiet">
+            <Link href={cancelLink} className="btn-tertiary">
               {C.cancel}
             </Link>
           )}

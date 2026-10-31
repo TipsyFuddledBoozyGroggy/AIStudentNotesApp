@@ -38,7 +38,8 @@ export function Segmented<T extends string>({ legend, value, options, onChange }
       <p id={id} className="font-semibold text-ink">
         {legend}
       </p>
-      <div role="radiogroup" aria-labelledby={id} className="mt-2 inline-flex flex-wrap gap-1 rounded-control border-2 border-line bg-surface p-1">
+      {/* Options share one width per group (auto-cols-fr), so a group's segments are equal and stacked groups keep one rhythm (redesign-round2 2.7). */}
+      <div role="radiogroup" aria-labelledby={id} className="mt-2 inline-grid auto-cols-fr grid-flow-col gap-1 rounded-control border-2 border-line bg-surface p-1">
         {options.map((o, i) => {
           const on = o.value === value;
           return (

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import type { Course } from "@/lib/api";
 import { chooseNextStep, explainNextStep, MAX_DASHBOARD_COURSES, sortByRecentUse } from "@/lib/nextStep";
 import { CourseCard } from "./CourseCard";
-import { Disclosure } from "./ui/Disclosure";
+import { Chevron, Disclosure } from "./ui/Disclosure";
 
 export type DashboardState =
   | { status: "loading" }
@@ -59,14 +59,12 @@ function HowItWorks({ hasLecture }: { hasLecture: boolean }) {
     >
       <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
         <span className="display text-xl">How a lecture works</span>
-        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false" className="shrink-0 text-accent transition-transform duration-fast group-open:rotate-90">
-          <path d="M5 2.5 9.5 7 5 11.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <Chevron />
       </summary>
       <div className="mt-4 space-y-4">
         {steps.map(([title, body], i) => (
           <div key={title} className="flex gap-3">
-            <span aria-hidden="true" className="display w-6 shrink-0 text-xl leading-6 text-accent">
+            <span aria-hidden="true" className="display w-6 shrink-0 text-xl leading-6 text-muted">
               {i + 1}
             </span>
             <p>
@@ -116,13 +114,13 @@ export function DashboardView({ state, displayName, onRetry }: Props) {
 
   return (
     <div>
-      <p className="eyebrow">{todayLabel()}</p>
+      <p className="label">{todayLabel()}</p>
       <h1 className="display mt-1 text-3xl">{displayName ? `Hi, ${displayName}.` : "Welcome."}</h1>
 
       <div className="mt-8 grid gap-block lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:gap-10">
         <div className="min-w-0 space-y-10">
           <section aria-labelledby="next-step-heading" className="card card-accent">
-            <h2 id="next-step-heading" className="eyebrow">
+            <h2 id="next-step-heading" className="label">
               Next step
             </h2>
             {step.kind === "add-first-course" ? (
@@ -157,7 +155,7 @@ export function DashboardView({ state, displayName, onRetry }: Props) {
                 <h2 id="courses-heading" className="display text-2xl">
                   Your courses
                 </h2>
-                <Link href="/courses/new" className="btn-quiet btn-sm optical-end">
+                <Link href="/courses/new" className="btn-tertiary btn-sm optical-end">
                   Add a course
                 </Link>
               </div>
@@ -167,7 +165,7 @@ export function DashboardView({ state, displayName, onRetry }: Props) {
                 ))}
               </ul>
               {courses.length > MAX_DASHBOARD_COURSES && (
-                <Link href="/courses" className="btn-quiet optical-start mt-3">
+                <Link href="/courses" className="btn-tertiary optical-start mt-3">
                   See all courses
                 </Link>
               )}

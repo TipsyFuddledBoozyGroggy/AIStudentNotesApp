@@ -201,7 +201,7 @@ export function OneAtATime({ api, syllabus, items, startId, onChange, onExit, on
               </button>
             )}
             {item.when.status !== "needs_date" && (
-              <button ref={editBtn} type="button" className="btn-quiet" aria-label={I.editName(item.title)} aria-expanded={editing ? true : false} onClick={() => setEditing("title")}>
+              <button ref={editBtn} type="button" className="btn-tertiary" aria-label={I.editName(item.title)} aria-expanded={editing ? true : false} onClick={() => setEditing("title")}>
                 {I.edit}
               </button>
             )}
@@ -226,7 +226,7 @@ export function OneAtATime({ api, syllabus, items, startId, onChange, onExit, on
             />
           )}
           <div className="flex flex-wrap justify-between gap-3 border-t border-hair pt-3">
-            <button type="button" className="btn-quiet" aria-disabled={index === 0 ? true : undefined} onClick={() => index > 0 && go(index - 1)}>
+            <button type="button" className="btn-tertiary" aria-disabled={index === 0 ? true : undefined} onClick={() => index > 0 && go(index - 1)}>
               {C.back}
             </button>
             <button type="button" className="btn-secondary" onClick={() => go(index + 1)}>
@@ -257,7 +257,7 @@ export function OneAtATime({ api, syllabus, items, startId, onChange, onExit, on
                 {C.reviewLeft}
               </button>
             )}
-            <button type="button" className="btn-quiet" onClick={() => go(list.length - 1)}>
+            <button type="button" className="btn-tertiary" onClick={() => go(list.length - 1)}>
               {C.back}
             </button>
           </div>

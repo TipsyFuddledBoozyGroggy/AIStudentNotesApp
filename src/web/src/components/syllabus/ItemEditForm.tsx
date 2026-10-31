@@ -177,7 +177,7 @@ export function ItemEditForm({ api, item, initialFocus, onSaved, onCancel, onCon
       {restored && <p className="help">{C.kept}</p>}
       {item.decision === "approved" && item.syncState === "not_synced" && <p className="help">{C.approvedNote}</p>}
       <div>
-        <label htmlFor={id("title")} className="label">
+        <label htmlFor={id("title")} className="field-label">
           {C.title}
         </label>
         <input
@@ -197,7 +197,7 @@ export function ItemEditForm({ api, item, initialFocus, onSaved, onCancel, onCon
         )}
       </div>
       <div>
-        <label htmlFor={id("kind")} className="label">
+        <label htmlFor={id("kind")} className="field-label">
           {C.type}
         </label>
         <select id={id("kind")} className="field max-w-xs" value={v.kind} onChange={(e) => update({ kind: e.target.value as EditableKind })}>
@@ -209,7 +209,7 @@ export function ItemEditForm({ api, item, initialFocus, onSaved, onCancel, onCon
         </select>
       </div>
       <div>
-        <label htmlFor={id("date")} className="label">
+        <label htmlFor={id("date")} className="field-label">
           {C.date}
         </label>
         <p id={id("date-hint")} className="help mt-1">
@@ -236,7 +236,7 @@ export function ItemEditForm({ api, item, initialFocus, onSaved, onCancel, onCon
       </div>
       <div className="flex flex-wrap items-end gap-4">
         <div>
-          <label htmlFor={id("time")} className="label">
+          <label htmlFor={id("time")} className="field-label">
             {C.time}
           </label>
           <input

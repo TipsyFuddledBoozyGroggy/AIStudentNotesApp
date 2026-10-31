@@ -204,7 +204,7 @@ export function Processing({ api, initial, courseId, msPerSecond = 1000, onRevie
           {C.back}
         </Link>
         {inProgress && onStopped && (
-          <button type="button" className="btn-quiet" onClick={() => setConfirmStop(true)}>
+          <button type="button" className="btn-tertiary" onClick={() => setConfirmStop(true)}>
             {STOP.button}
           </button>
         )}

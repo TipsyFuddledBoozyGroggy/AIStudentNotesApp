@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { Chevron } from "../ui/Disclosure";
 import { BLOCKED_COPY as B } from "./copy";
 import type { MicFailure } from "./micSource";
 
@@ -46,14 +47,12 @@ export function MicBlocked({ reason, nothingRecordedConfirmed, onTryAgain, onBac
           {B.back}
         </button>
       </div>
-      <h2 className="eyebrow mt-8">{B.howTo}</h2>
+      <h2 className="label mt-8">{B.howTo}</h2>
       {help.map(([name, text]) => (
         <details key={name} name="mic-help" className="group mt-1 border-b border-hair">
-          <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-2 font-semibold text-accent [&::-webkit-details-marker]:hidden">
-            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false" className="shrink-0 transition-transform duration-fast group-open:rotate-90">
-              <path d="M5 2.5 9.5 7 5 11.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span className="underline underline-offset-[0.2em]">{`How to turn it on in ${name}`}</span>
+          <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+            <Chevron />
+            <span className="link">{`How to turn it on in ${name}`}</span>
           </summary>
           <p className="pb-3 text-muted">{text}</p>
         </details>

@@ -361,3 +361,51 @@ for (const width of [390, 1280] as const) {
     expect(diffs, `landmarks differ at ${width}`).toEqual([]);
   });
 }
+
+// Slice 2 (redesign-round2 2.7, acceptance row "2 Primitives v2"): on the ui-kit page every control is >= 44px (prose
+// links >= 24), every focusable primitive shows the 3px ring with its 2px offset, the boxed primitives (sheet, ledger
+// row, note, stamp, dialog, button, field) sit on the 4px grid, and nothing scrolls sideways. Paper and the four other
+// skins at 390 and 1280, so a skin's radius or face cannot move a primitive's box.
+test("ui-kit: 44px targets, visible focus ring on every primitive, primitives on the 4px grid, in five skins at 390 and 1280", async () => {
+  test.setTimeout(600_000);
+  for (const width of [390, 1280]) {
+    for (const skin of SKINS) {
+      const { page, close } = await open(browser, "/dev/ui-kit", width, { prefs: { skin, theme: "light" } });
+      await expect(page.getByRole("heading", { level: 1, name: /UI kit/ })).toBeVisible();
+      const problems: string[] = [];
+      for (const c of await controls(page)) {
+        const min = c.kind === "link" ? 24 : 44;
+        if (c.box.height < min - 0.5 || (c.kind === "control" && c.box.width < 44 - 0.5)) problems.push(`${c.kind} "${c.label}" ${Math.round(c.box.width)}x${Math.round(c.box.height)}`);
+      }
+      // Focus ring: Tab once (keyboard modality), then move focus to each primitive by script and read the computed ring.
+      await page.keyboard.press("Tab");
+      const rings = await page.evaluate(() => {
+        const out: string[] = [];
+        const sel = "main button, main a[href], main summary, main [role=switch], main [role=radio][tabindex='0'], main input";
+        for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
+          if (el.closest("details:not([open])") && el.tagName !== "SUMMARY") continue;
+          // tabindex=-1 is a programmatic target by design (unselected segmented options reach tabindex 0 when arrowed to;
+          // headings and transcript lines are focused by script): no ring, as globals.css states.
+          if (el.getAttribute("tabindex") === "-1") continue;
+          el.focus();
+          if (document.activeElement !== el) {
+            out.push(`not focusable: ${el.className.toString().slice(0, 40)}`);
+            continue;
+          }
+          const s = getComputedStyle(el);
+          if (!el.matches(":focus-visible")) out.push(`no :focus-visible: ${el.className.toString().slice(0, 40)}`);
+          else if (s.outlineStyle !== "solid" || parseFloat(s.outlineWidth) !== 3 || parseFloat(s.outlineOffset) !== 2)
+            out.push(`ring ${s.outlineStyle} ${s.outlineWidth} ${s.outlineOffset}: ${el.className.toString().slice(0, 40)}`);
+        }
+        return out;
+      });
+      problems.push(...rings);
+      const ov = await overflowX(page);
+      if (ov > 0) problems.push(`horizontal overflow ${ov}px`);
+      const grid = await offGrid(page);
+      expect(problems, `ui-kit ${skin} @ ${width}`).toEqual([]);
+      expect(grid, `ui-kit ${skin} @ ${width} off-grid`).toEqual([]);
+      await close();
+    }
+  }
+});

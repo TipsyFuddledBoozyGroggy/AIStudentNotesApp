@@ -7,7 +7,10 @@ Lead decisions applied: Q-PO1 label "Course portal" (code id `portal`, no third-
 Q-PO2 all four skins planned, Paper stays the default; Q-LEAD1 44px controls; Q-LEAD2 no per-theme theme-color meta.
 
 Status: **T0 DONE and green. T1 IMPLEMENTED 2026-10-30 as redesign-round2 slice 1** (results, test changes and
-deviations recorded in `docs/ux/redesign-round2.md` under "Slice 1 results"; not committed). **T2-T6 NOT STARTED.**
+deviations recorded in `docs/ux/redesign-round2.md` under "Slice 1 results"; not committed). **Redesign-round2 slice 2
+(primitives v2) IMPLEMENTED 2026-10-31** ("Slice 2 results" in the same document): A5 (Preferences switch-row insets,
+`.hover-row`) and Segmented equal option widths are done there; the `.tag` padding stays (consent Draft tag, gate G1) and
+the 48px consent buttons stay (G1). **T2-T6 NOT STARTED** (T2 needs slice 2's Segmented widths, now in place).
 
 ## T0 token plumbing (DONE)
 Files changed:

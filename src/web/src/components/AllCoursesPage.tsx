@@ -29,7 +29,7 @@ export function AllCoursesPage() {
           from 360px so no heading face can change its height (R10); below that it wraps. */}
       <div className="flex flex-wrap items-baseline justify-between gap-3 xs:h-12">
         <h1 className="display text-3xl">All courses</h1>
-        <Link href="/courses/new" className="btn-quiet btn-sm optical-end">
+        <Link href="/courses/new" className="btn-tertiary btn-sm optical-end">
           Add a course
         </Link>
       </div>
@@ -49,7 +49,7 @@ export function AllCoursesPage() {
       )}
       {state.status === "ready" && state.courses.length > 0 && (
         <div className="max-w-md">
-          <label htmlFor="course-search" className="label">
+          <label htmlFor="course-search" className="field-label">
             Search your courses
           </label>
           <input
@@ -79,7 +79,7 @@ export function AllCoursesPage() {
           <p className="text-muted">{query.trim() ? "No course matches that. Try fewer words." : "No courses yet."}</p>
         )
       )}
-      <Link href="/" className="btn-quiet optical-start">
+      <Link href="/" className="btn-tertiary optical-start">
         Back to dashboard
       </Link>
     </div>

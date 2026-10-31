@@ -90,7 +90,7 @@ function SaidLines({ text, onCite, citations }: { text: string; onCite(segmentId
         ))}
       </ul>
       {hidden > 0 ? (
-        <button type="button" className="btn-quiet btn-sm optical-start mt-2" aria-expanded={all} aria-controls="qr-said" onClick={() => setAll((a) => !a)}>
+        <button type="button" className="btn-tertiary btn-sm optical-start mt-2" aria-expanded={all} aria-controls="qr-said" onClick={() => setAll((a) => !a)}>
           {all ? C.hideEarlier : C.showEarlier}
         </button>
       ) : null}
@@ -138,7 +138,7 @@ function Result({
           {C.resultHeading}
         </h3>
         {/* A visible way out without scrolling the sheet (review M1); same action as "Back to lecture". */}
-        <button type="button" className="btn-quiet btn-sm optical-end shrink-0" onClick={onDone}>
+        <button type="button" className="btn-tertiary btn-sm optical-end shrink-0" onClick={onDone}>
           {C.backShort}
         </button>
       </div>
@@ -199,7 +199,7 @@ function Result({
           ) : null}
           {hasDetail ? (
             <>
-              <button type="button" className="btn-quiet btn-sm optical-start mt-2" aria-expanded={more} aria-controls="qr-more" onClick={() => setMore((m) => !m)}>
+              <button type="button" className="btn-tertiary btn-sm optical-start mt-2" aria-expanded={more} aria-controls="qr-more" onClick={() => setMore((m) => !m)}>
                 {more ? C.hideDetail : C.showDetail}
               </button>
               {more ? (

@@ -157,7 +157,7 @@ export function CourseForm({ onSubmit, onCreated, existingNames = [], draftDelay
       )}
 
       <div>
-        <label htmlFor="course-name" className="label">
+        <label htmlFor="course-name" className="field-label">
           Course name <span aria-hidden="true" className="font-normal text-muted">(required)</span>
         </label>
         <input
@@ -189,7 +189,7 @@ export function CourseForm({ onSubmit, onCreated, existingNames = [], draftDelay
       <div>
         <button
           type="button"
-          className="btn-quiet optical-start"
+          className="btn-tertiary optical-start"
           aria-expanded={showOptions}
           aria-controls="course-options"
           onClick={() => setShowOptions((s) => !s)}
@@ -199,15 +199,15 @@ export function CourseForm({ onSubmit, onCreated, existingNames = [], draftDelay
         <p className="help">Code, term and instructor. Optional; you can add these later.</p>
         <div id="course-options" hidden={!showOptions} className="mt-4 space-y-4 border-l-2 border-hair pl-4">
           <div>
-            <label htmlFor="course-code" className="label">Course code</label>
+            <label htmlFor="course-code" className="field-label">Course code</label>
             <input id="course-code" className="field" value={draft.code} onChange={update("code")} autoComplete="off" />
           </div>
           <div>
-            <label htmlFor="course-term" className="label">Term</label>
+            <label htmlFor="course-term" className="field-label">Term</label>
             <input id="course-term" className="field" value={draft.term} onChange={update("term")} autoComplete="off" />
           </div>
           <div>
-            <label htmlFor="course-instructor" className="label">Instructor</label>
+            <label htmlFor="course-instructor" className="field-label">Instructor</label>
             <input id="course-instructor" className="field" value={draft.instructor} onChange={update("instructor")} autoComplete="off" />
           </div>
         </div>
@@ -223,7 +223,7 @@ export function CourseForm({ onSubmit, onCreated, existingNames = [], draftDelay
         <button type="submit" className="btn-primary" disabled={saving} aria-disabled={saving}>
           {saving ? "Saving..." : saveError ? "Try again" : "Save course"}
         </button>
-        <Link href="/" className="btn-quiet">
+        <Link href="/" className="btn-tertiary">
           Cancel
         </Link>
       </div>

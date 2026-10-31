@@ -41,10 +41,5 @@ export function DecisionIcon({ value }: { value: Decision }) {
   return null;
 }
 
-export function Chevron({ open }: { open: boolean }) {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false" className={`shrink-0 transition-transform duration-fast ${open ? "rotate-90" : ""}`}>
-      <path d="M5 2.5 9.5 7 5 11.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
+/** Disclosure chevron: the shared one (two glyphs, no rotation: redesign-round2 2.6 bans transforms). */
+export { Chevron } from "../ui/Disclosure";

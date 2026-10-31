@@ -127,7 +127,7 @@ export function PreferencesPanel({ onClose, children }: { onClose(): void; child
           Close
         </button>
       </div>
-      <h3 className="eyebrow mt-6">Look</h3>
+      <h3 className="label mt-6">Look</h3>
       <div className="mt-3">
         <LookControls onAnnounce={announce} />
       </div>
@@ -135,7 +135,7 @@ export function PreferencesPanel({ onClose, children }: { onClose(): void; child
         {message}
       </p>
       {children}
-      <h3 className="eyebrow mt-8">About</h3>
+      <h3 className="label mt-8">About</h3>
       <div className="mt-2 space-y-1">
         <Disclosure summary="What is coming later">
           <p className="pb-2">A planner, study mode and syllabus review are not built yet. Nothing here depends on them.</p>

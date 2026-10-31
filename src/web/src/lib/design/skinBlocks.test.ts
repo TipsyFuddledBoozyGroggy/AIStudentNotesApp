@@ -2,7 +2,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import tailwind from "../../../tailwind.config";
-import { DISPLAY_PHONE, LAYER_B_LAYOUT_EXCEPTION, LAYER_B_VARS, LAYER_C_TOKENS, SCRIM, TYPE_SCALE } from "./tokens";
+import { DISPLAY_PHONE, LAYER_B_LAYOUT_EXCEPTION, LAYER_B_VARS, LAYER_C_TOKENS, SCRIM, SCRIM_DIALOG, TYPE_SCALE } from "./tokens";
 
 // Token contract v2 (docs/ux/redesign-round2.md section 3): Layer B (structure per skin) and Layer C (component tokens)
 // as declared in globals.css, the "never varies between themes" list (3.3) as far as it is static CSS, and the source
@@ -170,6 +170,137 @@ describe("Layer C component tokens (redesign-round2 3.1 / 3.2)", () => {
   it("ledger reaches Tailwind as bg-ledger / text-ledger via var(--c-ledger)", () => {
     expect((tailwind.theme?.extend?.colors as Record<string, string>).ledger).toBe("var(--c-ledger)");
   });
+
+  // Slice 2: the spec's dialog scrim (.6 light / .7 dark) lives on its own variable so the consent pop-up keeps --scrim.
+  it("--scrim-dialog is per mode (.6 light / .7 dark) and only .dialog-scrim consumes it; the consent pop-up keeps --scrim", () => {
+    expect(rootDecls.get("--scrim-dialog")).toBe(SCRIM_DIALOG.light);
+    const dark = RULES.find((r) => r.selector === ':root[data-theme="dark"]' && r.context.length === 0);
+    expect(dark?.decls).toContainEqual(["--scrim-dialog", SCRIM_DIALOG.dark]);
+    const consumers = RULES.filter((r) => r.decls.some(([, v]) => v.includes("var(--scrim-dialog)")));
+    expect(consumers.map((r) => r.selector)).toEqual([".dialog-scrim"]);
+    const consentDialog = readFileSync(path.join(SRC, "components/lecture/ConsentDialog.tsx"), "utf8");
+    expect(consentDialog).toContain("bg-[var(--scrim)]");
+    expect(consentDialog).not.toMatch(/className="[^"]*(?<![\w-])(dialog-scrim|dialog|sheet|btn-tertiary|label|stamp|note)(?![\w-])/);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Slice 2 primitives (redesign-round2 2.7 / 3.2): each consumes Layer C tokens and Layer A roles only.
+describe("primitives v2 consume the Layer C tokens (redesign-round2 slice 2)", () => {
+  const find = (sel: string) => RULES.find((r) => r.selector === sel && r.context.every((c) => c.startsWith("@layer")));
+  const decls = (sel: string) => Object.fromEntries(find(sel)?.decls ?? []) as Record<string, string>;
+  const apply = (sel: string) => decls(sel)["@apply"] ?? "";
+
+  it(".sheet: surface, hair border, --sheet-radius, --pad-card; square-edged below 640px; .sheet-bleed is the phone gutter", () => {
+    expect(decls(".sheet")).toEqual({ background: "var(--sheet-bg)", border: "1px solid var(--sheet-border)", "border-radius": "var(--sheet-radius)", padding: "var(--pad-card)" });
+    const phone = RULES.find((r) => r.selector === ".sheet" && inMedia(r, "max-width: 639px"));
+    expect(phone?.decls).toEqual([
+      ["border-radius", "0"],
+      ["border-inline-width", "0"],
+    ]);
+    expect(RULES.find((r) => r.selector === ".sheet-bleed" && inMedia(r, "max-width: 639px"))?.decls).toEqual([["margin-inline", "-1rem"]]);
+  });
+
+  it(".ledger: ledger tint, rows parted by --ledger-rule, 16px row padding, text on the column edge (16px bleed)", () => {
+    expect(decls(".ledger").background).toBe("var(--ledger-bg)");
+    expect(decls(".ledger")["margin-inline"]).toBe("calc(-1 * var(--ledger-inset))");
+    expect(decls(".ledger-row").padding).toBe("1rem var(--ledger-inset)");
+    expect(decls(".ledger-row + .ledger-row")["border-top"]).toBe("1px solid var(--ledger-rule)");
+    expect(decls(".ledger-row-link::after")).toMatchObject({ position: "absolute", inset: "0" });
+  });
+
+  it(".note: 4px --note-stripe-w stripe, 16px padding, stripe colour per kind from the status roles, no outer border", () => {
+    expect(decls(".note")["padding-inline-start"]).toBe("calc(1rem + var(--note-stripe-w))");
+    expect(decls(".note").padding).toBe("1rem");
+    expect(decls(".note")).not.toHaveProperty("border");
+    expect(decls(".note::before").width).toBe("var(--note-stripe-w)");
+    expect(decls(".note-notice")["--note-stripe"]).toBe("var(--c-warning)");
+    expect(decls(".note-safety")["--note-stripe"]).toBe("var(--c-recording)");
+    expect(decls(".note-danger")["--note-stripe"]).toBe("var(--c-danger)");
+    expect(decls(".note-neutral")["--note-stripe"]).toBe("var(--c-border-strong)");
+    expect(apply(".note-title")).toContain("text-lg");
+    expect(apply(".note-title")).toContain("font-bold");
+  });
+
+  it(".stamp: the four --stamp-* tokens, xs 700 in the verbatim face, 28px tall; .stamp-line is sm muted", () => {
+    expect(decls(".stamp")).toMatchObject({
+      border: "1px solid var(--stamp-border)",
+      "border-radius": "var(--stamp-radius)",
+      background: "var(--stamp-bg)",
+      color: "var(--stamp-ink)",
+      "font-family": "var(--font-verbatim)",
+      "font-size": "var(--type-xs)",
+      "line-height": "var(--leading-xs)",
+      "font-weight": "700",
+      "min-height": "1.75rem",
+    });
+    expect(decls(".stamp-line")).toMatchObject({ "font-size": "var(--type-sm)", "line-height": "var(--leading-sm)", color: "var(--c-muted)" });
+  });
+
+  it(".label: sentence case (no transform, no tracking), sm 15/24 regular in the verbatim face, --label-ink", () => {
+    expect(decls(".label")).toEqual({
+      "font-family": "var(--font-verbatim)",
+      "font-size": "var(--type-sm)",
+      "line-height": "var(--leading-sm)",
+      "font-weight": "400",
+      "letter-spacing": "0",
+      "text-transform": "none",
+      color: "var(--label-ink)",
+    });
+    // The form field label kept its look under a new name.
+    expect(apply(".field-label")).toBe("font-semibold text-ink");
+  });
+
+  it(".link: --link-ink text, 2px --link-line underline at 0.2em; hover accent text; .btn-tertiary: ink text, underline on hover and focus", () => {
+    expect(decls(".link")).toMatchObject({ color: "var(--link-ink)", "text-decoration-color": "var(--link-line)", "text-decoration-thickness": "2px" });
+    expect(apply(".link")).toContain("underline-offset-[0.2em]");
+    expect(decls(".link:hover").color).toBe("var(--c-accent)");
+    expect(apply(".btn-tertiary")).toContain("text-ink");
+    expect(apply(".btn-tertiary")).toContain("border-transparent");
+    expect(find(".btn-tertiary:hover, .btn-tertiary:focus-visible")?.decls).toEqual([["text-decoration-color", "currentColor"]]);
+  });
+
+  it(".btn: radius and border width from --btn-radius / --btn-border-w; disabled is solid hair border, muted text, no opacity", () => {
+    expect(decls(".btn")).toMatchObject({ "border-radius": "var(--btn-radius)", "border-width": "var(--btn-border-w)" });
+    const disabled = apply('.btn-disabled, .btn[aria-disabled="true"]:not(.btn-steady)');
+    expect(disabled).toContain("border-solid");
+    expect(disabled).toContain("border-hair");
+    expect(disabled).toContain("text-muted");
+    expect(disabled).not.toMatch(/dashed|opacity/);
+    expect(structureCss).not.toMatch(/\.btn[^{]*\{[^}]*opacity/);
+  });
+
+  it(".dialog / .dialog-scrim: a 28rem sheet with the dialog shadow over --scrim-dialog", () => {
+    expect(decls(".dialog-scrim")).toEqual({ background: "var(--scrim-dialog)" });
+    expect(apply(".dialog")).toContain("max-w-narrow");
+    expect(apply(".dialog")).toContain("shadow-3");
+    expect(decls(".dialog")).toMatchObject({ background: "var(--sheet-bg)", border: "1px solid var(--sheet-border)", "border-radius": "var(--sheet-radius)", padding: "var(--pad-card)" });
+  });
+
+  it("A5 / R8: .hover-row bleeds 8px outward and is 100% + 1rem wide; Switch uses it; Segmented options share one width", () => {
+    expect(apply(".hover-row")).toBe("-mx-2 px-2");
+    expect(decls(".hover-row").width).toBe("calc(100% + 1rem)");
+    expect(readFileSync(path.join(SRC, "components/ui/Switch.tsx"), "utf8")).toMatch(/className="group hover-row /);
+    expect(readFileSync(path.join(SRC, "components/ui/Segmented.tsx"), "utf8")).toContain("inline-grid auto-cols-fr grid-flow-col");
+  });
+
+  // Gate G1: the consent surfaces keep their pre-slice-2 look. Where they share a restyled class (.link, the disabled
+  // .btn), a carve-out keyed on attributes the consent components already carry restores the old declarations; where a
+  // legacy class exists (.btn-quiet, .eyebrow, .tag), it is unchanged and used only there. consent-look.spec.ts asserts
+  // the computed values in a browser.
+  it("G1: consent carve-outs restore the legacy link and dashed disabled look; .btn-quiet and .eyebrow are unchanged", () => {
+    const disabledConsent = find('section:has(> #consent-h1) .btn[aria-disabled="true"], [data-consent-dialog-overlay] .btn[aria-disabled="true"]');
+    expect(disabledConsent?.decls).toEqual([["@apply", "border-dashed border-line"]]);
+    const linkConsent = find("section:has(> #consent-h1) .link, section:has(> #consent-h1) .link:hover");
+    expect(Object.fromEntries(linkConsent?.decls ?? [])).toEqual({ "@apply": "text-accent", "padding-block": "0", "text-decoration-color": "currentColor", "text-decoration-thickness": "auto" });
+    // The 24px link hit area (padding-block) is on .link and .ledger-row-link, and reset to 0 inside the consent page.
+    expect(decls(".link")["padding-block"]).toBe("0.25rem");
+    expect(decls(".ledger-row-link")["padding-block"]).toBe("0.25rem");
+    expect(apply(".btn-quiet")).toBe("btn border-transparent bg-transparent px-3 text-accent");
+    expect(find(".btn-quiet:hover")?.decls).toEqual([["@apply", "border-hair"]]);
+    expect(apply(".eyebrow")).toBe("text-xs font-bold uppercase tracking-[0.08em] text-muted");
+    expect(apply(".tag")).toBe("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold leading-snug");
+  });
 });
 
 describe("Type scale (redesign-round2 2.1): line boxes on the 4px grid", () => {
@@ -334,20 +465,41 @@ describe("source lints (redesign-round2 slice 0)", () => {
     for (const f of files.filter((f) => f.endsWith(".css") && !f.endsWith("globals.css"))) expect([rel(f), readFileSync(f, "utf8")]).not.toMatch(/#[0-9A-Fa-f]{6}\b/);
   });
 
-  // Accent is spent on the one primary fill, the focus ring and citation/time links (redesign-round2 2.2). Until slice 2
-  // retires accent text elsewhere, the count may only go down. Baseline recorded 2026-10-30.
+  // Accent is spent on the one primary fill, the focus ring and citation/time links (redesign-round2 2.2). Slice 2 retired
+  // it from quiet buttons, links, disclosure summaries and step numerals (baseline tightened 2026-10-31). What remains:
+  // globals.css (.btn-quiet and the consent link carve-out, both G1; .tag-accent), layout.tsx (theme-color), the consent
+  // page's "What does this mean" summary (G1), the lecture's citation links (slice 3), Notices and QuickRecapPanel (slice 3).
   it("accent-text usage ratchet: no new text-accent outside today's files", () => {
     ratchet(countBy(/\btext-accent\b/g), {
       "app/globals.css": 3,
       "app/layout.tsx": 1,
-      "components/DashboardView.tsx": 2,
       "components/lecture/ConsentStart.tsx": 1,
       "components/lecture/LectureScreen.tsx": 2,
-      "components/lecture/MicBlocked.tsx": 1,
       "components/lecture/Notices.tsx": 1,
       "components/lecture/QuickRecapPanel.tsx": 1,
-      "components/ui/Disclosure.tsx": 1,
     });
+  });
+
+  // Slice 2 (redesign-round2 2.7): the uppercase eyebrow is replaced by .label everywhere except the consent page (G1),
+  // and the accent quiet button by .btn-tertiary everywhere except the consent surfaces (G1). The ui-kit shows the legacy
+  // classes once so they stay under axe and contrast in every look.
+  it("legacy classes are used only by the consent surfaces (G1) and shown once on the ui-kit: .eyebrow, .btn-quiet; no other uppercase", () => {
+    const uses = (re: RegExp) => Object.keys(countBy(re)).filter((f) => f !== "app/globals.css");
+    expect(uses(/\beyebrow\b/g).filter((f) => !/SignInView\.tsx$/.test(f))).toEqual(["components/lecture/ConsentStart.tsx", "components/ui/UiKit.tsx"]); // SignInView: a comment
+    expect(uses(/\bbtn-quiet\b/g)).toEqual(["components/lecture/ConsentDialog.tsx", "components/lecture/ConsentStart.tsx", "components/ui/UiKit.tsx"]);
+    const upper = [...structureCss.matchAll(/[^{}]*\{[^}]*\buppercase\b[^}]*\}/g)].map((m) => m[0].trim().split("{")[0].trim());
+    expect(upper).toEqual([".eyebrow"]);
+    expect(Object.keys(countBy(/\buppercase\b/g)).filter((f) => f.endsWith(".tsx"))).toEqual(["components/ui/UiKit.tsx"]); // prose on the kit page, not a class
+  });
+
+  it("the form field label is .field-label; .label is the section label (never on a <label for=...>)", () => {
+    expect(countBy(/<label[^>]*className="label\b/g)).toEqual({});
+    expect(Object.keys(countBy(/\bfield-label\b/g)).length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("no transforms anywhere (redesign-round2 2.6): no rotate-/translate-/scale-/transition-transform utility and no transform property", () => {
+    expect(countBy(/\b(rotate|translate|scale)-[\w[\]./-]+|transition-transform/g)).toEqual({});
+    expect(structureCss).not.toMatch(/(^|[^-])transform\s*:/);
   });
 
   // themes-spec R1 / 5.3: half-step spacing classes are off the 4px scale. Slice 1 removed them (A13) except: the .tag

@@ -13,6 +13,7 @@ import {
   PALETTES,
   PALETTE_LOOKS,
   PLAIN_BACKGROUNDS,
+  PRIMITIVE_PAIRS,
   REMAPPED_CHROME_SKINS,
   ROLES,
   SKINS,
@@ -342,4 +343,15 @@ it("no raw hex colours in components (themes add colour through tokens only)", (
 it("aria-live appears only in the transcript finals region (live-region allow-list, section 7)", () => {
   const withLive = files.filter((f) => /aria-live=/.test(readFileSync(f, "utf8"))).map((f) => path.relative(SRC, f).split(path.sep).join("/"));
   expect(withLive.sort()).toEqual(["components/lecture/TldrPanel.tsx", "components/lecture/Transcript.tsx"].sort());
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Slice 2 primitives (redesign-round2 2.7): every foreground / background pair a primitive draws, named by primitive, in
+// all 12 palettes. Each pair is also inside the full matrix above; this block records which primitive depends on which
+// pair, so a future token change shows what it would break.
+describe.each(NAMES)("slice 2 primitives on palette %s", (name) => {
+  const p = PALETTES[name];
+  it.each(PRIMITIVE_PAIRS.map((x) => [x.primitive, x.fg, x.bg, x.min] as const))("%s: %s on %s >= %s:1", (_primitive, fg, bg, min) => {
+    expect(contrastRatio(p[fg], p[bg])).toBeGreaterThanOrEqual(min);
+  });
 });

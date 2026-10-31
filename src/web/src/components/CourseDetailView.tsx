@@ -51,7 +51,7 @@ export function CourseDetailView({ course, justAdded }: Props) {
 
       <SyllabusCard courseId={course.id} />
 
-      <Link href="/" className="btn-quiet optical-start">
+      <Link href="/" className="btn-tertiary optical-start">
         Back to dashboard
       </Link>
     </div>

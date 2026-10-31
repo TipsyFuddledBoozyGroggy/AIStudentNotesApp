@@ -37,14 +37,14 @@ export function ConfirmDialog({ open, heading, children, confirmLabel, cancelLab
     queueMicrotask(() => opener.current?.focus());
   };
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-[var(--scrim)] p-4 sm:items-center">
+    <div className="dialog-scrim fixed inset-0 z-40 flex items-end justify-center p-4 sm:items-center">
       <div
         ref={ref}
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${id}-h`}
         aria-describedby={children ? `${id}-d` : undefined}
-        className="w-full max-w-md rounded-sheet border border-hair bg-raised p-6 shadow-3"
+        className="dialog"
         onKeyDown={(e) => {
           if (e.key === "Escape") {
             e.stopPropagation();
@@ -63,7 +63,7 @@ export function ConfirmDialog({ open, heading, children, confirmLabel, cancelLab
           }
         }}
       >
-        <h2 id={`${id}-h`} className="display text-2xl">
+        <h2 id={`${id}-h`} className="display text-xl">
           {heading}
         </h2>
         {children && (

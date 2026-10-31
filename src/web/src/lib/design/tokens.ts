@@ -298,6 +298,7 @@ export const LAYER_B_VARS = [
   "shadow-2",
   "shadow-3",
   "scrim",
+  "scrim-dialog",
   "page-bg",
   "blur",
   "chrome-glass",
@@ -349,8 +350,66 @@ export const LAYER_C_TOKENS: ComponentToken[] = [
   { name: "font-verbatim", default: "var(--font-body), system-ui, sans-serif", skinMaySet: false },
 ];
 
-/** Scrim behind dialogs and the command palette, per mode (redesign-round2 2.7 Dialog). */
+/** Scrim behind the consent pop-up (and anything not yet moved to .dialog-scrim), per mode. */
 export const SCRIM = { light: "rgba(20, 22, 27, 0.55)", dark: "rgba(20, 22, 27, 0.55)" } as const; // unchanged from before the refactor: the consent pop-up shares this backdrop (PO-17b, gate G1)
+/**
+ * Scrim behind every other dialog (Stop, Delete, the command palette): the spec's value (redesign-round2 2.7 Dialog,
+ * .6 light / .7 dark), on its own variable so the consent pop-up, which keeps `--scrim`, is byte-identical (slice 2, G1).
+ */
+export const SCRIM_DIALOG = { light: "rgba(20, 22, 27, 0.6)", dark: "rgba(0, 0, 0, 0.7)" } as const;
+
+/**
+ * Slice 2 primitives: the foreground / background pairs each one draws, with the minimum ratio (4.5 text, 3 boundary).
+ * Every pair is already inside the full matrix above; this list names which primitive depends on which pair so
+ * tokens.test.ts reports them by name in all 12 palettes (redesign-round2 2.7 and 3.2).
+ */
+export const PRIMITIVE_PAIRS: { primitive: string; fg: Role; bg: Role; min: 4.5 | 3 }[] = [
+  // .label: muted sentence-case label on canvas, on a sheet and in a ledger row.
+  { primitive: "label", fg: "muted", bg: "canvas", min: 4.5 },
+  { primitive: "label", fg: "muted", bg: "surface", min: 4.5 },
+  { primitive: "label", fg: "muted", bg: "ledger", min: 4.5 },
+  // .link: ink text with a 2px accent underline (the line is a boundary); hover text is accent.
+  { primitive: "link", fg: "ink", bg: "canvas", min: 4.5 },
+  { primitive: "link", fg: "ink", bg: "surface", min: 4.5 },
+  { primitive: "link", fg: "ink", bg: "ledger", min: 4.5 },
+  { primitive: "link line", fg: "accent", bg: "canvas", min: 3 },
+  { primitive: "link line", fg: "accent", bg: "surface", min: 3 },
+  { primitive: "link line", fg: "accent", bg: "ledger", min: 3 },
+  { primitive: "link hover", fg: "accent", bg: "canvas", min: 4.5 },
+  { primitive: "link hover", fg: "accent", bg: "surface", min: 4.5 },
+  { primitive: "link hover", fg: "accent", bg: "ledger", min: 4.5 },
+  // .btn-tertiary: ink text on whatever it sits on (no fill of its own).
+  { primitive: "btn-tertiary", fg: "ink", bg: "canvas", min: 4.5 },
+  { primitive: "btn-tertiary", fg: "ink", bg: "surface", min: 4.5 },
+  { primitive: "btn-tertiary", fg: "ink", bg: "ledger", min: 4.5 },
+  // Disabled button: muted text on sunken (WCAG exempts disabled controls; held to 4.5 anyway so the reason stays readable).
+  { primitive: "btn disabled", fg: "muted", bg: "sunken", min: 4.5 },
+  // .stamp: warning text and border on the warning tint.
+  { primitive: "stamp", fg: "warning", bg: "warning-subtle", min: 4.5 },
+  { primitive: "stamp border", fg: "warning", bg: "warning-subtle", min: 3 },
+  // .stamp-line: the muted sentence beside the stamp.
+  { primitive: "stamp-line", fg: "muted", bg: "canvas", min: 4.5 },
+  { primitive: "stamp-line", fg: "muted", bg: "surface", min: 4.5 },
+  // .note stripes against canvas, a sheet and a ledger (meaning also carried by shape and word).
+  { primitive: "note stripe (notice)", fg: "warning", bg: "canvas", min: 3 },
+  { primitive: "note stripe (notice)", fg: "warning", bg: "surface", min: 3 },
+  { primitive: "note stripe (notice)", fg: "warning", bg: "ledger", min: 3 },
+  { primitive: "note stripe (safety)", fg: "recording", bg: "canvas", min: 3 },
+  { primitive: "note stripe (safety)", fg: "recording", bg: "surface", min: 3 },
+  { primitive: "note stripe (danger)", fg: "danger", bg: "canvas", min: 3 },
+  { primitive: "note stripe (danger)", fg: "danger", bg: "surface", min: 3 },
+  { primitive: "note stripe (neutral)", fg: "border-strong", bg: "canvas", min: 3 },
+  { primitive: "note stripe (neutral)", fg: "border-strong", bg: "surface", min: 3 },
+  { primitive: "note stripe (neutral)", fg: "border-strong", bg: "ledger", min: 3 },
+  // .ledger rows: ink and muted on the ledger tint; hover row on sunken.
+  { primitive: "ledger row", fg: "ink", bg: "ledger", min: 4.5 },
+  { primitive: "ledger row meta", fg: "muted", bg: "ledger", min: 4.5 },
+  { primitive: "ledger row hover", fg: "ink", bg: "sunken", min: 4.5 },
+  { primitive: "ledger row hover meta", fg: "muted", bg: "sunken", min: 4.5 },
+  // .sheet and .dialog: body and helper text on surface.
+  { primitive: "sheet", fg: "ink", bg: "surface", min: 4.5 },
+  { primitive: "sheet helper", fg: "muted", bg: "surface", min: 4.5 },
+];
 
 /**
  * Type scale (redesign-round2 2.1): root 16px, body 17px; every line box a multiple of 4px so blocks sit on the spacing

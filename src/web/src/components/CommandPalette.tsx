@@ -51,7 +51,7 @@ export function CommandPalette({ commands, onClose, loading }: { commands: Comma
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-[var(--scrim)] px-4 pt-[12vh]" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="dialog-scrim fixed inset-0 z-50 flex items-start justify-center px-4 pt-[12vh]" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="w-full max-w-xl overflow-hidden rounded-sheet border border-line bg-raised shadow-3">
         <h2 id={titleId} className="sr-only">
           Search or jump

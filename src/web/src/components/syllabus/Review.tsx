@@ -374,7 +374,7 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
                 <span>{C.needsDate(needsDate)}</span>
                 <button
                   type="button"
-                  className="btn-quiet btn-sm"
+                  className="btn-tertiary btn-sm"
                   onClick={() => {
                     setOpen((prev) => new Set([...(prev ?? []), "needs_date"]));
                     setFocusGroup("needs_date");
@@ -390,7 +390,7 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
               <button type="button" className="btn-secondary btn-sm" onClick={() => toMode({ m: "one", start: null })}>
                 {ONE_COPY.open}
               </button>
-              <button type="button" className="btn-quiet btn-sm" onClick={() => calendarStepRef.current?.focus()}>
+              <button type="button" className="btn-tertiary btn-sm" onClick={() => calendarStepRef.current?.focus()}>
                 {S.skipTo}
               </button>
             </p>
@@ -408,7 +408,7 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
                 { value: "type", label: C.groupByType },
               ]}
             />
-            <button type="button" className="btn-quiet btn-sm" onClick={() => setOpen(allOpen ? new Set() : new Set(groups.map((g) => g.key)))}>
+            <button type="button" className="btn-tertiary btn-sm" onClick={() => setOpen(allOpen ? new Set() : new Set(groups.map((g) => g.key)))}>
               {allOpen ? C.collapseAll : C.expandAll}
             </button>
           </div>
@@ -522,16 +522,16 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
 
       <div className="flex flex-wrap gap-3">
         {onAddAnother && (
-          <button type="button" className="btn-quiet px-0" onClick={onAddAnother}>
+          <button type="button" className="btn-tertiary px-0" onClick={onAddAnother}>
             {L.addAnother}
           </button>
         )}
         {onShowAll && (
-          <button type="button" className="btn-quiet px-0" onClick={onShowAll}>
+          <button type="button" className="btn-tertiary px-0" onClick={onShowAll}>
             {L.all}
           </button>
         )}
-        <Link href={`/courses/${encodeURIComponent(courseId)}`} className="btn-quiet px-0">
+        <Link href={`/courses/${encodeURIComponent(courseId)}`} className="btn-tertiary px-0">
           {C.back}
         </Link>
       </div>

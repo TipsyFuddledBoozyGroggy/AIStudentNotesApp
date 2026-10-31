@@ -150,7 +150,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {/* R6: one gap between the actions; the last one carries .optical-end so its ink, not its box, meets the container edge. */}
           <div className="ml-auto flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
             {authed ? (
-              <button type="button" className="btn-quiet btn-sm" aria-keyshortcuts="Control+K Meta+K" onClick={openPalette}>
+              <button type="button" className="btn-tertiary btn-sm" aria-keyshortcuts="Control+K Meta+K" onClick={openPalette}>
                 Search or jump
                 <kbd aria-hidden="true" className="hidden rounded border border-hair bg-sunken px-1 font-sans text-xs text-muted md:inline">
                   Ctrl K
@@ -160,7 +160,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <button
               ref={prefsButton}
               type="button"
-              className={`btn-quiet btn-sm ${authed ? "" : "optical-end"}`}
+              className={`btn-tertiary btn-sm ${authed ? "" : "optical-end"}`}
               aria-expanded={prefsOpen}
               aria-controls="preferences"
               onClick={() => (prefsOpen ? closePrefs() : setPrefsOpen(true))}
@@ -168,7 +168,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               Preferences
             </button>
             {authed ? (
-              <button type="button" className="btn-quiet btn-sm optical-end" onClick={() => void signOut()}>
+              <button type="button" className="btn-tertiary btn-sm optical-end" onClick={() => void signOut()}>
                 Sign out
               </button>
             ) : null}
@@ -180,7 +180,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <PreferencesPanel onClose={closePrefs}>
             {authed ? (
               <>
-                <h3 className="eyebrow mt-8">Account</h3>
+                <h3 className="label mt-8">Account</h3>
                 <p className="mt-2">Signed in as {user.displayName}.</p>
               </>
             ) : null}

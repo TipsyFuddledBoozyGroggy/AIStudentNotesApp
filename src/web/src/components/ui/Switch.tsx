@@ -25,7 +25,9 @@ export function Switch({ label, checked, onChange, hint }: SwitchProps) {
       aria-labelledby={labelId}
       aria-describedby={hint ? hintId : undefined}
       onClick={() => onChange(!checked)}
-      className="group flex min-h-[44px] w-full items-center justify-between gap-4 rounded-control px-2 py-2 text-left hover:bg-sunken"
+      // .hover-row (A5 / R8): the row bleeds 8px outward so its text aligns with the legends above it and the On/Off word
+      // ends on the same edge as its neighbours; the hover area, not the text, carries the inset.
+      className="group hover-row flex min-h-[44px] items-center justify-between gap-4 rounded-control py-2 text-left hover:bg-sunken"
     >
       <span className="min-w-0">
         <span id={labelId} className="block font-semibold text-ink">

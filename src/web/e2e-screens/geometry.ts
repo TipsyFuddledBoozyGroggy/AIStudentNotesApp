@@ -132,7 +132,8 @@ export async function controls(page: Page): Promise<{ label: string; kind: "cont
 export async function offGrid(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const out: string[] = [];
-    for (const el of Array.from(document.querySelectorAll<HTMLElement>(".card, .btn, .field, .panel"))) {
+    // Slice 2 added the sheet, ledger row, note, stamp and dialog to the boxed primitives.
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>(".card, .btn, .field, .panel, .sheet, .ledger-row, .note, .stamp, .dialog"))) {
       if (el.getBoundingClientRect().width === 0) continue;
       const s = getComputedStyle(el);
       for (const p of ["padding-top", "padding-bottom", "padding-left", "padding-right", "row-gap", "column-gap"]) {

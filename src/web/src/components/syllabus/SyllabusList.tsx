@@ -66,7 +66,7 @@ export function SyllabusList({
         <button type="button" className="btn-primary" onClick={onAdd}>
           {C.addAnother}
         </button>
-        <Link href={`/courses/${encodeURIComponent(courseId)}`} className="btn-quiet">
+        <Link href={`/courses/${encodeURIComponent(courseId)}`} className="btn-tertiary">
           {PAGE_COPY.back}
         </Link>
       </div>
