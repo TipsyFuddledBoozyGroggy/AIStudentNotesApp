@@ -13,7 +13,7 @@ import { Segmented } from "../ui/Segmented";
 import { ActionProblem } from "./ActionProblem";
 import { CREATE_COPY as C, DEMO_TAGS, FILE_COPY as F, NOTICE_DRAFT } from "./copy";
 import { DemoLine } from "./DemoLine";
-import { isRecord, readLocal, removeLocal, writeLocal } from "./storage";
+import { isRecord, readDraft, removeDraft, writeDraft } from "./storage";
 
 const MAX_CODE_POINTS = 50000;
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -129,7 +129,7 @@ export function CreateForm({ api, courseId, courseName, demoExpected, initialMet
 
   useEffect(() => {
     headingRef.current?.focus();
-    const d = readLocal(draftKey, isDraft);
+    const d = readDraft(draftKey, isDraft);
     if (d && (d.text || d.firstDay || d.lastDay)) {
       setText(d.text);
       setFirstDay(d.firstDay);
@@ -141,8 +141,8 @@ export function CreateForm({ api, courseId, courseName, demoExpected, initialMet
   // Draft autosave (debounced). Only while there is something to keep. A chosen file cannot be kept.
   useEffect(() => {
     const t = setTimeout(() => {
-      if (text || firstDay || lastDay) writeLocal(draftKey, { text, firstDay, lastDay });
-      else removeLocal(draftKey);
+      if (text || firstDay || lastDay) writeDraft(draftKey, { text, firstDay, lastDay });
+      else removeDraft(draftKey);
     }, 400);
     return () => clearTimeout(t);
   }, [draftKey, text, firstDay, lastDay]);
@@ -208,7 +208,7 @@ export function CreateForm({ api, courseId, courseName, demoExpected, initialMet
         method === "paste"
           ? await api.createFromText(courseId, { text, ...meta }, keyRef.current.key)
           : await api.createFromFile(courseId, { file: file as File, fileName: (file as File).name, ...meta }, keyRef.current.key);
-      removeLocal(draftKey);
+      removeDraft(draftKey);
       onCreated(syllabus);
     } catch (err) {
       setSubmitErr(mapError(err, method));

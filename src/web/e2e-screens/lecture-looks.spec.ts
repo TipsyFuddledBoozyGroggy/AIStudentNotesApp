@@ -99,11 +99,12 @@ const SCREENS: Screen[] = [
     url: () => `/lectures/${ctx.sessionId}`,
     auth: true,
     ready: async (p) => {
-      // The label is "Not recording" until the hub has joined (deriveRecordingIndicator: NotConnected). Seen in this spec
-      // (slice 8 record, "Open for the Lead"): on the dev server (React StrictMode) the reopen page can stay "Not
-      // recording" for good although the server says Stopped: the Join result arrives on the first hub connection, which
-      // the StrictMode effect cleanup disposes, and the remount's connection never joins. Standalone probes joined in
-      // under 2s. This is a runtime race, not a look; the spec reloads (a fresh mount) up to four times before failing.
+      // The label is "Not recording" until the hub has joined (deriveRecordingIndicator: NotConnected). Slice 8 saw it stay
+      // so (4 reloads in 20 loads): StrictMode left an orphaned second hub socket per page, and with the previous load's
+      // sockets the joining one went over the per-user hub cap. Fixed in slice 8x (hubTransport.ts epoch; e2e/reopen.spec.ts
+      // asserts it). Reloads are still needed here for a different, server-side reason measured in slice 8x: this spec
+      // loads the same session's reopen route 20 times in about 70s, and the hub allows 10 Joins per minute per (user,
+      // session) (C-26 / B2-02), so the 11th Join onwards is `rate_limited` until the minute passes. Counted and printed.
       const label = p.getByTestId("state-label");
       for (let attempt = 0; ; attempt++) {
         try {
@@ -461,7 +462,9 @@ for (const s of SCREENS) {
 // must be the same values with it on. On Paper the overlay swaps the palette to Fog / Dusk ("On Paper the colours soften
 // too", the shipped hint), whose `*-subtle` roles equal their surface or raised: there the pill and the notes keep their
 // shape, word, 2px border / 4px stripe and contrast, and the measured differences are reported (slice 8 record), not
-// hidden. Everywhere: pill box unchanged, opacity 1, no filter, text >= 4.5 on its fill, border >= 3 on the bar.
+// hidden. Everywhere: pill box unchanged, opacity 1, no filter, text >= 4.5 on its fill, border >= 3 on the bar, and
+// (slice 8x) the Recording pill fill and the Mismatch note fill identical on and off (recording-subtle is never flattened;
+// the Paused fills on Paper stay reported: warning-subtle also paints G1 surfaces, Lead decision 1 on slice 8).
 const paperQuiet: string[] = [];
 test("slice 8: Low-stimulation on each of the ten looks never dims the pill or the bar and never removes a safety note's stripe", async () => {
   test.setTimeout(600_000);
@@ -506,6 +509,11 @@ test("slice 8: Low-stimulation on each of the ten looks never dims the pill or t
       // The stripe stays an opaque 4px bar in the state colour (shape + word + stripe is the safety triple).
       if (name !== "live" && !/^rgb\([^)]*\) 4px$/.test(on.stripe))
         problems.push(`${where}: safety note stripe "${on.stripe}" with Low-stimulation (off: "${off.stripe}")`);
+      // Slice 8x (Lead decision 1 on slice 8): the Recording pill's fill (and the Mismatch note's, the same role
+      // recording-subtle) is identical with Low-stimulation on and off in EVERY look, Paper included (Fog took Paper's
+      // value, Dusk has Night desk's). Before 8x this was only reported for Paper (Fog's fill equalled its surface).
+      if (name === "live" && on.fill !== off.fill) problems.push(`${where}: Recording pill fill ${on.fill} with Low-stimulation vs ${off.fill}`);
+      if (name === "mismatch" && on.note !== off.note) problems.push(`${where}: Mismatch note fill ${on.note} with Low-stimulation vs ${off.note}`);
       const offV = `${off.color} / ${off.fill} / ${off.border} / note ${off.note}`;
       const onV = `${on.color} / ${on.fill} / ${on.border} / note ${on.note}`;
       if (look.prefs.skin !== "paper") {
@@ -524,5 +532,5 @@ test("slice 8: Low-stimulation on each of the ten looks never dims the pill or t
 
 test.afterAll(() => {
   if (measured.length) console.log(`[slice 8] ${measured.join("\n")}`);
-  console.log(`[slice 8] reopen route: ${reopenReloads} reload(s) needed before the hub joined (dev StrictMode race, see the slice 8 record)`);
+  console.log(`[slice 8] reopen route: ${reopenReloads} reload(s) needed before the hub joined (the hub's 10 Joins / minute per session, see the slice 8x record)`);
 });

@@ -2,9 +2,13 @@ import { act, render } from "@testing-library/react";
 import type { ReactElement } from "react";
 import * as db from "@/mocks/db";
 import { AnnouncerProvider } from "../lecture/Announcer";
+import { setDraftOwner } from "./storage";
 
 export const EMAIL = "alice@example.edu";
 export const COURSE = "course-bio101";
+export const TEST_USER_ID = "usr_alice";
+/** The user-scoped localStorage key of a syllabus draft (SB-06), e.g. draftStorageKey(`draft.${COURSE}`). */
+export const draftStorageKey = (key: string, userId = TEST_USER_ID) => `tether.syllabus.u.${userId}.${key}`;
 
 export function signedInWithCourse(): void {
   db.signIn(EMAIL);
@@ -26,6 +30,7 @@ export function renderWithAnnouncer(ui: ReactElement) {
     }
   });
   obs.observe(document.body, { childList: true, subtree: true, characterData: true });
+  setDraftOwner(TEST_USER_ID); // SB-06: drafts are kept only for a known signed-in user (AuthProvider sets it in the app)
   const r = render(<AnnouncerProvider>{ui}</AnnouncerProvider>);
   return { ...r, statusLog, alertLog, stop: () => obs.disconnect() };
 }

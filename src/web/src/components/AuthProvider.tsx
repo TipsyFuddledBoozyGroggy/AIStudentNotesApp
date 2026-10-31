@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, ApiError, type UserProfile } from "@/lib/api";
+import { clearAllDrafts, setDraftOwner } from "./syllabus/storage";
 
 type Status = "loading" | "authenticated" | "unauthenticated" | "error";
 
@@ -22,9 +23,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      setUser(await api.getMe());
+      const me = await api.getMe();
+      setDraftOwner(me.id); // SB-06: syllabus drafts are keyed by this id; other users' and unscoped ones are removed
+      setUser(me);
       setStatus("authenticated");
     } catch (e) {
+      if (e instanceof ApiError && e.isUnauthenticated) setDraftOwner(null);
       setUser(null);
       setStatus(e instanceof ApiError && e.isUnauthenticated ? "unauthenticated" : "error");
     }
@@ -38,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await api.logout();
     } finally {
+      clearAllDrafts(); // SB-06: pasted syllabus text and item edit drafts never outlive the session on this device
       setUser(null);
       setStatus("unauthenticated");
       router.replace("/signin");

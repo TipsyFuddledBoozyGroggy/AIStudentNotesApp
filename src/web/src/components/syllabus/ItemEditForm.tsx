@@ -7,7 +7,7 @@ import { isRealDate } from "@/lib/syllabus/format";
 import { isLocalDate, isLocalTime } from "@/lib/syllabus/parse";
 import type { EditableKind, ItemPatch, SyllabusItem } from "@/lib/syllabus/types";
 import { EDIT_COPY as C, ITEM_COPY } from "./copy";
-import { isRecord, readLocal, removeLocal, writeLocal } from "./storage";
+import { isRecord, readDraft, removeDraft, writeDraft } from "./storage";
 
 export interface EditValues {
   title: string;
@@ -21,7 +21,7 @@ const isValues = (v: unknown): v is EditValues =>
   isRecord(v) && typeof v.title === "string" && typeof v.kind === "string" && typeof v.date === "string" && typeof v.time === "string" && typeof v.allDay === "boolean";
 
 export const draftKeyFor = (item: Pick<SyllabusItem, "syllabusId" | "id">) => `edit.${item.syllabusId}.${item.id}`;
-export const hasDraft = (item: Pick<SyllabusItem, "syllabusId" | "id">) => readLocal(draftKeyFor(item), isValues) !== null;
+export const hasDraft = (item: Pick<SyllabusItem, "syllabusId" | "id">) => readDraft(draftKeyFor(item), isValues) !== null;
 
 export function valuesOf(item: SyllabusItem): EditValues {
   return {
@@ -87,7 +87,7 @@ export function ItemEditForm({ api, item, initialFocus, onSaved, onCancel, onCon
   const uid = useId();
   const id = (f: string) => `${uid}-${f}`;
   const draftKey = draftKeyFor(item);
-  const [restored] = useState(() => readLocal(draftKey, isValues));
+  const [restored] = useState(() => readDraft(draftKey, isValues));
   const [v, setV] = useState<EditValues>(() => restored ?? valuesOf(item));
   const [errors, setErrors] = useState<Errors>({});
   const [serverErr, setServerErr] = useState<string | null>(null);
@@ -103,7 +103,7 @@ export function ItemEditForm({ api, item, initialFocus, onSaved, onCancel, onCon
   const update = (patch: Partial<EditValues>) => {
     setV((prev) => {
       const next = { ...prev, ...patch };
-      writeLocal(draftKey, next);
+      writeDraft(draftKey, next);
       return next;
     });
   };
@@ -124,7 +124,7 @@ export function ItemEditForm({ api, item, initialFocus, onSaved, onCancel, onCon
     }
     const patch = buildPatch(item, v);
     if (Object.keys(patch).length === 0) {
-      removeLocal(draftKey);
+      removeDraft(draftKey);
       onCancel();
       return;
     }
@@ -132,7 +132,7 @@ export function ItemEditForm({ api, item, initialFocus, onSaved, onCancel, onCon
     setServerErr(null);
     try {
       const saved = await api.updateItem(item.syllabusId, item.id, patch, item.etag);
-      removeLocal(draftKey);
+      removeDraft(draftKey);
       onSaved(saved);
     } catch (err) {
       if (err instanceof ApiError && err.status === 412) {
@@ -150,7 +150,7 @@ export function ItemEditForm({ api, item, initialFocus, onSaved, onCancel, onCon
   }
 
   const cancel = () => {
-    removeLocal(draftKey);
+    removeDraft(draftKey);
     onCancel();
   };
 

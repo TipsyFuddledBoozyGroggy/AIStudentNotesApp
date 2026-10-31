@@ -145,6 +145,24 @@ describe("globals.css cascade equals tokens.ts", () => {
         expect(paletteFor(skin, mode, true)).toBe(paletteFor(skin, mode));
       }
   });
+
+  // Slice 8x (Lead decision 1 on slice 8, invariant 2): the Recording pill (bg-recording-subtle) is never flattened by
+  // Low-stimulation. Fog took Paper's value and Dusk has Night desk's; warning-subtle is deliberately NOT covered (it also
+  // paints G1 surfaces and stays flat in Fog).
+  it.each(SKINS.flatMap((skin) => (["light", "dark"] as const).map((mode) => [skin, mode] as const)))(
+    "%s %s: the Recording pill fill (recording-subtle) is identical with Low-stimulation on and off, in tokens.ts and the CSS cascade",
+    (skin, mode) => {
+      const off = PALETTES[paletteFor(skin, mode)]["recording-subtle"].toUpperCase();
+      expect(PALETTES[paletteFor(skin, mode, true)]["recording-subtle"].toUpperCase()).toBe(off);
+      expect(resolve({ "data-skin": skin, "data-theme": mode, "data-quiet": "true" })["recording-subtle"]).toBe(off);
+      expect(resolve({ "data-skin": skin, "data-theme": mode, "data-quiet": "false" })["recording-subtle"]).toBe(off);
+    },
+  );
+  it("Fog keeps warning-subtle flat (G1: the consent Draft tag and the Demo tags are unchanged)", () => {
+    expect(PALETTES.fog["warning-subtle"]).toBe(PALETTES.fog.surface);
+    expect(PALETTES.fog["recording-subtle"]).toBe(PALETTES.paper["recording-subtle"]);
+    expect(PALETTES.dusk["recording-subtle"]).toBe(PALETTES.nightDesk["recording-subtle"]);
+  });
 });
 
 // ---------------------------------------------------------------------------------------------------------------------

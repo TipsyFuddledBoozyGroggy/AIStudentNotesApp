@@ -11,6 +11,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { DEMO_TAGS, NOT_READ_ACTIONS, PROCESS_COPY as C, STOP_COPY as STOP } from "./copy";
 import { DemoLine } from "./DemoLine";
 import { notReadCopy, offersPaste } from "./NotRead";
+import { clearSyllabusDrafts } from "./storage";
 
 /** Bounds (UX 4, proposals): poll at most this many times, then stop and offer "Check again"; never loop silently. */
 export const MAX_POLLS = 60;
@@ -119,6 +120,7 @@ export function Processing({ api, initial, courseId, msPerSecond = 1000, onRevie
     setStopProblem(null);
     try {
       await api.deleteSyllabus(s.id);
+      clearSyllabusDrafts(s.id, s.courseId); // SB-06
       setConfirmStop(false);
       announcerRef.current.status(STOP.done);
       onStopped?.();
@@ -126,6 +128,7 @@ export function Processing({ api, initial, courseId, msPerSecond = 1000, onRevie
       const k = problemKind(e);
       setConfirmStop(false);
       if (k === "gone") {
+        clearSyllabusDrafts(s.id, s.courseId);
         onStopped?.(); // already deleted (another tab): the outcome the student asked for
         return;
       }

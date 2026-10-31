@@ -7,7 +7,7 @@ import * as sdb from "@/mocks/syllabusDb";
 import { axeViolations } from "@/test/axe";
 import { cardContent, SyllabusCard } from "./SyllabusCard";
 import { SyllabusFlow } from "./SyllabusFlow";
-import { COURSE, EMAIL, renderWithAnnouncer, signedInWithCourse } from "./testUtils";
+import { COURSE, draftStorageKey, EMAIL, renderWithAnnouncer, signedInWithCourse } from "./testUtils";
 
 const flow = (syllabi = [] as Awaited<ReturnType<typeof syllabusApi.listSyllabi>>) =>
   renderWithAnnouncer(<SyllabusFlow api={syllabusApi} courseId={COURSE} courseName="Biology 101" syllabi={syllabi} demoExpected msPerSecond={2} />);
@@ -107,7 +107,8 @@ describe("create (paste text)", () => {
     signedInWithCourse();
     const r = flow();
     fireEvent.change(screen.getByLabelText("Syllabus text"), { target: { value: "Midterm Oct 14" } });
-    await waitFor(() => expect(window.localStorage.getItem(`tether.syllabus.draft.${COURSE}`)).toContain("Midterm Oct 14"));
+    // Slice 8x (SB-06): the draft key is user-scoped now (was `tether.syllabus.draft.${COURSE}`).
+    await waitFor(() => expect(window.localStorage.getItem(draftStorageKey(`draft.${COURSE}`))).toContain("Midterm Oct 14"));
     r.unmount();
     flow();
     expect(await screen.findByText("We kept what you pasted.")).toBeInTheDocument();

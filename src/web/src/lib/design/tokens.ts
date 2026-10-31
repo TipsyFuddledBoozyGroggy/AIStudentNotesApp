@@ -126,7 +126,10 @@ const fog = paperChrome({
   accent: "#3F4A6B",
   "accent-subtle": "#F6F5F1",
   recording: "#A12B20",
-  "recording-subtle": "#F6F5F1",
+  // Slice 8x (Lead decision 1 on slice 8): the recording status is never dimmed or softened (invariant 2), so the Recording
+  // pill keeps Paper's fill under Low-stimulation. Only this role: warning-subtle stays flat (it also paints G1 surfaces).
+  // Dusk already inherits Night desk's recording-subtle through `...nightDesk`.
+  "recording-subtle": "#FCEBE8",
   "success-subtle": "#F6F5F1",
   "warning-subtle": "#F6F5F1",
   "border-strong": "#7F7B70",

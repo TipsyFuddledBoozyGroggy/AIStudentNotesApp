@@ -44,6 +44,7 @@ export class HubTransport {
   private handlers = new Set<(e: HubEvent) => void>();
   private dropHandlers = new Set<() => void>();
   private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private epoch = 0;
   private readonly onOffline = () => void this.conn?.stop();
 
   constructor(private readonly o: HubTransportOptions) {}
@@ -59,12 +60,19 @@ export class HubTransport {
   };
 
   connect = async (): Promise<void> => {
+    // Each connect and each dispose starts a new epoch. A connect whose epoch is no longer current (a later connect or
+    // a dispose ran while it awaited) closes its own connection and rejects: it never becomes `this.conn`, so it can
+    // neither orphan a live socket (React StrictMode's run / cleanup / run used to leave two open, one never joined,
+    // counted against the per-user hub cap) nor be joined by a newer caller.
+    const epoch = ++this.epoch;
     await this.teardown();
+    if (epoch !== this.epoch) throw new LectureHubError("connection_failed");
     const conn = new HubConnectionBuilder()
       .withUrl(this.o.hubUrl ?? "/hubs/lecture", { transport: HttpTransportType.WebSockets, withCredentials: true })
       .configureLogging(LogLevel.None)
       .build();
     conn.on("event", (e: unknown) => {
+      if (this.conn !== conn) return; // a superseded or disposed connection's late frames belong to no live generation
       const ev = parseHubEvent(e);
       if (!ev || ev.sessionId !== this.o.sessionId) return;
       for (const h of [...this.handlers]) h(ev);
@@ -80,6 +88,11 @@ export class HubTransport {
     } catch (e) {
       if (this.conn === conn) this.conn = null;
       throw new LectureHubError(hubErrorCode(e));
+    }
+    if (epoch !== this.epoch || this.conn !== conn) {
+      if (this.conn === conn) this.conn = null;
+      await conn.stop().catch(() => undefined);
+      throw new LectureHubError("connection_failed");
     }
     this.pingTimer = setInterval(() => void conn.invoke("Ping").catch(() => undefined), PING_MS);
     window.addEventListener("offline", this.onOffline); // browsers can be slow to notice a dead socket
@@ -103,11 +116,19 @@ export class HubTransport {
     return page;
   };
 
-  /** Leaves the session (best effort) and closes the connection. */
+  /**
+   * Leaves the session (best effort) and closes the connection that is current NOW. Synchronously detaches it and
+   * supersedes any connect still in flight, so the asynchronous tail (Leave, stop) can only touch that one connection:
+   * a connect made after this call (a StrictMode remount, or any remount reusing this transport) is never closed by it.
+   */
   async dispose(): Promise<void> {
+    this.epoch++;
+    this.stopPing();
     const conn = this.conn;
-    if (conn?.state === HubConnectionState.Connected) await conn.invoke("Leave", { sessionId: this.o.sessionId }).catch(() => undefined);
-    await this.teardown();
+    this.conn = null;
+    if (!conn) return;
+    if (conn.state === HubConnectionState.Connected) await conn.invoke("Leave", { sessionId: this.o.sessionId }).catch(() => undefined);
+    await conn.stop().catch(() => undefined);
   }
 
   private stopPing(): void {

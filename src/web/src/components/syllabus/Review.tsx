@@ -18,7 +18,7 @@ import { DemoLine } from "./DemoLine";
 import { Chevron } from "./icons";
 import { ItemRow } from "./ItemRow";
 import { OneAtATime } from "./OneAtATime";
-import { readLocal, writeLocal } from "./storage";
+import { clearSyllabusDrafts, readLocal, writeLocal } from "./storage";
 import { SyncConfirm, SyncResultView, type SentRun } from "./Sync";
 
 export interface ReviewProps {
@@ -232,6 +232,7 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
     setDataProblem(null);
     try {
       await api.deleteSyllabus(syllabus.id);
+      clearSyllabusDrafts(syllabus.id, courseId); // SB-06
       setConfirmDelete(false);
       announcer.status(D.done);
       onDeleted?.(syllabus.id);
@@ -239,6 +240,7 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
       const kind = problemKind(e);
       setConfirmDelete(false);
       if (kind === "gone") {
+        clearSyllabusDrafts(syllabus.id, courseId);
         announcer.status(D.done);
         onDeleted?.(syllabus.id);
         return;

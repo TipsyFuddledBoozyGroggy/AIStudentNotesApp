@@ -28,7 +28,7 @@
 :root:not([data-skin])[data-quiet="true"],
 :root[data-skin="paper"][data-quiet="true"] {
   --c-canvas: #EEEDE8; --c-surface: #F6F5F1; --c-raised: #F6F5F1; --c-sunken: #E4E2DB; --c-ink: #2B2A27; --c-muted: #5E5B54;
-  --c-accent: #3F4A6B; --c-on-accent: #FFFFFF; --c-accent-subtle: #F6F5F1; --c-recording: #A12B20; --c-recording-subtle: #F6F5F1; --c-success: #1B6B3A;
+  --c-accent: #3F4A6B; --c-on-accent: #FFFFFF; --c-accent-subtle: #F6F5F1; --c-recording: #A12B20; --c-recording-subtle: #FCEBE8; --c-success: #1B6B3A;
   --c-success-subtle: #F6F5F1; --c-warning: #7A4300; --c-warning-subtle: #F6F5F1; --c-danger: #9F1D24; --c-border-strong: #7F7B70; --c-border-hair: #D6D4CC;
   --c-focus: #3F4A6B; --c-chrome: #F6F5F1; --c-on-chrome: #2B2A27; --c-grid: #EEEDE8; --c-ledger: #F6F5F1;
 }

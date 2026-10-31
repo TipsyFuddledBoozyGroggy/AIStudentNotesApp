@@ -22,6 +22,8 @@ export const USERS = {
   sylUpload: `e2e-syl-upload-${id}@dev.local`,
   // Notes after Stop (slice 8a): its own user, because a user may have only one pending notes press across all lectures.
   notes: `e2e-notes-${id}@dev.local`,
+  // Reopen-route hub lifecycle (slice 8x): its own user, because the hub caps concurrent connections per user (C-26: 3).
+  reopen: `e2e-reopen-${id}@dev.local`,
 } as const;
 export const authFile = (email: string) => path.join(AUTH_DIR, `${email}.json`);
 export const stateFor = (k: keyof typeof USERS) => authFile(USERS[k]);
