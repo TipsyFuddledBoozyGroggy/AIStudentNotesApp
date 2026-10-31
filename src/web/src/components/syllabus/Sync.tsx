@@ -91,9 +91,9 @@ export function SyncConfirm({ api, syllabus, items, onBack, onDone }: { api: Syl
             <h2 id={`${uid}-${g.key}`} className="font-semibold text-ink">
               {REVIEW_COPY.weekGroup(weekRangeLabel(g.value))}
             </h2>
-            <ul className="space-y-2">
+            <ul className="ledger">
               {g.items.map((i) => (
-                <li key={i.id} className="rounded-card border border-hair bg-surface p-3 text-sm">
+                <li key={i.id} className="ledger-row block text-sm">
                   <p className="break-words font-semibold text-ink">
                     <PlainText value={i.title} />
                   </p>
@@ -221,9 +221,9 @@ export function SyncResultView({
         <DemoLine text={C.resultDemo} tag={C.tagWord} />
         <p className="text-muted">{C.later}</p>
       </div>
-      <ul className="space-y-2">
+      <ul className="ledger">
         {rows.map((r) => (
-          <li key={r.itemId} className="rounded-card border border-hair bg-surface p-3 text-sm" data-outcome={r.outcome}>
+          <li key={r.itemId} className="ledger-row block text-sm" data-outcome={r.outcome}>
             <p className="break-words font-semibold text-ink">
               <PlainText value={title(r.itemId)} />
             </p>

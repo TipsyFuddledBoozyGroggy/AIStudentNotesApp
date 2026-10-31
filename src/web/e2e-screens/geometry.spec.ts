@@ -21,7 +21,7 @@ const WIDTHS = [320, 390, 768, 1024, 1280, 1440, 1920] as const;
 const SKINS = ["paper", "portal", "gamer", "calm", "glass"] as const;
 const MODES = ["light", "dark"] as const;
 
-const ctx = { courseId: "", state: path.join(OUT, `.auth-${RUN}.json`) };
+const ctx = { courseId: "", syllabusCourseId: "", state: path.join(OUT, `.auth-${RUN}.json`) };
 
 // Playwright's default headless flags hide scrollbars while `scrollbar-gutter: stable` still reserves their 15px, which
 // no real browser does: with a classic scrollbar the gutter holds it, with overlay scrollbars there is no gutter. So this
@@ -43,6 +43,32 @@ test.beforeAll(async () => {
   const r = await c.post("/api/v1/courses", { data: { name: "Biology 101", code: "BIO 101", term: "Fall 2026", instructor: "Dr. Rivera" } });
   expect(r.status()).toBe(201);
   ctx.courseId = ((await r.json()) as { id: string }).id;
+  // Slice 6: a second course with a syllabus (synthetic text, mock extractor, demo calendar only) so the review screen is
+  // measured too; the first course stays without one, so its page keeps "Add your syllabus".
+  const r2 = await c.post("/api/v1/courses", { data: { name: "History of Law", code: "HIST 340", term: "Fall 2026" } });
+  expect(r2.status()).toBe(201);
+  ctx.syllabusCourseId = ((await r2.json()) as { id: string }).id;
+  const syl = await c.post(`/api/v1/courses/${ctx.syllabusCourseId}/syllabi`, {
+    headers: { "Idempotency-Key": `geo-${RUN}-syllabus` },
+    data: {
+      text: [
+        "Biology 101 syllabus (synthetic test text)",
+        "Quiz 1 on September 14, 2026 in class",
+        "Problem set 1 due Friday, September 18, 2026, 11:59 PM",
+        "Midterm exam, Wednesday, October 14, 2026, 10:00 AM",
+        "Lab report 2 due October 16, 2026 (tentative)",
+        "Final exam: date TBA",
+      ].join("\n"),
+      termStart: "2026-08-24",
+      termEnd: "2026-12-11",
+      defaultTimezone: "America/New_York",
+      noticeVersion: "draft-2026-10",
+      attestation: { accepted: true, acceptedAt: new Date().toISOString() },
+    },
+  });
+  expect(syl.status(), "create syllabus").toBeLessThan(300);
+  const sylId = ((await syl.json()) as { id: string }).id;
+  await expect.poll(async () => ((await (await c.get(`/api/v1/syllabi/${sylId}`)).json()) as { status: string }).status, { timeout: 60_000 }).toMatch(/^(ready|partial)$/);
   await c.storageState({ path: ctx.state });
   await c.dispose();
 });
@@ -204,6 +230,26 @@ test("Paper, 7 widths: shell pages share edges, one column start per template, 4
       report.push(...(await shellChecks(page, width, "course-detail", { authed: true, template: "desk" })).map((s) => `course-detail@${width} ${s}`));
       await expect(page.getByRole("link", { name: "Add your syllabus" })).toBeVisible();
       await marginChecks(page, width, "course-detail");
+      await close();
+    }
+    // Syllabus review (desk; slice 6): the shell checks plus item-row text and the group head (its chevron first) on the
+    // column edge (ledger), and the row's one bordered button.
+    {
+      const { page, close } = await open(browser, `/courses/${ctx.syllabusCourseId}/syllabus`, width, { auth: true });
+      await expect(page.getByRole("heading", { level: 1, name: "Review your syllabus items" })).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByText(/^We found \d+ items\./)).toBeVisible();
+      report.push(...(await shellChecks(page, width, "syllabus-review", { authed: true, template: "desk" })).map((s) => `syllabus-review@${width} ${s}`));
+      const colX = (await box(column(page))).x;
+      const title = await ink(page.locator("main li.item-row h3").first());
+      expect(near(title.x, colX, 1.5), `syllabus-review@${width} item title ${title.x} vs column ${colX}`).toBe(true);
+      const head = await box(page.locator("main .group-head").first());
+      expect(near(head.x, colX, 1.5), `syllabus-review@${width} group head ${head.x} vs column ${colX}`).toBe(true);
+      for (const li of await page.locator("main li.item-row:visible").all()) {
+        const bordered = await li.locator("button.btn-secondary, button.btn-primary, button.btn-danger").count();
+        expect(bordered, `syllabus-review@${width} bordered buttons in a row`).toBeLessThanOrEqual(1);
+      }
+      // The calendar step is a note in the flow (never fixed or sticky: a bar over the list would cover row targets).
+      expect(await page.locator(".calendar-step").evaluate((el) => getComputedStyle(el).position), `syllabus-review@${width} calendar step position`).toMatch(/^(static|relative)$/);
       await close();
     }
     // Add a course (sheet) and sign-in (auth).

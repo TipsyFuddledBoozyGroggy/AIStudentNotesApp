@@ -175,7 +175,11 @@ export function OneAtATime({ api, syllabus, items, startId, onChange, onExit, on
           ) : (
             item.snippet && <p className="text-sm text-muted">{I.purgedSnippet}</p>
           )}
-          {item.confidence === "please_check" && item.when.status === "resolved" && item.decision !== "approved" && <p className="help">{I.checkHint}</p>}
+          {item.confidence === "please_check" && item.when.status === "resolved" && item.decision !== "approved" && (
+            <p id="one-check-hint" className="help">
+              {I.checkHint}
+            </p>
+          )}
 
           <div className="flex flex-wrap gap-2">
             {item.when.status === "needs_date" ? (
@@ -187,7 +191,17 @@ export function OneAtATime({ api, syllabus, items, startId, onChange, onExit, on
                 {I.undo}
               </button>
             ) : (
-              <button type="button" className="btn-primary" aria-label={I.approveName(item.title)} aria-busy={busy || undefined} onClick={() => void decide("approved", true)}>
+              // A "Please check" item keeps Approve as a plain secondary (same name, position and description): the app
+              // itself marked it uncertain, so the strongest thing in the card is the source quote, not Approve
+              // (redesign-round2-review 4; invariant 6). The automatic acknowledgeCheck stays; no extra step is added.
+              <button
+                type="button"
+                className={item.confidence === "please_check" ? "btn-secondary" : "btn-primary"}
+                aria-label={I.approveName(item.title)}
+                aria-describedby={item.confidence === "please_check" ? "one-check-hint" : undefined}
+                aria-busy={busy || undefined}
+                onClick={() => void decide("approved", true)}
+              >
                 {I.approve}
               </button>
             )}

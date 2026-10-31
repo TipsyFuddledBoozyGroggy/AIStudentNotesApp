@@ -445,6 +445,78 @@ describe("Today, course page, forms, sign-in (redesign-round2 slice 4)", () => {
   });
 });
 
+// ---------------------------------------------------------------------------------------------------------------------
+// Slice 6 (redesign-round2 1.7, 2.7 Ledger / Note, 5.4; redesign-round2-review 4): the syllabus review as ledger rows, the
+// group head as a label-style disclosure, the calendar step as a sticky Note, and no boxes left in the syllabus files
+// except the Draft notice panel (G1) and the one-at-a-time card (unchanged by the brief).
+describe("Syllabus review density (redesign-round2 slice 6)", () => {
+  const find = (sel: string, ctx?: string) => RULES.find((r) => r.selector === sel && (ctx ? inMedia(r, ctx) : r.context.every((c) => c.startsWith("@layer"))));
+  const decls = (sel: string, ctx?: string) => Object.fromEntries(find(sel, ctx)?.decls ?? []) as Record<string, string>;
+  const src = (f: string) => readFileSync(path.join(SRC, f), "utf8");
+  const SLICE6 = [
+    "components/syllabus/Review.tsx",
+    "components/syllabus/ItemRow.tsx",
+    "components/syllabus/ItemEditForm.tsx",
+    "components/syllabus/ItemCalendar.tsx",
+    "components/syllabus/Batch.tsx",
+    "components/syllabus/Sync.tsx",
+    "components/syllabus/SyllabusList.tsx",
+    "components/syllabus/ActionProblem.tsx",
+    "components/syllabus/ConfirmDialog.tsx",
+    "components/syllabus/Processing.tsx",
+  ];
+
+  it("an item row is a grid of named areas: stacked below 768 with the source and the quote before the actions; actions on the title line from 768", () => {
+    expect(decls(".item-row")).toMatchObject({ display: "grid", "grid-template-areas": '"main" "meta" "source" "extra" "actions"', "align-items": "baseline", "row-gap": "0" });
+    expect(decls(".item-row", "min-width: 768px")).toMatchObject({ "grid-template-columns": "minmax(0, 1fr) auto", "grid-template-areas": '"main actions" "meta source" "extra extra"' });
+    expect(decls(".item-actions", "min-width: 768px")).toEqual({ "margin-block-start": "0", "justify-self": "end" });
+    // The source toggle keeps its 44px hit area without growing its line (padding inside, equal negative margin outside).
+    expect(decls(".item-source-toggle")).toEqual({ "padding-block": "0.5rem", "margin-block": "-0.5rem" });
+  });
+
+  it("the group head is a 44px full-width disclosure in the verbatim face at 15/24 (a week range is data, not synthesis)", () => {
+    const g = decls(".group-head");
+    expect(g["@apply"]).toContain("min-h-[44px]");
+    expect(g["@apply"]).toContain("w-full");
+    expect(g).toMatchObject({ "font-family": "var(--font-verbatim)", "font-size": "var(--type-sm)", "line-height": "var(--leading-sm)" });
+  });
+
+  it("the calendar step is a Note in the flow at every width: no rule positions .calendar-step (a sticky bar covered row targets; axe target-size)", () => {
+    expect(RULES.filter((r) => r.selector.includes(".calendar-step"))).toEqual([]);
+    expect(structureCss).not.toMatch(/calendar-step/);
+  });
+
+  it("no card, panel or bordered box remains in the slice 6 files; the review is ledgers, notes, one sheet (the edit form) and the v2 dialog", () => {
+    for (const f of SLICE6) {
+      const s = src(f);
+      expect(s, f).not.toMatch(/className="[^"]*\b(card|card-accent|panel|panel-\w+|eyebrow)\b/);
+      expect(s, f).not.toMatch(/\bborder border-hair\b|rounded-card/);
+    }
+    expect(src("components/syllabus/Review.tsx")).toContain('<ul className="ledger">');
+    expect(src("components/syllabus/Review.tsx")).toContain('className="note note-neutral calendar-step mt-6"');
+    expect(src("components/syllabus/ItemRow.tsx")).toContain('className="ledger-row item-row"');
+    expect(src("components/syllabus/ItemEditForm.tsx")).toContain('className="sheet mt-1 space-y-4"');
+    expect(src("components/syllabus/SyllabusList.tsx")).toContain('className="ledger-row-link min-h-[44px]"');
+    expect(src("components/syllabus/ConfirmDialog.tsx")).toContain('className="dialog"');
+    expect(src("components/syllabus/ConfirmDialog.tsx")).not.toMatch(/48px/);
+  });
+
+  it("G1: the Add syllabus form is on the Sheet template around an unchanged Draft notice panel, tag and checkbox; the Demo lines keep their tag", () => {
+    const form = src("components/syllabus/CreateForm.tsx");
+    expect(form).toMatch(/<\/h1>[\s\S]*className="sheet sheet-page mt-6 space-y-6"/);
+    expect(form).toContain('<section aria-labelledby={ids.notice} className="panel panel-notice space-y-3">');
+    expect(form).toContain('<span className="tag tag-warning">{NOTICE_DRAFT.tag}</span>');
+    expect(form).toContain("{NOTICE_DRAFT.heading}");
+    expect(form).toContain("<p>{NOTICE_DRAFT.body}</p>");
+    expect(form).toContain("<span>{NOTICE_DRAFT.checkbox}</span>");
+    expect(form.match(/className="panel/g)?.length).toBe(1); // the one notice section and nothing else
+    expect(src("components/syllabus/DemoLine.tsx")).toContain('<span className="tag tag-warning">{tag}</span>');
+    // One-at-a-time is unchanged by slice 6 except the "Please check" Approve weight (review 4).
+    const one = src("components/syllabus/OneAtATime.tsx");
+    expect(one).toContain('className={item.confidence === "please_check" ? "btn-secondary" : "btn-primary"}');
+  });
+});
+
 describe("Type scale (redesign-round2 2.1): line boxes on the 4px grid", () => {
   const rootDecls = new Map<string, string>();
   for (const r of rootRules.filter((r) => r.context.length === 0)) for (const [k, v] of r.decls) rootDecls.set(k, v);
@@ -701,8 +773,9 @@ describe("source lints (redesign-round2 slice 0)", () => {
   });
 
   // Arbitrary lengths outside the allowlist (control heights 44/56/64, the 3.25rem timestamp column, the 0.2em underline
-  // offset). 48px left the allowlist in slice 1 (one control height, 44): the three files that still carry it are the
-  // consent surfaces (gate G1) and the syllabus confirm dialog (slice 6), pinned here so no new 48px control appears.
+  // offset). 48px left the allowlist in slice 1 (one control height, 44): the two files that still carry it are the
+  // consent surfaces (gate G1), pinned here so no new 48px control appears; the syllabus confirm dialog's 48px buttons
+  // became 44 in slice 6 (baseline 2 -> 0).
   // Slice 3: the recap's em nudges and the rail's sticky offsets moved into globals.css (baseline-aligned grids); the
   // phone bottom sheet keeps its one 60dvh bound.
   it("arbitrary-length ratchet: no new -[Npx]/-[Nrem]/... values outside the allowlist", () => {
@@ -715,7 +788,6 @@ describe("source lints (redesign-round2 slice 0)", () => {
       "components/lecture/ConsentStart.tsx": 3,
       "components/lecture/Notices.tsx": 1,
       "components/lecture/QuickRecapPanel.tsx": 1,
-      "components/syllabus/ConfirmDialog.tsx": 2,
       "components/ui/Segmented.tsx": 1,
       "components/ui/Switch.tsx": 3,
     });

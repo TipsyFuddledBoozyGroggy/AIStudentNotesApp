@@ -146,7 +146,7 @@ export function Processing({ api, initial, courseId, msPerSecond = 1000, onRevie
         <p className="text-muted">{C.leave}</p>
       </div>
 
-      <div className="card space-y-3">
+      <div className="sheet sheet-page space-y-3">
         {inProgress ? (
           <p className="font-semibold" data-testid="step-line">
             {C.step(step, C.steps[step - 1])}

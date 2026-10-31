@@ -318,18 +318,21 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
       <BatchPanel api={api} syllabusId={syllabus.id} selected={target} level={scope === "all" ? 2 : 3} onDone={onBatchDone} onCancel={() => setBatchTarget(null)} />
     ) : null;
 
+  // Redesign-round2 slice 6 (wireframe 5.4): one display h1, the Demo lines (wording and tag presentation unchanged, G1),
+  // a two-line summary, one toolbar row, then each group as a label-style disclosure over a ledger of item rows. The
+  // calendar step is a Note after the groups (in the flow: a sticky bar would cover the row targets scrolled under it).
   return (
-    <div className="max-w-prose space-y-6">
-      <div className="space-y-3">
-        <h1 ref={headingRef} tabIndex={-1} className="display text-3xl">
-          {C.h1}
-        </h1>
+    <div className="max-w-prose">
+      <h1 ref={headingRef} tabIndex={-1} className="display text-display">
+        {C.h1}
+      </h1>
+      <div className="mt-3 space-y-1">
         <DemoLine text={DEMO_TAGS.calendar} tag={S.tagWord} />
         {syllabus.demoSource && <DemoLine text={DEMO_TAGS.source} />}
       </div>
 
       {syllabus.status === "partial" && (
-        <div className="panel panel-notice space-y-1">
+        <div className="note note-notice mt-6 space-y-1">
           <p className="font-semibold">{C.partial}</p>
           {syllabus.unprocessedRanges.length > 0 && (
             <p>{C.partialPages(syllabus.unprocessedRanges.map((r) => (r.fromPage === r.toPage ? `page ${r.fromPage}` : `pages ${r.fromPage} to ${r.toPage}`)).join(", "))}</p>
@@ -338,28 +341,28 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
         </div>
       )}
       {(hiddenContentDropped || injectionSuspect) && (
-        <div className="panel panel-notice">
+        <div className="note note-notice mt-6">
           <p>{hiddenContentDropped ? C.hostile : C.suspect}</p>
         </div>
       )}
       {purged && (
-        <div className="panel panel-neutral">
+        <div className="note note-neutral mt-6">
           <p>{C.purged}</p>
         </div>
       )}
 
       {loadFailed && (
-        <div className="panel panel-notice space-y-3">
+        <div className="note note-notice mt-6 space-y-3">
           <p>{C.itemsError}</p>
           <button type="button" className="btn-secondary" onClick={() => setTick((t) => t + 1)}>
             {C.tryAgain}
           </button>
         </div>
       )}
-      {!items && !loadFailed && <p className="text-muted">{C.loadingItems}</p>}
+      {!items && !loadFailed && <p className="mt-6 text-muted">{C.loadingItems}</p>}
 
       {items && d.length === 0 && (
-        <div className="space-y-2">
+        <div className="mt-6 space-y-2">
           <p className="font-semibold">{C.empty}</p>
           <p className="text-muted">{C.emptyBody}</p>
         </div>
@@ -367,38 +370,45 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
 
       {items && d.length > 0 && (
         <>
-          <section aria-label={C.summaryRegion} className="space-y-2">
-            <p>{C.summary(d.length, approved, skipped, undecided)}</p>
-            {needsDate > 0 && (
-              <p className="flex flex-wrap items-center gap-2">
-                <span>{C.needsDate(needsDate)}</span>
-                <button
-                  type="button"
-                  className="btn-tertiary btn-sm"
-                  onClick={() => {
-                    setOpen((prev) => new Set([...(prev ?? []), "needs_date"]));
-                    setFocusGroup("needs_date");
-                  }}
-                >
-                  {C.needsDateShow}
-                </button>
-              </p>
-            )}
+          <section aria-label={C.summaryRegion} className="mt-6">
+            <p className="flex flex-wrap items-baseline gap-x-4">
+              <span>{C.summary(d.length, approved, skipped, undecided)}</span>
+              {needsDate > 0 && (
+                <span className="inline-flex flex-wrap items-baseline gap-x-1">
+                  <span>{C.needsDate(needsDate)}</span>
+                  <button
+                    type="button"
+                    className="btn-tertiary btn-sm"
+                    onClick={() => {
+                      setOpen((prev) => new Set([...(prev ?? []), "needs_date"]));
+                      setFocusGroup("needs_date");
+                    }}
+                  >
+                    {C.needsDateShow}
+                  </button>
+                </span>
+              )}
+            </p>
             <p className="help">{C.timezone(syllabus.context.defaultTimezone)}</p>
             {d.length > LONG_LIST && <p className="help">{C.long}</p>}
-            <p className="flex flex-wrap gap-2">
-              <button type="button" className="btn-secondary btn-sm" onClick={() => toMode({ m: "one", start: null })}>
-                {ONE_COPY.open}
-              </button>
-              <button type="button" className="btn-tertiary btn-sm" onClick={() => calendarStepRef.current?.focus()}>
-                {S.skipTo}
-              </button>
-            </p>
+            {/* A skip link for keyboard users (UX 9): shown when it has focus, like the lecture's skip links. */}
+            <button
+              type="button"
+              className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:inline-flex focus:min-h-[44px] focus:items-center focus:rounded-control focus:border-2 focus:border-line focus:bg-surface focus:px-4 focus:font-semibold focus:text-ink"
+              onClick={() => calendarStepRef.current?.focus()}
+            >
+              {S.skipTo}
+            </button>
           </section>
 
-          {batchDone && <BatchUndo api={api} syllabusId={syllabus.id} done={batchDone} items={items} onUndone={onBatchUndone} />}
+          {batchDone && (
+            <div className="mt-6">
+              <BatchUndo api={api} syllabusId={syllabus.id} done={batchDone} items={items} onUndone={onBatchUndone} />
+            </div>
+          )}
 
-          <div className="flex flex-wrap items-end justify-between gap-3">
+          {/* Toolbar: Group by, then the two quiet view controls on the segmented control's row (redesign-round2 5.4). */}
+          <div className="mt-6 flex flex-wrap items-end gap-x-2 gap-y-3">
             <Segmented
               legend={C.groupByLegend}
               value={by}
@@ -408,13 +418,16 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
                 { value: "type", label: C.groupByType },
               ]}
             />
+            <button type="button" className="btn-tertiary btn-sm" onClick={() => toMode({ m: "one", start: null })}>
+              {ONE_COPY.open}
+            </button>
             <button type="button" className="btn-tertiary btn-sm" onClick={() => setOpen(allOpen ? new Set() : new Set(groups.map((g) => g.key)))}>
               {allOpen ? C.collapseAll : C.expandAll}
             </button>
           </div>
 
           {clear.length > 0 && (
-            <div className="space-y-3">
+            <div className="mt-3 space-y-3">
               <Disclosure summary={B.menu}>
                 <div className="mt-2 space-y-2">
                   <p className="help">{B.what}</p>
@@ -427,7 +440,7 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
             </div>
           )}
 
-          <div className="space-y-4">
+          <div className="mt-6 space-y-4">
             {groups.map((g) => {
               const isOpen = open?.has(g.key) ?? false;
               const label = groupLabel(g);
@@ -435,8 +448,8 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
               const listId = `group-${g.key.replace(/[^a-z0-9-]/gi, "-")}`;
               const groupClear = clear.filter((c) => g.items.some((i) => i.id === c.id));
               return (
-                <section key={g.key} aria-labelledby={`${listId}-h`} className="space-y-3">
-                  <h2 id={`${listId}-h`} className="display text-xl">
+                <section key={g.key} aria-labelledby={`${listId}-h`}>
+                  <h2 id={`${listId}-h`}>
                     <button
                       ref={(el) => {
                         groupButtons.current.set(g.key, el);
@@ -445,23 +458,23 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
                       aria-expanded={isOpen}
                       aria-controls={listId}
                       onClick={() => toggle(g.key)}
-                      className="flex min-h-[44px] w-full items-center gap-2 rounded-control text-left"
+                      className="group-head min-h-[44px]"
                     >
                       <Chevron open={isOpen} />
                       <span>
-                        {label}
-                        <span className="text-base font-normal text-muted">
+                        <span className="font-bold text-ink">{label}</span>
+                        <span className="text-muted">
                           {g.kind === "policy" ? `, ${g.items.length} ${g.items.length === 1 ? "item" : "items"}` : C.groupName("", g.items.length, u)}
                         </span>
                       </span>
                     </button>
                   </h2>
-                  <div id={listId} hidden={!isOpen} className="space-y-3">
-                    {g.kind === "policy" && <p className="help">{C.policyNote}</p>}
+                  <div id={listId} hidden={!isOpen}>
+                    {g.kind === "policy" && <p className="help mb-2">{C.policyNote}</p>}
                     {groupClear.length > 0 && (g.kind === "week" || g.kind === "type") && (
                       <button
                         type="button"
-                        className="btn-secondary btn-sm"
+                        className="btn-tertiary btn-sm optical-start"
                         aria-label={B.groupName(g.kind === "week" ? B.week(groupClear.length) : B.group(groupClear.length), label)}
                         onClick={() => setBatchTarget({ scope: g.key, ids: groupClear.map((i) => i.id) })}
                       >
@@ -469,7 +482,7 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
                       </button>
                     )}
                     {batchPanel(g.key)}
-                    <ul className="space-y-3">
+                    <ul className="ledger">
                       {g.items.map((i) => (
                         <ItemRow key={i.id} api={api} item={i} defaultTimezone={syllabus.context.defaultTimezone} purged={purged} onChange={onChange} />
                       ))}
@@ -480,39 +493,41 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
             })}
           </div>
 
-          <section aria-labelledby="calendar-step-h" className="card space-y-3">
-            <h2 id="calendar-step-h" ref={calendarStepRef} tabIndex={-1} className="display text-xl">
-              {S.barRegion}
-            </h2>
-            <button
-              type="button"
-              className="btn-primary"
-              aria-disabled={candidates.length === 0 ? true : undefined}
-              aria-describedby={candidates.length === 0 ? "calendar-step-hint" : undefined}
-              onClick={() => candidates.length > 0 && toMode({ m: "confirm" })}
-            >
-              {S.bar(candidates.length)}
-            </button>
-            {candidates.length === 0 && (
-              <p id="calendar-step-hint" className="help">
-                {S.barHint}
-              </p>
-            )}
+          <section aria-labelledby="calendar-step-h" className="note note-neutral calendar-step mt-6" data-calendar-step="">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <h2 id="calendar-step-h" ref={calendarStepRef} tabIndex={-1} className="note-title">
+                {S.barRegion}
+              </h2>
+              <button
+                type="button"
+                className="btn-primary"
+                aria-disabled={candidates.length === 0 ? true : undefined}
+                aria-describedby={candidates.length === 0 ? "calendar-step-hint" : undefined}
+                onClick={() => candidates.length > 0 && toMode({ m: "confirm" })}
+              >
+                {S.bar(candidates.length)}
+              </button>
+              {candidates.length === 0 && (
+                <p id="calendar-step-hint" className="help">
+                  {S.barHint}
+                </p>
+              )}
+            </div>
           </section>
         </>
       )}
 
       {items && (
-        <section aria-labelledby="syllabus-data-h" className="space-y-3 border-t border-hair pt-4">
+        <section aria-labelledby="syllabus-data-h" className="mt-12 space-y-3">
           <h2 id="syllabus-data-h" className="font-semibold text-ink">
             {X.heading}
           </h2>
           <p className="help">{X.hint}</p>
-          <div className="flex flex-wrap gap-3">
-            <button type="button" className="btn-secondary btn-sm" aria-disabled={exporting ? true : undefined} onClick={() => void doExport()}>
+          <div className="flex flex-wrap gap-x-2">
+            <button type="button" className="btn-tertiary btn-sm optical-start" aria-disabled={exporting ? true : undefined} onClick={() => void doExport()}>
               {exporting ? X.busy : X.button}
             </button>
-            <button type="button" className="btn-secondary btn-sm" onClick={() => setConfirmDelete(true)}>
+            <button type="button" className="btn-tertiary btn-sm" onClick={() => setConfirmDelete(true)}>
               {D.button}
             </button>
           </div>
@@ -520,18 +535,18 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
         </section>
       )}
 
-      <div className="flex flex-wrap gap-3">
+      <div className="mt-12 flex flex-wrap gap-x-2">
         {onAddAnother && (
-          <button type="button" className="btn-tertiary px-0" onClick={onAddAnother}>
+          <button type="button" className="btn-tertiary optical-start" onClick={onAddAnother}>
             {L.addAnother}
           </button>
         )}
         {onShowAll && (
-          <button type="button" className="btn-tertiary px-0" onClick={onShowAll}>
+          <button type="button" className={`btn-tertiary ${onAddAnother ? "" : "optical-start"}`} onClick={onShowAll}>
             {L.all}
           </button>
         )}
-        <Link href={`/courses/${encodeURIComponent(courseId)}`} className="btn-tertiary px-0">
+        <Link href={`/courses/${encodeURIComponent(courseId)}`} className={`btn-tertiary ${onAddAnother || onShowAll ? "" : "optical-start"}`}>
           {C.back}
         </Link>
       </div>

@@ -63,14 +63,14 @@ export function BatchPanel({
   }
 
   return (
-    <section aria-labelledby={`${id}-h`} className="panel panel-neutral space-y-3" data-batch-panel="">
+    <section aria-labelledby={`${id}-h`} className="note note-neutral space-y-3" data-batch-panel="">
       <H id={`${id}-h`} ref={headingRef} tabIndex={-1} className="font-semibold text-ink">
         {C.explain(n)}
       </H>
       <p className="help">{C.readEach}</p>
-      <ul className="space-y-3">
+      <ul className="divide-y divide-hair">
         {selected.map((i) => (
-          <li key={i.id} className="rounded-card border border-hair bg-surface p-3 text-sm">
+          <li key={i.id} className="py-3 text-sm">
             <p className="break-words font-semibold text-ink">
               <PlainText value={i.title} />
             </p>
@@ -78,7 +78,7 @@ export function BatchPanel({
               {KIND_LABEL[i.kind]} · {whenLine(i, ITEM_COPY.allDay)}
             </p>
             {i.snippet?.text && (
-              <div className="mt-1 space-y-1 border-l-4 border-line pl-3">
+              <div className="mt-1 space-y-1 border-l-2 border-hair pl-3">
                 <p className="text-muted">{ITEM_COPY.sourceFrom(i.snippet.page)}</p>
                 <blockquote className="break-words">
                   <PlainText value={i.snippet.text} />
@@ -154,7 +154,7 @@ export function BatchUndo({
   }
 
   return (
-    <div ref={boxRef} tabIndex={-1} className="panel panel-neutral space-y-2" data-batch-undo="">
+    <div ref={boxRef} tabIndex={-1} className="note note-neutral space-y-2" data-batch-undo="">
       <p className="font-semibold">{k === done.asked ? C.done(k) : C.partial(k, done.asked)}</p>
       {k > 0 && (
         <button ref={btnRef} type="button" className="btn-secondary btn-sm" aria-busy={busy || undefined} onClick={() => void undo()}>

@@ -1003,6 +1003,77 @@ html:has([data-lecture-root]) {
   }
 }
 
+/* ---- Slice 6: syllabus review density (redesign-round2 1.7, 2.7 Ledger / Note, 5.4). ---- */
+@layer components {
+  /* Group head: the group's disclosure button as a label-style caption over its ledger (sans 15/24; the week or type in
+     ink 700, the counts muted; chevron first). Sans, not serif: a week range is data, and the serif is the voice of
+     synthesis (PO-17). 44px tall, text on the column edge. */
+  .group-head {
+    @apply flex min-h-[44px] w-full items-center gap-2 rounded-control text-left;
+    font-family: var(--font-verbatim);
+    font-size: var(--type-sm);
+    line-height: var(--leading-sm);
+  }
+  /* Item row inside a ledger: named areas. The DOM (and reading) order is title line, meta line, source disclosure, the
+     open quote / reason / hint, then the actions (redesign-round2-review 4: what the student is asked to check comes
+     before the buttons). Below 768 the areas stack in that order; from 768 the actions sit on the title line (right,
+     baseline-aligned, wireframe 5.4) and the source disclosure on the meta line. Margins instead of row gaps, so an
+     absent area costs no height. */
+  .item-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "main" "meta" "source" "extra" "actions";
+    row-gap: 0;
+    column-gap: 0;
+    align-items: baseline;
+  }
+  .item-main {
+    grid-area: main;
+  }
+  .item-meta {
+    grid-area: meta;
+    margin-block-start: 0.25rem;
+  }
+  .item-actions {
+    grid-area: actions;
+    margin-block-start: 0.5rem;
+  }
+  .item-source {
+    grid-area: source;
+  }
+  .item-extra {
+    grid-area: extra;
+  }
+  /* Each shown extra (reason, quote, hint, form, ...) takes 8px above it; a closed quote (hidden) costs nothing. */
+  .item-extra > * {
+    margin-block-start: 0.5rem;
+  }
+  @media (min-width: 768px) {
+    .item-row {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: "main actions" "meta source" "extra extra";
+      column-gap: 1rem;
+    }
+    .item-actions {
+      margin-block-start: 0;
+      justify-self: end;
+    }
+    .item-source {
+      justify-self: end;
+    }
+  }
+  /* "See where this came from": a link-style disclosure button whose 44px hit area does not grow its 28px line
+     (padding inside, the same amount of negative margin outside, as .cite does for citation times). */
+  .item-source-toggle {
+    padding-block: 0.5rem;
+    margin-block: -0.5rem;
+  }
+  /* The calendar step (.calendar-step): a Note in the flow after the groups, holding the screen's one filled button. It was
+     built sticky to the viewport bottom from 1024 (plan row 6) and reverted in the same slice: a bar stuck over the list
+     covers the Approve / Skip / Edit targets of whichever row is scrolled beneath it, which axe reports as target-size
+     (WCAG 2.5.8, caught by the real-stack e2e at 1280 x 900 with the Needs-a-date row under it). No positioning rule. */
+}
+
 /* Transcript reading layout (section 4 "Transcript line"): hanging timestamp column, 68ch measure, 17/28 line boxes
    (redesign-round2 3.3 item 1), no zebra. Timestamps share the text's first baseline (grid items aligned on baseline)
    instead of the old 0.2em nudge. */

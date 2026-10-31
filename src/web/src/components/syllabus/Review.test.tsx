@@ -226,6 +226,147 @@ describe("Review list (F1)", () => {
   });
 });
 
+// Redesign-round2 slice 6 (wireframe 5.4; redesign-round2-review section 4): items as ledger rows with at most one
+// bordered button each, the source quote before the hint and the actions, "Looks right" kept in the accessible text but
+// not drawn, group heads as label-style disclosures, the calendar step as a Note, the delete dialog on the v2 dialog
+// with 44px buttons. Browser geometry (sticky note, 44px targets, row text on the column) is geometry.spec.ts.
+describe("Review density (redesign-round2 slice 6)", () => {
+  it("every item is a ledger row with at most one bordered button; Skip and Edit are quiet; the source toggle is a link-style disclosure", async () => {
+    const { container } = await mount();
+    await userEvent.click(screen.getByRole("button", { name: "Expand all" }));
+    const rows = container.querySelectorAll("li.ledger-row.item-row");
+    expect(rows.length).toBe(12); // 11 decidable items + 1 course policy
+    for (const li of Array.from(rows)) {
+      expect(li.closest("ul")).toHaveClass("ledger");
+      const bordered = Array.from(li.querySelectorAll("button")).filter((b) => /\bbtn-(secondary|primary|danger)\b/.test(b.className));
+      expect(bordered.length, li.getAttribute("aria-labelledby") ?? "").toBeLessThanOrEqual(1);
+      expect(li.querySelector("[class*='rounded-card'], [class*='border-hair bg-surface']")).toBeNull();
+    }
+    const quiz = row("Quiz 1");
+    expect(within(quiz).getByRole("button", { name: "Approve Quiz 1" })).toHaveClass("btn-secondary");
+    expect(within(quiz).getByRole("button", { name: "Skip Quiz 1" })).toHaveClass("btn-tertiary");
+    expect(within(quiz).getByRole("button", { name: "Edit Quiz 1" })).toHaveClass("btn-tertiary");
+    const toggle = within(quiz).getByRole("button", { name: "See where this came from" });
+    expect(toggle).toHaveClass("link");
+    expect(toggle.querySelector("[data-chevron]")).not.toBeNull();
+    // The tag chip is gone from the rows: kind is plain text in the meta line.
+    expect(container.querySelector("li.item-row .tag")).toBeNull();
+  });
+
+  it("'Looks right' stays in the row's text (screen readers) but is not drawn; Probably right and Please check keep a shape and a word", async () => {
+    await mount();
+    await userEvent.click(screen.getByRole("button", { name: "Expand all" }));
+    const mid = row("Midterm exam"); // looks_right in the fixture
+    const lr = within(mid).getByText(/Looks right/);
+    expect(lr).toHaveClass("sr-only");
+    expect(within(mid).queryByText("Looks right")).toBeNull(); // not drawn as its own visible segment
+    const quiz = row("Quiz 1"); // probably_right
+    const pr = within(quiz).getByText("Probably right");
+    expect(pr).not.toHaveClass("sr-only");
+    expect(pr.closest("span")?.querySelector("svg")).not.toBeNull();
+    const lab = row("Lab report 2"); // please_check
+    expect(within(lab).getByText("Please check").closest("span")?.querySelector("svg")).not.toBeNull();
+    // Decision words stay text ("Not decided" on every undecided row).
+    expect(within(mid).getByText("Not decided")).toBeInTheDocument();
+  });
+
+  it("in a 'Please check' row the source quote comes before the hint and the actions (review 4), and the toggle precedes Approve in Tab order", async () => {
+    await mount();
+    await userEvent.click(groupButton(/^Week of Oct 12 to 18/));
+    const lab = row("Lab report 2");
+    const quote = within(lab).getByText(/Lab report 2 due Friday, October 16, 2026, 5 PM \(tentative\)/);
+    const hint = within(lab).getByText("Approving this means you checked the date against your syllabus.");
+    const approve = within(lab).getByRole("button", { name: "Approve Lab report 2" });
+    const toggle = within(lab).getByRole("button", { name: "See where this came from" });
+    const title = within(lab).getByRole("heading", { level: 3 });
+    const reason = within(lab).getByText("The syllabus says this date may change.");
+    const order = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(order(title, reason)).toBe(true);
+    expect(order(reason, quote)).toBe(true);
+    expect(order(quote, hint)).toBe(true);
+    expect(order(hint, approve)).toBe(true);
+    expect(order(toggle, approve)).toBe(true);
+    expect(approve).toHaveAccessibleDescription("Approving this means you checked the date against your syllabus.");
+    const buttons = within(lab).getAllByRole("button");
+    expect(buttons.map((b) => b.getAttribute("aria-label") ?? b.textContent)).toEqual(["See where this came from", "Approve Lab report 2", "Skip Lab report 2", "Edit Lab report 2"]);
+  });
+
+  it("group heads are label-style disclosure buttons (sans, 44px) inside h2; groups stack with no card; the toolbar is one row of quiet controls", async () => {
+    const { container } = await mount();
+    const heads = Array.from(container.querySelectorAll("h2 > button[aria-expanded]"));
+    expect(heads.length).toBe(8);
+    for (const b of heads) {
+      expect(b).toHaveClass("group-head");
+      expect(b.className).not.toMatch(/display/);
+    }
+    expect(container.querySelector(".card")).toBeNull();
+    expect(container.querySelector(".panel")).toBeNull();
+    expect(screen.getByRole("button", { name: "Review one at a time" })).toHaveClass("btn-tertiary");
+    expect(screen.getByRole("button", { name: "Expand all" })).toHaveClass("btn-tertiary");
+    // The skip link is visually hidden until focused, in the same place in the Tab order as before.
+    const skip = screen.getByRole("button", { name: "Skip to calendar step" });
+    expect(skip).toHaveClass("sr-only");
+    skip.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByRole("heading", { name: "Calendar step" })).toHaveFocus();
+  });
+
+  it("the calendar step is a Note in the flow holding the one filled button; the per-group batch button is quiet", async () => {
+    await mount();
+    const step = screen.getByRole("region", { name: "Calendar step" });
+    expect(step).toHaveClass("note", "note-neutral", "calendar-step");
+    expect(within(step).getByRole("button", { name: /^Add 0 approved items/ })).toHaveClass("btn-primary");
+    expect(within(step).getByRole("button", { name: /^Add 0 approved items/ })).toHaveAccessibleDescription("Approve an item to continue.");
+    expect(screen.getByRole("button", { name: /^Approve the clear ones in this week \(\d+\): Week of Aug 24 to 30$/ })).toHaveClass("btn-tertiary");
+    // Only one filled button on the list screen.
+    const filled = screen.getAllByRole("button").filter((b) => b.classList.contains("btn-primary"));
+    expect(filled).toHaveLength(1);
+  });
+
+  it("the delete dialog is the v2 dialog with 44px buttons, the safe action filled and focused", async () => {
+    const { container } = await mount();
+    await userEvent.click(screen.getByRole("button", { name: "Delete this syllabus" }));
+    const dialog = screen.getByRole("dialog", { name: "Delete this syllabus?" });
+    expect(dialog).toHaveClass("dialog");
+    expect(dialog.parentElement).toHaveClass("dialog-scrim");
+    const keep = within(dialog).getByRole("button", { name: "Keep it" });
+    expect(keep).toHaveFocus();
+    expect(keep).toHaveClass("btn-primary");
+    for (const b of within(dialog).getAllByRole("button")) expect(b.className).not.toMatch(/48px/);
+    // Portalled to <body>; everything else in <body> is inert while it is open (modal semantics, as the consent pop-up).
+    expect(container).toHaveAttribute("inert");
+    expect(dialog.closest("[inert]")).toBeNull();
+    expect(await axeViolations(container)).toEqual([]);
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Delete this syllabus" })).toHaveFocus());
+    expect(container).not.toHaveAttribute("inert");
+  });
+
+  it("one at a time: a 'Please check' item's Approve is a plain secondary described by the hint; a clear item keeps the filled Approve (review 4)", async () => {
+    await mount();
+    await userEvent.click(screen.getByRole("button", { name: "Review one at a time" }));
+    await screen.findByRole("heading", { level: 1, name: "Review one at a time" });
+    expect(screen.getByRole("button", { name: "Approve Office hours" })).toHaveClass("btn-primary"); // looks_right
+    for (let i = 0; i < 5; i++) await userEvent.click(screen.getByRole("button", { name: "Next, decide later" }));
+    expect(screen.getByRole("heading", { level: 2, name: "Lab report 2" })).toBeInTheDocument();
+    const approve = screen.getByRole("button", { name: "Approve Lab report 2" });
+    expect(approve).toHaveClass("btn-secondary");
+    expect(approve).not.toHaveClass("btn-primary");
+    expect(approve).toHaveAccessibleDescription("Approving this means you checked the date against your syllabus.");
+    expect(screen.getByText("Please check")).toBeVisible();
+    expect(screen.getAllByRole("button").filter((b) => b.classList.contains("btn-primary"))).toHaveLength(0);
+  });
+
+  it("the edit form is a sheet inside the row; axe is clean with the form open and with a group collapsed", async () => {
+    const { container } = await mount();
+    await userEvent.click(screen.getByRole("button", { name: "Edit Office hours" }));
+    const form = screen.getByRole("form", { name: "Edit Office hours" });
+    expect(form).toHaveClass("sheet");
+    expect(form.closest("li.item-row")).not.toBeNull();
+    expect(await axeViolations(container)).toEqual([]);
+  });
+});
+
 describe("Review: partial, hostile and purged syllabi", () => {
   it("partial: says it is not the whole list and names the pages", async () => {
     await mount("partial");

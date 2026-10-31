@@ -29,7 +29,7 @@ export const problemText = (k: Exclude<ProblemKind, "session">) =>
 export const ActionProblem = forwardRef<HTMLDivElement, { kind: ProblemKind; className?: string }>(function ActionProblem({ kind, className = "" }, ref) {
   if (kind === "session")
     return (
-      <div ref={ref} tabIndex={-1} className={`panel panel-notice space-y-2 ${className}`} data-problem="session">
+      <div ref={ref} tabIndex={-1} className={`note note-notice space-y-2 ${className}`} data-problem="session">
         <p className="font-semibold">{C.sessionHeading}</p>
         <p>{C.sessionBody}</p>
         <Link href="/signin" className="btn-secondary">
@@ -38,7 +38,7 @@ export const ActionProblem = forwardRef<HTMLDivElement, { kind: ProblemKind; cla
       </div>
     );
   return (
-    <div ref={ref} tabIndex={-1} className={`panel panel-notice ${className}`} data-problem={kind}>
+    <div ref={ref} tabIndex={-1} className={`note note-notice ${className}`} data-problem={kind}>
       <p className="font-semibold">{problemText(kind)}</p>
     </div>
   );

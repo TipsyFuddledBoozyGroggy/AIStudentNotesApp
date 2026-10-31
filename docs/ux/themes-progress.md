@@ -22,7 +22,12 @@ covers only the Add a course field (recorded there). **T2 IMPLEMENTED 2026-10-31
 results" in the same document): Preferences side panel from 1024, Theme radiogroup (5 cards, nested-skin swatches),
 "Theme" legend -> "Colour mode" (`AppShell.test.tsx` "Dark theme on." -> "Dark mode on.", recorded), Reset look via
 `lookDefaults()`, Preview card, status messages, rollback hides the control; Portal and Calm finished on the screens built so
-far (paint only); consent card carved out of skin card decoration (non-Paper skins, G1). **T3-T6 NOT STARTED** (T3/T4 =
+far (paint only); consent card carved out of skin card decoration (non-Paper skins, G1). **Redesign-round2 slice 6
+(syllabus review density) IMPLEMENTED 2026-10-31** ("Slice 6 results" in the same document): items as ledger rows with one
+bordered button each, group heads as sans label-style disclosures, the calendar step as a Note in the flow (built sticky,
+reverted after an axe target-size failure), the Add syllabus form on the Sheet template around the unchanged Draft notice (G1), the confirm dialog's
+buttons at 44px (the `48px` ratchet entry for `ConfirmDialog.tsx` removed), notes and ledgers in the batch / sync / list
+screens; the geometry gate now measures the review page at the 7 Paper widths. **T3-T6 NOT STARTED** (T3/T4 =
 slice 7: Grid texture and Solid surfaces switch UIs and their emulateMedia fallback tests; T5's lecture pass over 10 looks
 can reuse slice 3's harness tests).
 

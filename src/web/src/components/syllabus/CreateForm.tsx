@@ -103,6 +103,7 @@ export function CreateForm({ api, courseId, courseName, demoExpected, initialMet
     notice: useId(),
     submitHint: useId(),
   };
+  const headingId = useId();
   const draftKey = `draft.${courseId}`;
   const headingRef = useRef<HTMLHeadingElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
@@ -221,17 +222,22 @@ export function CreateForm({ api, courseId, courseName, demoExpected, initialMet
   const textDescribedBy = [ids.textHint, kept ? `${ids.textHint}-kept` : null, textErr ? ids.textErr : null].filter(Boolean).join(" ");
   const cancelLink = `/courses/${encodeURIComponent(courseId)}`;
 
+  // Sheet template (redesign-round2 2.3, slice 6; deferred from slice 4): the h1, its sentence and the Demo line on the
+  // canvas above the one sheet, which holds what is filled in. The Draft notice panel and its checkbox inside the sheet
+  // are unchanged in wording and presentation (counsel-pending placeholder, P2-D5; gate G1).
   return (
-    <div className="max-w-prose space-y-6">
-      <div className="space-y-3">
-        <h1 ref={headingRef} tabIndex={-1} className="display text-3xl">
-          {C.h1}
-        </h1>
-        <p className="text-muted">{C.intro(courseName)}</p>
-        {demoExpected && <DemoLine text={DEMO_TAGS.source} />}
-      </div>
+    <div className="max-w-sheet">
+      <h1 id={headingId} ref={headingRef} tabIndex={-1} className="display text-3xl">
+        {C.h1}
+      </h1>
+      <p className="mt-1 text-muted">{C.intro(courseName)}</p>
+      {demoExpected && (
+        <div className="mt-3">
+          <DemoLine text={DEMO_TAGS.source} />
+        </div>
+      )}
 
-      <form onSubmit={submit} noValidate className="space-y-6">
+      <form onSubmit={submit} noValidate aria-labelledby={headingId} className="sheet sheet-page mt-6 space-y-6">
         <Segmented
           legend={F.methodLegend}
           value={method}
@@ -399,7 +405,7 @@ export function CreateForm({ api, courseId, courseName, demoExpected, initialMet
 
         {submitErr && "session" in submitErr && <ActionProblem ref={errorRef} kind="session" />}
         {submitErr && !("session" in submitErr) && (
-          <div ref={errorRef} tabIndex={-1} className="panel panel-notice">
+          <div ref={errorRef} tabIndex={-1} className="note note-notice">
             <p className="font-semibold">{"file" in submitErr ? F.errors[submitErr.file] : C.errors[submitErr.key]}</p>
             {"key" in submitErr && submitErr.existingId && (
               <button type="button" className="btn-secondary mt-3" onClick={() => onOpenExisting(submitErr.existingId as string)}>

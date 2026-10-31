@@ -172,7 +172,7 @@ export function ItemEditForm({ api, item, initialFocus, onSaved, onCancel, onCon
       onKeyDown={onKeyDown}
       noValidate
       aria-label={C.legend(item.title)}
-      className="mt-3 space-y-4 rounded-card border border-line bg-sunken p-4"
+      className="sheet mt-1 space-y-4"
     >
       {restored && <p className="help">{C.kept}</p>}
       {item.decision === "approved" && item.syncState === "not_synced" && <p className="help">{C.approvedNote}</p>}

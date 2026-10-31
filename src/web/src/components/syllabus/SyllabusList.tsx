@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { IN_PROGRESS, type Syllabus } from "@/lib/syllabus/types";
 import { LIST_COPY as C, PAGE_COPY } from "./copy";
+import { Chevron } from "./icons";
 
 /** "Oct 30, 3:05 PM" in the student's own zone (an instant, so local time is the honest reading). */
 export function addedWhen(iso: string): string {
@@ -46,18 +47,22 @@ export function SyllabusList({
         </h1>
         <p className="text-muted">{C.intro(courseName)}</p>
       </div>
-      <ul className="space-y-3">
+      {/* A ledger (redesign-round2 2.7): each row's one action, "Open", is stretched over the whole row; one tab stop, one name. */}
+      <ul className="ledger">
         {sorted.map((s) => {
           const when = addedWhen(s.createdAt);
           return (
-            <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-hair bg-surface p-4">
+            <li key={s.id} className="ledger-row">
               <div className="min-w-0">
                 <p className="font-semibold text-ink">{C.added(when)}</p>
                 <p className="text-sm text-muted">{summary(s)}</p>
               </div>
-              <button type="button" className="btn-secondary btn-sm" aria-label={C.openName(when)} onClick={() => onOpen(s)}>
-                {C.open}
-              </button>
+              <span className="inline-flex items-center gap-1">
+                <button type="button" className="ledger-row-link min-h-[44px]" aria-label={C.openName(when)} onClick={() => onOpen(s)}>
+                  {C.open}
+                </button>
+                <Chevron open={false} />
+              </span>
             </li>
           );
         })}

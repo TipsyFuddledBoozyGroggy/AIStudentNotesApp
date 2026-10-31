@@ -82,7 +82,7 @@ export function ItemCalendar({ api, item, onChange }: { api: SyllabusApi; item: 
   const changed = item.syncState === "changed_since_sync";
   const notThrough = item.syncState === "sync_failed";
   return (
-    <div className="mt-3 space-y-2 border-t border-hair pt-3 text-sm">
+    <div className="space-y-2 border-t border-hair pt-2 text-sm">
       {removed && !present ? (
         <p>{C.removedNote}</p>
       ) : (
@@ -93,11 +93,11 @@ export function ItemCalendar({ api, item, onChange }: { api: SyllabusApi; item: 
         </>
       )}
       {removed && !present ? (
-        <button ref={btnRef} type="button" className="btn-secondary btn-sm" aria-label={C.undoRemoveName(item.title)} aria-busy={busy || undefined} onClick={() => void addBack()}>
+        <button ref={btnRef} type="button" className="btn-tertiary btn-sm optical-start" aria-label={C.undoRemoveName(item.title)} aria-busy={busy || undefined} onClick={() => void addBack()}>
           {ITEM_COPY.undo}
         </button>
       ) : present ? (
-        <button ref={btnRef} type="button" className="btn-secondary btn-sm" aria-label={C.removeName(item.title)} aria-busy={busy || undefined} onClick={() => void remove()}>
+        <button ref={btnRef} type="button" className="btn-tertiary btn-sm optical-start" aria-label={C.removeName(item.title)} aria-busy={busy || undefined} onClick={() => void remove()}>
           {C.remove}
         </button>
       ) : null}
