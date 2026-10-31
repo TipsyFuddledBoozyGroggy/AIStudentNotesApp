@@ -106,6 +106,63 @@ test("Low-stimulation look: no transitions or shadows under the lecture root; re
   await expect(pill).toBeVisible();
 });
 
+// Slice 3 (redesign-round2 5.2): on desktop the Quick recap result opens as a sheet in the transcript column, above the
+// transcript, so the first line and the TL;DR stay in view; its citation times hang in the margin track at 1280.
+test("desktop 1280: the recap result is a sheet above the transcript; first line and TL;DR stay in view; Close recap returns to the transcript", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/dev/lecture-harness/live-quick-recap");
+  await usual(page).click();
+  const result = page.getByTestId("catchup-result");
+  await expect(result.getByRole("heading", { level: 2, name: "Here is what was said" })).toBeFocused();
+  const [rb, tb, qb] = await Promise.all([result.boundingBox(), page.locator(".transcript-panel").boundingBox(), page.locator("#lecture-quick-recap").boundingBox()]);
+  expect(Math.abs(rb!.x - tb!.x)).toBeLessThanOrEqual(1); // the same column as the transcript sheet
+  expect(Math.abs(rb!.width - tb!.width)).toBeLessThanOrEqual(1);
+  expect(rb!.y + rb!.height).toBeLessThanOrEqual(tb!.y + 1); // above it
+  expect(rb!.x + rb!.width).toBeLessThan(qb!.x); // not in the rail: the rail keeps the windows
+  expect(await page.locator("#lecture-quick-recap [data-testid=catchup-result]").count()).toBe(0);
+  await expect(page.locator(".transcript-line").first()).toBeInViewport();
+  await expect(page.getByRole("heading", { name: "TL;DR" })).toBeInViewport();
+  await expect(usual(page)).toBeInViewport();
+  await expect(result.getByRole("button", { name: "Close recap" })).toBeVisible();
+  await expect(result.getByRole("button", { name: "Back to lecture" })).toBeVisible();
+  // Citation times hang in the margin, on the page, left of the sheet's painted surface; the words share the transcript's text edge.
+  const cite = (await result.getByRole("button", { name: /go to transcript line$/ }).first().boundingBox())!;
+  expect(Math.abs(cite.x - rb!.x)).toBeLessThanOrEqual(1);
+  const lead = (await result.locator(".synthesis").boundingBox())!;
+  const words = (await page.locator(".transcript-line > span").nth(1).boundingBox())!;
+  expect(Math.abs(lead.x - words.x)).toBeLessThanOrEqual(1);
+  await result.getByRole("button", { name: "Close recap" }).click();
+  await expect(result).toHaveCount(0);
+  await expect(page.getByRole("log", { name: "Transcript lines" })).toBeFocused();
+});
+
+test("phone 390: the recap result is the bottom sheet (unchanged mechanics); at least three transcript lines stay readable between the bar and the sheet", async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await ctx.newPage();
+  await page.goto("/dev/lecture-harness/live-quick-recap");
+  await usual(page).click();
+  const result = page.getByTestId("catchup-result");
+  await expect(result.getByRole("heading", { level: 3, name: "Here is what was said" })).toBeFocused();
+  expect(await page.locator("#lecture-quick-recap [data-testid=catchup-result]").count()).toBe(1); // inside the dock
+  // With the sheet open the page keeps 60dvh of scroll room, so the student can bring the lines they were reading up
+  // under the bar: park the first line there, then count what sits between the bar and the sheet.
+  // Two passes: the bar is sticky, so its bottom edge moves up once the page scrolls past the fixture caption.
+  for (let i = 0; i < 2; i++) {
+    await page.evaluate(() => {
+      const line = document.querySelector(".transcript-line")!;
+      const bar = document.querySelector("[data-lecture-status-bar]")!;
+      window.scrollBy(0, line.getBoundingClientRect().top - bar.getBoundingClientRect().bottom - 8);
+    });
+  }
+  const dock = (await page.locator("#lecture-quick-recap").boundingBox())!;
+  const bar = (await page.locator("[data-lecture-status-bar]").boundingBox())!;
+  const lines = await page.locator(".transcript-line").evaluateAll((els) => els.map((e) => ({ top: e.getBoundingClientRect().top, bottom: e.getBoundingClientRect().bottom })));
+  const readable = lines.filter((l) => l.top >= bar.y + bar.height - 1 && l.bottom <= dock.y + 1);
+  expect(readable.length, `lines ${JSON.stringify(lines)} bar bottom ${bar.y + bar.height} sheet top ${dock.y}`).toBeGreaterThanOrEqual(3);
+  await expect(result.getByRole("button", { name: "Close recap" })).toBeInViewport();
+  await ctx.close();
+});
+
 /** Visible text must appear in the accessible name of every control that overrides its name (WCAG 2.5.3 Label in Name). */
 async function labelInNameViolations(page: Page): Promise<string[]> {
   return page.evaluate(() => {

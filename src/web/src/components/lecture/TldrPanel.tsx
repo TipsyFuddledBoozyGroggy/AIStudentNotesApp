@@ -12,15 +12,18 @@ export interface TldrPanelProps {
   status?: { state: SummaryJobState; lagSeconds: number } | null;
   onCite(segmentId: string): void;
   /**
-   * Phone and Focus mode: show the heading and the one-line TL;DR, with the rest one press away (expands in place).
-   * Collapsing never hides the Demo summary tag or the summary status note.
+   * Phone and Focus mode: a Note above the transcript with the heading and the one-line TL;DR, the rest one press away
+   * (expands in place). Collapsing never hides the Demo summary stamp or the summary status note.
    */
   collapsible?: boolean;
   /** False once the lecture has ended: "Pause updates" is hidden because nothing new will arrive (review S2). */
   live?: boolean;
 }
 
-/** TL;DR panel fed by summary.revision. Plain text only (C-28). aria-live stays off; updates swap text in place. */
+/**
+ * TL;DR fed by summary.revision. Plain text only (C-28). aria-live stays off; updates swap text in place. On desktop it is
+ * the second row of the rail ledger; the one-line summary is synthesis and speaks in the serif (PO-17).
+ */
 export function TldrPanel({ summary, status, onCite, collapsible = false, live = true }: TldrPanelProps) {
   const [hold, setHold] = useState(false);
   const [frozen, setFrozen] = useState<SummaryRevisionPayload | null>(null);
@@ -34,15 +37,9 @@ export function TldrPanel({ summary, status, onCite, collapsible = false, live =
   const collapsed = collapsible && !open;
 
   return (
-    <aside
-      id="lecture-tldr"
-      aria-labelledby="tldr-h2"
-      aria-live="off"
-      tabIndex={-1}
-      className={`min-w-0 rounded-card border border-hair bg-surface shadow-1 ${collapsible ? "px-4 py-3" : "p-5"}`}
-    >
+    <aside id="lecture-tldr" aria-labelledby="tldr-h2" aria-live="off" tabIndex={-1} className={`min-w-0 ${collapsible ? "note note-neutral" : "rail-row p-4"}`}>
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id="tldr-h2" className="display text-xl">
+        <h2 id="tldr-h2" className="rail-title">
           {C.heading}
         </h2>
         {collapsible ? (
@@ -58,7 +55,11 @@ export function TldrPanel({ summary, status, onCite, collapsible = false, live =
           </button>
         ) : null}
       </div>
-      {shown?.source === "mock" ? <DemoSummaryTag className="mt-2" /> : null}
+      {shown?.source === "mock" ? (
+        <p className="stamp-line mt-2">
+          <DemoSummaryTag />
+        </p>
+      ) : null}
       {status?.state === "Delayed" || status?.state === "Failed" ? (
         <p data-testid="summary-status" className="mt-2 text-sm text-muted">
           {status.state === "Delayed" ? S.delayed : S.failed}
@@ -66,7 +67,9 @@ export function TldrPanel({ summary, status, onCite, collapsible = false, live =
         </p>
       ) : null}
       {shown ? (
-        <p className={`mt-2 text-lg font-semibold leading-snug ${collapsed ? "line-clamp-2" : ""}`}>
+        // Collapsed: two lines reserved (clamp + min height), so the note is the same height in every heading face and a
+        // revision that grows from one line to two never moves the transcript under it (landmark gate; Principle 3).
+        <p className={`synthesis mt-2 text-xl ${collapsed ? "line-clamp-2 min-h-16" : ""}`}>
           <PlainText value={shown.tldr} />
         </p>
       ) : (
@@ -76,13 +79,10 @@ export function TldrPanel({ summary, status, onCite, collapsible = false, live =
         {shown ? (
           <>
             {bullets.length > 0 ? (
-              <ul className="mt-3 space-y-2">
+              <ul className="mt-3 list-disc space-y-2 pl-5 marker:text-muted">
                 {bullets.map((b, i) => (
-                  <li key={i} className="flex gap-2">
-                    <span aria-hidden="true" className="mt-[0.6em] h-1.5 w-1.5 shrink-0 rounded-full bg-muted" />
-                    <span>
-                      <PlainText value={b} />
-                    </span>
+                  <li key={i}>
+                    <PlainText value={b} />
                   </li>
                 ))}
               </ul>
@@ -93,9 +93,9 @@ export function TldrPanel({ summary, status, onCite, collapsible = false, live =
               </button>
             ) : null}
             {shown.citations.length > 0 ? (
-              <p className="mt-3 flex flex-wrap gap-2">
+              <p className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
                 {shown.citations.slice(0, 5).map((c) => (
-                  <button key={`${c.segmentId}-${c.startMs}`} type="button" className="btn-secondary btn-sm tabular" onClick={() => onCite(c.segmentId)}>
+                  <button key={`${c.segmentId}-${c.startMs}`} type="button" className="cite" onClick={() => onCite(c.segmentId)}>
                     {C.from(formatMs(c.startMs))}
                   </button>
                 ))}

@@ -244,6 +244,24 @@ test("Paper, 7 widths: lecture bar 56px with 44px pill and controls, columns sha
       const line = page.locator(".transcript-line").first();
       if (!near(await px(line, "line-height"), 28, 0.5)) problems.push(`transcript line-height ${await px(line, "line-height")}`);
       if (!near(await px(line, "font-size"), 17, 0.5)) problems.push(`transcript font-size ${await px(line, "font-size")}`);
+      // Slice 3, the margin track from 1280 (redesign-round2 2.3 / 5.1): the first timestamp starts on the column's left
+      // edge, on the page; the sheet's surface starts 5rem + 40px in; the heading and the words sit 24px + 1px inside it
+      // (the same text edge in standard and Focus layouts). Below 1280 the timestamp column is inside the sheet.
+      {
+        const sheet = await box(page.locator(".transcript-panel"));
+        const time = await box(page.locator(".transcript-time").first());
+        const words = await box(line.locator("> span").nth(1));
+        const head = await ink(page.getByRole("heading", { name: "Transcript" }));
+        if (width >= 1280) {
+          if (!near(sheet.x, col.x, 1)) problems.push(`sheet box left ${sheet.x} vs column ${col.x}`);
+          if (!near(time.x, col.x, 1)) problems.push(`timestamp left ${time.x} vs margin ${col.x}`);
+          if (!near(words.x, col.x + 80 + 40 + 25, 1.5)) problems.push(`transcript words left ${words.x} vs ${col.x + 145}`);
+          if (!near(head.x, col.x + 145, 1.5)) problems.push(`transcript heading left ${head.x} vs ${col.x + 145}`);
+        } else {
+          const pad = width >= 640 ? 24 : 16;
+          if (!near(time.x, sheet.x + pad + (width >= 640 ? 1 : 0), 1.5)) problems.push(`timestamp left ${time.x} vs sheet inset ${sheet.x + pad}`);
+        }
+      }
       // Targets in the lecture screen (Quick recap windows are 56 / 64 by design, so >= 44 holds).
       for (const c of await controls(page)) {
         if (c.label.startsWith("Step next") || c.label.startsWith("Drop") || c.label.startsWith("Allow") || c.label.startsWith("Unplug") || c.label.startsWith("Server")) continue; // harness-only controls
@@ -263,15 +281,16 @@ type Landmarks = Record<string, Rect & { headingPx?: number }>;
 const diag: Record<string, string> = {};
 
 /**
- * A landmark's box plus the pixels its heading-face text occupies: the sum over `.display` elements inside it of
- * (line count x line-height). A skin may change the heading face, and a wider face may add a line, which is the one
- * text-driven height change the gate allows ("heading-driven text wrap inside cards, compared by landmark not by text").
+ * A landmark's box plus the pixels its heading-face text occupies: the sum over `.display` and `.synthesis` elements
+ * inside it of (line count x line-height). A skin may change the heading face (which the synthesis role follows, PO-17),
+ * and a wider face may add a line, which is the one text-driven height change the gate allows ("heading-driven text
+ * wrap inside cards, compared by landmark not by text").
  */
 async function landmark(l: import("@playwright/test").Locator): Promise<Rect & { headingPx: number }> {
   const b = await box(l);
   const headingPx = await l.evaluate((el) => {
-    const nodes = Array.from(el.querySelectorAll<HTMLElement>(".display"));
-    if (el.classList.contains("display")) nodes.push(el as HTMLElement);
+    const nodes = Array.from(el.querySelectorAll<HTMLElement>(".display, .synthesis"));
+    if (el.classList.contains("display") || el.classList.contains("synthesis")) nodes.push(el as HTMLElement);
     let total = 0;
     for (const h of nodes) {
       const range = document.createRange();

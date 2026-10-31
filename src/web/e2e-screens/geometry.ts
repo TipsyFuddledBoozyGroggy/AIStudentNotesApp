@@ -12,8 +12,22 @@ export interface Rect {
 
 /** Border box via getBoundingClientRect (page coordinates). Throws when the element is not rendered. */
 export async function box(l: Locator): Promise<Rect> {
-  const b = await l.boundingBox();
-  if (!b) throw new Error(`no box for ${String(l)}`);
+  let b = await l.boundingBox();
+  if (!b) {
+    // A null box for an element that exists and is visible means the node was replaced between locating and measuring
+    // (seen once on the lecture harness when a landmark was read within three round trips of the server-rendered text
+    // becoming visible, slice 3 record). One short retry separates that from a real missing or invisible element.
+    await l.page().waitForTimeout(150);
+    b = await l.boundingBox();
+  }
+  if (!b) {
+    // Say what the page looked like: a missing element and an invisible one are different bugs.
+    const count = await l.count().catch(() => -1);
+    const visible = count > 0 ? await l.first().isVisible().catch(() => false) : false;
+    const url = l.page().url();
+    const h1 = await l.page().locator("h1").first().textContent().catch(() => null);
+    throw new Error(`no box for ${String(l)} (count ${count}, visible ${visible}, url ${url}, h1 ${JSON.stringify(h1)})`);
+  }
   return { x: b.x, y: b.y, width: b.width, height: b.height };
 }
 
@@ -133,7 +147,7 @@ export async function offGrid(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const out: string[] = [];
     // Slice 2 added the sheet, ledger row, note, stamp and dialog to the boxed primitives.
-    for (const el of Array.from(document.querySelectorAll<HTMLElement>(".card, .btn, .field, .panel, .sheet, .ledger-row, .note, .stamp, .dialog"))) {
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>(".card, .btn, .field, .panel, .sheet, .ledger-row, .note, .stamp, .dialog, .lecture-sheet, .rail-row"))) {
       if (el.getBoundingClientRect().width === 0) continue;
       const s = getComputedStyle(el);
       for (const p of ["padding-top", "padding-bottom", "padding-left", "padding-right", "row-gap", "column-gap"]) {

@@ -303,6 +303,92 @@ describe("primitives v2 consume the Layer C tokens (redesign-round2 slice 2)", (
   });
 });
 
+// ---------------------------------------------------------------------------------------------------------------------
+// Slice 3 (redesign-round2 2.3 Lecture template, 5.1 / 5.2): the lecture sheet, the margin track, the rail ledger, the
+// synthesis role, citation links and the states, as far as they are static CSS. Browser geometry is geometry.spec.ts and
+// e2e-harness/redesign.spec.ts.
+describe("lecture screen (redesign-round2 slice 3)", () => {
+  const find = (sel: string, ctx?: string) => RULES.find((r) => r.selector === sel && (ctx ? inMedia(r, ctx) : r.context.every((c) => c.startsWith("@layer"))));
+  const decls = (sel: string, ctx?: string) => Object.fromEntries(find(sel, ctx)?.decls ?? []) as Record<string, string>;
+  const unlayered = (sel: string, ctx?: string) => Object.fromEntries(RULES.find((r) => r.selector === sel && (ctx ? inMedia(r, ctx) : r.context.length === 0))?.decls ?? []) as Record<string, string>;
+
+  it(".lecture-sheet consumes the sheet tokens with a fixed 24px inset (Calm's --pad-card does not reach the lecture sheets)", () => {
+    expect(decls(".lecture-sheet")).toEqual({ background: "var(--sheet-bg)", border: "1px solid var(--sheet-border)", "border-radius": "var(--sheet-radius)" });
+    expect(decls(".sheet-head")["@apply"]).toContain("px-4");
+    expect(decls(".sheet-head")["@apply"]).toContain("sm:px-6");
+    expect(decls(".sheet-body")["@apply"]).toContain("sm:px-6");
+    expect(structureCss).not.toMatch(/\.lecture-sheet[^{]*\{[^}]*--pad-card/);
+    // Phone: square-edged and full-bleed (2.7 Sheet).
+    expect(unlayered("[data-lecture-root] .lecture-sheet", "max-width: 639px")).toEqual({ "border-radius": "0", "border-inline-width": "0", "margin-inline": "-1rem" });
+  });
+
+  it("the transcript grows with its content: a viewport bound (max-height) and a 12rem floor, never a fixed height", () => {
+    expect(decls(".transcript")).toEqual({ "max-height": "50vh", "min-height": "12rem" });
+    expect(unlayered("[data-lecture-root] .transcript")).toEqual({ "max-height": "max(12rem, calc(100dvh - 23rem))" });
+    expect(unlayered("[data-lecture-root] .transcript", "min-width: 1024px")).toEqual({ "max-height": "max(22rem, calc(100vh - 16rem))" });
+    expect(unlayered('[data-lecture-root] [data-layout="focus"] .transcript', "min-width: 1024px")).toEqual({ "max-height": "max(16rem, calc(100vh - 26rem))" });
+    expect(structureCss).not.toMatch(/\.transcript\s*\{[^}]*[^-]height\s*:/);
+  });
+
+  it("the margin track from 1280: the sheet paints from margin + gap, text sits at margin + gap + 24 + 1, rows hang in the margin", () => {
+    const sheet = unlayered("[data-lecture-root] .lecture-sheet", "min-width: 1280px");
+    expect(sheet["--sheet-start"]).toBe("calc(var(--margin-col) + 2.5rem)");
+    expect(sheet["--hang-gap"]).toBe("calc(2.5rem + 1.5rem + 1px)");
+    expect(sheet["--hang-text"]).toBe("calc(var(--margin-col) + var(--hang-gap))");
+    expect(sheet.background).toBe("none");
+    const paint = unlayered("[data-lecture-root] .lecture-sheet::before", "min-width: 1280px");
+    expect(paint).toMatchObject({ inset: "0 0 0 var(--sheet-start)", background: "var(--sheet-bg)", border: "1px solid var(--sheet-border)", "pointer-events": "none" });
+    expect(unlayered("[data-lecture-root] .lecture-sheet > .sheet-head, [data-lecture-root] .lecture-sheet > .sheet-body", "min-width: 1280px")).toEqual({ "padding-inline-start": "var(--hang-text)" });
+    expect(unlayered("[data-lecture-root] .transcript-line, [data-lecture-root] .hang-row", "min-width: 1280px")).toEqual({ "grid-template-columns": "var(--margin-col) minmax(0, 1fr)", "column-gap": "var(--hang-gap)" });
+    expect(unlayered("[data-lecture-root] .transcript-line", "min-width: 1280px")).toEqual({ "max-width": "calc(68ch + var(--hang-text))" });
+    expect(unlayered("[data-lecture-root] .transcript-divider, [data-lecture-root] .transcript-partial, [data-lecture-root] .hang-indent", "min-width: 1280px")).toEqual({ "margin-inline-start": "var(--hang-text)" });
+    // The screen's grids use the same track and gap (LectureScreen.tsx), so the paint starts where the transcript track does.
+    const screen = readFileSync(path.join(SRC, "components/lecture/LectureScreen.tsx"), "utf8");
+    expect(screen).toContain("xl:grid-cols-[var(--margin-col)_minmax(0,1fr)_var(--lecture-aside-w)]");
+    expect(screen).toContain("xl:grid-cols-[var(--margin-col)_minmax(0,1fr)] xl:gap-x-10");
+    expect(screen).toContain("xl:grid-cols-subgrid");
+  });
+
+  it(".lecture-rail is a ledger (tint, rule between rows, no bleed) and sticks under the bar from 1024; .rail-title is sans 15/24 bold ink", () => {
+    expect(decls(".lecture-rail")).toEqual({ "--ledger-inset": "1rem", background: "var(--ledger-bg)" });
+    expect(decls(".rail-row + .rail-row")).toEqual({ "border-top": "1px solid var(--ledger-rule)" });
+    expect(unlayered("[data-lecture-root] .lecture-rail", "min-width: 1024px")).toMatchObject({ position: "sticky", top: "4.5rem", "max-height": "calc(100vh - 7rem)", "overflow-y": "auto" });
+    expect(decls(".rail-title")).toEqual({ "font-family": "var(--font-verbatim)", "font-size": "var(--type-sm)", "line-height": "var(--leading-sm)", "font-weight": "700", color: "var(--c-ink)" });
+  });
+
+  it(".synthesis is the heading face at 500 (PO-17); .cite is accent from the token, tabular, 44px without growing its row", () => {
+    expect(decls(".synthesis")).toEqual({ "font-family": "var(--font-synthesis)", "font-weight": "500", "letter-spacing": "var(--head-track)", "font-optical-sizing": "auto" });
+    expect(decls(".cite")).toMatchObject({ color: "var(--c-accent)", "min-height": "var(--control-h)", "min-width": "var(--control-h)", "padding-block": "0.5rem", "margin-block": "-0.5rem", "text-decoration-thickness": "1px" });
+    expect(decls(".cite")["@apply"]).toContain("tabular-nums");
+    expect(find(".cite:hover, .cite:focus-visible")?.decls).toEqual([["text-decoration-thickness", "2px"]]);
+    for (const f of ["components/lecture/QuickRecapPanel.tsx", "components/lecture/TldrPanel.tsx"]) {
+      const src = readFileSync(path.join(SRC, f), "utf8");
+      expect([f, /\btext-accent\b/.test(src)]).toEqual([f, false]);
+      expect(src).toContain('className="cite"');
+    }
+  });
+
+  it("states: a pressed tertiary is bold with the 3px ink underline; inside the lecture a filled primary answers hover with an on-accent inner edge, not an underline", () => {
+    expect(decls('.btn-tertiary[aria-pressed="true"]')).toEqual({ "@apply": "font-bold", "box-shadow": "inset 0 -3px 0 var(--c-ink)" });
+    expect(unlayered("[data-lecture-root] .btn-primary:hover")).toEqual({ "text-decoration-color": "transparent", "box-shadow": "inset 0 0 0 1px var(--c-on-accent)" });
+    // Only inside the lecture root: the consent surfaces keep the generic hover (G1).
+    expect(RULES.filter((r) => r.selector.includes(".btn-primary:hover")).map((r) => r.selector)).toEqual(["[data-lecture-root] .btn-primary:hover"]);
+  });
+
+  it("safety surfaces are notes; the Demo-source notice is not (G1): its panel, heading, Details and wording are unchanged", () => {
+    const notices = readFileSync(path.join(SRC, "components/lecture/Notices.tsx"), "utf8");
+    for (const panel of ["paused", "mismatch", "stopped"]) expect(notices).toMatch(new RegExp(`data-panel="${panel}" className="note note-`));
+    expect(notices).toContain('data-banner="offline" className="note note-notice');
+    expect(notices).toContain('data-testid="fatal-panel" aria-labelledby="fatal-h2" className="note note-danger"');
+    expect(notices).toContain('data-testid="demo-notice" aria-labelledby="demo-notice-h2" className="panel panel-notice flex gap-3 py-3"');
+    expect(notices).toContain('<h2 id="demo-notice-h2" className="font-bold">');
+    expect(notices).toContain('<summary className="inline-flex min-h-[44px] cursor-pointer items-center font-semibold text-accent underline underline-offset-[0.2em]">');
+    expect(notices).toContain('<p className="mt-1 text-sm text-muted">{DEMO_NOTICE_COPY.body}</p>');
+    const bar = readFileSync(path.join(SRC, "components/lecture/StatusBar.tsx"), "utf8");
+    expect(bar).toContain('<span data-testid="demo-tag" className="tag tag-warning hidden sm:inline-flex">');
+  });
+});
+
 describe("Type scale (redesign-round2 2.1): line boxes on the 4px grid", () => {
   const rootDecls = new Map<string, string>();
   for (const r of rootRules.filter((r) => r.context.length === 0)) for (const [k, v] of r.decls) rootDecls.set(k, v);
@@ -466,17 +552,18 @@ describe("source lints (redesign-round2 slice 0)", () => {
   });
 
   // Accent is spent on the one primary fill, the focus ring and citation/time links (redesign-round2 2.2). Slice 2 retired
-  // it from quiet buttons, links, disclosure summaries and step numerals (baseline tightened 2026-10-31). What remains:
+  // it from quiet buttons, links, disclosure summaries and step numerals; slice 3 from the Focus toggle's pressed state
+  // and the recap citations (`.cite` draws accent from the token, baseline tightened 2026-10-31). What remains:
   // globals.css (.btn-quiet and the consent link carve-out, both G1; .tag-accent), layout.tsx (theme-color), the consent
-  // page's "What does this mean" summary (G1), the lecture's citation links (slice 3), Notices and QuickRecapPanel (slice 3).
+  // page's "What does this mean" summary (G1), the lecture skip links' focus style (focus is an allowed use) and the
+  // Demo-source notice's "Details" summary in Notices.tsx (presentation frozen under G1, PO deferral of Q2).
   it("accent-text usage ratchet: no new text-accent outside today's files", () => {
     ratchet(countBy(/\btext-accent\b/g), {
       "app/globals.css": 3,
       "app/layout.tsx": 1,
       "components/lecture/ConsentStart.tsx": 1,
-      "components/lecture/LectureScreen.tsx": 2,
+      "components/lecture/LectureScreen.tsx": 1,
       "components/lecture/Notices.tsx": 1,
-      "components/lecture/QuickRecapPanel.tsx": 1,
     });
   });
 
@@ -503,12 +590,13 @@ describe("source lints (redesign-round2 slice 0)", () => {
   });
 
   // themes-spec R1 / 5.3: half-step spacing classes are off the 4px scale. Slice 1 removed them (A13) except: the .tag
-  // padding (the consent page's Draft tag, gate G1), the consent pop-up's checkbox nudge (G1) and the Demo summary stamp
-  // (slice 2's Stamp primitive). Baselines tightened 2026-10-30.
+  // padding (the consent page's Draft tag, gate G1) and the consent pop-up's checkbox nudge (G1). Slice 3 moved the Demo
+  // summary tag onto the Stamp primitive. Baselines tightened 2026-10-31.
   it("half-step spacing ratchet: no new p-/m-/gap-/space- *.5 classes", () => {
     ratchet(countBy(/\b(?:p|m|gap|space-[xy]|inset|top|left|right|bottom)[xytblr]?-\d+\.5\b/g), {
       "app/globals.css": 2,
       "components/lecture/ConsentDialog.tsx": 1,
+      // The Demo summary tag keeps its pre-redesign classes (px-2.5): Demo-source labels are not restyled (PO-17b, gate G1).
       "components/lecture/QuickRecapPanel.tsx": 1,
     });
   });
@@ -516,6 +604,8 @@ describe("source lints (redesign-round2 slice 0)", () => {
   // Arbitrary lengths outside the allowlist (control heights 44/56/64, the 3.25rem timestamp column, the 0.2em underline
   // offset). 48px left the allowlist in slice 1 (one control height, 44): the three files that still carry it are the
   // consent surfaces (gate G1) and the syllabus confirm dialog (slice 6), pinned here so no new 48px control appears.
+  // Slice 3: the recap's em nudges and the rail's sticky offsets moved into globals.css (baseline-aligned grids); the
+  // phone bottom sheet keeps its one 60dvh bound.
   it("arbitrary-length ratchet: no new -[Npx]/-[Nrem]/... values outside the allowlist", () => {
     const ALLOW = /-\[(44px|56px|64px|3\.25rem_|0\.2em)\]?/;
     ratchet(countBy(/-\[[0-9.]+(?:px|rem|em|vh|dvh|vw|ch)(?:\]|_)/g, (m) => !ALLOW.test(m)), {
@@ -525,8 +615,7 @@ describe("source lints (redesign-round2 slice 0)", () => {
       "components/lecture/ConsentDialog.tsx": 2,
       "components/lecture/ConsentStart.tsx": 3,
       "components/lecture/Notices.tsx": 1,
-      "components/lecture/QuickRecapPanel.tsx": 6,
-      "components/lecture/TldrPanel.tsx": 1,
+      "components/lecture/QuickRecapPanel.tsx": 1,
       "components/syllabus/ConfirmDialog.tsx": 2,
       "components/ui/Segmented.tsx": 1,
       "components/ui/Switch.tsx": 3,

@@ -222,6 +222,8 @@ export const QUICK_RECAP_COPY = {
   hint: "How far back? The lecture keeps going.",
   groupLabel: "How far back",
   window: (m: number) => `Last ${m} min`,
+  /** Second line under the usual window's label; windowUsual is the same text on one line. */
+  windowUsualNote: "(your usual)",
   windowUsual: (m: number) => `Last ${m} min (your usual)`,
   // WCAG 2.5.3 Label in Name: the visible text starts the accessible name (Lead approval, 2026-10-29).
   windowUsualLabel: (m: number) => `Last ${m} min (your usual): recap of the last ${m} minutes`,

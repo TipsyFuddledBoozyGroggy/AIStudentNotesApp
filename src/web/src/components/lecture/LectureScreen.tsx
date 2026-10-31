@@ -23,10 +23,11 @@ import type { LectureRuntime } from "./ports";
 import { usePrefs } from "../PrefsProvider";
 import { useLectureSettings, type LectureSettings } from "./settings";
 import { StatusBar } from "./StatusBar";
-import { focusQuickRecap, QuickRecapPanel } from "./QuickRecapPanel";
+import { focusQuickRecap, QuickRecapPanel, QuickRecapResult } from "./QuickRecapPanel";
 import { TldrPanel } from "./TldrPanel";
 import { matchesQuery, Transcript, type TranscriptHandle } from "./Transcript";
 import { useLectureSession } from "./useLectureSession";
+import { useQuickRecap } from "./useQuickRecap";
 import { useWide } from "./useWide";
 
 export interface LectureScreenProps {
@@ -67,6 +68,12 @@ export function LectureScreen(props: LectureScreenProps) {
   const [stopOpen, setStopOpen] = useState(false);
   const [query, setQuery] = useState("");
   const transcript = useRef<TranscriptHandle>(null);
+  // Quick recap state lives here because its two halves render in different places: the window buttons in the rail or
+  // the dock, the result as a sheet in the transcript column (desktop) or inside the dock's bottom sheet (phone).
+  const qr = useQuickRecap({ ai: props.runtime.ai, hubCatchUps: s.lecture.catchUps });
+  const resultInColumn = wide && props.runtime.ai !== undefined;
+  const onCite = (id: string) => transcript.current?.focusSegment(id);
+  const onRecapDone = () => document.getElementById("lecture-transcript")?.focus();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const pauseRef = useRef<HTMLButtonElement>(null);
   const resumeRef = useRef<HTMLButtonElement>(null);
@@ -197,12 +204,7 @@ export function LectureScreen(props: LectureScreenProps) {
         settings={<SettingsPanel settings={settings} onChange={updateSettings} />}
         focusToggle={
           stopped ? null : (
-          <button
-            type="button"
-            aria-pressed={focus}
-            className={`btn-secondary hidden lg:inline-flex ${focus ? "border-accent bg-accent-subtle text-accent" : ""}`}
-            onClick={() => updatePrefs({ focusMode: !focus })}
-          >
+          <button type="button" aria-pressed={focus} className="btn-tertiary hidden lg:inline-flex" onClick={() => updatePrefs({ focusMode: !focus })}>
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
               {focus ? (
                 <path d="M3 8.5 6.5 12 13 4.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -220,7 +222,7 @@ export function LectureScreen(props: LectureScreenProps) {
       <h1 className="sr-only">{props.courseName ? `Lecture: ${props.courseName}` : "Lecture"}</h1>
       {s.actionError ? (
         <div className={NOTICE_SLOT}>
-          <p data-testid="action-error" className="panel panel-notice">
+          <p data-testid="action-error" className="note note-notice">
             {s.actionError}
           </p>
         </div>
@@ -232,18 +234,24 @@ export function LectureScreen(props: LectureScreenProps) {
       {s.audioSkippedMs > 0 ? <AudioSkippedNote ms={s.audioSkippedMs} /> : null}
       {/* Lecture template (redesign-round2 2.3): gutters 16 / 24 / 32 on the wrapper; the inner element's box IS the column,
           so the fixed/sticky dock with the same max-width shares its edges (A11). Standard: transcript 1fr | aside 22.5rem,
-          gap 40, 72rem (80rem from 1536px). Focus: one 52rem column. */}
-      <div className={`mt-4 ${GUTTERS} ${props.runtime.ai ? (focus ? "pb-44" : "pb-44 lg:pb-0") : ""}`}>
+          gap 40, 72rem (80rem from 1536px); from 1280 a 5rem margin track leads, where the sheets hang their timestamps
+          (slice 3). Focus: one 52rem column, margin track from 1280 too. The left column is a subgrid so a sheet spans the
+          margin and the transcript tracks while the notes and the toolbar start on the transcript track. */}
+      <div className={`lecture-columns mt-4 ${GUTTERS} ${props.runtime.ai ? (focus ? "pb-44" : "pb-44 lg:pb-0") : ""}`}>
       <div
         data-layout={focus ? "focus" : "standard"}
-        className={`mx-auto grid gap-6 ${focus ? "max-w-focus" : "max-w-content lg:grid-cols-[minmax(0,1fr)_var(--lecture-aside-w)] lg:gap-10 2xl:max-w-lecture"}`}
+        className={`mx-auto grid gap-6 ${
+          focus
+            ? "max-w-focus xl:grid-cols-[var(--margin-col)_minmax(0,1fr)] xl:gap-x-10"
+            : "max-w-content lg:grid-cols-[minmax(0,1fr)_var(--lecture-aside-w)] lg:gap-10 xl:grid-cols-[var(--margin-col)_minmax(0,1fr)_var(--lecture-aside-w)] 2xl:max-w-lecture"
+        }`}
       >
-        <div className="min-w-0 space-y-4">
-          {tldrInline ? tldr : null}
+        <div className="min-w-0 space-y-6 xl:col-span-2 xl:grid xl:grid-cols-subgrid xl:gap-y-6 xl:space-y-0">
+          {tldrInline ? <div className="min-w-0 xl:col-start-2">{tldr}</div> : null}
           {stopped ? (
             // Review tools (design-direction slice 8, narrow): only once the lecture has ended, so nothing moves during it.
             // Toolbar grid (A10 / R9): the search field takes the column, the action ends on the column edge, helper below.
-            <section aria-label="Review this lecture" className="grid gap-x-6 gap-y-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <section aria-label="Review this lecture" className="grid gap-x-6 gap-y-3 sm:grid-cols-[minmax(0,1fr)_auto] xl:col-start-2">
               <div className="min-w-0">
                 <label htmlFor="lecture-search" className="field-label">
                   Search this lecture
@@ -266,25 +274,33 @@ export function LectureScreen(props: LectureScreenProps) {
               </p>
             </section>
           ) : null}
-          <Transcript
-            query={stopped ? query : ""}
-            segments={s.segments}
-            lecture={s.lecture}
-            pauses={s.pauses}
-            announceLines={settings.announceLines}
-            handleRef={transcript}
-          />
+          {/* Desktop: the open recap is a sheet above the transcript, in the student's reading column (5.2). */}
+          {resultInColumn && qr.result ? (
+            <div className="min-w-0 xl:col-span-2">
+              <QuickRecapResult qr={qr} level={2} sheet onCite={onCite} onDone={onRecapDone} />
+            </div>
+          ) : null}
+          <div className="min-w-0 xl:col-span-2">
+            <Transcript
+              query={stopped ? query : ""}
+              segments={s.segments}
+              lecture={s.lecture}
+              pauses={s.pauses}
+              announceLines={settings.announceLines}
+              handleRef={transcript}
+            />
+          </div>
         </div>
-        <div className="min-w-0 space-y-4">
-          <QuickRecapPanel
-            ai={props.runtime.ai}
-            docked={focus}
-            hubCatchUps={s.lecture.catchUps}
-            onCite={(id) => transcript.current?.focusSegment(id)}
-            onDone={() => document.getElementById("lecture-transcript")?.focus()}
-          />
-          {tldrInline ? null : tldr}
-        </div>
+        {focus ? (
+          <QuickRecapPanel ai={props.runtime.ai} qr={qr} docked resultInside={!resultInColumn} onCite={onCite} onDone={onRecapDone} />
+        ) : (
+          // The rail: one ledger with Quick recap and the TL;DR as its rows (desktop). Below lg it has no box of its own
+          // (`contents`): the dock inside is fixed to the bottom and the TL;DR sits above the transcript.
+          <div data-lecture-rail className="lecture-rail contents min-w-0 lg:block">
+            <QuickRecapPanel ai={props.runtime.ai} qr={qr} resultInside={!resultInColumn} onCite={onCite} onDone={onRecapDone} />
+            {tldrInline ? null : tldr}
+          </div>
+        )}
       </div>
       </div>
       <StopDialog

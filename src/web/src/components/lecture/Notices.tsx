@@ -85,13 +85,13 @@ export function PausedPanel(props: {
   const disabled = props.busy || !!props.resumeDisabledReason;
   return (
     <div className={slot}>
-      <section aria-labelledby="paused-h2" data-panel="paused" className="panel panel-notice">
+      <section aria-labelledby="paused-h2" data-panel="paused" className="note note-notice">
         <div className="flex gap-3">
           <span className="text-warning">
             <PanelIcon kind="bars" />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 id="paused-h2" className="display text-xl">
+            <h2 id="paused-h2" className="note-title">
               {heading}
             </h2>
             <p className="mt-1">{body}</p>
@@ -134,13 +134,13 @@ export function PausedPanel(props: {
 export function MismatchPanel(props: { micOff: boolean; onCheck(): void; onStop(): void }) {
   return (
     <div className={slot}>
-      <section aria-labelledby="mismatch-h2" data-panel="mismatch" className="panel panel-safety border-2">
+      <section aria-labelledby="mismatch-h2" data-panel="mismatch" className="note note-safety">
         <div className="flex gap-3">
           <span className="text-recording">
             <PanelIcon kind="alert" />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 id="mismatch-h2" className="display text-xl">
+            <h2 id="mismatch-h2" className="note-title">
               {M.heading}
             </h2>
             <p className="mt-1">{props.micOff ? M.bodyMicOff : M.body}</p>
@@ -169,13 +169,13 @@ export function StoppedPanel(props: { reason: string | null; failed: boolean; on
         : SC.user;
   return (
     <div className={slot}>
-      <section aria-labelledby="stopped-h2" data-panel="stopped" className="panel panel-neutral">
+      <section aria-labelledby="stopped-h2" data-panel="stopped" className="note note-neutral">
         <div className="flex gap-3">
           <span className="text-muted">
             <PanelIcon kind="square" />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 id="stopped-h2" ref={props.headingRef} tabIndex={-1} className="display text-xl">
+            <h2 id="stopped-h2" ref={props.headingRef} tabIndex={-1} className="note-title">
               {SC.heading}
             </h2>
             <p className="mt-1">{text}</p>
@@ -193,7 +193,7 @@ export function StoppedPanel(props: { reason: string | null; failed: boolean; on
 export function OfflineBanner({ stopQueued }: { stopQueued: boolean }) {
   return (
     <div className={slot}>
-      <div data-banner="offline" className="panel panel-notice flex items-start gap-3">
+      <div data-banner="offline" className="note note-notice flex items-start gap-3">
         <span className="text-warning">
           <PanelIcon kind="slash" />
         </span>
@@ -353,8 +353,8 @@ export function FatalPanel(props: { kind: "signed_out" | "unavailable"; onBack()
   const signedOut = props.kind === "signed_out";
   return (
     <div className={slot}>
-      <section data-testid="fatal-panel" aria-labelledby="fatal-h2" className="panel panel-danger">
-        <h2 id="fatal-h2" ref={props.headingRef} tabIndex={-1} className="display text-xl">
+      <section data-testid="fatal-panel" aria-labelledby="fatal-h2" className="note note-danger">
+        <h2 id="fatal-h2" ref={props.headingRef} tabIndex={-1} className="note-title">
           {signedOut ? FATAL_COPY.signedOutHeading : FATAL_COPY.unavailableHeading}
         </h2>
         <p className="mt-1">{signedOut ? FATAL_COPY.signedOutBody : FATAL_COPY.unavailableBody}</p>
@@ -377,7 +377,7 @@ export function FatalPanel(props: { kind: "signed_out" | "unavailable"; onBack()
 export function AudioSkippedNote({ ms }: { ms: number }) {
   return (
     <div className={slot}>
-      <p data-testid="audio-skipped" className="panel panel-notice text-sm">
+      <p data-testid="audio-skipped" className="note note-notice text-sm">
         {AUDIO_NOTE_COPY.skipped(Math.max(1, Math.round(ms / 1000)))}
       </p>
     </div>

@@ -10,7 +10,12 @@ Status: **T0 DONE and green. T1 IMPLEMENTED 2026-10-30 as redesign-round2 slice 
 deviations recorded in `docs/ux/redesign-round2.md` under "Slice 1 results"; not committed). **Redesign-round2 slice 2
 (primitives v2) IMPLEMENTED 2026-10-31** ("Slice 2 results" in the same document): A5 (Preferences switch-row insets,
 `.hover-row`) and Segmented equal option widths are done there; the `.tag` padding stays (consent Draft tag, gate G1) and
-the 48px consent buttons stay (G1). **T2-T6 NOT STARTED** (T2 needs slice 2's Segmented widths, now in place).
+the 48px consent buttons stay (G1). **Redesign-round2 slice 3 (lecture screen) IMPLEMENTED 2026-10-31** ("Slice 3 results"
+in the same document): transcript as the sheet with the 5rem margin track for timestamps from 1280, the Quick recap result
+as a sheet above the transcript on desktop, the rail as a ledger, safety panels as notes, serif synthesis line; the
+landmark-rect gate and the lecture harness were extended and stay green; the Demo-source notice and tag are unchanged (G1,
+PO deferral). **T2-T6 NOT STARTED** (T2 needs slice 2's Segmented widths, now in place; T5's lecture pass over 10 looks can
+reuse slice 3's harness tests).
 
 ## T0 token plumbing (DONE)
 Files changed:

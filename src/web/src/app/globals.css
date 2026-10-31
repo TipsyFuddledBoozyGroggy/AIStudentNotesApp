@@ -815,51 +815,188 @@ html:has([data-lecture-root]) {
   .transcript-partial {
     @apply ml-16 min-h-7 max-w-prose italic text-muted;
   }
-  /* The transcript panel: heading row inside the bordered box (A9) so the first box in each column shares a top edge. */
-  .transcript-panel {
-    @apply rounded-card border border-line bg-surface;
+  /* Scrollable log. Outside a lecture root (tests, ui-kit) a plain viewport-relative bound; never a fixed empty height. */
+  .transcript {
+    max-height: 50vh;
+    min-height: 12rem;
   }
-  .transcript-panel-head {
+
+  /* ---- Slice 3: the lecture screen (redesign-round2 2.3 Lecture template, 2.7 Sheet / Ledger, 5.1 / 5.2). ---- */
+
+  /* Lecture sheet: the transcript, and the open Quick recap result above it. Sheet tokens (surface, hair border, the
+     skin's sheet radius) with a FIXED 24px inset (not --pad-card: themes-spec 4 keeps the transcript at 24 under Calm so
+     the two lecture sheets share one text edge). .transcript-panel stays on the transcript as the geometry hook (A9). */
+  .lecture-sheet {
+    background: var(--sheet-bg);
+    border: 1px solid var(--sheet-border);
+    border-radius: var(--sheet-radius);
+  }
+  .sheet-head {
     @apply flex items-baseline justify-between gap-3 px-4 pt-4 sm:px-6;
   }
-  /* Scrollable log. Outside a lecture root (tests, ui-kit) a plain viewport-relative height. */
-  .transcript {
-    height: 50vh;
-    min-height: 12rem;
+  .sheet-body {
+    @apply px-4 pb-4 sm:px-6;
+  }
+  /* A hanging row inside a sheet: citation times in a 3.25rem lead column (the transcript's own column) beside the text,
+     aligned on the first baseline. From 1280 the lead column becomes the margin track (below). */
+  .hang-row {
+    @apply grid grid-cols-[3.25rem_minmax(0,1fr)] items-baseline gap-x-3;
+  }
+  /* Citation time (2.7 Link): accent text, tabular, underlined, 44px hit area that does not grow its 28px row
+     (padding inside, the same amount of negative margin outside). Hover and focus thicken the underline. */
+  .cite {
+    @apply inline-flex items-center text-sm font-semibold tabular-nums underline underline-offset-[0.2em];
+    color: var(--c-accent);
+    min-height: var(--control-h);
+    min-width: var(--control-h);
+    line-height: var(--leading-sm);
+    padding-block: 0.5rem;
+    margin-block: -0.5rem;
+    text-decoration-thickness: 1px;
+  }
+  .cite:hover,
+  .cite:focus-visible {
+    text-decoration-thickness: 2px;
+  }
+  /* Synthesis (PO-17): what the lecture or the app concluded (the TL;DR line, the recap's "Most recent" sentence) speaks
+     in the skin's heading face at weight 500; everything verbatim or interactive stays in the sans. */
+  .synthesis {
+    font-family: var(--font-synthesis);
+    font-weight: 500;
+    letter-spacing: var(--head-track);
+    font-optical-sizing: auto;
+  }
+  /* The lecture rail (desktop): Quick recap and TL;DR as two rows of one ledger. The tint equals the aside column (no
+     outward bleed: the bar's last control ends on the same edge), rows carry the 16px inset and are parted by the rule. */
+  .lecture-rail {
+    --ledger-inset: 1rem;
+    background: var(--ledger-bg);
+  }
+  .rail-row + .rail-row {
+    border-top: 1px solid var(--ledger-rule);
+  }
+  /* Row title in the rail and the dock: sans, 15/24, bold, ink. A caption for the controls or the synthesis under it,
+     not a serif heading (two serif lines of the same size would compete; the serif is kept for the conclusion). */
+  .rail-title {
+    font-family: var(--font-verbatim);
+    font-size: var(--type-sm);
+    line-height: var(--leading-sm);
+    font-weight: 700;
+    color: var(--c-ink);
+  }
+  /* A pressed tertiary (the Focus toggle): bold plus the 3px ink underline the current nav tab uses; the icon swaps too. */
+  .btn-tertiary[aria-pressed="true"] {
+    @apply font-bold;
+    box-shadow: inset 0 -3px 0 var(--c-ink);
   }
 }
 
-/* Transcript viewport height (section 3): the log fills the space between the sticky lecture bar and the bottom of the
-   page (desktop) or the Quick recap dock (phone), so the newest line (where follow-live scrolls to) is never hidden
-   behind the dock. Re-derived for slice 1 (heading inside the panel, 4px type grid, 56px bar). All sums include the
-   Demo-source notice, which every lecture screen shows while the demo provider ships.
-   Desktop (>= 1024): bar 57 (56 + 1px rule) + grid top 16 + Demo notice 94 (12 + panel 82) + panel head 57 (1 + 16 +
-   32 + 8) + log + panel bottom rule 1 + root padding 32 = 257px above and below the log, so log = 100vh - 16rem.
-   Focus mode adds the collapsed TL;DR note (122 + 16) and the sticky dock (~130) on the same column: 100vh - 26rem.
-   Phone (< 1024): two-row bar 105 + 16 + collapsed TL;DR 138 + panel head 57 + dock 130 = 446 is more than a 667px
-   viewport can give, so the log takes 100dvh - 23rem (368px) and the page scrolls above it; the harness test "newest
-   transcript line is not hidden behind the dock" pins log height <= dock top - bar bottom. dvh keeps mobile browser
-   bars into account. */
+/* Phone (< 640): the lecture sheet is square-edged and full-bleed (2.7 Sheet), so its 16px inset is the page gutter. */
+@media (max-width: 639px) {
+  [data-lecture-root] .lecture-sheet {
+    border-radius: 0;
+    border-inline-width: 0;
+    margin-inline: -1rem;
+  }
+}
+/* Below the two-column breakpoint the open recap is the dock's bottom sheet (up to 60dvh). The page then gets that much
+   scroll room under its columns, so every transcript line can still be brought between the bar and the sheet (the
+   transcript no longer has a fixed height to make the page tall). */
+@media (max-width: 1023px) {
+  [data-lecture-root]:has(#lecture-quick-recap[data-has-result="true"]) .lecture-columns {
+    padding-bottom: 60dvh;
+  }
+}
+
+/* Transcript viewport bound (section 3): the log grows with its content (min 12rem) and scrolls only once it would reach
+   the bottom of the page (desktop) or the Quick recap dock (phone), so the newest line (where follow-live scrolls to) is
+   never hidden behind the dock. The bounds are the slice-1 sums: desktop bar 57 + grid top 16 + Demo notice 106 + sheet
+   head 57 + bottom rule 1 + root padding 32 = 100vh - 16rem; Focus adds the collapsed TL;DR note and the dock: 100vh -
+   26rem; phone 100dvh - 23rem (the harness test "newest transcript line is not hidden behind the dock" pins log height
+   <= dock top - bar bottom). With a recap sheet open above the transcript the page scrolls; that is the student's own
+   action. dvh keeps mobile browser bars into account. */
 [data-lecture-root] .transcript {
-  height: max(12rem, calc(100dvh - 23rem));
+  max-height: max(12rem, calc(100dvh - 23rem));
 }
 @media (min-width: 1024px) {
   [data-lecture-root] .transcript {
-    height: max(22rem, calc(100vh - 16rem));
+    max-height: max(22rem, calc(100vh - 16rem));
   }
   [data-lecture-root] [data-layout="focus"] .transcript {
-    height: max(16rem, calc(100vh - 26rem));
+    max-height: max(16rem, calc(100vh - 26rem));
+  }
+  /* The rail sticks under the bar so the windows are one reach away while a recap sheet is read; it scrolls inside
+     itself only when the TL;DR is opened wide. */
+  [data-lecture-root] .lecture-rail {
+    position: sticky;
+    top: 4.5rem;
+    align-self: start;
+    max-height: calc(100vh - 7rem);
+    overflow-y: auto;
   }
 }
 
-/* Desktop: while a catch-up result is open, the Quick recap card stops being a sticky, internally scrolling box and flows
-   with the page, so the whole result (and "Back to lecture") is reachable by normal page scroll. Same DOM, same focus behaviour. */
-@media (min-width: 1024px) {
-  #lecture-quick-recap[data-has-result="true"]:not([data-docked]) {
-    position: static;
-    max-height: none;
-    overflow: visible;
+/* The margin track (2.3 Lecture: margin 5rem | transcript | aside, gap 40) from 1280. The column is a grid with a 5rem
+   first track; a lecture sheet spans the margin and the transcript tracks, paints its surface from the transcript track
+   (::before, behind its content) and lets its timestamps and citation times hang in the margin, on the page, so the
+   sheet holds only the words. Text sits at margin + gap + 24px inset + 1px border from the container's left edge, the
+   same edge in both sheets; the heading, dividers and the partial row start there too. A row's lead column is the margin
+   track itself. The 1px end padding keeps the log's scrollbar inside the painted border. */
+@media (min-width: 1280px) {
+  [data-lecture-root] .lecture-sheet {
+    --sheet-start: calc(var(--margin-col) + 2.5rem);
+    --hang-gap: calc(2.5rem + 1.5rem + 1px);
+    --hang-text: calc(var(--margin-col) + var(--hang-gap));
+    position: relative;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    padding-inline-end: 1px;
   }
+  [data-lecture-root] .lecture-sheet::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 0 var(--sheet-start);
+    background: var(--sheet-bg);
+    border: 1px solid var(--sheet-border);
+    border-radius: var(--sheet-radius);
+    pointer-events: none;
+  }
+  [data-lecture-root] .lecture-sheet > * {
+    position: relative;
+  }
+  [data-lecture-root] .lecture-sheet > .sheet-head,
+  [data-lecture-root] .lecture-sheet > .sheet-body {
+    padding-inline-start: var(--hang-text);
+  }
+  [data-lecture-root] .lecture-sheet > .transcript {
+    padding-inline: 0 1.5rem;
+  }
+  [data-lecture-root] .transcript-line,
+  [data-lecture-root] .hang-row {
+    grid-template-columns: var(--margin-col) minmax(0, 1fr);
+    column-gap: var(--hang-gap);
+  }
+  /* A hanging row inside a sheet body steps back over the body's start padding so its lead column is the margin track. */
+  [data-lecture-root] .sheet-body .hang-row {
+    margin-inline-start: calc(-1 * var(--hang-text));
+  }
+  [data-lecture-root] .transcript-line {
+    max-width: calc(68ch + var(--hang-text));
+  }
+  [data-lecture-root] .transcript-divider,
+  [data-lecture-root] .transcript-partial,
+  [data-lecture-root] .hang-indent {
+    margin-inline-start: var(--hang-text);
+  }
+}
+
+/* Inside the lecture the filled primary (the usual window, Resume recording, Check again) answers hover with a 1px inner
+   on-accent edge instead of the generic button underline (review N1: an underline on a filled button read as an edit
+   mark). Scoped to the lecture root so the consent surfaces keep their hover (G1); slice 4 decides product-wide. */
+[data-lecture-root] .btn-primary:hover {
+  text-decoration-color: transparent;
+  box-shadow: inset 0 0 0 1px var(--c-on-accent);
 }
 
 /* A cited line that received focus is tinted (not outlined: it is a programmatic focus target). */

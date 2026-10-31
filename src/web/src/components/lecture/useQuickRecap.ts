@@ -160,3 +160,6 @@ export function useQuickRecap({ ai, hubCatchUps }: UseQuickRecapOptions) {
 
   return { starting, result, error, wait, start, dismiss, focusResult, clearFocusResult: () => setFocusResult(false) };
 }
+
+/** The hook's state and actions, shared by the window buttons (rail or dock) and the result (sheet or bottom sheet). */
+export type QuickRecap = ReturnType<typeof useQuickRecap>;

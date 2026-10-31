@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "@/test/axe";
@@ -91,6 +91,96 @@ describe("Lecture screen redesign (design-direction slices 4-5)", () => {
     expect(await axeViolations(m.container)).toEqual([]);
     await userEvent.click(focus);
     expect(focus).toHaveAttribute("aria-pressed", "false");
+  });
+
+  // ---- Slice 3 (redesign-round2 2.3 / 5.1 / 5.2): the lecture screen. jsdom reports the wide layout (useWide). ----
+  const recapPayload = {
+    catchUpId: "cu_s3",
+    windowMinutes: 5,
+    kind: "Ai",
+    aiState: "Ready",
+    source: "mock",
+    text: "Most recent: the chain rule.",
+    citations: [{ segmentId: "seg_1", startMs: 1000 }],
+    nowDiscussing: { text: "The chain rule, right after the power rule.", basis: "lecture", citations: [{ segmentId: "seg_1", startMs: 1000 }] },
+    shortCatchUp: [{ text: "The derivative of x squared is two x.", basis: "lecture", citations: [{ segmentId: "seg_1", startMs: 1000 }] }],
+  };
+  const recapAi = () =>
+    ({
+      getSummary: vi.fn().mockResolvedValue({ revision: 1, basedOnSeq: "2", tldr: "Derivatives and the power rule.", bullets: ["Power rule."], coveredFromMs: 0, coveredToMs: 9000, status: "Draft", citations: [{ segmentId: "seg_1", startMs: 1000 }], source: "mock" }),
+      startQuickRecap: vi.fn().mockResolvedValue(recapPayload),
+      getCatchUp: vi.fn().mockResolvedValue(null),
+    }) as unknown as LectureAi;
+
+  it("desktop: the recap result opens as a sheet in the transcript column, before the transcript and outside the rail; heading focused; Close recap returns to the transcript", async () => {
+    await mountLecture({ ai: recapAi() });
+    await userEvent.click(screen.getByRole("button", { name: /\(your usual\)/ }));
+    const result = await screen.findByTestId("catchup-result");
+    expect(result.className).toMatch(/\blecture-sheet\b/);
+    expect(document.getElementById("lecture-quick-recap")!.contains(result)).toBe(false);
+    const log = screen.getByRole("log", { name: "Transcript lines" });
+    expect(result.compareDocumentPosition(log) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // DOM order = visual order
+    expect(screen.getByRole("heading", { level: 2, name: "Here is what was said" })).toHaveFocus();
+    // Synthesis in the serif role, verbatim claims in the sans; citation times are links, not text-accent utilities.
+    expect(within(result).getByText(/The chain rule, right after the power rule\./).closest("p")!.className).toMatch(/\bsynthesis\b/);
+    expect(within(result).getByText("The derivative of x squared is two x.").closest("li")!.className).toMatch(/\bhang-row\b/);
+    for (const b of within(result).getAllByRole("button", { name: /go to transcript line$/ })) expect(b.className).toBe("cite");
+    const stamp = within(result).getByTestId("demo-summary-tag");
+    expect(stamp).toHaveTextContent("Demo summary"); // G1: the Demo summary tag keeps its pre-redesign presentation, not a Stamp
+    expect(stamp).toHaveTextContent("Made by a test routine, not an AI model.");
+    expect(within(result).getByRole("button", { name: "Back to lecture" })).toBeInTheDocument();
+    await userEvent.click(within(result).getByRole("button", { name: "Close recap" }));
+    expect(screen.queryByTestId("catchup-result")).toBeNull();
+    expect(log).toHaveFocus();
+  });
+
+  it("the rail is one ledger: Quick recap row (sans title, three windows in a row, usual marker on its own line) then the TL;DR row with the serif summary line", async () => {
+    await mountLecture({ ai: recapAi() });
+    const rail = document.querySelector("[data-lecture-rail]")!;
+    expect(rail.className).toMatch(/\blecture-rail\b/);
+    const [qr, tldr] = Array.from(rail.children);
+    expect(qr.id).toBe("lecture-quick-recap");
+    expect(tldr.id).toBe("lecture-tldr");
+    expect(qr.className).toMatch(/\brail-row\b/);
+    expect(tldr.className).toMatch(/\brail-row\b/);
+    expect(tldr.className).not.toMatch(/\bnote\b/);
+    expect(screen.getByRole("heading", { name: "Quick recap" }).className).toBe("rail-title");
+    expect(screen.getByRole("heading", { name: "TL;DR" }).className).toBe("rail-title");
+    const usual = screen.getByRole("button", { name: "Last 5 min (your usual): recap of the last 5 minutes" });
+    expect(usual).toHaveTextContent("Last 5 min (your usual)");
+    expect(usual.querySelector("span.block")).toHaveTextContent("(your usual)");
+    await waitFor(() => expect(screen.getByText("Derivatives and the power rule.")).toBeInTheDocument());
+    expect(screen.getByText("Derivatives and the power rule.").closest("p")!.className).toMatch(/\bsynthesis\b/);
+    expect(screen.getByRole("button", { name: "From 00:01" }).className).toBe("cite");
+  });
+
+  it("Focus mode: the TL;DR is a neutral Note above the transcript and the toggle is a tertiary with a pressed state (no accent tint)", async () => {
+    await mountLecture({ ai: recapAi() });
+    const focus = screen.getByRole("button", { name: "Focus" });
+    expect(focus.className).toMatch(/\bbtn-tertiary\b/);
+    expect(focus.className).not.toMatch(/accent/);
+    await userEvent.click(focus);
+    expect(focus).toHaveAttribute("aria-pressed", "true");
+    const tldr = document.getElementById("lecture-tldr")!;
+    expect(tldr.className).toMatch(/\bnote note-neutral\b/);
+    const log = screen.getByRole("log", { name: "Transcript lines" });
+    expect(tldr.compareDocumentPosition(log) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("the transcript is the sheet (heading inside); safety states are notes with a shape and a word; the Demo-source notice is unchanged (G1)", async () => {
+    await mountLecture({ events: baseEvents("Paused", "user"), track: "ended" });
+    const sheet = document.querySelector(".transcript-panel")!;
+    expect(sheet.className).toMatch(/\blecture-sheet\b/);
+    expect(within(sheet as HTMLElement).getByRole("heading", { name: "Transcript" })).toBeInTheDocument();
+    const paused = document.querySelector('[data-panel="paused"]')!;
+    expect(paused.className).toBe("note note-notice");
+    expect(paused.querySelector("svg[aria-hidden='true']")).not.toBeNull();
+    expect(within(paused as HTMLElement).getByRole("heading", { name: "Recording is paused" }).className).toBe("note-title");
+    const demo = screen.getByTestId("demo-notice");
+    expect(demo.className).toBe("panel panel-notice flex gap-3 py-3");
+    expect(within(demo).getByRole("heading", { name: "Demo source: these words are not from your microphone" }).className).toBe("font-bold");
+    expect(within(demo).getByText("Details")).toBeInTheDocument();
+    expect(screen.getByTestId("demo-tag").className).toBe("tag tag-warning hidden sm:inline-flex");
   });
 
   it("the usual Quick recap window is the only filled button in the dock; busy never greys the buttons out", async () => {

@@ -103,10 +103,11 @@ export function Transcript({ segments, lecture, pauses, announceLines, handleRef
 
   return (
     <section aria-labelledby="transcript-h2" className="relative min-w-0">
-      {/* The heading sits inside the bordered panel as its header row (A9), so the panel top aligns with the rail's first
-          card; the scrollable log below keeps its id, role, name and focusability. */}
-      <div className="transcript-panel">
-        <div className="transcript-panel-head">
+      {/* The transcript is the sheet (redesign-round2 slice 3): heading row inside it (A9), no fixed empty height, and
+          from 1280 the timestamps hang in the margin track beside it (globals.css). The scrollable log keeps its id,
+          role, name and focusability. */}
+      <div className="transcript-panel lecture-sheet">
+        <div className="sheet-head">
           <h2 id="transcript-h2" className="display text-xl">
             {T.heading}
           </h2>
@@ -127,7 +128,7 @@ export function Transcript({ segments, lecture, pauses, announceLines, handleRef
             jumpToLive();
           }
         }}
-        className="transcript mt-2 overflow-y-auto rounded-b-card px-4 pb-4 sm:px-6"
+        className="transcript mt-2 overflow-y-auto px-4 pb-4 sm:px-6"
       >
         {items.length === 0 && !partial ? <p className="text-muted">{searching ? "No line matches that. Try fewer words." : T.empty}</p> : null}
         {items.map((it) => {
@@ -171,7 +172,7 @@ export function Transcript({ segments, lecture, pauses, announceLines, handleRef
       </div>
       </div>
       {showJump ? (
-        <button type="button" className="btn-secondary btn-sm mt-2 shadow-2" onClick={jumpToLive}>
+        <button type="button" className="btn-secondary btn-sm hang-indent mt-2 shadow-2" onClick={jumpToLive}>
           {T.jumpToLive}
         </button>
       ) : null}

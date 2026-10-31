@@ -272,11 +272,17 @@ describe("Quick recap panel", () => {
 describe("Quick recap review fixes (M1-M7)", () => {
   const lines = (n: number) => Array.from({ length: n }, (_, i) => `[00:${String(i).padStart(2, "0")}] Line number ${i + 1}.`).join("\n");
 
-  it("M1: the panel is a fixed bottom bar below lg and a sticky column from lg", async () => {
+  // Slice 3 (redesign-round2): from lg the panel is the first row of the rail ledger, and the RAIL is the sticky element
+  // (globals.css `.lecture-rail`, asserted in skinBlocks.test.ts); the panel itself is static inside it. Recorded there.
+  it("M1: the panel is a fixed bottom bar below lg; from lg it sits static inside the sticky rail ledger with the TL;DR", async () => {
     await mountLecture({ ai: fakeAi() });
     const panel = document.getElementById("lecture-quick-recap")!;
     expect(panel.className).toMatch(/\bfixed\b/);
-    expect(panel.className).toMatch(/lg:sticky/);
+    expect(panel.className).toMatch(/lg:static/);
+    const rail = panel.closest("[data-lecture-rail]")!;
+    expect(rail.className).toMatch(/\blecture-rail\b/);
+    expect(rail.querySelector("#lecture-tldr")).not.toBeNull();
+    expect(panel.nextElementSibling?.id).toBe("lecture-tldr");
   });
 
   it("M2: skip links go to Quick recap (focus only, no catch-up) and TL;DR; Alt+R works only when shortcuts are on", async () => {
