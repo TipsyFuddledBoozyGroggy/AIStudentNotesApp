@@ -17,7 +17,10 @@ internal sealed class CourseLifecycleHandler(SessionService sessions, ICurrentUs
         if (currentUser.UserId == userId) _purged = await sessions.EndSessionsForCourseAsync(courseId, purge: true, ct);
     }
 
-    /// <summary>NAS-01: after the commit, every purged session is announced deleted again (observers cancel, tombstone and close hub connections).</summary>
+    /// <summary>
+    /// NAS-01: after the commit, every purged session is announced deleted again (observers cancel, tombstone and close hub connections).
+    /// NAS-R04: including any session created in the gap, which also gets its <c>session.delete</c> audit row then.
+    /// </summary>
     public Task OnPurgedAsync(Guid userId, Guid courseId, CancellationToken ct = default) =>
-        currentUser.UserId == userId ? sessions.NotifyPurgedAsync(userId, _purged, ct) : Task.CompletedTask;
+        currentUser.UserId == userId ? sessions.NotifyPurgedAsync(userId, courseId, _purged, ct) : Task.CompletedTask;
 }

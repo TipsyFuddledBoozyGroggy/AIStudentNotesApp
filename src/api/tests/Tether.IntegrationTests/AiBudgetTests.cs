@@ -13,6 +13,7 @@ namespace Tether.IntegrationTests;
 /// <summary>Per session 500k micro-USD, per user-day huge, global 5M: room for exactly one 400k call per session and 12 across the month.</summary>
 public sealed class BudgetFactory : ApiFactory
 {
+    protected override int MaxPoolSize => RacePool.Size; // NAS-R09: the session-cap and global-cap races fire 8 and 20 reservations at once
     protected override IEnumerable<KeyValuePair<string, string?>> Settings =>
     [
         new("Ai:Budget:PerSessionMicroUsd", "500000"), new("Ai:Budget:PerUserDailyMicroUsd", "100000000"), new("Ai:Budget:GlobalMonthlyMicroUsd", "5000000"),
@@ -48,6 +49,7 @@ public abstract class AiBudgetTestBase(ApiFactory factory) : LectureTestBase(fac
     protected Task<long> GlobalAsync() => F.ScalarAsync("select coalesce(sum(spent_micros), 0) from ai.global_spend");
 }
 
+[Collection(RacePool.Name)]
 public class AiBudgetSessionCapTests(BudgetFactory factory) : AiBudgetTestBase(factory), IClassFixture<BudgetFactory>
 {
     [Fact]
@@ -78,6 +80,7 @@ public class AiBudgetSettleTests(BudgetFactory factory) : AiBudgetTestBase(facto
     }
 }
 
+[Collection(RacePool.Name)]
 public class AiBudgetGlobalCapTests(BudgetFactory factory) : AiBudgetTestBase(factory), IClassFixture<BudgetFactory>
 {
     [Fact]

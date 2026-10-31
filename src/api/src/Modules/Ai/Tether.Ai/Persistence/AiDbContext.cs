@@ -136,7 +136,9 @@ internal sealed class AiDbContext(DbContextOptions<AiDbContext> options, ICurren
                 // a revision exists exactly when that outcome is Ready. NAS-05 the notice id has the syllabus noticeVersion shape.
                 t.HasCheckConstraint("ck_lecture_notes_final_state",
                     $"(state = 'Ready' AND final_summary_state IN ({string.Join(",", FinalSummaryStates.All.Select(s => $"'{s}'"))}) AND ((final_summary_state = 'Ready') = (final_summary_revision IS NOT NULL))) OR (state <> 'Ready' AND final_summary_state IS NULL)");
-                t.HasCheckConstraint("ck_lecture_notes_notice", "notice_version IS NULL OR notice_version ~ '^[A-Za-z0-9._-]{1,64}$'");
+                // A007, NAS-R07: every press names the notice the student saw; the column is NOT NULL (rows from before A006 were backfilled
+                // with NotesOptions.UnrecordedNotice, an id the server never accepts).
+                t.HasCheckConstraint("ck_lecture_notes_notice", "notice_version ~ '^[A-Za-z0-9._-]{1,64}$'");
             });
             b.HasKey(x => x.Id);
             b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
@@ -148,7 +150,7 @@ internal sealed class AiDbContext(DbContextOptions<AiDbContext> options, ICurren
             b.Property(x => x.RequestedAt).HasColumnName("requested_at");
             b.Property(x => x.StartedAt).HasColumnName("started_at");
             b.Property(x => x.CompletedAt).HasColumnName("completed_at");
-            b.Property(x => x.NoticeVersion).HasColumnName("notice_version").HasMaxLength(64);
+            b.Property(x => x.NoticeVersion).HasColumnName("notice_version").HasMaxLength(64).IsRequired();
             b.Property(x => x.FinalSummaryState).HasColumnName("final_summary_state").HasMaxLength(16);
             b.Property(x => x.SectionsJson).HasColumnName("sections").HasColumnType("jsonb").IsRequired();
             b.Property(x => x.CoveredFromMs).HasColumnName("covered_from_ms");

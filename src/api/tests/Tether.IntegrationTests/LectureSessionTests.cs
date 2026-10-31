@@ -56,7 +56,8 @@ public abstract class LectureTestBase(ApiFactory factory)
     protected async Task<long> CountAsync(string table, string where) => await F.ScalarAsync($"select count(*) from lectures.{table} where {where}");
 }
 
-public class LectureSessionTests(ApiFactory factory) : LectureTestBase(factory), IClassFixture<ApiFactory>
+[Collection(RacePool.Name)]
+public class LectureSessionTests(RacePoolFactory factory) : LectureTestBase(factory), IClassFixture<RacePoolFactory>
 {
     // ---------------- create ----------------
 

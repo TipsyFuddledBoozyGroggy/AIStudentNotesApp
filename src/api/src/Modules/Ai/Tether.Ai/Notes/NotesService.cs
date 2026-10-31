@@ -28,9 +28,12 @@ internal sealed class NotesPressProbe(AiDbContext db, AiOptions options, TimePro
 {
     public async Task<bool> IsLiveAsync(Guid userId, Guid sessionId, Guid pressId, CancellationToken ct)
     {
-        var fresh = clock.GetUtcNow() - options.Notes.StaleAfter;
+        var now = clock.GetUtcNow();
+        var fresh = now - options.Notes.StaleAfter;
+        // NAS-R02 backstop: never later than the queue limit plus the run limit after the press itself, whatever started_at says.
+        var pressedAfter = now - (options.Notes.MaxQueueWait + options.Notes.StaleAfter);
         return await db.Notes.AsNoTracking().AnyAsync(n => n.Id == pressId && n.SessionId == sessionId && n.UserId == userId
-            && n.State == NotesStates.Pending && n.StartedAt != null && n.StartedAt > fresh, ct);
+            && n.State == NotesStates.Pending && n.StartedAt != null && n.StartedAt > fresh && n.RequestedAt > pressedAfter, ct);
     }
 }
 
@@ -145,7 +148,14 @@ internal sealed class NotesService(
         if (latest is { State: NotesStates.Pending or NotesStates.Ready or NotesStates.NotNeeded }) return new(NotesStartKind.Ok, latest); // no duplicate generation
 
         // NAS-03: one press pending or running per user. The unique index enforces it under races; this is the cheap, common answer.
-        if (await db.Notes.AsNoTracking().AnyAsync(n => n.UserId == userId && n.State == NotesStates.Pending, ct)) return new(NotesStartKind.RateLimited);
+        if (await db.Notes.AsNoTracking().AnyAsync(n => n.UserId == userId && n.State == NotesStates.Pending, ct))
+        {
+            // A concurrent press of THIS session may have committed after `latest` was read: then this is a loser of the same race and gets
+            // the winner with 200 (contract section 17 item 4), never 429. Only another session's pending press is a rate limit.
+            var again = await LatestAsync(sessionId, ct);
+            if (again is { State: NotesStates.Pending or NotesStates.Ready or NotesStates.NotNeeded }) return new(NotesStartKind.Ok, again);
+            return new(NotesStartKind.RateLimited);
+        }
 
         if (limiter.TryAcquire(userId) is not { } token) return new(NotesStartKind.RateLimited);
         var keep = false;
@@ -240,9 +250,23 @@ internal static class NotesStore
     public static Task<int> MarkUnavailableAsync(AiDbContext db, Guid id, Guid userId, DateTimeOffset now, CancellationToken ct) =>
         db.Database.ExecuteSqlAsync($"update ai.lecture_notes set state = 'Unavailable', completed_at = {now} where id = {id} and user_id = {userId} and state = 'Pending'", ct);
 
-    /// <summary>NAS-03: the job claims its press; the permission window starts now. 0 rows: not pending any more (expired, deleted) or already started.</summary>
-    public static Task<int> TryStartAsync(AiDbContext db, Guid id, Guid userId, DateTimeOffset now, CancellationToken ct) =>
-        db.Database.ExecuteSqlAsync($"update ai.lecture_notes set started_at = {now} where id = {id} and user_id = {userId} and state = 'Pending' and started_at is null", ct);
+    /// <summary>
+    /// NAS-03: the job claims its press; the permission window starts now. NAS-R02: only a press pressed less than <paramref name="maxQueueWait"/>
+    /// ago can be claimed, so a press whose student closed the tab (no GET ever expires it) is never sent late. 0 rows: not pending any more
+    /// (expired, deleted), already started, or queued too long (then <see cref="ExpireQueuedAsync"/> ends it).
+    /// </summary>
+    public static Task<int> TryStartAsync(AiDbContext db, Guid id, Guid userId, DateTimeOffset now, TimeSpan maxQueueWait, CancellationToken ct)
+    {
+        var pressedAfter = now - maxQueueWait;
+        return db.Database.ExecuteSqlAsync($"update ai.lecture_notes set started_at = {now} where id = {id} and user_id = {userId} and state = 'Pending' and started_at is null and requested_at > {pressedAfter}", ct);
+    }
+
+    /// <summary>NAS-R02: ends a press that waited in the queue <paramref name="maxQueueWait"/> or longer and never started. Returns rows changed.</summary>
+    public static Task<int> ExpireQueuedAsync(AiDbContext db, Guid id, Guid userId, DateTimeOffset now, TimeSpan maxQueueWait, CancellationToken ct)
+    {
+        var pressedBy = now - maxQueueWait;
+        return db.Database.ExecuteSqlAsync($"update ai.lecture_notes set state = 'Unavailable', completed_at = {now} where id = {id} and user_id = {userId} and state = 'Pending' and started_at is null and requested_at <= {pressedBy}", ct);
+    }
 
     /// <summary>NAS-06: ends a press without content (BudgetLimited, Unavailable, NotNeeded) ONLY if it is still Pending. Returns rows changed.</summary>
     public static Task<int> FinishAsync(AiDbContext db, Guid id, Guid userId, string state, DateTimeOffset now, CancellationToken ct) =>
@@ -342,7 +366,14 @@ internal sealed class NotesRunner(NotesQueue queue, IServiceScopeFactory scopes,
         if (row is null || row.State != NotesStates.Pending) return; // deleted meanwhile, or already expired
         if (cutoff.IsTombstoned(job.SessionId)) { await NotesStore.MarkUnavailableAsync(db, row.Id, row.UserId, clock.GetUtcNow(), ct); return; } // NAS-01
         // NAS-03: the permission window starts when the job starts, so time spent waiting in the queue never eats it.
-        if (await NotesStore.TryStartAsync(db, row.Id, row.UserId, clock.GetUtcNow(), ct) == 0) return;
+        // NAS-R02: but a press that waited MaxQueueWait or longer is not started at all; it ends Unavailable without any GET or call.
+        var now = clock.GetUtcNow();
+        if (await NotesStore.TryStartAsync(db, row.Id, row.UserId, now, options.Notes.MaxQueueWait, ct) == 0)
+        {
+            if (await NotesStore.ExpireQueuedAsync(db, row.Id, row.UserId, now, options.Notes.MaxQueueWait, ct) > 0)
+                log.LogInformation("Notes press expired in the queue before it started");
+            return;
+        }
 
         var jcts = jobs.Start(row.Id, ct);
         try
@@ -385,7 +416,11 @@ internal sealed class NotesRunner(NotesQueue queue, IServiceScopeFactory scopes,
 
         // Per-press cap on the ESTIMATED cost of everything this press may send (NAS-07: every call may be made twice, one repair). Over it: no call at all.
         var estimate = PressEstimate(options, plan.Parts.Select(p => p.Request), finalRequests);
-        if (estimate > options.Notes.PerRequestMicro)
+        // NAS-R03: the whole press must also fit what is LEFT of every limit its calls will be held to (the lecture's own cap, the notes sub-cap,
+        // the user-day and month caps above their live floors). Otherwise the press would send parts 1..k and then stop BudgetLimited with
+        // nothing to show; it is refused here instead, before any call. Advisory (no hold): each call is still reserved one by one.
+        if (estimate > options.Notes.PerRequestMicro
+            || !(await sp.GetRequiredService<BudgetGate>().CheckAsync(job.SessionId, AiWorkflow.Notes, estimate, ct)).Decision.Allowed)
         {
             await sp.GetRequiredService<UsageLedger>().RecordAsync(job.UserId, job.SessionId, AiWorkflow.Notes, Prompts.PromptLibrary.NotesVersion, "none",
                 new AiTokenUsage(0, 0, 0), 0, 0, Outcomes.BudgetDenied, ct, job.PressId);

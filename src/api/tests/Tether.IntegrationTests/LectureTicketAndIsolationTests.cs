@@ -15,7 +15,8 @@ using System.Collections.Concurrent;
 
 namespace Tether.IntegrationTests;
 
-public class LectureAudioTicketTests(ApiFactory factory) : LectureTestBase(factory), IClassFixture<ApiFactory>
+[Collection(RacePool.Name)]
+public class LectureAudioTicketTests(RacePoolFactory factory) : LectureTestBase(factory), IClassFixture<RacePoolFactory>
 {
     private sealed class FakeUser(Guid? id, Guid? sid) : ICurrentUser
     {

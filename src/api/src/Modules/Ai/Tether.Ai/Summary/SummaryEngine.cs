@@ -412,10 +412,11 @@ internal sealed class SummaryEngine(IServiceScopeFactory scopes, AiOptions optio
             Tldr = tldr, TopicsJson = SummaryJson.Write(topics), TermsJson = SummaryJson.Write(terms.Distinct(StringComparer.OrdinalIgnoreCase).TakeLast(30).ToList()),
             CitationsJson = SummaryJson.Write(SummaryMerger.Citations(topics)), Model = model, PromptVersion = Prompts.PromptLibrary.RollingSummaryVersion, CreatedAt = clock.GetUtcNow(),
         };
-        return await sp.GetRequiredService<SummaryStore>().AppendAsync(row, baseRevision, ct) switch
+        // NAS-R05: a Final revision is stored (and pushed) only while its press is still Pending.
+        return await sp.GetRequiredService<SummaryStore>().AppendAsync(row, baseRevision, ct, status == "Final" ? pressId : null) switch
         {
             AppendResult.Ok => (null, row),
-            AppendResult.SessionGone => (AiFailure.SessionClosed, null),
+            AppendResult.SessionGone or AppendResult.PressGone => (AiFailure.SessionClosed, null),
             _ => (AiFailure.InvalidOutput, null),
         };
     }

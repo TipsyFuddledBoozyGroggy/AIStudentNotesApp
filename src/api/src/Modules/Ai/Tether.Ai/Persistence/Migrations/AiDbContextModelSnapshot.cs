@@ -275,6 +275,7 @@ namespace Tether.Ai.Persistence.Migrations
                         .HasColumnName("model");
 
                     b.Property<string>("NoticeVersion")
+                        .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("notice_version");
@@ -355,7 +356,7 @@ namespace Tether.Ai.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_lecture_notes_key", "length(idempotency_key) BETWEEN 1 AND 64");
 
-                            t.HasCheckConstraint("ck_lecture_notes_notice", "notice_version IS NULL OR notice_version ~ '^[A-Za-z0-9._-]{1,64}$'");
+                            t.HasCheckConstraint("ck_lecture_notes_notice", "notice_version ~ '^[A-Za-z0-9._-]{1,64}$'");
 
                             t.HasCheckConstraint("ck_lecture_notes_pending", "state <> 'Pending' OR completed_at IS NULL");
 

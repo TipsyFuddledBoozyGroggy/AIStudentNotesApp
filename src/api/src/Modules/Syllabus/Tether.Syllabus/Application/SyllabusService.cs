@@ -72,7 +72,15 @@ internal sealed class SyllabusService(SyllabusCore core, ICourseOwnership course
             if (!candidate)
             {
                 var quota = await CheckQuotasAsync(courseId, ct);
-                if (quota is not null) return quota;
+                if (quota is not null)
+                {
+                    // An identical create with this key may have committed between the step-5 lookup and this check (its key and its job
+                    // commit together, so if its job is visible here its key is too). Such a request is a candidate replay and skips the
+                    // quotas (contract P2 2.1: "gets the replay ... not 409 extraction_in_progress"); anything else keeps the refusal.
+                    hit = await LookupKeyAsync(Routes.CreateTemplate, idemKey, ct);
+                    candidate = hit is not null;
+                    if (!candidate) return quota;
+                }
             }
             // step 7: body (streaming caps)
             CreateSyllabusRequest req; string material; string contentSha; string? uploadText; string? fileType; SniffKind kind = SniffKind.Text;

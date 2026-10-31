@@ -55,9 +55,13 @@ internal sealed record NotesOptions(
     int ChunkChars, int MaxChunks, int MaxSegments, int MaxOutputTokens, TimeSpan Timeout, int Workers, int QueueCapacity, TimeSpan StaleAfter,
     int PerMinutePerUser, int MaxAttemptsPerSession, long PerRequestMicro,
     long PerUserDailyMicro = 500_000, long LiveFloorPerUserDailyMicro = 400_000, long LiveFloorGlobalMonthlyMicro = 20_000_000,
-    BreakerOptions? BreakerConfig = null, TimeSpan? MaxQueueWaitConfig = null, IReadOnlyList<string>? NoticeVersionsConfig = null)
+    BreakerOptions? BreakerConfig = null, TimeSpan? MaxQueueWaitConfig = null, IReadOnlyList<string>? NoticeVersionsConfig = null,
+    IReadOnlyList<string>? RetiredNoticeVersionsConfig = null)
 {
     public const string DraftNoticeVersion = "notes-notice-draft-1";
+
+    /// <summary>NAS-R07: the A007 backfill for presses made before any notice was recorded. Never configurable, never accepted.</summary>
+    public const string UnrecordedNotice = "none-recorded";
 
     public static NotesOptions Default { get; } = new(12_000, 10, 6_000, 1_500, TimeSpan.FromSeconds(30), 1, 16, TimeSpan.FromMinutes(15), 6, 5, 600_000);
 
@@ -65,9 +69,15 @@ internal sealed record NotesOptions(
 
     public TimeSpan MaxQueueWait => MaxQueueWaitConfig ?? TimeSpan.FromMinutes(30);
 
+    /// <summary>NAS-05/NAS-R07: the ACTIVE notice ids only (the wording a client may show now). A wording change is enforced by moving the old id
+    /// from here to <see cref="RetiredNoticeVersions"/>: presses naming it are then refused, while stored rows keep the id they were made under.</summary>
     public IReadOnlyList<string> NoticeVersions => NoticeVersionsConfig ?? [DraftNoticeVersion];
 
-    public bool IsKnownNotice(string v) => NoticeVersions.Contains(v, StringComparer.Ordinal);
+    /// <summary>NAS-R07: ids of notices whose wording was replaced. Never accepted; the startup guard refuses one that is also listed as active.</summary>
+    public IReadOnlyList<string> RetiredNoticeVersions => RetiredNoticeVersionsConfig ?? [];
+
+    public bool IsKnownNotice(string v) =>
+        NoticeVersions.Contains(v, StringComparer.Ordinal) && !RetiredNoticeVersions.Contains(v, StringComparer.Ordinal) && v != UnrecordedNotice;
 
     /// <summary>
     /// NAS-03: the longest one press can run once started: every notes part twice (one repair) at the notes timeout, plus every final-summary
@@ -166,7 +176,8 @@ internal sealed record AiOptions(
             BreakerConfig: new BreakerOptions(n.GetValue("Breaker:FailuresToOpen", d.Breaker.FailuresToOpen),
                 TimeSpan.FromSeconds(n.GetValue("Breaker:OpenSeconds", d.Breaker.OpenFor.TotalSeconds)), d.Breaker.ProviderCapOpenFor),
             MaxQueueWaitConfig: TimeSpan.FromSeconds(n.GetValue("MaxQueueWaitSeconds", d.MaxQueueWait.TotalSeconds)),
-            NoticeVersionsConfig: n.GetSection("NoticeVersions").Get<string[]>() is { Length: > 0 } nv ? nv : null);
+            NoticeVersionsConfig: n.GetSection("NoticeVersions").Get<string[]>() is { Length: > 0 } nv ? nv : null,
+            RetiredNoticeVersionsConfig: n.GetSection("RetiredNoticeVersions").Get<string[]>() is { Length: > 0 } rv ? rv : null);
         // NAS-03: unless set explicitly, the permission lasts the computed worst case of one started press plus a minute of slack.
         var stale = n["StaleSeconds"] is { } s && double.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var secs)
             ? TimeSpan.FromSeconds(secs) : o.WorstCase(callTimeout, finalChunks) + TimeSpan.FromMinutes(1);
@@ -206,10 +217,16 @@ internal static class AiProviderGuard
         if (n.PerUserDailyMicro <= 0 || n.LiveFloorPerUserDailyMicro < 0 || n.LiveFloorGlobalMonthlyMicro < 0
             || n.LiveFloorPerUserDailyMicro >= options.Budget.PerUserDailyMicro || n.LiveFloorGlobalMonthlyMicro >= options.Budget.GlobalMonthlyMicro)
             throw new InvalidOperationException("Ai:Notes:PerUserDailyMicroUsd must be positive and the Ai:Notes:LiveFloor* values must be at least 0 and below the lecture caps they reserve.");
+        // NAS-R03: a per-press cap above the user's whole lecture day could never be spent; the press would always stop part way.
+        if (n.PerRequestMicro > options.Budget.PerUserDailyMicro)
+            throw new InvalidOperationException("Ai:Notes:PerRequestMicroUsd must not exceed Ai:Budget:PerUserDailyMicroUsd.");
         if (n.Breaker.FailuresToOpen < 1 || n.Breaker.OpenFor <= TimeSpan.Zero || n.MaxQueueWait <= TimeSpan.Zero)
             throw new InvalidOperationException("Ai:Notes:Breaker:* and Ai:Notes:MaxQueueWaitSeconds must be positive.");
-        if (n.NoticeVersions.Any(v => !NoticeVersionFormat.IsValid(v)))
-            throw new InvalidOperationException("Ai:Notes:NoticeVersions entries must be 1 to 64 of [A-Za-z0-9._-].");
+        if (n.NoticeVersions.Any(v => !NoticeVersionFormat.IsValid(v)) || n.RetiredNoticeVersions.Any(v => !NoticeVersionFormat.IsValid(v)))
+            throw new InvalidOperationException("Ai:Notes:NoticeVersions and Ai:Notes:RetiredNoticeVersions entries must be 1 to 64 of [A-Za-z0-9._-].");
+        // NAS-R07: the allow-list carries ACTIVE ids only. A retired id (or the A007 backfill id) listed as active is a configuration error.
+        if (n.NoticeVersions.Any(v => v == NotesOptions.UnrecordedNotice || n.RetiredNoticeVersions.Contains(v, StringComparer.Ordinal)))
+            throw new InvalidOperationException("Ai:Notes:NoticeVersions must hold only active notice ids: remove retired ids (Ai:Notes:RetiredNoticeVersions) and 'none-recorded'.");
         // NAS-03: a permission shorter than the longest a started press can run would skip the final summary (or notes) without any sign.
         var worst = n.WorstCase(options.CallTimeout, options.Summary.CompactionMaxChunks);
         if (n.StaleAfter < worst)

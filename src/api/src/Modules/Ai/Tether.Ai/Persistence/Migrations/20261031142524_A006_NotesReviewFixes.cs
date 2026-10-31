@@ -12,7 +12,8 @@ namespace Tether.Ai.Persistence.Migrations
     /// never silent) and the partial unique index <c>ux_lecture_notes_pending_user</c> (one pending press per user). ai_usage: <c>press_id</c>
     /// (NAS-08: links each Notes/FinalSummary call to its audited press). Before the new index and CHECK, every Pending press becomes
     /// Unavailable (the startup sweep does the same on every boot; a pending press cannot survive a deploy anyway) and Ready rows get their
-    /// final-summary outcome backfilled from <c>final_summary_revision</c>. Down is dev-only: it drops the new evidence columns.
+    /// final-summary outcome backfilled from <c>final_summary_revision</c>. Down is GUARDED (NAS-R06): it refuses while any evidence column
+    /// holds data, and otherwise drops the (empty) columns.
     /// </remarks>
     internal partial class A006_NotesReviewFixes : Migration
     {
@@ -92,6 +93,18 @@ namespace Tether.Ai.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // NAS-R06: GUARDED like A005. The columns hold NAS-05/NAS-08 evidence (the notice a student saw, when a press started, which vendor
+            // call a press caused); a rollback must never delete it silently. Forward-fix instead.
+            migrationBuilder.Sql("""
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM ai.lecture_notes WHERE notice_version IS NOT NULL OR started_at IS NOT NULL)
+                       OR EXISTS (SELECT 1 FROM ai.ai_usage WHERE press_id IS NOT NULL) THEN
+                        RAISE EXCEPTION 'A006 cannot be rolled back: notice, start or press evidence exists (forward-fix instead)';
+                    END IF;
+                END $$;
+                """);
+
             migrationBuilder.DropIndex(
                 name: "ux_lecture_notes_pending_user",
                 schema: "ai",

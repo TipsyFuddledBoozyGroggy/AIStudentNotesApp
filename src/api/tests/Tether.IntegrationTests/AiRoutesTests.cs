@@ -62,7 +62,8 @@ public abstract class AiRouteTestBase(ApiFactory factory) : LectureTestBase(fact
 }
 
 /// <summary>Default mock (instant): authorisation, validation, CSRF, idempotency and summary reads.</summary>
-public class AiRouteTests(ApiFactory factory) : AiRouteTestBase(factory), IClassFixture<ApiFactory>
+[Collection(RacePool.Name)]
+public class AiRouteTests(RacePoolFactory factory) : AiRouteTestBase(factory), IClassFixture<RacePoolFactory>
 {
     // ---------- authentication ----------
 

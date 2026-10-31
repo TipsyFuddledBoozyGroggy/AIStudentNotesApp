@@ -268,10 +268,41 @@ internal sealed class SessionService(
         return all;
     }
 
-    /// <summary>NAS-01: the post-commit "deleted" notice for every session a course purge removed. Observer failures are swallowed and logged.</summary>
-    public async Task NotifyPurgedAsync(Guid userId, IReadOnlyList<Guid> sessionIds, CancellationToken ct)
+    /// <summary>
+    /// NAS-01: the post-commit "deleted" notice for every session a course purge removed. Observer failures are swallowed and logged.
+    /// NAS-R04: a session CREATED in the gap between the pre-commit notice and the commit is not in <paramref name="announced"/>, but the cascade
+    /// removed it too. Its consent record survives the cascade (it carries the course id and is never deleted), so every session of this course
+    /// that is gone and has no <c>session.delete</c> audit row yet is found here, audited and announced deleted like the others.
+    /// </summary>
+    public async Task NotifyPurgedAsync(Guid userId, Guid courseId, IReadOnlyList<Guid> announced, CancellationToken ct)
     {
-        foreach (var id in sessionIds) await NotifyDeletedAsync(userId, id, ct);
+        IReadOnlyList<Guid> late = [];
+        try { late = await AuditSessionsCreatedInPurgeGapAsync(courseId, announced, ct); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { log.LogWarning("Purge gap audit failed: {ExceptionType}", ex.GetType().Name); }
+        foreach (var id in announced.Concat(late)) await NotifyDeletedAsync(userId, id, ct);
+    }
+
+    private async Task<IReadOnlyList<Guid>> AuditSessionsCreatedInPurgeGapAsync(Guid courseId, IReadOnlyList<Guid> announced, CancellationToken ct)
+    {
+        db.ChangeTracker.Clear(); // the pre-commit unit of work is done; start clean
+        var candidates = await db.Consents.AsNoTracking().Where(c => c.CourseId == courseId && !announced.Contains(c.SessionId))
+            .Select(c => c.SessionId).Distinct().ToListAsync(ct);
+        if (candidates.Count == 0) return [];
+        var alive = await db.Sessions.AsNoTracking().Where(s => candidates.Contains(s.Id)).Select(s => s.Id).ToListAsync(ct);
+        var audited = await db.AuditEvents.AsNoTracking()
+            .Where(e => e.Action == AuditActions.SessionDelete && e.SessionId != null && candidates.Contains(e.SessionId.Value))
+            .Select(e => e.SessionId!.Value).ToListAsync(ct);
+        var late = candidates.Except(alive).Except(audited).ToList();
+        if (late.Count == 0) return [];
+        var now = Now();
+        foreach (var id in late)
+        {
+            activity.Forget(id);
+            AddAudit(AuditActions.SessionDelete, id, now);
+        }
+        await db.SaveChangesAsync(ct);
+        log.LogWarning("Course purge removed {Count} session(s) created after the pre-commit notice; audited and announced now", late.Count);
+        return late;
     }
 
     // ---------- delete ----------

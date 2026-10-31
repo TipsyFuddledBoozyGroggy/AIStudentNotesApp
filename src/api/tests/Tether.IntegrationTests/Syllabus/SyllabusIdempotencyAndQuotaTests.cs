@@ -71,7 +71,9 @@ public class SyllabusIdempotencyAndQuotaTests(SyllabusIdempotencyAndQuotaTests.F
         var a = await NewActorAsync(); var course = await CourseAsync(a.Client);
         var key = NewKey(); var body = Paste(Txt(1));
         var results = await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => a.Client.SendAsync(Req(HttpMethod.Post, $"{Api}/courses/{course}/syllabi", body, key))));
-        Assert.All(results, r => Assert.Equal(HttpStatusCode.Accepted, r.StatusCode));
+        var seen = string.Join("; ", await Task.WhenAll(results.Select(async r => $"{(int)r.StatusCode} {await r.Content.ReadAsStringAsync()}")));
+        // API_CONTRACTS_P2 2.1: a retry with the same key and fingerprint while the original job is running "gets the replay (202, ...), not 409 extraction_in_progress".
+        Assert.All(results, r => Assert.True(r.StatusCode == HttpStatusCode.Accepted, seen));
         var ids = (await Task.WhenAll(results.Select(async r => (await r.BodyAsync()).GetProperty("id").GetString()))).Distinct().ToList();
         Assert.Single(ids);
         Assert.Equal(1, await F.ScalarAsync($"select count(*) from syllabus.syllabi where user_id = '{a.UserId}'"));

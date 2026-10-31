@@ -8,12 +8,14 @@ using Tether.Syllabus.Application;
 namespace Tether.IntegrationTests.Syllabus;
 
 /// <summary>TOCTOU interleavings (stale tabs, sync vs withdraw, concurrent sync, delete during a running job), per-bucket rate limits and the startup guards.</summary>
+[Collection(RacePool.Name)]
 public class SyllabusConcurrencyTests(SyllabusConcurrencyTests.Factory f) : SyllabusTestBase(f), IClassFixture<SyllabusConcurrencyTests.Factory>
 {
     public sealed class Factory : ApiFactory
     {
         // each extraction stage takes a moment, so a DELETE can land while the job is running
         protected override IEnumerable<KeyValuePair<string, string?>> Settings => [new("Syllabus:Mock:StageDelayMilliseconds", "700")];
+        protected override int MaxPoolSize => RacePool.Size; // NAS-R09: 12 concurrent syncs
     }
 
     private const string Text = "Midterm exam: Oct 19, 2026 at 10:00 AM\nFinal exam: Dec 9, 2026 at 8:00 AM\nQuiz 1 due Sept 14, 2026";

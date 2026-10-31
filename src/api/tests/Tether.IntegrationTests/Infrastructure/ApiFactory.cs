@@ -39,7 +39,18 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     // Pooled on purpose: an unpooled string made the app host and every test helper open a fresh TCP connection per query, which
     // exhausted ephemeral ports once the suite passed ~580 tests (2026-10-31). DisposeAsync clears the pools before the forced drop.
     public string ConnectionString =>
-        new NpgsqlConnectionStringBuilder(_adminConnection) { Database = DbName, Pooling = true, MaxPoolSize = 6, ConnectionIdleLifetime = 5, ConnectionPruningInterval = 1 }.ConnectionString;
+        new NpgsqlConnectionStringBuilder(_adminConnection) { Database = DbName, Pooling = true, MaxPoolSize = MaxPoolSize, ConnectionIdleLifetime = 5, ConnectionPruningInterval = 1 }.ConnectionString;
+
+    /// <summary>Default per-fixture pool. Small, because up to <c>MaxParallelThreads</c> (12) fixtures run at once against one Postgres (max_connections 100).</summary>
+    public const int DefaultPoolSize = 6;
+
+    /// <summary>
+    /// NAS-R09: fixtures whose tests fire concurrent requests to exercise a check-then-insert race need a pool at least as large as that
+    /// parallelism, or the extra requests queue for a connection instead of overlapping in the database. Those fixtures override this with
+    /// <see cref="RacePool.Size"/> AND their classes join the <see cref="RacePool"/> collection, so only one large pool is busy at a time
+    /// (peak about 11 x 6 + 24 = 90 connections, under max_connections 100).
+    /// </summary>
+    protected virtual int MaxPoolSize => DefaultPoolSize;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

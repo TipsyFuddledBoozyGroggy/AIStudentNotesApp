@@ -71,9 +71,9 @@ public abstract class NotesTestBase(ApiFactory factory) : AiRouteTestBase(factor
     protected Task InsertPressAsync(string sessionId, Guid userId, Guid pressId, string state = "Pending", DateTimeOffset? requestedAt = null, bool started = true)
     {
         var at = requestedAt ?? F.Clock.GetUtcNow();
-        return F.ExecAsync("insert into ai.lecture_notes (id, session_id, user_id, revision, state, idempotency_key, requested_at, started_at, completed_at, sections, truncated) " +
+        return F.ExecAsync("insert into ai.lecture_notes (id, session_id, user_id, revision, state, idempotency_key, requested_at, started_at, completed_at, sections, truncated, notice_version) " +
                            $"values ('{pressId}', '{sessionId}', '{userId}', 1, '{state}', 'k{pressId:N}', '{at:O}', {(started ? $"'{at:O}'" : "null")}, " +
-                           $"{(state == "Pending" ? "null" : $"'{F.Clock.GetUtcNow():O}'")}, '[]', false)");
+                           $"{(state == "Pending" ? "null" : $"'{F.Clock.GetUtcNow():O}'")}, '[]', false, 'notes-notice-draft-1')"); // NAS-R07: required by A007
     }
 
     protected static string StripTrace(JsonElement e)
@@ -85,7 +85,8 @@ public abstract class NotesTestBase(ApiFactory factory) : AiRouteTestBase(factor
 }
 
 /// <summary>Default instant mock: authorisation, validation, CSRF, idempotency, generation, Final summary, budget and the B3-06 regression.</summary>
-public class AiNotesTests(ApiFactory factory) : NotesTestBase(factory), IClassFixture<ApiFactory>
+[Collection(RacePool.Name)]
+public class AiNotesTests(RacePoolFactory factory) : NotesTestBase(factory), IClassFixture<RacePoolFactory>
 {
     // ---------- authentication and ownership ----------
 
@@ -304,7 +305,9 @@ public class AiNotesTests(ApiFactory factory) : NotesTestBase(factory), IClassFi
         var before = Mock.Calls;
 
         var responses = await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => PressAsync(a.Client, id)));
-        Assert.All(responses, r => Assert.True(r.StatusCode is HttpStatusCode.Accepted or HttpStatusCode.OK, r.StatusCode.ToString()));
+        var seen = string.Join("; ", await Task.WhenAll(responses.Select(async r => $"{(int)r.StatusCode} {await r.Content.ReadAsStringAsync()}")));
+        // Contract section 17 item 4: "Concurrent presses start exactly one generation (...; the losers get the winner's press with 200)".
+        Assert.All(responses, r => Assert.True(r.StatusCode is HttpStatusCode.Accepted or HttpStatusCode.OK, seen));
         var ids = new HashSet<string>();
         foreach (var r in responses) ids.Add((await r.BodyAsync()).GetProperty("notesId").GetString()!);
         Assert.Single(ids);

@@ -114,6 +114,66 @@ public class AiNotesReviewTests(ApiFactory factory) : NotesReviewTestBase(factor
         Assert.Equal(before + 1, Mock.Calls);
     }
 
+    // ---------- NAS-R03: the whole press must fit what is left, before the first call ----------
+
+    /// <summary>The runner's own per-press estimate for this session's stored finals (every planned call, twice).</summary>
+    private async Task<long> PressEstimateAsync(Guid userId, string sessionId)
+    {
+        await using var scope = F.Services.GetRequiredService<IServiceScopeFactory>().CreateUserScope(userId);
+        var sp = scope.ServiceProvider;
+        var opts = sp.GetRequiredService<AiOptions>();
+        var sid = Guid.Parse(sessionId);
+        var finals = await sp.GetRequiredService<ITranscriptSegmentReader>().ReadFinalsAfterAsync(userId, sid, 0, 500, default);
+        var press = Guid.NewGuid();
+        var plan = NotesRequests.Build(userId, sid, press, finals, false, opts.Notes);
+        var latest = await sp.GetRequiredService<Tether.Ai.Summary.SummaryStore>().LatestAsync(sid, default);
+        var finalRequests = sp.GetRequiredService<Tether.Ai.Summary.SummaryEngine>().PlanFinalRequests(userId, sid, press, latest, plan.Used);
+        return NotesRunner.PressEstimate(opts, plan.Parts.Select(p => p.Request), finalRequests);
+    }
+
+    [Fact]
+    public async Task A_press_whose_whole_estimate_does_not_fit_the_remaining_notes_allowance_is_BudgetLimited_before_any_call()
+    {
+        var (a, id) = await StoppedSessionAsync();
+        var (_, other) = await StoppedSessionAsync(a);
+        var opts = F.Services.GetRequiredService<AiOptions>();
+        var estimate = await PressEstimateAsync(a.UserId, id);
+        Assert.True(estimate <= opts.Notes.PerRequestMicro); // the per-press cap alone would let it through
+        // Earlier presses today leave just under this press's estimate: the first call alone would still fit, the whole press does not.
+        await InsertUsageAsync(a.UserId, other, "Notes", opts.Notes.PerUserDailyMicro - (estimate - 1));
+        var before = Mock.Calls;
+
+        Assert.Equal(HttpStatusCode.Accepted, (await PressAsync(a.Client, id)).StatusCode);
+        Assert.Equal("BudgetLimited", (await WaitSettledAsync(a.Client, id)).GetProperty("status").GetString());
+        await Task.Delay(200);
+        Assert.Equal(before, Mock.Calls); // no partial send: nothing reached the provider
+        Assert.Equal(1, await F.ScalarAsync($"select count(*) from ai.ai_usage where scope_id = '{id}' and workflow = 'Notes' and outcome = 'budget_denied'"));
+        Assert.Equal(0, await F.ScalarAsync($"select count(*) from ai.summary_revisions where session_id = '{id}'"));
+        await AssertNothingHeldAsync(a.UserId);
+    }
+
+    // ---------- NAS-R07: the database requires the notice and the press id ----------
+
+    [Fact]
+    public async Task The_database_refuses_a_press_or_a_notes_requested_audit_row_without_its_notice_or_press_id()
+    {
+        var (a, id) = await StoppedSessionAsync();
+        var noNotice = await Assert.ThrowsAsync<PostgresException>(() => F.ExecAsync(
+            "insert into ai.lecture_notes (id, session_id, user_id, revision, state, idempotency_key, requested_at, sections, truncated) " +
+            $"values ('{Guid.NewGuid()}', '{id}', '{a.UserId}', 1, 'Unavailable', 'k1', now(), '[]', false)"));
+        Assert.Equal(PostgresErrorCodes.NotNullViolation, noNotice.SqlState);
+
+        string Audit(string action, string subject, string notice) =>
+            "insert into lectures.audit_events (id, user_id, session_id, action, occurred_at, subject_id, notice_version) " +
+            $"values ('{Guid.NewGuid()}', '{a.UserId}', '{id}', '{action}', now(), {subject}, {notice})";
+        var noSubject = await Assert.ThrowsAsync<PostgresException>(() => F.ExecAsync(Audit("notes.requested", "null", "'notes-notice-draft-1'")));
+        Assert.Equal("ck_audit_events_notes_requested", noSubject.ConstraintName);
+        var noNoticeAudit = await Assert.ThrowsAsync<PostgresException>(() => F.ExecAsync(Audit("notes.requested", $"'{Guid.NewGuid()}'", "null")));
+        Assert.Equal("ck_audit_events_notes_requested", noNoticeAudit.ConstraintName);
+        await F.ExecAsync(Audit("notes.requested", $"'{Guid.NewGuid()}'", "'notes-notice-draft-1'")); // complete: accepted
+        await F.ExecAsync(Audit("session.stop", "null", "null"));                                    // other actions are unaffected
+    }
+
     // ---------- NAS-03: at most one pending press per user ----------
 
     [Fact]
@@ -239,6 +299,58 @@ public class AiNotesFinalFailureTests(FailingFinalSummaryFactory factory) : Note
         Assert.Equal("Unavailable", notes.GetProperty("finalSummaryStatus").GetString());
         Assert.Equal("Unavailable", await F.TextAsync($"select final_summary_state from ai.lecture_notes where session_id = '{id}'"));
         Assert.Equal(0, await F.ScalarAsync($"select count(*) from ai.summary_revisions where session_id = '{id}' and status = 'Final'"));
+        await AssertNothingHeldAsync(a.UserId);
+    }
+}
+
+/// <summary>
+/// NAS-R05: the press expires while its last FinalSummary call is answering. This reproduces the window in which a GET has COMMITTED the
+/// expiry but not yet cancelled the job: the press row is set Unavailable from a separate connection after the vendor call and before the
+/// job appends the Final revision.
+/// </summary>
+public sealed class ExpireDuringFinalSummaryFactory : ApiFactory
+{
+    private sealed class ExpireOnFinal(MockAiClient inner, string connectionString) : IAiClient
+    {
+        public string ProviderName => inner.ProviderName;
+        public bool IsMock => inner.IsMock;
+        public async Task<AiResponse> CompleteAsync(AiRequest request, CancellationToken ct)
+        {
+            var response = await inner.CompleteAsync(request, ct);
+            if (request.Workflow == AiWorkflow.FinalSummary && request.PressId is { } press)
+            {
+                await using var conn = new NpgsqlConnection(connectionString);
+                await conn.OpenAsync(CancellationToken.None);
+                await using var cmd = new NpgsqlCommand($"update ai.lecture_notes set state = 'Unavailable', completed_at = now() where id = '{press}' and state = 'Pending'", conn);
+                await cmd.ExecuteNonQueryAsync(CancellationToken.None);
+            }
+            return response;
+        }
+    }
+
+    protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.ConfigureTestServices(s => s.AddSingleton<IAiClient>(sp => new ExpireOnFinal(sp.GetRequiredService<MockAiClient>(), ConnectionString)));
+    }
+}
+
+public class AiNotesFinalAfterExpiryTests(ExpireDuringFinalSummaryFactory factory) : NotesReviewTestBase(factory), IClassFixture<ExpireDuringFinalSummaryFactory>
+{
+    [Fact]
+    public async Task A_final_summary_revision_is_never_stored_or_pushed_for_a_press_that_expired_before_the_append()
+    {
+        var (a, id) = await StoppedSessionAsync(finals: 4);
+        await using var owner = await Rt.HubProbe.StartAsync(F, Rt.CookieOf(a.Client));
+        await owner.JoinAsync(id);
+
+        Assert.Equal(HttpStatusCode.Accepted, (await PressAsync(a.Client, id)).StatusCode);
+        Assert.Equal("Unavailable", (await WaitSettledAsync(a.Client, id)).GetProperty("status").GetString());
+        await WaitAsync(async () => await F.ScalarAsync($"select count(*) from ai.ai_usage where user_id = '{a.UserId}' and workflow = 'FinalSummary' and outcome <> 'reserved'") > 0, "the final call to settle");
+        await Task.Delay(300);
+
+        Assert.Equal(0, await F.ScalarAsync($"select count(*) from ai.summary_revisions where session_id = '{id}' and status = 'Final'"));
+        Assert.DoesNotContain(owner.Of("summary.revision"), e => e.GetProperty("payload").GetProperty("status").GetString() == "Final");
         await AssertNothingHeldAsync(a.UserId);
     }
 }
@@ -449,6 +561,58 @@ public class AiNotesPurgeGapTests(PurgeGapFactory factory) : NotesReviewTestBase
         Assert.Equal("Pending", (await (await bob.Client.GetAsync($"/api/v1/sessions/{waiting}/notes")).BodyAsync()).GetProperty("status").GetString());
         Assert.Equal(HttpStatusCode.NoContent, (await bob.Client.DeleteAsync($"/api/v1/sessions/{waiting}")).StatusCode);
         await WaitAsync(async () => await F.ScalarAsync($"select count(*) from ai.ai_usage where user_id = '{bob.UserId}' and outcome = 'reserved'") == 0, "bob's hold to be released");
+    }
+
+    // ---------- NAS-R02: the queue limit is enforced when the job starts, with no GET ----------
+
+    [Fact]
+    public async Task A_press_still_queued_past_the_queue_limit_is_never_started_even_if_nobody_reads_it()
+    {
+        var (alice, busy) = await StoppedSessionAsync();
+        var (bob, waiting) = await StoppedSessionAsync();
+        var opts = F.Services.GetRequiredService<AiOptions>();
+        var before = Mock.Calls;
+        Assert.Equal(HttpStatusCode.Accepted, (await PressAsync(alice.Client, busy)).StatusCode);
+        await WaitAsync(() => Task.FromResult(Mock.Calls >= before + 1), "alice's call to be in flight"); // the single worker is blocked
+        var res = await PressAsync(bob.Client, waiting);
+        Assert.Equal(HttpStatusCode.Accepted, res.StatusCode);
+        var bobPress = Guid.Parse((await res.BodyAsync()).GetProperty("notesId").GetString()!["nt_".Length..]);
+
+        // Bob closes the tab: from here on nobody sends a GET or a press for Bob. His press waits past the queue limit.
+        F.Clock.Advance(opts.Notes.MaxQueueWait + TimeSpan.FromSeconds(1));
+        Assert.Equal(HttpStatusCode.NoContent, (await alice.Client.DeleteAsync($"/api/v1/sessions/{busy}")).StatusCode); // frees the worker
+
+        await WaitAsync(async () => await StateOfPressAsync(bobPress) != "Pending", "bob's press to be dequeued");
+        Assert.Equal("Unavailable", await StateOfPressAsync(bobPress));
+        Assert.Equal(1, await F.ScalarAsync($"select count(*) from ai.lecture_notes where id = '{bobPress}' and started_at is null")); // never claimed
+        await Task.Delay(300); // give the job time to (wrongly) call
+        Assert.Equal(before + 1, Mock.Calls); // only Alice's cancelled call ever reached the provider
+        Assert.Equal(0, await F.ScalarAsync($"select count(*) from ai.ai_usage where user_id = '{bob.UserId}' and workflow in ('Notes', 'FinalSummary')"));
+    }
+
+    // ---------- NAS-R04: a session created in the purge gap ----------
+
+    [Fact]
+    public async Task A_session_started_in_the_purge_gap_gets_the_post_commit_deleted_notice_and_a_deletion_audit_row()
+    {
+        var a = await NewActorAsync();
+        var course = await CourseAsync(a.Client);
+        var old = await StoppedInCourseAsync(a, course, finals: 0);
+
+        var purge = await PurgeHeldInTheGapAsync(a, course);
+        // Another tab starts a new lecture in the course while the purge sits between its pre-commit notice and the commit.
+        var late = (await StartOkAsync(a.Client, course)).GetProperty("id").GetString()!;
+        G.Gap.Release.TrySetResult();
+        Assert.Equal(HttpStatusCode.NoContent, (await purge).StatusCode);
+
+        Assert.Equal(0, await F.ScalarAsync($"select count(*) from lectures.lecture_sessions where id in ('{late}', '{old}')")); // the cascade removed both
+        Assert.Equal(1, await F.ScalarAsync($"select count(*) from lectures.audit_events where session_id = '{late}' and action = 'session.delete'"));
+        Assert.Equal(1, await F.ScalarAsync($"select count(*) from lectures.audit_events where session_id = '{old}' and action = 'session.delete'"));
+        lock (G.Recorder.Deleted)
+        {
+            Assert.Contains((Guid.Parse(late), false), G.Recorder.Deleted); // announced deleted after the commit (cancel, tombstone, hub close)
+            Assert.Contains((Guid.Parse(old), false), G.Recorder.Deleted);
+        }
     }
 
     [Fact]

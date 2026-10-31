@@ -18,6 +18,30 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private sealed class FakeUser(Guid? id) : ICurrentUser { public Guid? UserId { get; } = id; }
 
+    /// <summary>
+    /// Rolls a module's migrations to <paramref name="target"/> (null = latest), retrying a deadlock or serialization failure. Reason
+    /// (2026-10-31, seen in a full-suite run as 40P01 at the Syllabus rollback): the test host keeps its own background workers running
+    /// (the syllabus worker polls extraction_jobs every 40 ms in tests), and a Down migration's DROP TABLE takes exclusive locks on several
+    /// tables in its own order, so PostgreSQL can pick the migration as the deadlock victim. Each migration runs in its own transaction
+    /// and is rolled back whole, so a retry is safe. Production never rolls back migrations under a running app; this is a harness race,
+    /// not a product path, and nothing else is retried.
+    /// </summary>
+    private static async Task MigrateWithRetryAsync(DbContext ctx, string? target)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try { await ctx.GetService<IMigrator>().MigrateAsync(target); return; }
+            catch (Exception ex) when (attempt < 5 && IsDeadlockOrSerialization(ex)) { await Task.Delay(Random.Shared.Next(50, 250)); }
+        }
+    }
+
+    private static bool IsDeadlockOrSerialization(Exception ex)
+    {
+        for (var e = ex; e is not null; e = e.InnerException)
+            if (e is PostgresException { SqlState: PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.SerializationFailure }) return true;
+        return false;
+    }
+
     private CoursesDbContext Ctx(Guid? user)
     {
         var fake = new FakeUser(user);
@@ -143,26 +167,26 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         var ai = scope.ServiceProvider.GetRequiredService<Tether.Ai.Persistence.AiDbContext>();
         var syllabus = scope.ServiceProvider.GetRequiredService<SyllabusDbContext>();
-        await syllabus.GetService<IMigrator>().MigrateAsync("0"); // Syllabus references Courses and Identity: it goes first on the way down
+        await MigrateWithRetryAsync(syllabus, "0"); // Syllabus references Courses and Identity: it goes first on the way down
         Assert.Empty(await syllabus.Database.GetAppliedMigrationsAsync());
-        await ai.GetService<IMigrator>().MigrateAsync("0");
-        await transcript.GetService<IMigrator>().MigrateAsync("0");
-        await lectures.GetService<IMigrator>().MigrateAsync("0");
-        await courses.GetService<IMigrator>().MigrateAsync("0");
-        await identity.GetService<IMigrator>().MigrateAsync("0");
+        await MigrateWithRetryAsync(ai, "0");
+        await MigrateWithRetryAsync(transcript, "0");
+        await MigrateWithRetryAsync(lectures, "0");
+        await MigrateWithRetryAsync(courses, "0");
+        await MigrateWithRetryAsync(identity, "0");
         Assert.Empty(await lectures.Database.GetAppliedMigrationsAsync());
         Assert.Empty(await courses.Database.GetAppliedMigrationsAsync());
         Assert.Empty(await identity.Database.GetAppliedMigrationsAsync());
 
-        await identity.GetService<IMigrator>().MigrateAsync();
-        await courses.GetService<IMigrator>().MigrateAsync();
-        await lectures.GetService<IMigrator>().MigrateAsync();
+        await MigrateWithRetryAsync(identity, null);
+        await MigrateWithRetryAsync(courses, null);
+        await MigrateWithRetryAsync(lectures, null);
         Assert.Empty(await lectures.Database.GetPendingMigrationsAsync());
-        await transcript.GetService<IMigrator>().MigrateAsync();
+        await MigrateWithRetryAsync(transcript, null);
         Assert.Empty(await transcript.Database.GetPendingMigrationsAsync());
-        await ai.GetService<IMigrator>().MigrateAsync();
+        await MigrateWithRetryAsync(ai, null);
         Assert.Empty(await ai.Database.GetPendingMigrationsAsync());
-        await syllabus.GetService<IMigrator>().MigrateAsync();
+        await MigrateWithRetryAsync(syllabus, null);
         Assert.Empty(await syllabus.Database.GetPendingMigrationsAsync());
         Assert.Empty(await courses.Database.GetPendingMigrationsAsync());
         Assert.Empty(await identity.Database.GetPendingMigrationsAsync());
@@ -247,23 +271,23 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var syllabus2 = scope.ServiceProvider.GetRequiredService<SyllabusDbContext>();
         try
         {
-            await syllabus2.GetService<IMigrator>().MigrateAsync("0");
-            await ai2.GetService<IMigrator>().MigrateAsync("0");
-            await transcript.GetService<IMigrator>().MigrateAsync("0");
-            await lectures.GetService<IMigrator>().MigrateAsync("0");
-            await courses.GetService<IMigrator>().MigrateAsync("0");
-            await identity.GetService<IMigrator>().MigrateAsync("0");
+            await MigrateWithRetryAsync(syllabus2, "0");
+            await MigrateWithRetryAsync(ai2, "0");
+            await MigrateWithRetryAsync(transcript, "0");
+            await MigrateWithRetryAsync(lectures, "0");
+            await MigrateWithRetryAsync(courses, "0");
+            await MigrateWithRetryAsync(identity, "0");
             Assert.Equal(0, await factory.ScalarAsync(
                 "select count(*) from pg_tables where schemaname in ('identity','courses','lectures','transcript','ai','syllabus') and tablename <> '__ef_migrations_history'"));
         }
         finally
         {
-            await identity.GetService<IMigrator>().MigrateAsync();
-            await courses.GetService<IMigrator>().MigrateAsync();
-            await lectures.GetService<IMigrator>().MigrateAsync();
-            await transcript.GetService<IMigrator>().MigrateAsync();
-            await ai2.GetService<IMigrator>().MigrateAsync();
-            await syllabus2.GetService<IMigrator>().MigrateAsync();
+            await MigrateWithRetryAsync(identity, null);
+            await MigrateWithRetryAsync(courses, null);
+            await MigrateWithRetryAsync(lectures, null);
+            await MigrateWithRetryAsync(transcript, null);
+            await MigrateWithRetryAsync(ai2, null);
+            await MigrateWithRetryAsync(syllabus2, null);
         }
     }
 }

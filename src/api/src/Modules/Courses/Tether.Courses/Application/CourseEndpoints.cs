@@ -122,7 +122,8 @@ internal static class CourseEndpoints
 
     /// <summary>DELETE archives (soft delete). <c>?purge=true</c> permanently deletes the course.</summary>
     private static async Task<IResult> Delete(Guid id, bool? purge, CoursesDbContext db, TimeProvider clock,
-        [Microsoft.AspNetCore.Mvc.FromServices] IEnumerable<ICourseLifecycleHandler> lifecycle, CancellationToken ct)
+        [Microsoft.AspNetCore.Mvc.FromServices] IEnumerable<ICourseLifecycleHandler> lifecycle,
+        [Microsoft.AspNetCore.Mvc.FromServices] Microsoft.Extensions.Logging.ILoggerFactory loggers, CancellationToken ct)
     {
         var course = await db.Courses.FirstOrDefaultAsync(c => c.Id == id, ct);
         if (course is null) return Problems.NotFound("Course not found.");
@@ -159,7 +160,12 @@ internal static class CourseEndpoints
             foreach (var h in lifecycle)
             {
                 try { await h.OnPurgedAsync(course.UserId, course.Id, CancellationToken.None); }
-                catch (Exception) { /* contract: handlers do not throw; the delete already happened */ }
+                catch (Exception ex)
+                {
+                    // Contract: handlers do not throw; the delete already happened. NAS-R04: never silently (type only, no message or content).
+                    Microsoft.Extensions.Logging.LoggerExtensions.LogWarning(loggers.CreateLogger("Tether.Courses.CoursePurge"),
+                        "Post-commit purge handler failed: {ExceptionType}", ex.GetType().Name);
+                }
             }
         }
         return Results.NoContent();

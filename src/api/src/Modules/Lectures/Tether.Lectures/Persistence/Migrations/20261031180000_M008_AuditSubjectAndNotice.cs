@@ -10,7 +10,7 @@ namespace Tether.Lectures.Persistence.Migrations
     /// <c>lectures.audit_events</c> (adding columns does not fire its row triggers; existing rows keep NULL):
     /// NAS-08 <c>subject_id</c>: the id the action names (for <c>notes.requested</c>, the press; the same id is on the press's AI ledger rows,
     /// so every vendor call can be linked back to the audited press). NAS-05 <c>notice_version</c>: the id of the DRAFT notice the student saw
-    /// (never its text), same shape as the syllabus noticeVersion. Down is dev-only (it drops the evidence the columns hold).
+    /// (never its text), same shape as the syllabus noticeVersion. Down is GUARDED (NAS-R06): it refuses while any row holds a value.
     /// </summary>
     [DbContext(typeof(LecturesDbContext))]
     [Migration("20261031180000_M008_AuditSubjectAndNotice")]
@@ -28,6 +28,15 @@ namespace Tether.Lectures.Persistence.Migrations
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // NAS-R06: GUARDED like A005. Dropping the columns would delete evidence from the append-only audit table; forward-fix instead.
+            migrationBuilder.Sql("""
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM lectures.audit_events WHERE subject_id IS NOT NULL OR notice_version IS NOT NULL) THEN
+                        RAISE EXCEPTION 'M008 cannot be rolled back: audit rows carry a subject or notice id (forward-fix instead)';
+                    END IF;
+                END $$;
+                """);
             migrationBuilder.Sql("""
                 ALTER TABLE lectures.audit_events
                     DROP CONSTRAINT ck_audit_events_notice_version,
