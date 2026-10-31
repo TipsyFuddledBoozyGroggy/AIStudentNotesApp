@@ -20,6 +20,8 @@ export const USERS = {
   sylOther: `e2e-syl-other-${id}@dev.local`,
   sylHostile: `e2e-syl-hostile-${id}@dev.local`,
   sylUpload: `e2e-syl-upload-${id}@dev.local`,
+  // Notes after Stop (slice 8a): its own user, because a user may have only one pending notes press across all lectures.
+  notes: `e2e-notes-${id}@dev.local`,
 } as const;
 export const authFile = (email: string) => path.join(AUTH_DIR, `${email}.json`);
 export const stateFor = (k: keyof typeof USERS) => authFile(USERS[k]);

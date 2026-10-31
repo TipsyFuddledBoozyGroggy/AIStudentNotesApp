@@ -19,6 +19,7 @@ import {
   StoppedPanel,
   type PausedVariant,
 } from "./Notices";
+import { NotesPanel } from "./NotesPanel";
 import type { LectureRuntime } from "./ports";
 import { usePrefs } from "../PrefsProvider";
 import { useLectureSettings, type LectureSettings } from "./settings";
@@ -249,6 +250,12 @@ export function LectureScreen(props: LectureScreenProps) {
       >
         <div className="min-w-0 space-y-6 xl:col-span-2 xl:grid xl:grid-cols-subgrid xl:gap-y-6 xl:space-y-0">
           {tldrInline ? <div className="min-w-0 xl:col-start-2">{tldr}</div> : null}
+          {/* Make notes (PO-18d, slice 8a): only while the server says Stopped (never Failed, Active, Paused, a mismatch or a
+              fatal state), first in the transcript column before the search tools. It places itself on the grid: the
+              block on the transcript track, the Ready sheet across the margin and transcript tracks like the recap sheet. */}
+          {stopped && serverState === "Stopped" && s.fatal === null && props.runtime.ai ? (
+            <NotesPanel ai={props.runtime.ai} summary={s.lecture.summary} onSummary={s.ingestSummary} onCite={onCite} />
+          ) : null}
           {stopped ? (
             // Review tools (design-direction slice 8, narrow): only once the lecture has ended, so nothing moves during it.
             // Toolbar grid (A10 / R9): the search field takes the column, the action ends on the column edge, helper below.

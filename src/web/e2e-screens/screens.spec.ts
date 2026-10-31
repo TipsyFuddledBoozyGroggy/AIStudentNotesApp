@@ -49,6 +49,8 @@ const SKIN_SCREENS = [
   "lecture-live",
   "lecture-quick-recap",
   "lecture-paused",
+  // Slice 8a: the Ready notes sheet in every look (make-notes-rail-demo-notice 1.9 item 12).
+  "lecture-notes-ready",
   "syllabus-new",
   "syllabus-review",
 ];
@@ -122,6 +124,10 @@ const SCREENS: Screen[] = [
   { name: "lecture-disconnected", auth: "none", url: () => "/dev/lecture-harness/disconnected", ready: fixture },
   { name: "lecture-mismatch", auth: "none", url: () => "/dev/lecture-harness/mismatch", ready: fixture },
   { name: "lecture-stopped", auth: "none", url: () => "/dev/lecture-harness/stopped", ready: fixture },
+  // Slice 8a (PO-18d): the Notes block after Stop in its states (harness stand-in, source "mock").
+  { name: "lecture-notes-pending", auth: "none", url: () => "/dev/lecture-harness/stopped-notes-pending", ready: (p) => expect(p.getByTestId("notes-pending")).toBeVisible() },
+  { name: "lecture-notes-ready", auth: "none", url: () => "/dev/lecture-harness/stopped-notes-ready", ready: (p) => expect(p.locator("#lecture-notes.lecture-sheet")).toBeVisible() },
+  { name: "lecture-notes-unavailable", auth: "none", url: () => "/dev/lecture-harness/stopped-notes-unavailable", ready: (p) => expect(p.getByTestId("notes-status")).toBeVisible() },
   { name: "lecture-mic-denied", auth: "none", url: () => "/dev/lecture-harness/mic-denied", ready: fixture },
   { name: "ui-kit", auth: "none", url: () => "/dev/ui-kit", ready: (p) => h1(p, /UI kit/) },
 ];

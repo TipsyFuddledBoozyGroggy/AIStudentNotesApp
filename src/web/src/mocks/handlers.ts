@@ -1,5 +1,6 @@
 import { http, HttpResponse } from "msw";
 import * as db from "./db";
+import { finalSummaryFor, notesHandlers } from "./notesHandlers";
 import { syllabusHandlers } from "./syllabusHandlers";
 
 // Wildcard host so handlers match both relative (browser) and absolute (tests) URLs.
@@ -69,6 +70,9 @@ export const handlers = [
     if (!db.currentUser()) return unauth();
     if (params.id === "ses_missing") return problem(404, "not_found", "Session not found.");
     if (params.id === "ses_nosummary") return problem(404, "not_found", "No summary yet.");
+    // After a Ready "Make notes" press the latest revision is the Final one it made (contract 17).
+    const final = finalSummaryFor(String(params.id));
+    if (final) return HttpResponse.json(final);
     return HttpResponse.json({
       revision: 2,
       basedOnSeq: "9",
@@ -122,6 +126,9 @@ export const handlers = [
       gaps: [],
     });
   }),
+
+  // Notes after Stop (PO-18d): see notesHandlers.ts for scenarios.
+  ...notesHandlers,
 
   // syllabus.v1 (Phase 2, mock calendar only): see syllabusHandlers.ts for scenarios.
   ...syllabusHandlers,

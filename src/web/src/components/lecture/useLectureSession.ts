@@ -10,6 +10,7 @@ import {
   selectSegments,
   type LectureState,
   type RecordingIndicator,
+  type SummaryRevisionPayload,
 } from "@/lib/lecture";
 import { useAnnouncer } from "./Announcer";
 import { FinalsBatcher, TLDR_INTERVAL_MS } from "./announcerQueue";
@@ -463,6 +464,16 @@ export function useLectureSession(opts: UseLectureSessionOptions) {
     }
   }, [runtime, stopTrack, fail, setPending]);
 
+  /**
+   * A summary revision read over REST (the Final one a "Make notes" press made, PO-18d) enters the reducer exactly like a
+   * hub summary.revision: a stale or equal revision is ignored there.
+   */
+  const ingestSummary = useCallback(
+    (payload: SummaryRevisionPayload) =>
+      dispatch({ kind: "event", event: { v: 1, type: "summary.revision", sessionId: runtime.sessionId, seq: null, ts: new Date().toISOString(), payload } }),
+    [runtime],
+  );
+
   /** Rebuild state from the server (Join without a resume point); never restarts capture. */
   const checkAgain = useCallback(() => {
     stopTrack();
@@ -503,6 +514,7 @@ export function useLectureSession(opts: UseLectureSessionOptions) {
     resume,
     stop,
     checkAgain,
+    ingestSummary,
   };
 }
 

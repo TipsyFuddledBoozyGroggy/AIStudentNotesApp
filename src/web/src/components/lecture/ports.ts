@@ -1,4 +1,4 @@
-import type { CatchUpPayload, HubEvent, JoinRequest, JoinResponse, Seq, SummaryRevisionPayload, TranscriptPage, WindowMinutes } from "@/lib/lecture";
+import type { CatchUpPayload, HubEvent, JoinRequest, JoinResponse, LectureNotes, Seq, SummaryRevisionPayload, TranscriptPage, WindowMinutes } from "@/lib/lecture";
 import type { AudioLink } from "@/lib/lecture/realtime/audioStreamer";
 
 /** Hub + REST-paging transport. The harness wraps MockLectureSource to satisfy this; the real hub comes later. */
@@ -30,6 +30,14 @@ export interface LectureAi {
   startQuickRecap(windowMinutes: WindowMinutes, idempotencyKey: string): Promise<CatchUpPayload>;
   /** null when the catch-up is unknown (404). */
   getCatchUp(catchUpId: string): Promise<CatchUpPayload | null>;
+  /**
+   * Notes after Stop (PO-18d). The ONLY call that sends a stopped lecture's transcript to the AI; the UI makes it only from a
+   * deliberate "Make notes" press. One press = one idempotencyKey (the same key only to retry that press after a network
+   * failure). Optional so harness stand-ins without it simply show no Notes block; the real runtime always has both.
+   */
+  requestNotes?(idempotencyKey: string): Promise<LectureNotes>;
+  /** Newest notes attempt; null while nothing was pressed yet (409 invalid_state). 404 and failures reject with ApiError. */
+  getNotes?(): Promise<LectureNotes | null>;
 }
 
 export interface LectureRuntime {

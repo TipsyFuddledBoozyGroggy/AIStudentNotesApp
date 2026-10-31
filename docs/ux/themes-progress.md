@@ -45,7 +45,13 @@ fills the Paused / Offline / Mismatch notes with their state tint (Fatal stays u
 and sets notes under the bar 24px apart; wording byte-identical, recording pill unchanged, consent files untouched. 8c
 (PO-18b) moves the syllabus Calendar step into a reserved 20rem sticky track beside the groups from 1280 (in the flow
 below), with a scroll-scan geometry test. Themes impact: paint only; the landmark gate (14 looks) stays green; no skin
-rule touches the new note fill, the Demo note or the review rail. 8a (Make notes UI) waits for a backend change.
+rule touches the new note fill, the Demo note or the review rail. **Redesign-round2 slice 8a IMPLEMENTED 2026-10-31**
+("Slice 8a results" in `redesign-round2.md`; PO-18d option B; not committed): after Stop a "Notes" block in the transcript
+column offers one "Make notes" press (DRAFT disclosure, G1 BLOCKED), polls while Pending and turns into a Ready lecture
+sheet with cited bullets; the TL;DR row captions a Final revision. Themes impact: paint only. The Ready sheet reuses
+`.lecture-sheet`, `.synthesis` (h3 follows each skin's heading face), `.hang-row` and `.cite`; no new CSS rule and no skin
+rule; a new geometry test holds the Ready sheet's x / y / width equal across the 14 looks at 390 and 1280 and checks that
+in every look the h3 differs from the 17/28 bullets by face or size; `lecture-notes-ready` is captured in the skin looks.
 
 ## T0 token plumbing (DONE)
 Files changed:

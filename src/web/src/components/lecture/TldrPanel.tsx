@@ -55,6 +55,12 @@ export function TldrPanel({ summary, status, onCite, collapsible = false, live =
           </button>
         ) : null}
       </div>
+      {/* The Final revision a "Make notes" press made (PO-18d): a caption only; it never expands, moves focus or announces. */}
+      {shown?.status === "Final" ? (
+        <p data-testid="tldr-final" className="mt-1 text-sm text-muted">
+          {C.final}
+        </p>
+      ) : null}
       {shown?.source === "mock" ? (
         <p className="stamp-line mt-2">
           <DemoSummaryTag />

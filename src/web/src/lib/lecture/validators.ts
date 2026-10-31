@@ -30,8 +30,12 @@ export interface LectureValidators {
 
 const ID_RE = /\/lecture\.v1\/([^/]+)\.schema\.json$/;
 
-export function createLectureValidators(schemas: SchemaDoc[]): LectureValidators {
-  const ajv = new Ajv2020({ strict: true, strictTypes: false, allErrors: true, validateFormats: false });
+/**
+ * `unicodeRegExp` (Ajv's default is true) selects the regex engine mode: true compiles every `pattern` with the `u` flag
+ * (code points), as the syllabus R3-07 test does; notesContract.test.ts passes it explicitly for the notes schemas.
+ */
+export function createLectureValidators(schemas: SchemaDoc[], opts: { unicodeRegExp?: boolean } = {}): LectureValidators {
+  const ajv = new Ajv2020({ strict: true, strictTypes: false, allErrors: true, validateFormats: false, unicodeRegExp: opts.unicodeRegExp ?? true });
   const idByName = new Map<string, string>();
   for (const s of schemas) {
     const m = ID_RE.exec(s.$id);

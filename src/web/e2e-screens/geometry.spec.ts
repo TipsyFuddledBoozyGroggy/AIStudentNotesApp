@@ -410,6 +410,86 @@ test("slice 8b: lecture bar one row at 1280 in every fixture; one-line Demo note
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
+// Slice 8a (PO-18d; make-notes-rail-demo-notice 1.9 items 10 and 11). Paper at 320 / 390 / 1280 / 1440: the entry block
+// sits on the transcript track like the review toolbar (its heading on the search field's edge); the Ready sheet has the
+// transcript sheet's box, paints from the same track, puts its heading on the transcript heading's text edge and hangs
+// its lead citation times in the margin with the transcript times; below 640 it is square and full-bleed; every citation
+// is a 44px target; nothing scrolls sideways. Then the Ready sheet across the 14 looks at 390 and 1280: the same x, y and
+// width within 1px (height may grow only by heading-face lines, as the landmark gate allows), and in every look the h3
+// differs from the bullet text by face or by size.
+test("slice 8a: Make notes block and Ready sheet geometry; the Ready sheet equal across the 14 looks", async () => {
+  test.setTimeout(600_000);
+  const measured: string[] = [];
+  for (const width of [320, 390, 1280, 1440] as const) {
+    for (const fixture of ["stopped", "stopped-notes-ready"] as const) {
+      const { page, close } = await open(browser, `/dev/lecture-harness/${fixture}`, width);
+      await expect(page.locator("#lecture-notes")).toBeVisible();
+      const problems: string[] = [];
+      const notes = await box(page.locator("#lecture-notes"));
+      const sheet = await box(page.locator(".transcript-panel"));
+      const h2 = await box(page.locator("#notes-h2"));
+      if (fixture === "stopped") {
+        const field = await box(page.locator("#lecture-search"));
+        if (!near(h2.x, field.x, 1)) problems.push(`entry heading x ${h2.x} vs search field ${field.x}`);
+        if (width >= 1280 && !near(notes.x, field.x, 1)) problems.push(`entry block x ${notes.x} vs transcript track ${field.x}`);
+      } else {
+        if (!near(notes.x, sheet.x, 1) || !near(notes.width, sheet.width, 1)) problems.push(`sheet ${notes.x} w${notes.width} vs transcript sheet ${sheet.x} w${sheet.width}`);
+        const th = await box(page.getByRole("heading", { level: 2, name: "Transcript" }));
+        if (!near(h2.x, th.x, 1)) problems.push(`heading x ${h2.x} vs transcript heading ${th.x}`);
+        const before = await page.evaluate(() => [document.getElementById("lecture-notes")!, document.querySelector(".transcript-panel")!].map((e) => getComputedStyle(e, "::before").left));
+        if (before[0] !== before[1]) problems.push(`painted start ${before[0]} vs ${before[1]}`);
+        const lead = await box(page.locator("[data-notes-bullet] .cite").first());
+        const time = await box(page.locator(".transcript-time").first());
+        if (width >= 1280 && !near(lead.x, time.x, 1)) problems.push(`lead citation x ${lead.x} vs transcript time ${time.x}`);
+        if (width < 640 && (await page.locator("#lecture-notes").evaluate((e) => getComputedStyle(e).borderTopLeftRadius)) !== "0px") problems.push("phone sheet not square");
+        for (const c of await page.locator("#lecture-notes .cite").all()) {
+          const b = await box(c);
+          if (b.height < 44 || b.width < 44) problems.push(`citation ${b.width}x${b.height}`);
+        }
+      }
+      const over = await overflowX(page);
+      if (over > 0) problems.push(`horizontal overflow ${over}px`);
+      measured.push(`${fixture}@${width}: notes x${Math.round(notes.x)} w${Math.round(notes.width)} h${Math.round(notes.height)}`);
+      expect(problems, `${fixture} @ ${width}`).toEqual([]);
+      await close();
+    }
+  }
+  for (const width of [390, 1280] as const) {
+    const measure = async (prefs: Record<string, unknown>) => {
+      const { page, close } = await open(browser, "/dev/lecture-harness/stopped-notes-ready", width, { prefs });
+      await expect(page.locator("#lecture-notes")).toBeVisible();
+      const r = await landmark(page.locator("#lecture-notes"));
+      const faces = await page.evaluate(() => {
+        const h3 = getComputedStyle(document.querySelector("#lecture-notes h3")!);
+        const li = getComputedStyle(document.querySelector("#lecture-notes [data-notes-bullet] span.max-w-prose")!);
+        return { differ: h3.fontFamily !== li.fontFamily || h3.fontSize !== li.fontSize, liSize: li.fontSize, liLine: li.lineHeight };
+      });
+      await close();
+      return { r, faces };
+    };
+    const base = await measure({ skin: "paper", theme: "light" });
+    const diffs: string[] = [];
+    for (const skin of SKINS) {
+      for (const theme of MODES) {
+        const variants: Record<string, unknown>[] =
+          skin === "gamer" ? [{ skin, theme }, { skin, theme, texture: true }] : skin === "glass" ? [{ skin, theme }, { skin, theme, solid: true }] : [{ skin, theme }];
+        for (const prefs of variants) {
+          const { r, faces } = await measure(prefs);
+          const extra = Math.max(0, r.headingPx - base.r.headingPx);
+          const dh = r.height - base.r.height;
+          const heightOk = near(dh, 0) || (extra > 0 && dh > 0 && dh <= extra + 1);
+          if (!near(r.x, base.r.x) || !near(r.y, base.r.y) || !near(r.width, base.r.width) || !heightOk) diffs.push(`${JSON.stringify(prefs)}: ${fmt(r)} vs paper ${fmt(base.r)}`);
+          if (!faces.differ) diffs.push(`${JSON.stringify(prefs)}: h3 and bullets share face and size`);
+          if (faces.liSize !== "17px" || faces.liLine !== "28px") diffs.push(`${JSON.stringify(prefs)}: bullets ${faces.liSize}/${faces.liLine}`);
+        }
+      }
+    }
+    expect(diffs, `Ready sheet differs across looks at ${width}`).toEqual([]);
+  }
+  console.log(`[slice 8a] ${measured.join("; ")}`);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
 // Slice 8c (PO-18b; make-notes-rail-demo-notice 3.5 items 1 and 2): from 1280 the Calendar step sits in a reserved 20rem
 // sticky track to the right of the groups. Rail geometry at scroll 0, then a scroll scan every 200px from the top to the
 // bottom of the page, with the first group open and with every group open: no item row, no button in a row and no group

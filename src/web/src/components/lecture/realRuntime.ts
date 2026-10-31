@@ -1,5 +1,6 @@
 import { ApiError, type ApiClient, type LectureSessionDto } from "@/lib/api";
-import { parseCatchUp, parseSummary } from "@/lib/lecture";
+import { parseCatchUp, parseNotes, parseSummary } from "@/lib/lecture";
+import { NOTES_NOTICE_VERSION } from "./copy";
 import { HubTransport } from "@/lib/lecture/realtime/hubTransport";
 import { AudioStreamer, type AudioLink, type AudioLinkEvent, type AudioLinkState, type SocketLike } from "@/lib/lecture/realtime/audioStreamer";
 import { startWorkletCapture } from "@/lib/lecture/realtime/capture";
@@ -76,6 +77,23 @@ export function createRealAi(api: ApiClient, sessionId: string): LectureAi {
         return body;
       } catch (e) {
         if (e instanceof ApiError && e.isNotFound) return null;
+        throw e;
+      }
+    },
+    // Notes after Stop (PO-18d). The body names the DRAFT notice shown beside the button (G1); only a press calls this.
+    async requestNotes(key) {
+      const body = parseNotes(await api.postNotes(sessionId, NOTES_NOTICE_VERSION, key));
+      if (!body) throw badBody();
+      return body;
+    },
+    async getNotes() {
+      try {
+        const body = parseNotes(await api.getNotes(sessionId));
+        if (!body) throw badBody();
+        return body;
+      } catch (e) {
+        // 409 invalid_state on GET means "nothing pressed yet" (contract 17); 404 and everything else reject.
+        if (e instanceof ApiError && e.status === 409) return null;
         throw e;
       }
     },

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { loadUsualWindow, saveUsualWindow, type UsualWindow } from "./settings";
 import { PlainText, type CatchUpPayload, type Citation, type ClaimBasis, type WindowMinutes } from "@/lib/lecture";
-import { DEMO_SUMMARY_COPY, QUICK_RECAP_COPY as C } from "./copy";
+import { DEMO_SUMMARY_COPY, NOTES_COPY, QUICK_RECAP_COPY as C } from "./copy";
 import { formatMs } from "./format";
 import type { LectureAi } from "./ports";
 import type { QuickRecap } from "./useQuickRecap";
@@ -14,12 +14,28 @@ const WINDOWS: WindowMinutes[] = [2, 5, 10];
  * Demo summary stamp (slice 2 Stamp): the tag beside its sentence. Wording and test id unchanged; shown wherever text came
  * from the deterministic mock, never hidden or dismissible. Sits inside a `.stamp-line` so the sentence is sm muted.
  */
+// Presentation unchanged from before the redesign (PO-17b / gate G1: Demo-source labels are not restyled). One class string
+// for both Demo tags, so the notes tag (slice 8a) is the Demo summary presentation by construction.
+export const DEMO_TAG_CLASS = "inline-block rounded-control border border-warning bg-warning-subtle px-2.5 py-1 text-xs font-bold text-warning";
+
 export function DemoSummaryTag({ className = "" }: { className?: string }) {
-  // Presentation unchanged from before the redesign (PO-17b / gate G1: Demo-source labels are not restyled). A span, so it nests
-  // inside the stamp line paragraph; inline-block keeps the old box.
+  // A span, so it nests inside the stamp line paragraph; inline-block keeps the old box.
   return (
-    <span data-testid="demo-summary-tag" className={`inline-block rounded-control border border-warning bg-warning-subtle px-2.5 py-1 text-xs font-bold text-warning ${className}`}>
+    <span data-testid="demo-summary-tag" className={`${DEMO_TAG_CLASS} ${className}`}>
       {DEMO_SUMMARY_COPY.tag}
+      <span className="font-normal">: {DEMO_SUMMARY_COPY.note}</span>
+    </span>
+  );
+}
+
+/**
+ * Notes made by the deterministic mock (source === "mock", PO-18d): the Demo summary presentation with the word "Demo notes"
+ * (Lead answer 2, a DRAFT Demo word, G1) and the unchanged sentence. Never hidden or dismissible.
+ */
+export function DemoNotesTag({ className = "" }: { className?: string }) {
+  return (
+    <span data-testid="demo-notes-tag" className={`${DEMO_TAG_CLASS} ${className}`}>
+      {NOTES_COPY.demoTag}
       <span className="font-normal">: {DEMO_SUMMARY_COPY.note}</span>
     </span>
   );

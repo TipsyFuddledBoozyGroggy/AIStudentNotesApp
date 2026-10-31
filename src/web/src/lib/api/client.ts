@@ -1,3 +1,4 @@
+import { notesRequestBody } from "@/lib/lecture/aiPayloads";
 import { ApiError } from "./errors";
 import type { AudioTicket, Course, CourseList, CreateCourseInput, CreateSessionInput, LectureSessionDto, ProblemDetails, UserProfile } from "./types";
 
@@ -32,6 +33,16 @@ export interface ApiClient {
   postQuickRecap(id: string, windowMinutes: 2 | 5 | 10, idempotencyKey: string): Promise<unknown>;
   /** Poll fallback for catchup.ready. 404 when unknown. Raw body. */
   getCatchUp(id: string, catchUpId: string): Promise<unknown>;
+  /**
+   * Make notes after Stop (PO-18d, API_CONTRACTS section 17): body exactly `{"noticeVersion": "<id>"}`, Idempotency-Key
+   * required (a fresh key per deliberate press; the SAME key only to retry that press after a network failure).
+   * 202 + Location for a new attempt, 200 for a press already running or finished (key replay: Idempotency-Replayed).
+   * Errors: 400 validation_failed, 401, 403 csrf_failed, 404, 409 invalid_state (not Stopped), 415, 429 rate_limited.
+   * Raw body; the caller parses it strictly.
+   */
+  postNotes(id: string, noticeVersion: string, idempotencyKey: string): Promise<unknown>;
+  /** Newest notes attempt. 404 foreign or missing; 409 invalid_state while nothing was pressed yet. Raw body. */
+  getNotes(id: string): Promise<unknown>;
 }
 
 export interface ApiClientOptions {
@@ -137,6 +148,17 @@ export function createApiClient({ baseUrl, fetchImpl }: ApiClientOptions): ApiCl
     },
     async getCatchUp(id, catchUpId) {
       return (await request(`/sessions/${encodeURIComponent(id)}/catch-ups/${encodeURIComponent(catchUpId)}`)).json();
+    },
+    async postNotes(id, noticeVersion, idempotencyKey) {
+      const res = await request(`/sessions/${encodeURIComponent(id)}/notes`, {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify(notesRequestBody(noticeVersion)),
+      });
+      return res.json();
+    },
+    async getNotes(id) {
+      return (await request(`/sessions/${encodeURIComponent(id)}/notes`)).json();
     },
   };
 }

@@ -91,6 +91,47 @@ export interface CatchUpPayload {
   gaps?: string[];
 }
 
+/** Notes made by one deliberate press after Stop (PO-18d; lecture.v1/notes.schema.json, API_CONTRACTS section 17). */
+export type NotesStatus = "Pending" | "Ready" | "Unavailable" | "BudgetLimited" | "NotNeeded";
+export type FinalSummaryStatus = "Ready" | "Unavailable" | "BudgetLimited" | "NotNeeded";
+
+export interface NotesBullet {
+  /** Untrusted plain text (C-28). */
+  text: string;
+  /** 1 to 8, each a stored final segment of the same session. */
+  citations: Citation[];
+}
+
+export interface NotesSection {
+  /** Untrusted plain text (C-28). */
+  heading: string;
+  bullets: NotesBullet[];
+}
+
+export interface LectureNotes {
+  notesId: string;
+  revision: number;
+  status: NotesStatus;
+  /** Only on Ready. */
+  source: AiSource | null;
+  requestedAt: string;
+  generatedAt: string | null;
+  coveredFromMs: number | null;
+  coveredToMs: number | null;
+  /** Only Ready has sections (at least one). */
+  sections: NotesSection[];
+  /** The Final summary revision made by the same press; set exactly when finalSummaryStatus is Ready. */
+  finalSummaryRevision: number | null;
+  /** Only on Ready (null otherwise). */
+  finalSummaryStatus: FinalSummaryStatus | null;
+  truncated: boolean;
+}
+
+/** Body of POST /sessions/{id}/notes (notes-request.schema.json): exactly this one member. */
+export interface NotesRequest {
+  noticeVersion: string;
+}
+
 export type SessionStateEvent = Envelope<"session.state", Seq, { state: SessionState; reason?: string }>;
 export type TranscriptPartialEvent = Envelope<
   "transcript.partial",

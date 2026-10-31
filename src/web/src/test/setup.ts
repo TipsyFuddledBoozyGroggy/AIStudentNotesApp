@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll } from "vitest";
 import { resetMockDb } from "@/mocks/db";
+import { resetNotesMock } from "@/mocks/notesHandlers";
 import { server } from "@/mocks/server";
 import { resetSyllabusDb } from "@/mocks/syllabusDb";
 
@@ -11,6 +12,7 @@ afterEach(() => {
   server.resetHandlers();
   resetMockDb();
   resetSyllabusDb();
+  resetNotesMock();
   window.localStorage.clear();
 });
 afterAll(() => server.close());

@@ -17,8 +17,8 @@ export function loadSchemasFromDisk(dir = contractsDir()): SchemaDoc[] {
     .map((f) => JSON.parse(fs.readFileSync(path.join(schemaDir, f), "utf8")) as SchemaDoc);
 }
 
-export function loadValidatorsFromDisk(dir = contractsDir()): LectureValidators {
-  return createLectureValidators(loadSchemasFromDisk(dir));
+export function loadValidatorsFromDisk(dir = contractsDir(), opts: { unicodeRegExp?: boolean } = {}): LectureValidators {
+  return createLectureValidators(loadSchemasFromDisk(dir), opts);
 }
 
 /**

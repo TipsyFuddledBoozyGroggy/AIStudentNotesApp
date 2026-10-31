@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import * as b from "@/lib/lecture/builders";
-import type { HubEvent } from "@/lib/lecture";
+import type { HubEvent, LectureNotes } from "@/lib/lecture";
 import { AnnouncerProvider } from "../Announcer";
 import { ConsentStart } from "../ConsentStart";
 import { createHarnessRuntime, type HarnessControls, type HarnessRuntimeOptions } from "../harnessRuntime";
@@ -75,6 +75,92 @@ const fakeAi: LectureAi = {
   }),
   getCatchUp: async () => null,
 };
+
+// --- Notes after Stop (PO-18d, slice 8a): deterministic stand-ins for POST/GET /notes, demo-labelled (source "mock"). ---
+
+const NOTES_BASE: LectureNotes = {
+  notesId: "nt_0123456789abcdef0123456789abcdef",
+  revision: 1,
+  status: "Pending",
+  source: null,
+  requestedAt: "2026-10-31T14:02:11Z",
+  generatedAt: null,
+  coveredFromMs: null,
+  coveredToMs: null,
+  sections: [],
+  finalSummaryRevision: null,
+  finalSummaryStatus: null,
+  truncated: false,
+};
+
+export const NOTES_READY: LectureNotes = {
+  ...NOTES_BASE,
+  status: "Ready",
+  source: "mock",
+  generatedAt: "2026-10-31T14:02:13Z",
+  coveredFromMs: 1000,
+  coveredToMs: 9900,
+  sections: [
+    {
+      heading: "Derivatives and the power rule",
+      bullets: [
+        { text: "The derivative of x squared is two x.", citations: [{ segmentId: "seg_1", startMs: 1000 }] },
+        {
+          text: "The power rule says bring the exponent down.",
+          citations: [
+            { segmentId: "seg_2", startMs: 2000 },
+            { segmentId: "seg_1", startMs: 1000 },
+          ],
+        },
+      ],
+    },
+    { heading: "The chain rule", bullets: [{ text: "The chain rule comes next.", citations: [{ segmentId: "seg_3", startMs: 9000 }] }] },
+  ],
+  finalSummaryRevision: 2,
+  finalSummaryStatus: "Ready",
+};
+
+const FINAL_SUMMARY = {
+  revision: 2,
+  basedOnSeq: "6",
+  tldr: "Derivatives, the power rule and the chain rule.",
+  bullets: ["Power rule: bring the exponent down.", "Chain rule: outer derivative times inner derivative."],
+  coveredFromMs: 0,
+  coveredToMs: 9900,
+  status: "Final" as const,
+  citations: [{ segmentId: "seg_2", startMs: 2000 }],
+  source: "mock" as const,
+};
+
+/**
+ * Notes stand-in. `initial` is what GET answers before any press (null = 409, nothing pressed). A press answers `onPress`
+ * (default Pending, a new attempt), after which GET answers `afterPress` (default Ready with the Final summary).
+ */
+function notesAi(o: { initial: LectureNotes | null; onPress?: LectureNotes; afterPress?: LectureNotes }): LectureAi {
+  let current = o.initial;
+  let pressed = false;
+  let attempt = o.initial?.revision ?? 0;
+  return {
+    ...fakeAi,
+    getSummary: async () => (pressed || o.initial?.status === "Ready" ? FINAL_SUMMARY : null),
+    getNotes: async () => current,
+    requestNotes: async () => {
+      await new Promise((r) => setTimeout(r, 300));
+      if (current && current.status !== "Unavailable" && current.status !== "BudgetLimited") return current; // a replay
+      attempt += 1;
+      pressed = true;
+      const answer = { ...(o.onPress ?? { ...NOTES_BASE, status: "Pending" as const }), revision: attempt };
+      current = { ...(o.afterPress ?? NOTES_READY), revision: attempt };
+      return answer;
+    },
+  };
+}
+
+const stoppedNotes = (ai: LectureAi, extra: HubEvent[] = []): Spec["live"] => ({
+  events: [...lines("Stopped", "user"), ...extra],
+  track: "ended",
+  rt: { ai },
+});
 
 export const FIXTURES: Record<string, Spec> = {
   "consent": {
@@ -172,9 +258,38 @@ export const FIXTURES: Record<string, Spec> = {
     live: { events: lines("Paused", "auto_pause_no_audio"), track: "ended" },
   },
   "stopped": {
-    title: "Stopped",
-    ux: "3, 9",
-    live: { events: lines("Stopped", "user"), track: "ended" },
+    // Slice 8a: the real runtime always has the AI routes, so a Stopped lecture offers "Make notes" (and keeps the Quick
+    // recap dock, as built). Pressing it here runs the deterministic stand-in: Pending, then Ready on the next poll.
+    title: "Stopped (Make notes offered)",
+    ux: "3, 9; notes 1",
+    live: stoppedNotes(notesAi({ initial: null })),
+  },
+  "stopped-notes-pending": {
+    title: "Stopped, notes being written",
+    ux: "notes 1.3 pending",
+    live: stoppedNotes(notesAi({ initial: { ...NOTES_BASE, status: "Pending" } })),
+  },
+  "stopped-notes-ready": {
+    title: "Stopped, notes ready (demo notes, final summary)",
+    ux: "notes 1.4 ready",
+    live: stoppedNotes(notesAi({ initial: NOTES_READY }), [b.summaryEvent(SID, 2, FINAL_SUMMARY.tldr, FINAL_SUMMARY)]),
+  },
+  "stopped-notes-ready-truncated": {
+    title: "Stopped, notes ready but cut at the end; the final summary step stopped",
+    ux: "notes 1.3 truncated, finalKept",
+    live: stoppedNotes(
+      notesAi({ initial: { ...NOTES_READY, coveredToMs: 9000, truncated: true, finalSummaryRevision: null, finalSummaryStatus: "Unavailable" } }),
+    ),
+  },
+  "stopped-notes-unavailable": {
+    title: "Stopped, notes could not be made (press again offered)",
+    ux: "notes 1.3 unavailable",
+    live: stoppedNotes(notesAi({ initial: { ...NOTES_BASE, status: "Unavailable" } })),
+  },
+  "stopped-notes-not-needed": {
+    title: "Stopped, no words so no notes",
+    ux: "notes 1.3 not needed",
+    live: stoppedNotes(notesAi({ initial: { ...NOTES_BASE, status: "NotNeeded" } })),
   },
   "stopped-auto": {
     title: "Stopped automatically (paused too long)",

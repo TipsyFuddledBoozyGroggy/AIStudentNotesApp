@@ -6,6 +6,15 @@
 /** Must equal ConsentTextRegistry.DraftV2 on the server (src/api/.../ConsentTextRegistry.cs); its text is the dialog checkbox sentence. */
 export const CONSENT_TEXT_VERSION = "draft-2";
 
+/**
+ * Id of the DRAFT notice the student sees beside "Make notes" (NOTES_COPY.intro and .whatIsSentBody), sent as the body of
+ * POST /sessions/{id}/notes (`{"noticeVersion": ...}`, notes-request.schema.json) and stored with the press and its audit
+ * row. Gate G1 (BLOCKED): the wording and this version label are counsel-pending placeholders owned by counsel and the
+ * Product Owner; PO-18d is a risk acceptance for personal use, not clearance. It must equal one of the server's
+ * `Ai:Notes:NoticeVersions` (today only this one). Change the wording and this id together, never one alone.
+ */
+export const NOTES_NOTICE_VERSION = "notes-notice-draft-1";
+
 export const DEMO_SOURCE_TAG = "Demo source: replayed test audio";
 
 export const DEMO_NOTICE_COPY = {
@@ -193,7 +202,51 @@ export const TLDR_COPY = {
   showMore: "Show more",
   showLess: "Show less",
   from: (t: string) => `From ${t}`,
+  /** Caption in the TL;DR row when the shown revision is the Final one a "Make notes" press made (PO-18d). */
+  final: "Final summary",
 } as const;
+
+/**
+ * Notes after Stop (PO-18d, docs/ux/make-notes-rail-demo-notice.md 1.3; copy.test.ts pins every string against that table).
+ * DRAFT (G1, BLOCKED): `intro` and `whatIsSentBody` disclose what is sent, to whom and what Delete cannot recall; they end in
+ * the visible "(Draft wording.)" suffix and go with NOTES_NOTICE_VERSION. `demoTag` is a new Demo word (Lead answer 2), also
+ * counsel-pending. Nothing here is human-validated (G4).
+ */
+export const NOTES_COPY = {
+  heading: "Notes",
+  intro:
+    "Pressing Make notes sends this lecture's transcript to the AI service to write notes and a final summary. Nothing is sent unless you press it. (Draft wording.)",
+  make: "Make notes",
+  whatIsSent: "What is sent?",
+  whatIsSentBody:
+    "The whole transcript of this lecture, including words from anyone else who spoke. The AI service may keep a copy under its terms. Deleting this lecture here does not remove that copy. (Draft wording.)",
+  pending: "Writing notes from the transcript. You can leave this page and come back. The notes will be here when they are ready.",
+  pendingAnnounce: "Writing notes. You can leave and come back.",
+  readyAnnounce: "Notes ready.",
+  covers: (from: string, to: string) => `Covers ${from} to ${to}.`,
+  truncated: (to: string) => `These notes stop at ${to}. The lecture ran longer than the notes can cover. The transcript after ${to} is kept below.`,
+  finalDone: "The TL;DR was updated to its final version.",
+  finalKept: "The TL;DR keeps its last version from the lecture.",
+  notNeeded: "This transcript has no words, so there are no notes to make. Nothing was sent.",
+  notNeededAnnounce: "No notes to make. Nothing was sent.",
+  unavailable: "Notes could not be made this time. Your transcript is saved. You can press Make notes again.",
+  budget: "Notes are not available for this lecture at the moment. Your transcript is saved. You can try again later.",
+  unavailableAnnounce: "Notes are not available. Your transcript is saved.",
+  demoTag: "Demo notes",
+  /** Mount GET failed (spec 1.5, new key): the press is still offered (a press replays any existing one). */
+  checkFailed: "We could not check for notes. Try again when you like.",
+  checkAgain: "Try again",
+  errors: {
+    rate_limited: "One moment. Try again in about a minute. Nothing was changed.",
+    invalid_state: "Notes can't be made for this lecture. Your transcript is saved.",
+    not_found: "We can't find this lecture. Go back to the course and open it again.",
+    network: "We could not reach the server. Try again when you like.",
+    generic: "That did not work. You can try again when you like.",
+  },
+} as const;
+
+/** NOTES_COPY keys whose text is DRAFT disclosure wording (G1); each must end in the visible "(Draft wording.)" suffix. */
+export const NOTES_DRAFT_KEYS = ["intro", "whatIsSentBody"] as const;
 
 export const SETTINGS_COPY = {
   heading: "Lecture settings",
