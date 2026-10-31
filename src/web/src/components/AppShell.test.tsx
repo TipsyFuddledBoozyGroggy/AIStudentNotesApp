@@ -164,7 +164,8 @@ describe("Preferences confirmation line (review ruling 2)", () => {
     expect(container.querySelectorAll('[role="status"]')).toHaveLength(0);
     await user.click(screen.getByRole("button", { name: "Preferences" }));
     await user.click(screen.getByRole("radio", { name: "Dark" }));
-    expect(screen.getByRole("status")).toHaveTextContent("Dark theme on.");
+    // Was "Dark theme on." until slice 5: the control is now "Colour mode" and "Theme" names the five looks (themes-spec 3.2).
+    expect(screen.getByRole("status")).toHaveTextContent("Dark mode on.");
     await user.click(screen.getByRole("switch", { name: "Reduce motion" }));
     expect(screen.getByRole("status")).toHaveTextContent("Reduce motion on.");
     await user.click(screen.getByRole("button", { name: "Close" }));

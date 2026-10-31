@@ -108,9 +108,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
     list.push(
       { id: "prefs", label: "Open Preferences", group: "Look", keywords: "settings", run: () => setPrefsOpen(true) },
-      { id: "t-light", label: "Use the light theme", group: "Look", keywords: "theme paper", run: () => update({ theme: "light" }) },
-      { id: "t-dark", label: "Use the dark theme", group: "Look", keywords: "theme night", run: () => update({ theme: "dark" }) },
-      { id: "t-sys", label: "Follow the system theme", group: "Look", keywords: "theme auto", run: () => update({ theme: "system" }) },
+      // Colour mode, not Theme: since slice 5 "Theme" names the five looks (Paper, Course portal, ...), chosen in Preferences.
+      { id: "t-light", label: "Use light mode", group: "Look", keywords: "theme colour color mode light paper", run: () => update({ theme: "light" }) },
+      { id: "t-dark", label: "Use dark mode", group: "Look", keywords: "theme colour color mode dark night", run: () => update({ theme: "dark" }) },
+      { id: "t-sys", label: "Follow your device's colour mode", group: "Look", keywords: "theme colour color mode system auto", run: () => update({ theme: "system" }) },
       {
         id: "quiet",
         label: prefs.quiet ? "Turn off the low-stimulation look" : "Turn on the low-stimulation look",

@@ -574,6 +574,49 @@ describe("never varies between themes (redesign-round2 3.3)", () => {
   });
 });
 
+describe("Preferences side panel, Theme picker, Portal and Calm (redesign-round2 slice 5)", () => {
+  const at = (sel: string, q: string) => RULES.find((r) => r.selector === sel && inMedia(r, q));
+  it("from 1024 Preferences is a fixed 24rem right-hand panel; the page reflows beside it except on lecture routes; below 1024 it is an in-flow sheet", () => {
+    expect(at(".prefs-panel", "min-width: 1024px")?.decls).toEqual(
+      expect.arrayContaining([["position", "fixed"], ["inset-inline-end", "0"], ["width", "24rem"], ["overflow-y", "auto"]]),
+    );
+    expect(at("html:has(.prefs-panel):not(:has([data-lecture-root])) body", "min-width: 1024px")?.decls).toEqual([["padding-inline-end", "24rem"]]);
+    expect(at(".prefs-head", "min-width: 1024px")?.decls).toContainEqual(["position", "sticky"]);
+    const flow = RULES.find((r) => r.selector === ".prefs-panel" && r.context.every((c) => c.startsWith("@layer")));
+    expect(flow?.decls).toEqual(expect.arrayContaining([["background", "var(--sheet-bg)"], ["border-radius", "var(--sheet-radius)"], ["max-width", "40rem"]]));
+    // The site Preferences wrapper is still hidden on lecture routes.
+    expect(RULES.some((r) => r.selector.includes("body:has([data-lecture-root]) [data-site-prefs]") && r.decls.some(([k, v]) => k === "display" && v === "none"))).toBe(true);
+  });
+
+  it("theme cards: >= 64px, chosen = accent edge plus a filled mark; swatches paint from the theme's own palette roles (no colour values)", () => {
+    const card = RULES.find((r) => r.selector === ".theme-card")!;
+    expect(card.decls).toContainEqual(["min-height", "4rem"]);
+    expect(RULES.find((r) => r.selector === '.theme-card[aria-checked="true"] .theme-mark')?.decls).toContainEqual(["background", "var(--c-accent)"]);
+    for (const sel of [".theme-swatch", ".theme-swatch-bar", ".theme-swatch-sheet", ".theme-swatch-accent"])
+      for (const [k, v] of RULES.find((r) => r.selector === sel)!.decls) if (/color|background|border(?!-radius)/.test(k)) expect([sel, k, v]).toEqual([sel, k, expect.stringMatching(/var\(--c-[a-z-]+\)/)]);
+  });
+
+  it("Portal / Calm finishing is paint only, on .sheet and .ledger (never a lecture sheet), stripped by Low-stimulation and forced colours", () => {
+    const slice5 = skinRules.filter((r) => /\.(sheet|ledger)/.test(r.selector) && !inMedia(r, "forced-colors"));
+    expect(slice5.map((r) => r.selector)).toEqual(
+      expect.arrayContaining(['[data-skin="portal"] .sheet', '[data-skin="portal"] .ledger', '[data-skin="calm"] .ledger']),
+    );
+    for (const r of slice5) {
+      expect(r.selector).not.toMatch(/lecture|transcript/);
+      for (const [k] of r.decls) expect(["box-shadow", "border-radius", "border-start-start-radius", "border-start-end-radius", "border-end-start-radius", "border-end-end-radius"]).toContain(k);
+    }
+    expect(RULES.find((r) => r.selector === ':root[data-quiet="true"][data-skin] .sheet')?.decls).toEqual([["box-shadow", "none"]]);
+    expect(RULES.find((r) => r.selector === "[data-skin][data-theme] .sheet, [data-skin][data-theme] .ledger" && inMedia(r, "forced-colors: active"))?.decls).toEqual([["box-shadow", "none"]]);
+  });
+
+  it("G1: no skin decoration reaches the consent card, and the carve-out leaves Paper (the default) untouched", () => {
+    const carve = RULES.filter((r) => r.selector.includes("#consent-h1") && r.selector.includes("[data-skin"));
+    expect(carve.length).toBe(2);
+    for (const r of carve) expect(r.selector).toContain(':not([data-skin="paper"])');
+    expect(carve[0].decls).toEqual([["box-shadow", "var(--shadow-1)"], ["background-image", "none"]]);
+  });
+});
+
 // ---------------------------------------------------------------------------------------------------------------------
 // Source lints. Ratchets count today's offenders per file and fail on any increase (the plan's slice 0 row); slices 1
 // and 2 bring the counts down and lower the baselines in the same change.

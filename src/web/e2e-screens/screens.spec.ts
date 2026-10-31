@@ -30,8 +30,25 @@ const ALL_LOOKS = {
 } as const;
 type AnyLook = keyof typeof ALL_LOOKS;
 const ALL_PALETTES = ["ui-kit"];
+// Slice 5 (= themes T2): Portal and Calm, light and dark, on the key screens built so far (Today, course, forms, sign-in,
+// consent, lecture, syllabus, Preferences), at 390 and 1280 with axe, beside the four base looks.
+const SKIN_LOOKS = ["portal-light", "portal-dark", "calm-light", "calm-dark"] as const satisfies readonly AnyLook[];
+const SKIN_SCREENS = [
+  "signin",
+  "dashboard",
+  "preferences",
+  "courses",
+  "course-new",
+  "course-detail",
+  "consent",
+  "lecture-live",
+  "lecture-quick-recap",
+  "lecture-paused",
+  "syllabus-new",
+  "syllabus-review",
+];
 
-type Ctx = { courseId: string; courseName: string };
+type Ctx = { courseId: string; courseName: string; syllabusCourseId: string };
 interface Screen {
   name: string;
   auth: "none" | "full" | "empty";
@@ -76,6 +93,13 @@ const SCREENS: Screen[] = [
   { name: "course-new", auth: "full", url: () => "/courses/new", ready: (p) => expect(p.getByLabel(/Course name/)).toBeVisible() },
   { name: "course-detail", auth: "full", url: (c) => `/courses/${c.courseId}?added=1`, ready: (p, c) => h1(p, c.courseName) },
   { name: "consent", auth: "full", url: (c) => `/courses/${c.courseId}/lecture`, ready: (p, c) => h1(p, `Start lecture: ${c.courseName}`) },
+  { name: "syllabus-new", auth: "full", url: (c) => `/courses/${c.courseId}/syllabus`, ready: (p) => h1(p, "Add your syllabus") },
+  {
+    name: "syllabus-review",
+    auth: "full",
+    url: (c) => `/courses/${c.syllabusCourseId}/syllabus`,
+    ready: (p) => expect(p.getByRole("heading", { level: 1, name: "Review your syllabus items" })).toBeVisible({ timeout: 30_000 }),
+  },
   { name: "lecture-live", auth: "none", url: () => "/dev/lecture-harness/live", ready: fixture },
   {
     name: "lecture-quick-recap",
@@ -109,7 +133,7 @@ async function login(email: string, file: string) {
   return ctx;
 }
 
-const ctx: Ctx = { courseId: "", courseName: "" };
+const ctx: Ctx = { courseId: "", courseName: "", syllabusCourseId: "" };
 const states = { full: path.join(OUT, `.auth-full-${RUN}.json`), empty: path.join(OUT, `.auth-empty-${RUN}.json`) };
 
 test.beforeAll(async () => {
@@ -123,8 +147,30 @@ test.beforeAll(async () => {
   for (const c of courses) {
     const r = await full.post("/api/v1/courses", { data: c });
     expect(r.status()).toBe(201);
-    if (c.name === "Biology 101") ctx.courseId = ((await r.json()) as { id: string }).id;
+    const id = ((await r.json()) as { id: string }).id;
+    if (c.name === "Biology 101") ctx.courseId = id;
+    if (c.name === "History of Law") ctx.syllabusCourseId = id;
   }
+  // A syllabus (synthetic text, mock extractor, demo calendar only) so the review screen can be captured.
+  const syl = await full.post(`/api/v1/courses/${ctx.syllabusCourseId}/syllabi`, {
+    headers: { "Idempotency-Key": `screens-${RUN}-syllabus` },
+    data: {
+      text: [
+        "History of Law syllabus (synthetic test text)",
+        "Quiz 1 on September 14, 2026 in class",
+        "Problem set 1 due Friday, September 18, 2026, 11:59 PM",
+        "Midterm exam, Wednesday, October 14, 2026, 10:00 AM",
+        "Lab report 2 due October 16, 2026 (tentative)",
+        "Final exam: date TBA",
+      ].join("\n"),
+      termStart: "2026-08-24",
+      termEnd: "2026-12-11",
+      defaultTimezone: "America/New_York",
+      noticeVersion: "draft-2026-10",
+      attestation: { accepted: true, acceptedAt: new Date().toISOString() },
+    },
+  });
+  expect(syl.status(), "create syllabus").toBeLessThan(300);
   ctx.courseName = "Biology 101";
   await full.dispose();
   await (await login(`screens-empty-${RUN}@dev.local`, states.empty)).dispose();
@@ -178,7 +224,12 @@ async function shoot(browser: Browser, s: Screen, look: AnyLook, width: number) 
 
 for (const s of SCREENS.filter((x) => !only || only.includes(x.name))) {
   test(`screens: ${s.name}`, async ({ browser }) => {
-    const perScreen: AnyLook[] = ALL_PALETTES.includes(s.name) && !process.env.LOOKS ? (Object.keys(ALL_LOOKS) as AnyLook[]) : looks;
+    const perScreen: AnyLook[] =
+      ALL_PALETTES.includes(s.name) && !process.env.LOOKS
+        ? (Object.keys(ALL_LOOKS) as AnyLook[])
+        : SKIN_SCREENS.includes(s.name) && !process.env.LOOKS
+          ? [...looks, ...SKIN_LOOKS]
+          : looks;
     for (const width of WIDTHS) for (const look of perScreen) await shoot(browser, s, look, width);
     const bad = Object.entries(report).filter(([k, v]) => k.startsWith(`${s.name}--`) && v.length > 0);
     expect.soft(bad).toEqual([]);

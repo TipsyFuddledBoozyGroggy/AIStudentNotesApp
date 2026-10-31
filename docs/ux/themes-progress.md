@@ -18,8 +18,13 @@ PO deferral). **Redesign-round2 slice 4 (Today, course page, forms, sign-in) IMP
 in the same document): the Desk margin column now holds labels (date, "Next step", "Your courses", "Lecture", "Syllabus")
 from 1024; courses are ledger rows; Add a course and sign-in put the h1 above one sheet; no cards or panels remain on those
 screens. The landmark gate's 12th landmark is now Today's Next step section (the first card is gone) and Calm's allowance
-covers only the Add a course field (recorded there). **T2-T6 NOT STARTED** (T2 needs slice 2's Segmented widths, now in
-place; T5's lecture pass over 10 looks can reuse slice 3's harness tests).
+covers only the Add a course field (recorded there). **T2 IMPLEMENTED 2026-10-31 as redesign-round2 slice 5** ("Slice 5
+results" in the same document): Preferences side panel from 1024, Theme radiogroup (5 cards, nested-skin swatches),
+"Theme" legend -> "Colour mode" (`AppShell.test.tsx` "Dark theme on." -> "Dark mode on.", recorded), Reset look via
+`lookDefaults()`, Preview card, status messages, rollback hides the control; Portal and Calm finished on the screens built so
+far (paint only); consent card carved out of skin card decoration (non-Paper skins, G1). **T3-T6 NOT STARTED** (T3/T4 =
+slice 7: Grid texture and Solid surfaces switch UIs and their emulateMedia fallback tests; T5's lecture pass over 10 looks
+can reuse slice 3's harness tests).
 
 ## T0 token plumbing (DONE)
 Files changed:
@@ -87,15 +92,15 @@ No existing test was edited. The "Theme" -> "Colour mode" legend rename is T2 an
 - **T1 layout system**: done as redesign-round2 slice 1 (see that document, "Slice 1 results"). Left for later slices: A5
   (Preferences switch-row insets, slice 2 owns `components/ui`), the Preferences side panel (slice 5), the `.tag` padding
   (the consent page's Draft tag, gate G1; slice 2's Stamp), the 48px buttons inside the consent surfaces (G1).
-- **T2** Preferences: Theme radiogroup (5 cards, swatches can use nested `data-skin`/`data-theme`, which the CSS already
-  supports), rename legend "Theme" -> "Colour mode" (update `AppShell.test.tsx` status "Dark theme on." -> spec's
-  "Dark mode on." and record it), Reset look (use `lookDefaults()`), Preview card, status messages, rollback hides the control;
-  Portal/Calm review. Lecture settings popover keeps Colour mode + Low-stimulation only.
+- **T2** DONE (redesign-round2 slice 5; see that document). Left: the Gamer "Grid texture" and Glass "Solid surfaces"
+  switches (shown only for their theme) are slice 7; choosing Gamer or Glass in the picker works today with the shipped
+  palettes and T0 CSS.
 - **T3** Gamer: Grid texture switch (CSS done), no-glow checks. **T4** Glass: Solid surfaces switch (CSS done), enter
   animation, emulateMedia fallback tests, backdrop-filter DOM scan. **T5** lecture pass over 10 looks (harness specs loop over
   skins; three live regions). **T6** CI matrix (no CI records exist).
-- Extend `e2e-screens/screens.spec.ts` LOOKS to skins x modes at 390/1280 with axe; review screenshots by eye.
-- Copy for theme descriptions must follow language-guide.md (strings are in spec 3.2) and go through copy lint.
+- `e2e-screens/screens.spec.ts` captures Portal and Calm (light + dark) on 12 key screens at 390/1280 with axe since
+  slice 5; Gamer and Glass on those screens are still only covered by the landmark gate and the ui-kit captures (slice 7/8).
+- Theme copy lives in `src/components/prefsCopy.ts` and is linted by `ThemePicker.test.tsx` (done in slice 5).
 
 ## How to resume
 1. `cd src/web`; confirm `npm run dev:real` is on :3000 and the API on :5080.

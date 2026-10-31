@@ -12,13 +12,15 @@ export interface SegmentedProps<T extends string> {
   value: T;
   options: SegmentedOption<NoInfer<T>>[];
   onChange(next: NoInfer<T>): void;
+  /** Optional one-line explanation under the group (described-by on the radiogroup). */
+  hint?: string;
 }
 
 /**
  * Segmented control = radio group (2-4 text options). Arrow keys move and select, as native radios do; one Tab stop.
  * Selected = filled accent plus bold text plus aria-checked, so not colour alone.
  */
-export function Segmented<T extends string>({ legend, value, options, onChange }: SegmentedProps<T>) {
+export function Segmented<T extends string>({ legend, value, options, onChange, hint }: SegmentedProps<T>) {
   const id = useId();
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const index = Math.max(
@@ -39,7 +41,7 @@ export function Segmented<T extends string>({ legend, value, options, onChange }
         {legend}
       </p>
       {/* Options share one width per group (auto-cols-fr), so a group's segments are equal and stacked groups keep one rhythm (redesign-round2 2.7). */}
-      <div role="radiogroup" aria-labelledby={id} className="mt-2 inline-grid auto-cols-fr grid-flow-col gap-1 rounded-control border-2 border-line bg-surface p-1">
+      <div role="radiogroup" aria-labelledby={id} aria-describedby={hint ? `${id}-hint` : undefined} className="mt-2 inline-grid auto-cols-fr grid-flow-col gap-1 rounded-control border-2 border-line bg-surface p-1">
         {options.map((o, i) => {
           const on = o.value === value;
           return (
@@ -61,6 +63,11 @@ export function Segmented<T extends string>({ legend, value, options, onChange }
           );
         })}
       </div>
+      {hint ? (
+        <p id={`${id}-hint`} className="help mt-1">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }
