@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.tether.invalid/lecture.v1/notes.schema.json",
   "title": "notes",
-  "description": "Lecture notes made by ONE deliberate student press after Stop (PO-18d, API_CONTRACTS section 17). Response of POST and GET /sessions/{id}/notes. Only status Ready carries content; every other status has no sections, no source and no times. Every bullet cites at least one stored transcript segment of the same session.",
+  "description": "Lecture notes made by ONE deliberate student press after Stop (PO-18d, API_CONTRACTS section 17). Response of POST and GET /sessions/{id}/notes. Only status Ready carries content; every other status has no sections, no source and no times. Every bullet cites at least one stored transcript segment of the same session. finalSummaryStatus (NAS-03, additive before the first consumer) says what happened to the Final summary of a Ready press, so a failed Final step is never hidden behind Ready.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -16,6 +16,7 @@
     "coveredToMs",
     "sections",
     "finalSummaryRevision",
+    "finalSummaryStatus",
     "truncated"
   ],
   "properties": {
@@ -92,7 +93,7 @@
       }
     },
     "finalSummaryRevision": {
-      "description": "The summary revision (status Final) made by the same press; read it with GET /sessions/{id}/summary?revision=N. Null when none was made.",
+      "description": "The summary revision (status Final) made by the same press; read it with GET /sessions/{id}/summary?revision=N (or the latest revision). Null unless finalSummaryStatus is Ready.",
       "oneOf": [
         {
           "$ref": "common.schema.json#/$defs/revision"
@@ -100,6 +101,20 @@
         {
           "type": "null"
         }
+      ]
+    },
+    "finalSummaryStatus": {
+      "description": "Only when status is Ready (null otherwise). Ready: the Final summary revision exists (finalSummaryRevision is set). Unavailable: that step failed (provider error, timeout, invalid output, cut off) while the notes succeeded. BudgetLimited: a budget cap stopped that step. NotNeeded: nothing to summarise. finalSummaryRevision is set exactly when this is Ready. No automatic retry: Ready notes are final for the session.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "Ready",
+        "Unavailable",
+        "BudgetLimited",
+        "NotNeeded",
+        null
       ]
     },
     "truncated": {
@@ -132,6 +147,9 @@
           },
           "sections": {
             "minItems": 1
+          },
+          "finalSummaryStatus": {
+            "type": "string"
           }
         }
       },
@@ -157,6 +175,35 @@
           },
           "truncated": {
             "const": false
+          },
+          "finalSummaryStatus": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "finalSummaryStatus": {
+            "const": "Ready"
+          }
+        },
+        "required": [
+          "finalSummaryStatus"
+        ]
+      },
+      "then": {
+        "properties": {
+          "finalSummaryRevision": {
+            "type": "integer"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "finalSummaryRevision": {
+            "type": "null"
           }
         }
       }

@@ -29,7 +29,10 @@ public abstract class NotesTestBase(ApiFactory factory) : AiRouteTestBase(factor
         return (a, id);
     }
 
-    protected static HttpRequestMessage Press(string sessionId, string? key, string body = "{}", string contentType = "application/json")
+    /// <summary>NAS-05: the press body names the DRAFT notice the student saw.</summary>
+    protected const string NoticeBody = """{"noticeVersion":"notes-notice-draft-1"}""";
+
+    protected static HttpRequestMessage Press(string sessionId, string? key, string body = NoticeBody, string contentType = "application/json")
     {
         var req = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/sessions/{sessionId}/notes") { Content = new StringContent(body, Encoding.UTF8, contentType) };
         if (key is not null) req.Headers.TryAddWithoutValidation("Idempotency-Key", key);
@@ -63,6 +66,15 @@ public abstract class NotesTestBase(ApiFactory factory) : AiRouteTestBase(factor
 
     protected async Task AssertNothingHeldAsync(Guid userId) =>
         Assert.Equal(0, await F.ScalarAsync($"select count(*) from ai.ai_usage where user_id = '{userId}' and outcome = 'reserved'"));
+
+    /// <summary>A press row as the job would leave it once it STARTED (NAS-03: the gateway permission counts from started_at; a Pending press that never started gets no call).</summary>
+    protected Task InsertPressAsync(string sessionId, Guid userId, Guid pressId, string state = "Pending", DateTimeOffset? requestedAt = null, bool started = true)
+    {
+        var at = requestedAt ?? F.Clock.GetUtcNow();
+        return F.ExecAsync("insert into ai.lecture_notes (id, session_id, user_id, revision, state, idempotency_key, requested_at, started_at, completed_at, sections, truncated) " +
+                           $"values ('{pressId}', '{sessionId}', '{userId}', 1, '{state}', 'k{pressId:N}', '{at:O}', {(started ? $"'{at:O}'" : "null")}, " +
+                           $"{(state == "Pending" ? "null" : $"'{F.Clock.GetUtcNow():O}'")}, '[]', false)");
+    }
 
     protected static string StripTrace(JsonElement e)
     {
@@ -182,7 +194,11 @@ public class AiNotesTests(ApiFactory factory) : NotesTestBase(factory), IClassFi
         await (await a.Client.SendAsync(Press(id, NewKey(), """{"windowMinutes":5}"""))).AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
         await (await a.Client.SendAsync(Press(id, NewKey(), "[]"))).AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
         await (await a.Client.SendAsync(Press(id, NewKey(), "not json"))).AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
-        await (await a.Client.SendAsync(Press(id, NewKey(), "{}", "text/plain"))).AssertProblemAsync(HttpStatusCode.UnsupportedMediaType, "unsupported_media_type");
+        await (await a.Client.SendAsync(Press(id, NewKey(), NoticeBody, "text/plain"))).AssertProblemAsync(HttpStatusCode.UnsupportedMediaType, "unsupported_media_type");
+        // NAS-05: the notice id is required, closed and checked against the ids the server knows.
+        foreach (var bad in new[] { "{}", """{"noticeVersion":"notes-notice-draft-9"}""", """{"noticeVersion":"notes notice"}""", """{"noticeVersion":"notes-notice-draft-1\n"}""",
+                                     """{"noticeVersion":1}""", """{"noticeVersion":"notes-notice-draft-1","x":1}""" })
+            await (await a.Client.SendAsync(Press(id, NewKey(), bad))).AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
         Assert.Equal(0, await NotesRowsAsync(id));
         Assert.Equal(0, await PressAuditsAsync(a.UserId));
     }
@@ -223,6 +239,7 @@ public class AiNotesTests(ApiFactory factory) : NotesTestBase(factory), IClassFi
             }
 
         var finalRev = notes.GetProperty("finalSummaryRevision").GetInt32();
+        Assert.Equal("Ready", notes.GetProperty("finalSummaryStatus").GetString()); // NAS-03
         var summary = await (await a.Client.GetAsync($"/api/v1/sessions/{id}/summary?revision={finalRev}")).BodyAsync();
         ContractSchemas.AssertValid("summary-revision", summary);
         Assert.Equal("Final", summary.GetProperty("status").GetString());
@@ -239,6 +256,17 @@ public class AiNotesTests(ApiFactory factory) : NotesTestBase(factory), IClassFi
         Assert.True(await F.ScalarAsync($"select count(*) from ai.ai_usage where scope_id = '{id}' and workflow = 'FinalSummary' and outcome = 'ok'") >= 1);
         Assert.Equal(before + 2, Mock.Calls); // one notes part, one final-summary chunk: nothing else
         await AssertNothingHeldAsync(a.UserId);
+
+        // NAS-05 / NAS-08: the notice id the student saw is on the press and on the content-free audit row, and the audit row's subject is the
+        // press, which every ledger row of its vendor calls also carries. The live workflows never carry a press id.
+        var press = await F.TextAsync($"select id from ai.lecture_notes where session_id = '{id}'");
+        Assert.Equal("nt_" + Guid.Parse(press!).ToString("N"), notes.GetProperty("notesId").GetString());
+        Assert.Equal("notes-notice-draft-1", await F.TextAsync($"select notice_version from ai.lecture_notes where session_id = '{id}'"));
+        Assert.Equal(press, await F.TextAsync($"select subject_id from lectures.audit_events where session_id = '{id}' and action = 'notes.requested'"));
+        Assert.Equal("notes-notice-draft-1", await F.TextAsync($"select notice_version from lectures.audit_events where session_id = '{id}' and action = 'notes.requested'"));
+        Assert.Equal(0, await F.ScalarAsync($"select count(*) from ai.ai_usage where scope_id = '{id}' and workflow in ('Notes','FinalSummary') and (press_id is null or press_id <> '{press}')"));
+        Assert.Equal(2, await F.ScalarAsync($"select count(*) from ai.ai_usage where press_id = '{press}'"));
+        Assert.Equal("started", await F.TextAsync($"select case when started_at is not null and started_at >= requested_at then 'started' else 'no' end from ai.lecture_notes where session_id = '{id}'"));
     }
 
     [Fact]
@@ -326,7 +354,7 @@ public class AiNotesTests(ApiFactory factory) : NotesTestBase(factory), IClassFi
 
     // ---------- the gateway gate itself: every after-Stop call needs a live press ----------
 
-    public static TheoryData<string> RefusedCases => new() { "no-press", "active", "paused", "deleted", "other-user", "expired", "finished", "wrong-session" };
+    public static TheoryData<string> RefusedCases => new() { "no-press", "active", "paused", "deleted", "other-user", "expired", "finished", "wrong-session", "not-started" };
 
     private async Task<GatewayOutcome<NotesChunkResult>> NotesCallAsync(Guid userId, string sessionId, Guid pressId)
     {
@@ -338,10 +366,6 @@ public class AiNotesTests(ApiFactory factory) : NotesTestBase(factory), IClassFi
         return await scope.ServiceProvider.GetRequiredService<AiGateway>().RunAsync(part.Request, j => NotesValidator.Validate(j, part.Context), default);
     }
 
-    private Task InsertPressAsync(string sessionId, Guid userId, Guid pressId, string state = "Pending", DateTimeOffset? requestedAt = null) =>
-        F.ExecAsync("insert into ai.lecture_notes (id, session_id, user_id, revision, state, idempotency_key, requested_at, completed_at, sections, truncated) " +
-                    $"values ('{pressId}', '{sessionId}', '{userId}', 1, '{state}', 'k{pressId:N}', '{(requestedAt ?? F.Clock.GetUtcNow()):O}', " +
-                    $"{(state == "Pending" ? "null" : $"'{F.Clock.GetUtcNow():O}'")}, '[]', false)");
 
     [Theory]
     [MemberData(nameof(RefusedCases))]
@@ -367,6 +391,7 @@ public class AiNotesTests(ApiFactory factory) : NotesTestBase(factory), IClassFi
                 break;
             case "expired": await InsertPressAsync(id, a.UserId, press, requestedAt: F.Clock.GetUtcNow() - TimeSpan.FromHours(1)); break;
             case "finished": await InsertPressAsync(id, a.UserId, press, state: "Unavailable"); break;
+            case "not-started": await InsertPressAsync(id, a.UserId, press, started: false); break; // NAS-03: only the running job may call
             case "wrong-session":
                 var (_, other) = await StoppedSessionAsync(a);
                 await InsertPressAsync(other, a.UserId, press); // a live press, but for another of the user's sessions

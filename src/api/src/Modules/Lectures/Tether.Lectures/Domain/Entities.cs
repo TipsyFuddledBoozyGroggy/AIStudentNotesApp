@@ -111,6 +111,10 @@ internal sealed class AuditEvent : IUserOwned
     public Guid? SessionId { get; set; }
     public string Action { get; set; } = "";
     public DateTimeOffset OccurredAt { get; set; }
+    /// <summary>M008, NAS-08: the id of the thing the action names, when it has one (for <c>notes.requested</c>: the press, which is also on its ledger rows). Content-free.</summary>
+    public Guid? SubjectId { get; set; }
+    /// <summary>M008, NAS-05: the id of the DRAFT notice the student saw for this action (<c>notes.requested</c> only today). Never notice text.</summary>
+    public string? NoticeVersion { get; set; }
 }
 
 internal static class AuditActions

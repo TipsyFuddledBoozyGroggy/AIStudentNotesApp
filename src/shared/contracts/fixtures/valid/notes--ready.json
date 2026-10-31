@@ -11,11 +11,32 @@
     {
       "heading": "Mitosis has four phases",
       "bullets": [
-        { "text": "Mitosis has four phases.", "citations": [ { "segmentId": "seg_1", "startMs": 2000 } ] },
-        { "text": "Prophase comes first.", "citations": [ { "segmentId": "seg_2", "startMs": 4000 }, { "segmentId": "seg_3", "startMs": 6000 } ] }
+        {
+          "text": "Mitosis has four phases.",
+          "citations": [
+            {
+              "segmentId": "seg_1",
+              "startMs": 2000
+            }
+          ]
+        },
+        {
+          "text": "Prophase comes first.",
+          "citations": [
+            {
+              "segmentId": "seg_2",
+              "startMs": 4000
+            },
+            {
+              "segmentId": "seg_3",
+              "startMs": 6000
+            }
+          ]
+        }
       ]
     }
   ],
   "finalSummaryRevision": 4,
+  "finalSummaryStatus": "Ready",
   "truncated": false
 }

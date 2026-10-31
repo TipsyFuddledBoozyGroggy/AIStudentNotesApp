@@ -243,26 +243,35 @@ internal sealed class SessionService(
     /// ticket invalidation, observers close sockets), then for a purge also audits the deletion of each session the FK cascade
     /// is about to remove and drops live hub connections. Stop is never refused (ADR-019b).
     /// </summary>
-    public async Task EndSessionsForCourseAsync(Guid courseId, bool purge, CancellationToken ct)
+    /// <returns>For a purge, the ids of every session the cascade is about to remove (re-announced after the commit, NAS-01); otherwise empty.</returns>
+    public async Task<IReadOnlyList<Guid>> EndSessionsForCourseAsync(Guid courseId, bool purge, CancellationToken ct)
     {
         var reason = purge ? ReasonCourseDeleted : ReasonCourseArchived;
         var live = await db.Sessions.AsNoTracking()
             .Where(s => s.CourseId == courseId && (s.State == SessionState.Active || s.State == SessionState.Paused))
             .Select(s => s.Id).ToListAsync(ct);
         foreach (var id in live) await TransitionAsync(id, Transition.Stop, ct, reason);
-        if (!purge) return;
+        if (!purge) return [];
 
         var now = Now();
         var all = await db.Sessions.AsNoTracking().Where(s => s.CourseId == courseId).Select(s => s.Id).ToListAsync(ct);
         foreach (var id in all) AddAudit(AuditActions.SessionDelete, id, now);
         await db.SaveChangesAsync(ct);
         // Every purged session, not only the live ones: a STOPPED session can still have an in-flight "Make notes" provider call (PO-18d)
-        // that the AI module cancels on this notification. For a session with no live connection or call the observers do nothing.
+        // that the AI module cancels (and tombstones, NAS-01) on this notification. This one is sent BEFORE the course delete commits so
+        // recording and in-flight calls stop first; NotifyPurgedAsync repeats it after the commit and is the authority.
         foreach (var id in all)
         {
             activity.Forget(id);
             await NotifyDeletedAsync(UserId, id, ct);
         }
+        return all;
+    }
+
+    /// <summary>NAS-01: the post-commit "deleted" notice for every session a course purge removed. Observer failures are swallowed and logged.</summary>
+    public async Task NotifyPurgedAsync(Guid userId, IReadOnlyList<Guid> sessionIds, CancellationToken ct)
+    {
+        foreach (var id in sessionIds) await NotifyDeletedAsync(userId, id, ct);
     }
 
     // ---------- delete ----------

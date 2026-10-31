@@ -78,4 +78,9 @@ The frontend should validate the same fixtures with a draft 2020-12 validator (f
 
 ## lecture.v1 additive: notes after Stop (PO-18d, 2026-10-31)
 
-`notes.schema.json` (response of `POST` and `GET /sessions/{id}/notes`) and `notes-request.schema.json` (the `{}` body) are additive to the frozen lecture.v1 (`docs/API_CONTRACTS.md` section 17). Every `Notes` field is always present; an `if/then/else` on `status` makes `Ready` the only status with content (`source`, `generatedAt`, `coveredFromMs/ToMs`, at least one section) and forces every other status to the empty shell. Each bullet needs 1 to 8 citations. Fixtures: `notes--*.json`, `notes-request--*.json` in `fixtures/valid` and `fixtures/invalid`.
+`notes.schema.json` (response of `POST` and `GET /sessions/{id}/notes`) and `notes-request.schema.json` (the request body, see the review fixes below) are additive to the frozen lecture.v1 (`docs/API_CONTRACTS.md` section 17). Every `Notes` field is always present; an `if/then/else` on `status` makes `Ready` the only status with content (`source`, `generatedAt`, `coveredFromMs/ToMs`, at least one section) and forces every other status to the empty shell. Each bullet needs 1 to 8 citations. Fixtures: `notes--*.json`, `notes-request--*.json` in `fixtures/valid` and `fixtures/invalid`.
+
+### Review fixes (NAS-03, NAS-05; 2026-10-31, additive before the first consumer)
+
+- `notes-request.schema.json`: the body is now exactly `{"noticeVersion": "<id>"}` (required; 1 to 64 of `[A-Za-z0-9._-]`, the syllabus `noticeVersion` shape). The old `{}` body is refused (`fixtures/invalid/notes-request--empty-object.json`). The draft placeholder id is `notes-notice-draft-1`; wording and label belong to counsel and the PO (G1).
+- `notes.schema.json`: new required `finalSummaryStatus` (`Ready` | `Unavailable` | `BudgetLimited` | `NotNeeded` when `status` is `Ready`, otherwise `null`). `finalSummaryRevision` is set exactly when `finalSummaryStatus` is `Ready`. New fixtures cover each rule.

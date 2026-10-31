@@ -2,9 +2,17 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.tether.invalid/lecture.v1/notes-request.schema.json",
   "title": "notes-request",
-  "description": "Body of POST /sessions/{id}/notes: exactly an empty object. The press carries no options; the Idempotency-Key header is required.",
+  "description": "Body of POST /sessions/{id}/notes: exactly {\"noticeVersion\": \"<id>\"} (NAS-05, additive before the first consumer; the earlier {} body is refused). noticeVersion is the id of the DRAFT notice the student saw before pressing (what is sent, to whom, retention, Delete cannot recall it); the wording and the version label are placeholders owned by counsel and the Product Owner (G1). The server only accepts ids it knows (400 validation_failed otherwise) and stores the id with the press and in the content-free notes.requested audit row. The Idempotency-Key header is required.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 0,
-  "properties": {}
+  "required": [
+    "noticeVersion"
+  ],
+  "properties": {
+    "noticeVersion": {
+      "description": "Opaque notice id, same shape as the syllabus noticeVersion: 1 to 64 of [A-Za-z0-9._-], no trailing newline. Current draft placeholder: notes-notice-draft-1.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,64}(?![\\s\\S])"
+    }
+  }
 }

@@ -67,7 +67,13 @@ internal sealed class LectureNotesRow : IUserOwned
     public string State { get; set; } = NotesStates.Pending;
     public string IdempotencyKey { get; set; } = "";
     public DateTimeOffset RequestedAt { get; set; }
+    /// <summary>NAS-03: when the job began running (null while queued). The gateway permission and the stale limit count from here.</summary>
+    public DateTimeOffset? StartedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
+    /// <summary>NAS-05: id of the DRAFT notice the student saw when pressing (null only on rows made before A006).</summary>
+    public string? NoticeVersion { get; set; }
+    /// <summary>NAS-03: outcome of the Final-summary step of a Ready press (<see cref="FinalSummaryStates"/>); null unless Ready.</summary>
+    public string? FinalSummaryState { get; set; }
     public string SectionsJson { get; set; } = "[]";
     public long? CoveredFromMs { get; set; }
     public long? CoveredToMs { get; set; }
@@ -87,6 +93,16 @@ internal static class NotesStates
 }
 
 /// <summary>
+/// NAS-03: what happened to the Final summary of a Ready press (wire <c>finalSummaryStatus</c>, a database CHECK). Ready: the revision exists.
+/// Unavailable / BudgetLimited: that step failed while the notes succeeded (never silent). NotNeeded: nothing to summarise.
+/// </summary>
+internal static class FinalSummaryStates
+{
+    public const string Ready = "Ready", Unavailable = "Unavailable", BudgetLimited = "BudgetLimited", NotNeeded = "NotNeeded";
+    public static readonly string[] All = [Ready, Unavailable, BudgetLimited, NotNeeded];
+}
+
+/// <summary>
 /// Usage ledger row (design section 10, SEC-037). Content-free by construction: ids, counts, a fixed vocabulary and an estimate.
 /// It deliberately has no foreign key to the session, so deleting a lecture does not hand the student their daily budget back;
 /// it is removed with the user (cascade).
@@ -100,6 +116,8 @@ internal sealed class AiUsageRow : IUserOwned
     public string ScopeKind { get; set; } = "lecture";   // lecture | syllabus
     public Guid ScopeId { get; set; }
     public string Pool { get; set; } = "lecture";         // budget pool; equal to ScopeKind today
+    /// <summary>NAS-08: the "Make notes" press that caused this Notes/FinalSummary row (joins to <c>lectures.audit_events.subject_id</c>); null for every other workflow.</summary>
+    public Guid? PressId { get; set; }
     public string Workflow { get; set; } = "";
     public string PromptVersion { get; set; } = "";
     public string Model { get; set; } = "";

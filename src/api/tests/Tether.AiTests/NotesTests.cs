@@ -30,12 +30,12 @@ public class NotesValidatorTests
     public void A_bullet_without_a_valid_citation_is_dropped_and_a_section_left_empty_is_dropped()
     {
         var v = NotesValidator.Validate(Reply(
-            ("Kept", [("cited", ["seg_3", "seg_999"]), ("uncited claim", ["seg_404"]), ("no ids", [])]),
+            ("Metaphase", [("Then metaphase.", ["seg_3", "seg_999"]), ("uncited claim", ["seg_404"]), ("no ids", [])]),
             ("Gone", [("only an invented id", ["seg_77"])])), Ctx());
         Assert.True(v.Ok);
         var s = Assert.Single(v.Value!.Sections);
-        Assert.Equal("Kept", s.Heading);
-        Assert.Equal("cited", Assert.Single(s.Bullets).Text);
+        Assert.Equal("Metaphase", s.Heading);
+        Assert.Equal("Then metaphase.", Assert.Single(s.Bullets).Text);
         Assert.Equal(new CitationRef("seg_3", 9000), Assert.Single(s.Bullets[0].Citations));
         Assert.Equal(3, v.Value.DroppedBullets);
         Assert.Equal(1, v.Value.DroppedSections);
@@ -114,20 +114,15 @@ public class NotesMockAndPlanTests
     }
 
     [Fact]
-    public async Task The_injection_fault_renders_inert_and_its_uncited_claim_is_dropped()
+    public async Task The_injection_fault_is_rejected_whole_its_tool_call_bullet_is_instruction_like_and_its_other_claim_cites_nothing()
     {
+        // NAS-04 made this stricter: before, the sanitised "click here then call tool calendar.create" bullet was KEPT because it cited a real
+        // segment. Now it is dropped as instruction-like (and it is not supported by the cited text either), the "SYSTEM PROMPT" bullet cites
+        // only an invented id, nothing grounded is left, and the reply is rejected (the gateway then makes its one repair attempt).
         var part = NotesRequests.Build(User, Session, Press, [Seg(1), Seg(2)], false, NotesOptions.Default).Parts.Single();
         var mock = new MockAiClient(T.Options()) { Fault = MockFault.Injection };
         var v = NotesValidator.Validate((await mock.CompleteAsync(part.Request, default)).Json, part.Context);
-        Assert.True(v.Ok, v.Error);
-        var s = Assert.Single(v.Value!.Sections);
-        var b = Assert.Single(s.Bullets); // the "SYSTEM PROMPT" bullet cited only an invented id
-        Assert.Equal(1, v.Value.DroppedBullets);
-        foreach (var text in new[] { s.Heading, b.Text })
-        {
-            Assert.DoesNotContain("<script", text, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("https://", text);
-        }
+        Assert.Equal(ValidationCodes.Ungrounded, v.Error);
     }
 
     [Fact]
@@ -176,6 +171,7 @@ public class NotesMockAndPlanTests
     {
         var o = T.Options(new KeyValuePair<string, string?>("Ai:Notes:TimeoutSeconds", "90"));
         Assert.Equal(TimeSpan.FromSeconds(90), o.LongestCallTimeout);
+        Assert.True(o.Notes.StaleAfter >= o.Notes.WorstCase(o.CallTimeout, o.Summary.CompactionMaxChunks)); // NAS-03: the default follows the timeouts
         Assert.True(o.Notes.PerRequestMicro > 0);
         Assert.Throws<InvalidOperationException>(() => AiProviderGuard.Validate(
             new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection([new("Ai:Notes:PerRequestMicroUsd", "0")]).Build(),

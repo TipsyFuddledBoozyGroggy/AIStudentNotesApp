@@ -36,8 +36,10 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <summary>Test-only root secret (B1-11). Random-looking, not a documented sample. Override with null to exercise the missing-secret paths.</summary>
     protected virtual string? RootSecretValue => "p3Qw9ZsXk2VbN7mLr4TyHc8JdFaE5uGiOo1WqSzAeRtYvBnMxCkDlPhUjIgKfLb0";
 
+    // Pooled on purpose: an unpooled string made the app host and every test helper open a fresh TCP connection per query, which
+    // exhausted ephemeral ports once the suite passed ~580 tests (2026-10-31). DisposeAsync clears the pools before the forced drop.
     public string ConnectionString =>
-        new NpgsqlConnectionStringBuilder(_adminConnection) { Database = DbName, Pooling = false }.ConnectionString;
+        new NpgsqlConnectionStringBuilder(_adminConnection) { Database = DbName, Pooling = true, MaxPoolSize = 6, ConnectionIdleLifetime = 5, ConnectionPruningInterval = 1 }.ConnectionString;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

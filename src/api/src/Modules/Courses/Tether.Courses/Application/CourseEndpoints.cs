@@ -152,6 +152,16 @@ internal static class CourseEndpoints
             // Raced with another update (409) or delete (404). Never a 500.
             return await ConflictOrGoneAsync(db, id, ct);
         }
+        if (purge == true)
+        {
+            // NAS-01: the post-commit notice is the authority (the pre-commit one stops recording and cuts off what is in flight). The
+            // delete has committed, so neither a cancelled request nor a failing handler may undo the 204.
+            foreach (var h in lifecycle)
+            {
+                try { await h.OnPurgedAsync(course.UserId, course.Id, CancellationToken.None); }
+                catch (Exception) { /* contract: handlers do not throw; the delete already happened */ }
+            }
+        }
         return Results.NoContent();
     }
 

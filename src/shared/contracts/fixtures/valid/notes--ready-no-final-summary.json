@@ -8,8 +8,22 @@
   "coveredFromMs": 0,
   "coveredToMs": 5400000,
   "sections": [
-    { "heading": "Cell cycle", "bullets": [ { "text": "Interphase is the longest stage.", "citations": [ { "segmentId": "seg_14", "startMs": 61000 } ] } ] }
+    {
+      "heading": "Cell cycle",
+      "bullets": [
+        {
+          "text": "Interphase is the longest stage.",
+          "citations": [
+            {
+              "segmentId": "seg_14",
+              "startMs": 61000
+            }
+          ]
+        }
+      ]
+    }
   ],
   "finalSummaryRevision": null,
+  "finalSummaryStatus": "Unavailable",
   "truncated": true
 }

@@ -58,9 +58,9 @@ internal sealed class UsageLedger(AiDbContext db, GlobalSpend global, TimeProvid
     /// never touches other tracked entities (only this row is detached).
     /// </summary>
     public async Task RecordAsync(Guid userId, AiScope scope, AiWorkflow workflow, string promptVersion, string model, AiTokenUsage usage,
-        long costMicro, int latencyMs, string outcome, CancellationToken ct)
+        long costMicro, int latencyMs, string outcome, CancellationToken ct, Guid? pressId = null)
     {
-        var row = NewRow(userId, scope, workflow, promptVersion, model, usage, costMicro, latencyMs, outcome);
+        var row = NewRow(userId, scope, workflow, promptVersion, model, usage, costMicro, latencyMs, outcome, pressId);
         try
         {
             db.Usage.Add(row);
@@ -76,9 +76,9 @@ internal sealed class UsageLedger(AiDbContext db, GlobalSpend global, TimeProvid
     }
 
     /// <summary>Inserts the <c>reserved</c> row. The caller owns the transaction (and the per-user lock).</summary>
-    public async Task<Reservation> InsertReservationAsync(Guid userId, AiScope scope, AiWorkflow workflow, string promptVersion, string model, long estimateMicro, CancellationToken ct)
+    public async Task<Reservation> InsertReservationAsync(Guid userId, AiScope scope, AiWorkflow workflow, string promptVersion, string model, long estimateMicro, CancellationToken ct, Guid? pressId = null)
     {
-        var row = NewRow(userId, scope, workflow, promptVersion, model, new AiTokenUsage(0, 0, 0), estimateMicro, 0, Outcomes.Reserved);
+        var row = NewRow(userId, scope, workflow, promptVersion, model, new AiTokenUsage(0, 0, 0), estimateMicro, 0, Outcomes.Reserved, pressId);
         db.Usage.Add(row);
         try { await db.SaveChangesAsync(ct); }
         finally { db.Entry(row).State = EntityState.Detached; }
@@ -128,17 +128,28 @@ internal sealed class UsageLedger(AiDbContext db, GlobalSpend global, TimeProvid
 
     public Task<(long Scope, long UserDay)> SpentAsync(Guid sessionId, CancellationToken ct) => SpentAsync(AiScope.Lecture(sessionId), ct);
 
+    /// <summary>NAS-02: today's spend of the user's after-Stop workflows (Notes + FinalSummary), the notes sub-cap's counter. Holds included.</summary>
+    public async Task<long> NotesSpentTodayAsync(CancellationToken ct)
+    {
+        var dayStart = new DateTimeOffset(clock.GetUtcNow().UtcDateTime.Date, TimeSpan.Zero);
+        string notes = nameof(AiWorkflow.Notes), final = nameof(AiWorkflow.FinalSummary), pool = Tether.SharedKernel.Ai.AiScopeKinds.Lecture;
+        return await db.Usage.AsNoTracking().Where(u => u.Pool == pool && u.CreatedAt >= dayStart && (u.Workflow == notes || u.Workflow == final))
+            .SumAsync(u => (long?)u.EstCostMicros, ct) ?? 0;
+    }
+
     public Task RecordAsync(Guid userId, Guid sessionId, AiWorkflow workflow, string promptVersion, string model, AiTokenUsage usage,
-        long costMicro, int latencyMs, string outcome, CancellationToken ct) =>
-        RecordAsync(userId, AiScope.Lecture(sessionId), workflow, promptVersion, model, usage, costMicro, latencyMs, outcome, ct);
+        long costMicro, int latencyMs, string outcome, CancellationToken ct, Guid? pressId = null) =>
+        RecordAsync(userId, AiScope.Lecture(sessionId), workflow, promptVersion, model, usage, costMicro, latencyMs, outcome, ct, pressId);
 
     public Task<Reservation> InsertReservationAsync(Guid userId, Guid sessionId, AiWorkflow workflow, string promptVersion, string model, long estimateMicro, CancellationToken ct) =>
         InsertReservationAsync(userId, AiScope.Lecture(sessionId), workflow, promptVersion, model, estimateMicro, ct);
 
     // Lecture rows dual-write session_id = scope_id (the legacy key, ck_ai_usage_scope_session); document rows have no session.
-    private AiUsageRow NewRow(Guid userId, AiScope scope, AiWorkflow workflow, string promptVersion, string model, AiTokenUsage usage, long costMicro, int latencyMs, string outcome) => new()
+    // NAS-08: the after-Stop workflows carry the press that caused them, so each vendor call can be linked to its notes.requested audit row.
+    private AiUsageRow NewRow(Guid userId, AiScope scope, AiWorkflow workflow, string promptVersion, string model, AiTokenUsage usage, long costMicro, int latencyMs, string outcome, Guid? pressId) => new()
     {
         Id = Ids.New(), UserId = userId, SessionId = scope.IsLecture ? scope.Id : null, ScopeKind = scope.Kind, ScopeId = scope.Id, Pool = scope.Pool,
+        PressId = workflow is AiWorkflow.Notes or AiWorkflow.FinalSummary ? pressId : null,
         Workflow = workflow.ToString(), PromptVersion = promptVersion, Model = model,
         InputTokens = usage.InputTokens, CachedTokens = usage.CachedTokens, OutputTokens = usage.OutputTokens, EstCostMicros = costMicro,
         LatencyMs = latencyMs, Outcome = outcome, CreatedAt = clock.GetUtcNow(),
@@ -154,16 +165,21 @@ internal sealed class BudgetGate(AiDbContext db, UsageLedger ledger, GlobalSpend
 {
     public Task<double> PressureAsync(Guid sessionId, CancellationToken ct) => PressureAsync(AiScope.Lecture(sessionId), ct);
 
-    public async Task<double> PressureAsync(AiScope scope, CancellationToken ct) => (await SpendAsync(scope, ct)).Pressure;
+    public async Task<double> PressureAsync(AiScope scope, CancellationToken ct) => (await SpendAsync(scope, AiWorkflow.RollingSummary, ct)).Pressure;
 
-    /// <summary>Highest pressure and whether the estimate would cross a cap, each measured against the SCOPE'S OWN POOL (per scope, per user-day, per month).</summary>
-    private async Task<(double Pressure, bool WouldExceed)> SpendAsync(AiScope scope, CancellationToken ct, long estimateMicro = 0)
+    /// <summary>
+    /// Highest pressure and whether the estimate would cross a cap, each measured against the SCOPE'S OWN POOL (per scope, per user-day, per month).
+    /// NAS-02: the after-Stop workflows also face the notes sub-cap and may not use the live floors (<see cref="BudgetMath.NotesWouldExceed"/>).
+    /// </summary>
+    private async Task<(double Pressure, bool WouldExceed)> SpendAsync(AiScope scope, AiWorkflow workflow, CancellationToken ct, long estimateMicro = 0)
     {
         var caps = options.Budget.For(scope.Pool);
         var (spent, day) = await ledger.SpentAsync(scope, ct);
         var month = await global.SpentAsync(GlobalSpend.PeriodOf(clock.GetUtcNow()), scope.Pool, ct);
         var pressure = Math.Max(BudgetMath.Pressure(spent, caps.PerScopeMicro), Math.Max(BudgetMath.Pressure(day, caps.PerUserDailyMicro), BudgetMath.Pressure(month, caps.GlobalMonthlyMicro)));
         var exceed = spent + estimateMicro > caps.PerScopeMicro || day + estimateMicro > caps.PerUserDailyMicro || month + estimateMicro > caps.GlobalMonthlyMicro;
+        if (!exceed && BudgetMath.IsNotesWorkflow(workflow))
+            exceed = BudgetMath.NotesWouldExceed(await ledger.NotesSpentTodayAsync(ct), day, month, estimateMicro, options.Budget, options.Notes);
         return (pressure, exceed);
     }
 
@@ -173,7 +189,7 @@ internal sealed class BudgetGate(AiDbContext db, UsageLedger ledger, GlobalSpend
 
     public async Task<BudgetCheck> CheckAsync(AiScope scope, AiWorkflow workflow, long estimateMicro, CancellationToken ct)
     {
-        var (pressure, exceed) = await SpendAsync(scope, ct, estimateMicro);
+        var (pressure, exceed) = await SpendAsync(scope, workflow, ct, estimateMicro);
         return new BudgetCheck(BudgetMath.Decide(workflow, pressure, exceed, options.Budget), pressure);
     }
 
@@ -187,18 +203,21 @@ internal sealed class BudgetGate(AiDbContext db, UsageLedger ledger, GlobalSpend
     /// and the global increment commit together. The reservation is therefore visible to every concurrent caller before any of them
     /// reaches the provider, so N parallel calls against a cap of one call admit exactly one.
     /// </summary>
-    public async Task<ReserveOutcome> ReserveAsync(Guid userId, AiScope scope, AiWorkflow workflow, string promptVersion, string model, long estimateMicro, CancellationToken ct)
+    public async Task<ReserveOutcome> ReserveAsync(Guid userId, AiScope scope, AiWorkflow workflow, string promptVersion, string model, long estimateMicro, CancellationToken ct, Guid? pressId = null)
     {
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         await db.Database.ExecuteSqlAsync($"select pg_advisory_xact_lock(hashtextextended({"ai-budget:" + userId.ToString("N")}, 0))", ct);
-        var (pressure, exceed) = await SpendAsync(scope, ct, estimateMicro);
+        var (pressure, exceed) = await SpendAsync(scope, workflow, ct, estimateMicro);
         var decision = BudgetMath.Decide(workflow, pressure, exceed, options.Budget);
         if (!decision.Allowed) return new ReserveOutcome(decision, null);
 
         var period = GlobalSpend.PeriodOf(clock.GetUtcNow());
-        if (!await global.TryAddAsync(period, scope.Pool, estimateMicro, options.Budget.For(scope.Pool).GlobalMonthlyMicro, ct))
+        // NAS-02: the atomic global check for notes stops below the month cap by the live floor, so concurrent notes can never eat it.
+        var monthCap = options.Budget.For(scope.Pool).GlobalMonthlyMicro;
+        if (BudgetMath.IsNotesWorkflow(workflow)) monthCap -= options.Notes.LiveFloorGlobalMonthlyMicro;
+        if (!await global.TryAddAsync(period, scope.Pool, estimateMicro, monthCap, ct))
             return new ReserveOutcome(new BudgetDecision(false, null, "budget_limited"), null);
-        var reservation = await ledger.InsertReservationAsync(userId, scope, workflow, promptVersion, model, estimateMicro, ct);
+        var reservation = await ledger.InsertReservationAsync(userId, scope, workflow, promptVersion, model, estimateMicro, ct, pressId);
         await tx.CommitAsync(ct);
         return new ReserveOutcome(decision, reservation);
     }

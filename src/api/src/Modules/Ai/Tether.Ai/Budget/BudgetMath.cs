@@ -39,4 +39,17 @@ internal static class BudgetMath
     }
 
     public static double IntervalMultiplier(double pressure, BudgetOptions o) => pressure >= o.SlowdownAt ? 2.0 : 1.0;
+
+    public static bool IsNotesWorkflow(AiWorkflow w) => w is AiWorkflow.Notes or AiWorkflow.FinalSummary;
+
+    /// <summary>
+    /// NAS-02: the notes lane's own limits inside the lecture pool, on top of the ordinary pool caps. A notes call is refused when it would take
+    /// (a) the user's notes spend today over the notes sub-cap, (b) the user's whole lecture spend today into the live floor (the last
+    /// <see cref="NotesOptions.LiveFloorPerUserDailyMicro"/> of the daily cap, kept for live TL;DR and Quick recap), or (c) the global month
+    /// into its live floor. Live workflows are never checked against these, so old-lecture presses cannot starve a live lecture. Pure.
+    /// </summary>
+    public static bool NotesWouldExceed(long notesToday, long lectureToday, long lectureMonth, long estimateMicro, BudgetOptions b, NotesOptions n) =>
+        notesToday + estimateMicro > n.PerUserDailyMicro
+        || lectureToday + estimateMicro > b.PerUserDailyMicro - n.LiveFloorPerUserDailyMicro
+        || lectureMonth + estimateMicro > b.GlobalMonthlyMicro - n.LiveFloorGlobalMonthlyMicro;
 }

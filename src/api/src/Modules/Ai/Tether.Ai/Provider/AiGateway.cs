@@ -41,26 +41,62 @@ internal sealed record GatewayOutcome<T>(T? Value, string? Failure, string Model
 /// 429 does. A 429 without retry-after (the vendor's spend-cap shape) is terminal: the breaker stays open for a long time instead of
 /// letting any caller loop on it.
 /// </summary>
+/// <remarks>
+/// NAS-02: two lanes. The LIVE lane (rolling summary, compaction, Quick recap, syllabus) is <see cref="IsOpen"/>. The NOTES lane (the two
+/// after-Stop workflows) has its own failure counter and breaker (<c>Ai:Notes:Breaker:*</c>), so slow or failing notes calls never turn
+/// live summaries off. Shared on purpose: a vendor spend-cap 429 (<see cref="AiFailureKind.ProviderCap"/>) and a ledger fault open BOTH lanes
+/// (the account itself is refusing, or spend cannot be tracked); and the notes lane is also closed while the live lane is open (live has
+/// priority, and a provider failing live calls should not be given extra notes load). Live failures never count toward the notes counter.
+/// </remarks>
 internal sealed class AiHealth(AiOptions options, TimeProvider clock)
 {
     private readonly object _gate = new();
-    private int _consecutive;
-    private DateTimeOffset _openUntil = DateTimeOffset.MinValue;
+    private int _consecutive, _notesConsecutive;
+    private DateTimeOffset _openUntil = DateTimeOffset.MinValue, _notesOpenUntil = DateTimeOffset.MinValue;
 
+    /// <summary>The live lane's breaker.</summary>
     public bool IsOpen { get { lock (_gate) return clock.GetUtcNow() < _openUntil; } }
 
-    public void RecordSuccess() { lock (_gate) _consecutive = 0; }
+    /// <summary>The notes lane may not call: its own breaker is open, or the live one is.</summary>
+    public bool IsNotesOpen { get { lock (_gate) { var now = clock.GetUtcNow(); return now < _notesOpenUntil || now < _openUntil; } } }
 
-    /// <summary>The usage ledger could not be written: stop making paid calls for a while (fail closed) rather than spend untracked.</summary>
-    public void RecordLedgerFault() { lock (_gate) { var until = clock.GetUtcNow() + options.Breaker.OpenFor; if (until > _openUntil) _openUntil = until; } }
+    public bool IsOpenFor(bool afterStop) => afterStop ? IsNotesOpen : IsOpen;
 
-    public void RecordFailure(AiFailureKind kind)
+    public void RecordSuccess() => RecordSuccess(afterStop: false);
+
+    public void RecordSuccess(bool afterStop) { lock (_gate) { if (afterStop) _notesConsecutive = 0; else _consecutive = 0; } }
+
+    /// <summary>The usage ledger could not be written: stop making paid calls for a while (fail closed) rather than spend untracked. Both lanes.</summary>
+    public void RecordLedgerFault()
     {
         lock (_gate)
         {
-            _consecutive++;
-            if (kind == AiFailureKind.ProviderCap) _openUntil = clock.GetUtcNow() + options.Breaker.ProviderCapOpenFor;
-            else if (_consecutive >= options.Breaker.FailuresToOpen) _openUntil = clock.GetUtcNow() + options.Breaker.OpenFor;
+            var until = clock.GetUtcNow() + options.Breaker.OpenFor;
+            if (until > _openUntil) _openUntil = until;
+            if (until > _notesOpenUntil) _notesOpenUntil = until;
+        }
+    }
+
+    public void RecordFailure(AiFailureKind kind) => RecordFailure(kind, afterStop: false);
+
+    public void RecordFailure(AiFailureKind kind, bool afterStop)
+    {
+        lock (_gate)
+        {
+            var now = clock.GetUtcNow();
+            if (kind == AiFailureKind.ProviderCap)
+            {
+                // The vendor's spend cap is account-wide: whichever lane hit it, nothing may call.
+                _openUntil = now + options.Breaker.ProviderCapOpenFor;
+                _notesOpenUntil = now + options.Breaker.ProviderCapOpenFor;
+                if (afterStop) _notesConsecutive++; else _consecutive++;
+                return;
+            }
+            if (afterStop)
+            {
+                if (++_notesConsecutive >= options.Notes.Breaker.FailuresToOpen) _notesOpenUntil = now + options.Notes.Breaker.OpenFor;
+            }
+            else if (++_consecutive >= options.Breaker.FailuresToOpen) _openUntil = now + options.Breaker.OpenFor;
         }
     }
 }
@@ -87,7 +123,7 @@ internal sealed class AiGateway(
         var model = "";
         for (var attempt = 0; attempt < 2; attempt++)
         {
-            if (health.IsOpen) return new(null, AiFailure.Unavailable, model, repaired);
+            if (health.IsOpenFor(request.IsAfterStop)) return new(null, AiFailure.Unavailable, model, repaired); // NAS-02: notes have their own lane
             if (sct.IsCancellationRequested && !ct.IsCancellationRequested) return new(null, AiFailure.SessionClosed, model, repaired);
 
             var req = request with { RepairHint = repairCode };
@@ -98,7 +134,7 @@ internal sealed class AiGateway(
 
             // Hold the estimated cost against every cap BEFORE the call (B3-02). A ledger that cannot be written fails closed.
             ReserveOutcome held;
-            try { held = await budget.ReserveAsync(req.UserId, req.EffectiveScope, req.Workflow, req.PromptVersion, options.Price(req.Tier).Model, EstimateMicro(req), ct); }
+            try { held = await budget.ReserveAsync(req.UserId, req.EffectiveScope, req.Workflow, req.PromptVersion, options.Price(req.Tier).Model, EstimateMicro(req), ct, req.PressId); }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 log.LogWarning("AI budget reservation failed: {ExceptionType}", ex.GetType().Name);
@@ -107,7 +143,7 @@ internal sealed class AiGateway(
             }
             if (held.Reservation is not { } reservation)
             {
-                await ledger.RecordAsync(req.UserId, req.EffectiveScope, req.Workflow, req.PromptVersion, "none", new AiTokenUsage(0, 0, 0), 0, 0, Outcomes.BudgetDenied, ct);
+                await ledger.RecordAsync(req.UserId, req.EffectiveScope, req.Workflow, req.PromptVersion, "none", new AiTokenUsage(0, 0, 0), 0, 0, Outcomes.BudgetDenied, ct, req.PressId);
                 return new(null, AiFailure.BudgetLimited, model, repaired);
             }
             if (held.Decision.ForceTier is { } forced) req = req with { Tier = forced };
@@ -141,7 +177,7 @@ internal sealed class AiGateway(
                 }
                 catch (OperationCanceledException) when (!sct.IsCancellationRequested)
                 {
-                    health.RecordFailure(AiFailureKind.Timeout);
+                    health.RecordFailure(AiFailureKind.Timeout, req.IsAfterStop);
                     await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, (int)sw.ElapsedMilliseconds, Outcomes.Timeout);
                     return new(null, AiFailure.Timeout, price.Model, repaired);
                 }
@@ -153,7 +189,7 @@ internal sealed class AiGateway(
                 }
                 catch (AiClientException ex)
                 {
-                    health.RecordFailure(ex.Kind);
+                    health.RecordFailure(ex.Kind, req.IsAfterStop);
                     var rate = ex.Kind is AiFailureKind.RateLimited or AiFailureKind.ProviderCap;
                     await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, (int)sw.ElapsedMilliseconds,
                         ex.Kind == AiFailureKind.Timeout ? Outcomes.Timeout : rate ? Outcomes.RateLimited : Outcomes.Error);
@@ -165,7 +201,7 @@ internal sealed class AiGateway(
                     await Settle(price.Model, new AiTokenUsage(0, 0, 0), 0, (int)sw.ElapsedMilliseconds, Outcomes.Error);
                     throw;
                 }
-                health.RecordSuccess();
+                health.RecordSuccess(req.IsAfterStop);
                 model = response.Model;
 
                 var validated = response.StopReason == "max_tokens" ? Validated<T>.Fail(ValidationCodes.Truncated) : validate(response.Json);

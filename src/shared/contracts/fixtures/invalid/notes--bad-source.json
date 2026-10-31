@@ -1,1 +1,29 @@
-{ "notesId": "nt_0192f0a1b2c34d5e8f9a0b1c2d3e4f50", "revision": 1, "requestedAt": "2026-10-31T14:02:11Z", "finalSummaryRevision": null, "truncated": false, "status": "Ready", "source": "llm", "generatedAt": "2026-10-31T14:02:13Z", "coveredFromMs": 2000, "coveredToMs": 9500, "sections": [ { "heading": "Mitosis", "bullets": [ { "text": "Mitosis has four phases.", "citations": [ { "segmentId": "seg_1", "startMs": 2000 } ] } ] } ] }
+{
+  "notesId": "nt_0192f0a1b2c34d5e8f9a0b1c2d3e4f50",
+  "revision": 1,
+  "requestedAt": "2026-10-31T14:02:11Z",
+  "finalSummaryRevision": null,
+  "finalSummaryStatus": "Unavailable",
+  "truncated": false,
+  "status": "Ready",
+  "source": "llm",
+  "generatedAt": "2026-10-31T14:02:13Z",
+  "coveredFromMs": 2000,
+  "coveredToMs": 9500,
+  "sections": [
+    {
+      "heading": "Mitosis",
+      "bullets": [
+        {
+          "text": "Mitosis has four phases.",
+          "citations": [
+            {
+              "segmentId": "seg_1",
+              "startMs": 2000
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

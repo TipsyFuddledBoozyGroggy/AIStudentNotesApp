@@ -1,0 +1,42 @@
+{
+  "notesId": "nt_0192f0a1b2c34d5e8f9a0b1c2d3e4f52",
+  "revision": 1,
+  "status": "Ready",
+  "source": "mock",
+  "requestedAt": "2026-10-31T14:02:11Z",
+  "generatedAt": "2026-10-31T14:02:13.412Z",
+  "coveredFromMs": 2000,
+  "coveredToMs": 9500,
+  "sections": [
+    {
+      "heading": "Mitosis has four phases",
+      "bullets": [
+        {
+          "text": "Mitosis has four phases.",
+          "citations": [
+            {
+              "segmentId": "seg_1",
+              "startMs": 2000
+            }
+          ]
+        },
+        {
+          "text": "Prophase comes first.",
+          "citations": [
+            {
+              "segmentId": "seg_2",
+              "startMs": 4000
+            },
+            {
+              "segmentId": "seg_3",
+              "startMs": 6000
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "finalSummaryRevision": null,
+  "finalSummaryStatus": "BudgetLimited",
+  "truncated": false
+}

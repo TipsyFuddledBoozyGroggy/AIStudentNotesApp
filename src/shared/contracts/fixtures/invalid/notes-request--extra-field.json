@@ -1,1 +1,4 @@
-{ "windowMinutes": 5 }
+{
+  "noticeVersion": "notes-notice-draft-1",
+  "windowMinutes": 5
+}

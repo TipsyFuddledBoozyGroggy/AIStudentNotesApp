@@ -168,6 +168,8 @@ internal sealed class LecturesDbContext(DbContextOptions<LecturesDbContext> opti
             b.Property(x => x.SessionId).HasColumnName("session_id"); // not a FK: survives session deletion
             b.Property(x => x.Action).HasColumnName("action").HasMaxLength(48).IsRequired();
             b.Property(x => x.OccurredAt).HasColumnName("occurred_at");
+            b.Property(x => x.SubjectId).HasColumnName("subject_id");                          // M008, content-free id (NAS-08)
+            b.Property(x => x.NoticeVersion).HasColumnName("notice_version").HasMaxLength(64); // M008, notice id only (NAS-05)
             b.HasIndex(x => new { x.UserId, x.OccurredAt }).HasDatabaseName("ix_audit_events_user_time");
             b.HasQueryFilter(x => x.UserId == CurrentUserId);
         });

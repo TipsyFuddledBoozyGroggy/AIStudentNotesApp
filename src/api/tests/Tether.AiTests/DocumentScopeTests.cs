@@ -102,7 +102,7 @@ public class DocumentScopeTests
     [Fact]
     public void Cancelling_a_document_scope_cancels_only_that_scope_not_a_lecture_with_the_same_id()
     {
-        var cutoff = new SessionCutoff();
+        var cutoff = new SessionCutoff(TimeProvider.System);
         var id = Guid.NewGuid();
         using var doc = cutoff.Acquire(AiScope.Syllabus(id), default);
         using var lecture = cutoff.Acquire(AiScope.Lecture(id), default);

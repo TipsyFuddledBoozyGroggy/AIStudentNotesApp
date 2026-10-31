@@ -61,6 +61,7 @@ public static class AiModule
         services.AddSingleton<CatchUpRunner>();
         services.AddSingleton<Notes.NotesQueue>();
         services.AddSingleton<Notes.NotesLimiter>();
+        services.AddSingleton<Notes.NotesJobs>();
         services.AddSingleton<Notes.NotesRunner>();
         services.AddSingleton<ReservationReaper>();
         services.AddHostedService(sp => sp.GetRequiredService<ReservationReaper>());

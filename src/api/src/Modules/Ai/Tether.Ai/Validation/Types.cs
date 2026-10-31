@@ -53,8 +53,12 @@ internal sealed record NotesBullet(string Text, IReadOnlyList<CitationRef> Citat
 /// <summary>Also the stored and wire shape (<c>notes.schema.json</c> section).</summary>
 internal sealed record NotesSection(string Heading, IReadOnlyList<NotesBullet> Bullets);
 
-/// <param name="DroppedBullets">Bullets removed because none of their segment ids resolved to this part of the transcript.</param>
-internal sealed record NotesChunkResult(IReadOnlyList<NotesSection> Sections, int DroppedBullets, int DroppedSections, bool Sanitized);
+/// <param name="DroppedBullets">Bullets removed for any reason: no valid citation, empty after sanitising, instruction-like, or not supported by the cited text.</param>
+/// <param name="DroppedUngrounded">NAS-04: of those, bullets whose cited segments do not support their words (<see cref="NotesGrounding.IsSupported"/>).</param>
+/// <param name="DroppedInstructionLike">NAS-04: of those, bullets that repeat an instruction aimed at the AI (<see cref="NotesGrounding.IsInstructionLike"/>).</param>
+/// <param name="HeadingsReplaced">NAS-04: model headings replaced by a server-built heading because they were not grounded in the section.</param>
+internal sealed record NotesChunkResult(IReadOnlyList<NotesSection> Sections, int DroppedBullets, int DroppedSections, bool Sanitized,
+    int DroppedUngrounded = 0, int DroppedInstructionLike = 0, int HeadingsReplaced = 0);
 
 // ---------------- Quick recap ----------------
 

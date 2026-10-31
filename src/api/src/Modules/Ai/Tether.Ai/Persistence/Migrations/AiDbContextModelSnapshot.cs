@@ -73,6 +73,10 @@ namespace Tether.Ai.Persistence.Migrations
                         .HasDefaultValue("lecture")
                         .HasColumnName("pool");
 
+                    b.Property<Guid?>("PressId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("press_id");
+
                     b.Property<string>("PromptVersion")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -107,6 +111,10 @@ namespace Tether.Ai.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("PressId")
+                        .HasDatabaseName("ix_ai_usage_press")
+                        .HasFilter("press_id IS NOT NULL");
+
                     b.HasIndex("SessionId", "CreatedAt")
                         .HasDatabaseName("ix_ai_usage_session_created");
 
@@ -124,6 +132,8 @@ namespace Tether.Ai.Persistence.Migrations
                             t.HasCheckConstraint("ck_ai_usage_outcome", "outcome IN ('ok','repaired','invalid','degraded','error','timeout','rate_limited','budget_denied','stale','reserved')");
 
                             t.HasCheckConstraint("ck_ai_usage_pool", "pool IN ('lecture','syllabus') AND pool = scope_kind");
+
+                            t.HasCheckConstraint("ck_ai_usage_press", "press_id IS NULL OR workflow IN ('Notes','FinalSummary')");
 
                             t.HasCheckConstraint("ck_ai_usage_scope_kind", "scope_kind IN ('lecture','syllabus')");
 
@@ -248,6 +258,11 @@ namespace Tether.Ai.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("final_summary_revision");
 
+                    b.Property<string>("FinalSummaryState")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("final_summary_state");
+
                     b.Property<string>("IdempotencyKey")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -258,6 +273,11 @@ namespace Tether.Ai.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("model");
+
+                    b.Property<string>("NoticeVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("notice_version");
 
                     b.Property<string>("PromptVersion")
                         .HasMaxLength(64)
@@ -289,6 +309,10 @@ namespace Tether.Ai.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("source_to_seq");
 
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -310,6 +334,11 @@ namespace Tether.Ai.Persistence.Migrations
                         .HasDatabaseName("ux_lecture_notes_pending")
                         .HasFilter("state = 'Pending'");
 
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_lecture_notes_pending_user")
+                        .HasFilter("state = 'Pending'");
+
                     b.HasIndex("SessionId", "Revision")
                         .IsUnique()
                         .HasDatabaseName("ux_lecture_notes_session_revision");
@@ -322,7 +351,11 @@ namespace Tether.Ai.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_lecture_notes_content", "(state = 'Ready' AND completed_at IS NOT NULL AND covered_from_ms IS NOT NULL) OR (state <> 'Ready' AND sections = '[]'::jsonb AND final_summary_revision IS NULL AND covered_from_ms IS NULL AND NOT truncated)");
 
+                            t.HasCheckConstraint("ck_lecture_notes_final_state", "(state = 'Ready' AND final_summary_state IN ('Ready','Unavailable','BudgetLimited','NotNeeded') AND ((final_summary_state = 'Ready') = (final_summary_revision IS NOT NULL))) OR (state <> 'Ready' AND final_summary_state IS NULL)");
+
                             t.HasCheckConstraint("ck_lecture_notes_key", "length(idempotency_key) BETWEEN 1 AND 64");
+
+                            t.HasCheckConstraint("ck_lecture_notes_notice", "notice_version IS NULL OR notice_version ~ '^[A-Za-z0-9._-]{1,64}$'");
 
                             t.HasCheckConstraint("ck_lecture_notes_pending", "state <> 'Pending' OR completed_at IS NULL");
 

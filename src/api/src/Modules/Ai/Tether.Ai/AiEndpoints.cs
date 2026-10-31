@@ -2,6 +2,7 @@ using System.Text.Json;
 using Tether.Ai.CatchUp;
 using Tether.Ai.Notes;
 using Tether.Ai.Persistence;
+using Tether.Ai.Provider;
 using Tether.Ai.Summary;
 using Tether.Lectures.Contracts;
 using Tether.SharedKernel;
@@ -82,20 +83,28 @@ internal static class AiEndpoints
     }
 
     /// <summary>
-    /// The deliberate "Make notes" press (API_CONTRACTS section 17). Closed body <c>{}</c>, required <c>Idempotency-Key</c>. 202 when this
-    /// press started a new attempt; 200 when it shares the pending or ready one, or replays its own key (<c>Idempotency-Replayed: true</c>).
+    /// The deliberate "Make notes" press (API_CONTRACTS section 17). Closed body <c>{"noticeVersion": "..."}</c> (NAS-05), required
+    /// <c>Idempotency-Key</c>. 202 when this press started a new attempt; 200 when it shares the pending or ready one, or replays its own key
+    /// (<c>Idempotency-Replayed: true</c>).
     /// </summary>
-    private static async Task<IResult> PostNotes(Guid id, HttpRequest request, NotesService svc, ICurrentUser user, CancellationToken ct)
+    private static async Task<IResult> PostNotes(Guid id, HttpRequest request, NotesService svc, AiOptions options, ICurrentUser user, CancellationToken ct)
     {
         if (!request.HasJsonContentType()) return Problems.ForStatus(415);
+        string noticeVersion;
         try
         {
             using var doc = await JsonDocument.ParseAsync(request.Body, cancellationToken: ct);
-            // Closed shape: exactly {} (notes-request.schema.json).
-            if (doc.RootElement.ValueKind != JsonValueKind.Object || doc.RootElement.EnumerateObject().Any())
-                return Problems.Validation("body", "The request body must be an empty JSON object.");
+            // Closed shape: exactly {"noticeVersion": "<id>"} (notes-request.schema.json). Unknown members are rejected.
+            var props = doc.RootElement.ValueKind == JsonValueKind.Object ? doc.RootElement.EnumerateObject().ToList() : null;
+            if (props is null) return Problems.Validation("body", "The request body must be a JSON object.");
+            if (props.Count != 1 || props[0].Name != "noticeVersion" || props[0].Value.ValueKind != JsonValueKind.String)
+                return Problems.Validation("noticeVersion", "Required: the id of the notice the student was shown, and no other member.");
+            noticeVersion = props[0].Value.GetString()!;
         }
-        catch (JsonException) { return Problems.Validation("body", "The request body must be an empty JSON object."); }
+        catch (JsonException) { return Problems.Validation("body", "The request body must be a JSON object."); }
+        if (!NoticeVersionFormat.IsValid(noticeVersion)) return Problems.Validation("noticeVersion", "Must be 1 to 64 letters, digits, '.', '-' or '_'.");
+        // Same rule as the syllabus notice: the server only accepts notice ids it knows (the wording itself is a DRAFT, G1).
+        if (!options.Notes.IsKnownNotice(noticeVersion)) return Problems.Validation("noticeVersion", "not_allowed");
 
         if (!request.Headers.TryGetValue("Idempotency-Key", out var k) || k.Count != 1)
             return Problems.Validation("Idempotency-Key", "An Idempotency-Key header is required.");
@@ -104,7 +113,7 @@ internal static class AiEndpoints
             return Problems.Validation("Idempotency-Key", "Must be 1 to 64 letters, digits, '-' or '_'.");
 
         if (user.UserId is not { } uid) return Problems.Unauthenticated();
-        var result = await svc.RequestAsync(uid, id, key, ct);
+        var result = await svc.RequestAsync(uid, id, key, noticeVersion, ct);
         switch (result.Kind)
         {
             case NotesStartKind.NotFound: return Problems.NotFound("Session not found.");
@@ -122,7 +131,7 @@ internal static class AiEndpoints
     private static async Task<IResult> GetNotes(Guid id, ISessionDirectory directory, NotesService svc, ICurrentUser user, CancellationToken ct)
     {
         if (user.UserId is not { } uid || await directory.FindAsync(uid, id, ct) is null) return Problems.NotFound("Session not found.");
-        var row = await svc.GetLatestAsync(id, ct);
+        var row = await svc.GetLatestAsync(uid, id, ct);
         return row is null ? Problems.InvalidState() : Results.Content(JsonSerializer.Serialize(NotesJson.ToWire(row), NotesJson.Options), "application/json");
     }
 }

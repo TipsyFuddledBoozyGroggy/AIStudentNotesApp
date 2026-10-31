@@ -9,9 +9,11 @@ using Tether.Transcript.Contracts;
 namespace Tether.Ai.Notes;
 
 /// <summary>Wire shape of <c>POST</c>/<c>GET /sessions/{id}/notes</c>: must keep validating against lecture.v1/notes.schema.json (additionalProperties:false).</summary>
+/// <remarks>NAS-03 (additive before the first consumer): <c>finalSummaryStatus</c> says what happened to the Final summary of a Ready press, so a
+/// failed Final step is never hidden behind Ready; null for every other status.</remarks>
 internal sealed record NotesWire(
     string NotesId, int Revision, string Status, string? Source, DateTimeOffset RequestedAt, DateTimeOffset? GeneratedAt,
-    long? CoveredFromMs, long? CoveredToMs, IReadOnlyList<NotesSection> Sections, int? FinalSummaryRevision, bool Truncated);
+    long? CoveredFromMs, long? CoveredToMs, IReadOnlyList<NotesSection> Sections, int? FinalSummaryRevision, string? FinalSummaryStatus, bool Truncated);
 
 internal static class NotesJson
 {
@@ -32,7 +34,7 @@ internal static class NotesJson
         var ready = r.State == NotesStates.Ready;
         return new NotesWire(PublicId(r.Id), r.Revision, r.State, ready ? AiSource.Of(r.Model) : null, r.RequestedAt, ready ? r.CompletedAt : null,
             ready ? r.CoveredFromMs : null, ready ? r.CoveredToMs : null, ready ? ReadSections(r.SectionsJson) : [], ready ? r.FinalSummaryRevision : null,
-            ready && r.Truncated);
+            ready ? r.FinalSummaryState ?? FinalSummaryStates.Unavailable : null, ready && r.Truncated);
     }
 }
 

@@ -76,10 +76,16 @@ internal sealed class SessionPortsService(LecturesDbContext db, ICurrentUser cur
 /// </summary>
 internal sealed class SessionAuditLog(LecturesDbContext db, ICurrentUser currentUser, TimeProvider clock) : ISessionAuditLog
 {
-    public async Task<bool> RecordNotesRequestedAsync(Guid userId, Guid sessionId, CancellationToken ct = default)
+    public async Task<bool> RecordNotesRequestedAsync(Guid userId, Guid sessionId, Guid pressId, string noticeVersion, CancellationToken ct = default)
     {
+        if (noticeVersion is not { Length: >= 1 and <= 64 } || !noticeVersion.All(ch => char.IsAsciiLetterOrDigit(ch) || ch is '.' or '_' or '-'))
+            throw new ArgumentException("A notice id is 1 to 64 of [A-Za-z0-9._-].", nameof(noticeVersion)); // programming error: the API validates first
         if (currentUser.UserId != userId) return false; // wrong scope behaves like "nothing to audit against"
-        var row = new AuditEvent { Id = Ids.New(), UserId = userId, SessionId = sessionId, Action = AuditActions.NotesRequested, OccurredAt = clock.GetUtcNow() };
+        var row = new AuditEvent
+        {
+            Id = Ids.New(), UserId = userId, SessionId = sessionId, Action = AuditActions.NotesRequested, OccurredAt = clock.GetUtcNow(),
+            SubjectId = pressId, NoticeVersion = noticeVersion,
+        };
         db.AuditEvents.Add(row);
         try { await db.SaveChangesAsync(ct); }
         finally { db.Entry(row).State = EntityState.Detached; }

@@ -62,8 +62,13 @@ public interface ISessionActivity
 /// </summary>
 public interface ISessionAuditLog
 {
-    /// <summary>PO-18d: the student pressed "Make notes" on a stopped session (the only thing that may send its transcript to an AI after Stop).</summary>
-    Task<bool> RecordNotesRequestedAsync(Guid userId, Guid sessionId, CancellationToken ct = default);
+    /// <summary>
+    /// PO-18d: the student pressed "Make notes" on a stopped session (the only thing that may send its transcript to an AI after Stop).
+    /// <paramref name="pressId"/> (NAS-08) is stored as the row's subject, so the vendor calls the press caused (ledger rows carry the same id)
+    /// can be linked to it. <paramref name="noticeVersion"/> (NAS-05) is the id of the DRAFT notice the student saw, never its text; it must be
+    /// 1 to 64 of <c>[A-Za-z0-9._-]</c> (else <see cref="ArgumentException"/>, nothing written).
+    /// </summary>
+    Task<bool> RecordNotesRequestedAsync(Guid userId, Guid sessionId, Guid pressId, string noticeVersion, CancellationToken ct = default);
 }
 
 /// <summary>True while the transcript source is a deterministic demo/replay provider, never a real recording.</summary>

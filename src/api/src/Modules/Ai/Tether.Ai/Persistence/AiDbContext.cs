@@ -91,6 +91,8 @@ internal sealed class AiDbContext(DbContextOptions<AiDbContext> options, ICurren
                 t.HasCheckConstraint("ck_ai_usage_scope_kind", "scope_kind IN ('lecture','syllabus')");
                 t.HasCheckConstraint("ck_ai_usage_pool", "pool IN ('lecture','syllabus') AND pool = scope_kind");
                 t.HasCheckConstraint("ck_ai_usage_scope_session", "(scope_kind = 'lecture' AND session_id IS NOT NULL AND session_id = scope_id) OR (scope_kind = 'syllabus' AND session_id IS NULL)");
+                // NAS-08 (A006): only the two after-Stop workflows name a press.
+                t.HasCheckConstraint("ck_ai_usage_press", "press_id IS NULL OR workflow IN ('Notes','FinalSummary')");
             });
             b.HasKey(x => x.Id);
             b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
@@ -99,6 +101,7 @@ internal sealed class AiDbContext(DbContextOptions<AiDbContext> options, ICurren
             b.Property(x => x.ScopeKind).HasColumnName("scope_kind").HasMaxLength(10).HasDefaultValue("lecture").IsRequired();
             b.Property(x => x.ScopeId).HasColumnName("scope_id");
             b.Property(x => x.Pool).HasColumnName("pool").HasMaxLength(10).HasDefaultValue("lecture").IsRequired();
+            b.Property(x => x.PressId).HasColumnName("press_id");
             b.Property(x => x.Workflow).HasColumnName("workflow").HasMaxLength(24).IsRequired();
             b.Property(x => x.PromptVersion).HasColumnName("prompt_version").HasMaxLength(64).IsRequired();
             b.Property(x => x.Model).HasColumnName("model").HasMaxLength(64).IsRequired();
@@ -113,6 +116,7 @@ internal sealed class AiDbContext(DbContextOptions<AiDbContext> options, ICurren
             b.HasIndex(x => new { x.SessionId, x.CreatedAt }).HasDatabaseName("ix_ai_usage_session_created");
             b.HasIndex(x => new { x.UserId, x.ScopeKind, x.ScopeId, x.CreatedAt }).HasDatabaseName("ix_ai_usage_scope_created");
             b.HasIndex(x => new { x.UserId, x.Pool, x.CreatedAt }).HasDatabaseName("ix_ai_usage_user_pool_created");
+            b.HasIndex(x => x.PressId).HasFilter("press_id IS NOT NULL").HasDatabaseName("ix_ai_usage_press");
             b.HasQueryFilter(x => x.UserId == CurrentUserId);
         });
 
@@ -128,6 +132,11 @@ internal sealed class AiDbContext(DbContextOptions<AiDbContext> options, ICurren
                 // Only Ready carries content; Pending has no completion time (the wire contract mirrors this).
                 t.HasCheckConstraint("ck_lecture_notes_content", "(state = 'Ready' AND completed_at IS NOT NULL AND covered_from_ms IS NOT NULL) OR (state <> 'Ready' AND sections = '[]'::jsonb AND final_summary_revision IS NULL AND covered_from_ms IS NULL AND NOT truncated)");
                 t.HasCheckConstraint("ck_lecture_notes_pending", "state <> 'Pending' OR completed_at IS NULL");
+                // A006: NAS-03 the Final-summary outcome is recorded for every Ready press (never silent) and only for Ready;
+                // a revision exists exactly when that outcome is Ready. NAS-05 the notice id has the syllabus noticeVersion shape.
+                t.HasCheckConstraint("ck_lecture_notes_final_state",
+                    $"(state = 'Ready' AND final_summary_state IN ({string.Join(",", FinalSummaryStates.All.Select(s => $"'{s}'"))}) AND ((final_summary_state = 'Ready') = (final_summary_revision IS NOT NULL))) OR (state <> 'Ready' AND final_summary_state IS NULL)");
+                t.HasCheckConstraint("ck_lecture_notes_notice", "notice_version IS NULL OR notice_version ~ '^[A-Za-z0-9._-]{1,64}$'");
             });
             b.HasKey(x => x.Id);
             b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
@@ -137,7 +146,10 @@ internal sealed class AiDbContext(DbContextOptions<AiDbContext> options, ICurren
             b.Property(x => x.State).HasColumnName("state").HasMaxLength(16).IsRequired();
             b.Property(x => x.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(64).IsRequired();
             b.Property(x => x.RequestedAt).HasColumnName("requested_at");
+            b.Property(x => x.StartedAt).HasColumnName("started_at");
             b.Property(x => x.CompletedAt).HasColumnName("completed_at");
+            b.Property(x => x.NoticeVersion).HasColumnName("notice_version").HasMaxLength(64);
+            b.Property(x => x.FinalSummaryState).HasColumnName("final_summary_state").HasMaxLength(16);
             b.Property(x => x.SectionsJson).HasColumnName("sections").HasColumnType("jsonb").IsRequired();
             b.Property(x => x.CoveredFromMs).HasColumnName("covered_from_ms");
             b.Property(x => x.CoveredToMs).HasColumnName("covered_to_ms");
@@ -151,6 +163,8 @@ internal sealed class AiDbContext(DbContextOptions<AiDbContext> options, ICurren
             b.HasIndex(x => new { x.UserId, x.SessionId, x.IdempotencyKey }).IsUnique().HasDatabaseName("ux_lecture_notes_idempotency");
             // One press in flight per session: concurrent presses cannot start two generations (the loser is handed the winner's row).
             b.HasIndex(x => x.SessionId).IsUnique().HasFilter("state = 'Pending'").HasDatabaseName("ux_lecture_notes_pending");
+            // NAS-03 (A006): at most one press pending or running per USER across all their sessions (fair use of the shared notes lane).
+            b.HasIndex(x => x.UserId).IsUnique().HasFilter("state = 'Pending'").HasDatabaseName("ux_lecture_notes_pending_user");
             b.HasQueryFilter(x => x.UserId == CurrentUserId);
         });
     }

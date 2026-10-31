@@ -42,11 +42,39 @@ internal sealed record BreakerOptions(int FailuresToOpen, TimeSpan OpenFor, Time
 /// on the ESTIMATED cost of everything one press may send (notes chunks plus the final summary); a press over it makes no call at all.
 /// The calls are also held against the ordinary lecture-pool caps (per session, per user-day, per month) one by one.
 /// </summary>
+/// <param name="StaleAfter">NAS-03: the gateway permission's lifetime, counted from the moment the job STARTS running (queue wait does not
+/// count). Defaults to the computed worst case of one press (<see cref="WorstCase"/>) plus a minute; an explicit smaller value is refused at startup.</param>
+/// <param name="PerRequestMicro">Cap on the estimated cost of one press, INCLUDING the one repair attempt every call may make (NAS-07).</param>
+/// <param name="PerUserDailyMicro">NAS-02: the notes sub-cap, the most Notes + FinalSummary may spend per user per UTC day inside the lecture pool.
+/// Configured default: 50% of <c>Ai:Budget:PerUserDailyMicroUsd</c> (the record default matches the default 1,000,000 cap).</param>
+/// <param name="LiveFloorPerUserDailyMicro">NAS-02: the part of the user's daily lecture cap that notes may never use (reserved for live TL;DR and Quick recap). Default 40% of that cap.</param>
+/// <param name="LiveFloorGlobalMonthlyMicro">NAS-02: the part of the global monthly lecture cap that notes may never use. Default 40% of that cap.</param>
+/// <param name="MaxQueueWait">NAS-03: a press still waiting in the queue this long after it was pressed ends Unavailable (the student may press again).</param>
+/// <param name="NoticeVersions">NAS-05: notice ids the server accepts in <c>noticeVersion</c>. DRAFT placeholder ids (G1 owns the wording).</param>
 internal sealed record NotesOptions(
     int ChunkChars, int MaxChunks, int MaxSegments, int MaxOutputTokens, TimeSpan Timeout, int Workers, int QueueCapacity, TimeSpan StaleAfter,
-    int PerMinutePerUser, int MaxAttemptsPerSession, long PerRequestMicro)
+    int PerMinutePerUser, int MaxAttemptsPerSession, long PerRequestMicro,
+    long PerUserDailyMicro = 500_000, long LiveFloorPerUserDailyMicro = 400_000, long LiveFloorGlobalMonthlyMicro = 20_000_000,
+    BreakerOptions? BreakerConfig = null, TimeSpan? MaxQueueWaitConfig = null, IReadOnlyList<string>? NoticeVersionsConfig = null)
 {
-    public static NotesOptions Default { get; } = new(12_000, 10, 6_000, 1_500, TimeSpan.FromSeconds(30), 1, 16, TimeSpan.FromMinutes(10), 6, 5, 300_000);
+    public const string DraftNoticeVersion = "notes-notice-draft-1";
+
+    public static NotesOptions Default { get; } = new(12_000, 10, 6_000, 1_500, TimeSpan.FromSeconds(30), 1, 16, TimeSpan.FromMinutes(15), 6, 5, 600_000);
+
+    public BreakerOptions Breaker => BreakerConfig ?? new BreakerOptions(3, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(600));
+
+    public TimeSpan MaxQueueWait => MaxQueueWaitConfig ?? TimeSpan.FromMinutes(30);
+
+    public IReadOnlyList<string> NoticeVersions => NoticeVersionsConfig ?? [DraftNoticeVersion];
+
+    public bool IsKnownNotice(string v) => NoticeVersions.Contains(v, StringComparer.Ordinal);
+
+    /// <summary>
+    /// NAS-03: the longest one press can run once started: every notes part twice (one repair) at the notes timeout, plus every final-summary
+    /// chunk twice at the general call timeout. Defaults: 10 x 2 x 30 s + 4 x 2 x 20 s = 760 s.
+    /// </summary>
+    public TimeSpan WorstCase(TimeSpan callTimeout, int finalChunks) =>
+        Timeout * (2 * Math.Max(1, MaxChunks)) + callTimeout * (2 * Math.Max(1, finalChunks));
 }
 
 /// <summary>
@@ -105,28 +133,44 @@ internal sealed record AiOptions(
         var breaker = new BreakerOptions(br.GetValue("FailuresToOpen", 3), Secs(c, "Ai:Breaker:OpenSeconds", 60), Secs(c, "Ai:Breaker:ProviderCapOpenSeconds", 600));
 
         Enum.TryParse<MockFault>(c["Ai:Mock:Fault"], ignoreCase: true, out var fault);
+        var callTimeout = Secs(c, "Ai:CallTimeoutSeconds", 20);
         return new AiOptions(
             Enabled: c.GetValue("Ai:Enabled", true), Provider: (c["Ai:Provider"] ?? "mock").Trim().ToLowerInvariant(),
-            CallTimeout: Secs(c, "Ai:CallTimeoutSeconds", 20), Budget: budget,
+            CallTimeout: callTimeout, Budget: budget,
             Fast: Price("Fast", 100_000, 10_000, 500_000, "claude-haiku-5-5"),
             Balanced: Price("Balanced", 2_000_000, 100_000, 10_000_000, "claude-sonnet-5-5"),
             Summary: summary, CatchUp: catchUp, Breaker: breaker, MockFault: fault, MockLatency: TimeSpan.FromMilliseconds(c.GetValue("Ai:Mock:LatencyMs", 0)),
             Reaper: new Tether.Ai.Budget.ReaperOptions(Secs(c, "Ai:Reaper:IntervalSeconds", 60), Secs(c, "Ai:Reaper:GraceSeconds", 180)),
             // LanguageGuard (docs/ux/language-guide.md 5.2) is LOG-ONLY unless this is true; measure the rule hit rates before enforcing.
             LanguageGuardEnforce: c.GetValue("Ai:LanguageGuard:Enforce", false),
-            NotesConfig: NotesFrom(c));
+            NotesConfig: NotesFrom(c, callTimeout, summary.CompactionMaxChunks, budget));
     }
 
-    private static NotesOptions NotesFrom(IConfiguration c)
+    /// <summary>NAS-02 defaults, as shares of the configured lecture caps so they scale with them: notes sub-cap 50% of the user-day cap; live floors 40% of the user-day and of the global month.</summary>
+    public const double NotesShareOfDay = 0.5, LiveFloorShare = 0.4;
+
+    private static NotesOptions NotesFrom(IConfiguration c, TimeSpan callTimeout, int finalChunks, BudgetOptions budget)
     {
+        static long Share(long cap, double share) => (long)Math.Floor(cap * share);
         var d = NotesOptions.Default;
         var n = c.GetSection("Ai:Notes");
-        return new NotesOptions(
+        var o = new NotesOptions(
             ChunkChars: n.GetValue("ChunkChars", d.ChunkChars), MaxChunks: n.GetValue("MaxChunks", d.MaxChunks), MaxSegments: n.GetValue("MaxSegments", d.MaxSegments),
             MaxOutputTokens: n.GetValue("MaxOutputTokens", d.MaxOutputTokens), Timeout: TimeSpan.FromSeconds(n.GetValue("TimeoutSeconds", d.Timeout.TotalSeconds)),
             Workers: n.GetValue("Workers", d.Workers), QueueCapacity: n.GetValue("QueueCapacity", d.QueueCapacity),
-            StaleAfter: TimeSpan.FromSeconds(n.GetValue("StaleSeconds", d.StaleAfter.TotalSeconds)), PerMinutePerUser: n.GetValue("PerMinutePerUser", d.PerMinutePerUser),
-            MaxAttemptsPerSession: n.GetValue("MaxAttemptsPerSession", d.MaxAttemptsPerSession), PerRequestMicro: n.GetValue("PerRequestMicroUsd", d.PerRequestMicro));
+            StaleAfter: d.StaleAfter, PerMinutePerUser: n.GetValue("PerMinutePerUser", d.PerMinutePerUser),
+            MaxAttemptsPerSession: n.GetValue("MaxAttemptsPerSession", d.MaxAttemptsPerSession), PerRequestMicro: n.GetValue("PerRequestMicroUsd", d.PerRequestMicro),
+            PerUserDailyMicro: n.GetValue("PerUserDailyMicroUsd", Share(budget.PerUserDailyMicro, NotesShareOfDay)),
+            LiveFloorPerUserDailyMicro: n.GetValue("LiveFloorPerUserDailyMicroUsd", Share(budget.PerUserDailyMicro, LiveFloorShare)),
+            LiveFloorGlobalMonthlyMicro: n.GetValue("LiveFloorGlobalMonthlyMicroUsd", Share(budget.GlobalMonthlyMicro, LiveFloorShare)),
+            BreakerConfig: new BreakerOptions(n.GetValue("Breaker:FailuresToOpen", d.Breaker.FailuresToOpen),
+                TimeSpan.FromSeconds(n.GetValue("Breaker:OpenSeconds", d.Breaker.OpenFor.TotalSeconds)), d.Breaker.ProviderCapOpenFor),
+            MaxQueueWaitConfig: TimeSpan.FromSeconds(n.GetValue("MaxQueueWaitSeconds", d.MaxQueueWait.TotalSeconds)),
+            NoticeVersionsConfig: n.GetSection("NoticeVersions").Get<string[]>() is { Length: > 0 } nv ? nv : null);
+        // NAS-03: unless set explicitly, the permission lasts the computed worst case of one started press plus a minute of slack.
+        var stale = n["StaleSeconds"] is { } s && double.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var secs)
+            ? TimeSpan.FromSeconds(secs) : o.WorstCase(callTimeout, finalChunks) + TimeSpan.FromMinutes(1);
+        return o with { StaleAfter = stale };
     }
 }
 
@@ -156,5 +200,25 @@ internal static class AiProviderGuard
         if (options.Budget.PerSessionMicro <= 0 || options.Budget.PerUserDailyMicro <= 0 || options.Budget.GlobalMonthlyMicro <= 0
             || syl.PerScopeMicro <= 0 || syl.PerUserDailyMicro <= 0 || syl.GlobalMonthlyMicro <= 0 || options.Notes.PerRequestMicro <= 0)
             throw new InvalidOperationException("Ai:Budget caps must be positive. To switch AI off set Ai:Enabled=false.");
+
+        // NAS-02: the notes sub-cap must be positive and the live floors must leave notes something without exceeding the caps they sit in.
+        var n = options.Notes;
+        if (n.PerUserDailyMicro <= 0 || n.LiveFloorPerUserDailyMicro < 0 || n.LiveFloorGlobalMonthlyMicro < 0
+            || n.LiveFloorPerUserDailyMicro >= options.Budget.PerUserDailyMicro || n.LiveFloorGlobalMonthlyMicro >= options.Budget.GlobalMonthlyMicro)
+            throw new InvalidOperationException("Ai:Notes:PerUserDailyMicroUsd must be positive and the Ai:Notes:LiveFloor* values must be at least 0 and below the lecture caps they reserve.");
+        if (n.Breaker.FailuresToOpen < 1 || n.Breaker.OpenFor <= TimeSpan.Zero || n.MaxQueueWait <= TimeSpan.Zero)
+            throw new InvalidOperationException("Ai:Notes:Breaker:* and Ai:Notes:MaxQueueWaitSeconds must be positive.");
+        if (n.NoticeVersions.Any(v => !NoticeVersionFormat.IsValid(v)))
+            throw new InvalidOperationException("Ai:Notes:NoticeVersions entries must be 1 to 64 of [A-Za-z0-9._-].");
+        // NAS-03: a permission shorter than the longest a started press can run would skip the final summary (or notes) without any sign.
+        var worst = n.WorstCase(options.CallTimeout, options.Summary.CompactionMaxChunks);
+        if (n.StaleAfter < worst)
+            throw new InvalidOperationException($"Ai:Notes:StaleSeconds ({n.StaleAfter.TotalSeconds:0}) is below the worst case of one press ({worst.TotalSeconds:0} s = MaxChunks x 2 x TimeoutSeconds + CompactionMaxChunks x 2 x CallTimeoutSeconds). Raise it or leave it unset.");
     }
+}
+
+/// <summary>NAS-05: the shape of a notice id (same as the syllabus <c>noticeVersion</c>): 1 to 64 of <c>[A-Za-z0-9._-]</c>, nothing else.</summary>
+internal static class NoticeVersionFormat
+{
+    public static bool IsValid(string? v) => v is { Length: >= 1 and <= 64 } && v.All(ch => char.IsAsciiLetterOrDigit(ch) || ch is '.' or '_' or '-');
 }
