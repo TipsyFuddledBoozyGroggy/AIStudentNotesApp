@@ -151,3 +151,9 @@ These are Lead Architect choices under delegation. Reversible. They approve no s
 | PO-18c | Follow the `fable` design review's recommendation for the Demo-source notice on lecture screens (`docs/ux/redesign-round2-review.md` section 6; also redesign-round2.md): render it as a one-line Note with the body behind "Details", and the Demo tag leaves the bar on desktop as it already does on phones. Wording is unchanged word for word; the recording status stays always visible. Supersedes the PO-17b deferral for this item only. Counsel not consulted; gate G1 is not cleared by this (PO risk acceptance for the personal-use scope, PO-16). | PO decided; not built |
 | PO-18d | Final summary and notes after Stop: **option B**. A deliberate student press ("Make notes") after Stop is the only thing that sends the already-recorded transcript to the AI once a lecture has stopped; nothing is sent automatically on Stop (B3-06 stands). One press covers both the final summary and the notes. Built on the mock provider first; wording stays a draft; consent/disclosure wording is G1. | PO decided; not built |
 | PO-18e | Acknowledged: NAS-03 moved the notes permission window from press time to job start plus a queue-age limit. With NAS-R02 fixed, the longest time from a press to a finished job is about 44 minutes at the defaults. | PO acknowledged |
+
+## Redirect after Stop (2026-11-01)
+
+| ID | Decision | Status |
+|---|---|---|
+| PO-19 | When a lecture is stopped, the browser moves from the live route (`/courses/{id}/lecture`) to that lecture's reopen route (`/lectures/{id}`), replacing the history entry, so a reload or a later return still shows the transcript, summary and notes. A dialog tells the student about the move first and has a "Don't show this again" checkbox; once checked the dialog no longer opens and the move happens directly. Wording is student-facing UX (language guide); it is not consent/recording/Demo wording (G1). | PO decided; not built |
