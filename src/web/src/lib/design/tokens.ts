@@ -409,6 +409,15 @@ export const PRIMITIVE_PAIRS: { primitive: string; fg: Role; bg: Role; min: 4.5 
   // .sheet and .dialog: body and helper text on surface.
   { primitive: "sheet", fg: "ink", bg: "surface", min: 4.5 },
   { primitive: "sheet helper", fg: "muted", bg: "surface", min: 4.5 },
+  // Slice 4 (Today, course page, forms): the pairs those screens add beyond the primitives above. The focus ring on a
+  // focused ledger row sits on the row's sunken tint; the trailing "Open" chevron is muted on the ledger and on the hover
+  // tint (held to 3:1 although it is beside a word); the form's error-summary title is danger text on the sheet; the
+  // "{course} added." line is success text on canvas.
+  { primitive: "ledger row focus ring", fg: "accent", bg: "sunken", min: 3 },
+  { primitive: "ledger row chevron", fg: "muted", bg: "ledger", min: 3 },
+  { primitive: "ledger row chevron (hover)", fg: "muted", bg: "sunken", min: 3 },
+  { primitive: "form error summary title", fg: "danger", bg: "surface", min: 4.5 },
+  { primitive: "course added line", fg: "success", bg: "canvas", min: 4.5 },
 ];
 
 /**

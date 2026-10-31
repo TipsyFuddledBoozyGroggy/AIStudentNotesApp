@@ -77,6 +77,34 @@ async function sameBaseline(page: Page, heading: string, action: string, where: 
   expect(near(hl, al, 1), `${where} "${heading}" baseline ${hl} vs "${action}" ${al}`).toBe(true);
 }
 
+/**
+ * Slice 4 Desk margin: every `.desk-label` starts its ink on the container edge from 1024 (and keeps a clear space before
+ * the column), on the column below 1024; from 1024 it shares a baseline with the first line of its section's body, or with
+ * its action when the section has one.
+ */
+async function marginChecks(page: Page, width: number, where: string) {
+  const problems: string[] = [];
+  const shell = await contentEdges(page.locator("[data-shell]"));
+  const col = await box(column(page));
+  const labels = await page.locator("main .desk-label").all();
+  expect(labels.length, `${where}@${width} margin labels`).toBeGreaterThan(0);
+  for (const l of labels) {
+    const name = (await l.textContent())?.trim() ?? "";
+    const li = await ink(l);
+    const edge = width >= 1024 ? shell.left : col.x;
+    if (!near(li.x, edge, 1.5)) problems.push(`label "${name}" ink left ${li.x} vs ${width >= 1024 ? "container" : "column"} ${edge}`);
+    if (width >= 1024) {
+      if (li.x + li.width > col.x - 8) problems.push(`label "${name}" ink right ${li.x + li.width} runs into the column ${col.x}`);
+      const section = l.locator("xpath=..");
+      const action = section.locator("> .desk-action");
+      const partner = (await action.count()) ? action : section.locator("> .desk-body");
+      const [lb, pb] = await Promise.all([baseline(l), baseline(partner)]);
+      if (!near(lb, pb, 1)) problems.push(`label "${name}" baseline ${lb} vs ${(await action.count()) ? "action" : "body"} ${pb}`);
+    }
+  }
+  expect(problems, `${where} @ ${width} margin`).toEqual([]);
+}
+
 /** Checks shared by every shell page: R3 edges, R2 column start, R4 targets, header row, no overflow. */
 async function shellChecks(page: Page, width: number, name: string, opts: { authed: boolean; template: "desk" | "sheet" | "auth" }) {
   const problems: string[] = [];
@@ -99,14 +127,24 @@ async function shellChecks(page: Page, width: number, name: string, opts: { auth
       if (!near(col.x, shell.left + 80 + 32, 1)) problems.push(`desk column start ${col.x} vs ${shell.left + 112}`);
     }
   } else if (opts.template === "sheet") {
-    const sheet = await box(page.locator("main .card").first());
-    if (!near(sheet.x, col.x, 1)) problems.push(`sheet left ${sheet.x} vs column ${col.x}`);
+    // Slice 4: the h1 sits above the sheet on the column start; the sheet starts on the column too, except below 640
+    // where it is full-bleed (16px outward) with its text on the gutter, i.e. on the column edge again.
+    const h = await ink(page.locator("main h1").first());
+    if (!near(h.x, col.x, 1.5)) problems.push(`sheet page h1 ink left ${h.x} vs column ${col.x}`);
+    const sheet = await box(page.locator("main .sheet").first());
+    const bleed = width < 640 ? 16 : 0;
+    if (!near(sheet.x, col.x - bleed, 1)) problems.push(`sheet left ${sheet.x} vs column ${col.x} - ${bleed}`);
     if (width >= 1024 && !near(sheet.width, 640, 1)) problems.push(`sheet width ${sheet.width} (40rem expected)`);
+    const field = await box(page.locator("main .sheet .field").first());
+    if (width < 640 && !near(field.x, col.x, 1)) problems.push(`phone field left ${field.x} vs column ${col.x} (text on the gutter)`);
   } else {
-    const card = await box(page.locator("main .card").first());
+    // Auth: the block (h1 + sentence + sheet) is 28rem centred, 96px from the top of main; the sheet is centred too.
+    const block = await box(page.locator("[data-column-start] > *").first());
+    const sheet = await box(page.locator("main .sheet").first());
     const main = await box(page.locator("main"));
-    if (!near(card.x + card.width / 2, main.x + main.width / 2, 1)) problems.push(`auth card not centred: ${card.x + card.width / 2} vs ${main.x + main.width / 2}`);
-    if (!near(card.y - main.y, 96, 1)) problems.push(`auth top offset ${card.y - main.y} (96 expected)`);
+    if (!near(block.x + block.width / 2, main.x + main.width / 2, 1)) problems.push(`auth block not centred: ${block.x + block.width / 2} vs ${main.x + main.width / 2}`);
+    if (!near(sheet.x + sheet.width / 2, main.x + main.width / 2, 1)) problems.push(`auth sheet not centred: ${sheet.x + sheet.width / 2} vs ${main.x + main.width / 2}`);
+    if (!near(block.y - main.y, 96, 1)) problems.push(`auth top offset ${block.y - main.y} (96 expected)`);
   }
   // (4) targets: controls >= 44 x 44; prose links >= 24 high.
   for (const c of await controls(page)) {
@@ -144,12 +182,12 @@ test("Paper, 7 widths: shell pages share edges, one column start per template, 4
       report.push(...(await shellChecks(page, width, "dashboard", { authed: true, template: "desk" })).map((s) => `dashboard@${width} ${s}`));
       // (7) heading + action share a baseline (when the row has not wrapped, which it does at 320).
       await sameBaseline(page, "Your courses", "Add a course", `dashboard@${width}`);
-      // (5) card text inset = pad + 1px border on the striped card too (A4).
-      const card = page.locator("main .card").first();
-      const cb = await box(card);
-      const label = await ink(card.locator("h2").first());
-      const pad = await px(card, "padding-left");
-      expect(near(label.x, cb.x + pad + 1, 1.5), `dashboard@${width} card inset ${label.x - cb.x} vs ${pad + 1}`).toBe(true);
+      // (5) Slice 4 (redesign-round2 2.7 Margin label, 5.3): no cards on Today. Margin labels hang on the container edge
+      // from 1024 (the edge the lecture timestamps use) and sit on the column below; ledger row text sits on the column.
+      await marginChecks(page, width, "dashboard");
+      const row = await ink(page.locator("main .ledger-row-link").first());
+      const colX = (await box(column(page))).x;
+      expect(near(row.x, colX, 1.5), `dashboard@${width} ledger row text ${row.x} vs column ${colX}`).toBe(true);
       await close();
     }
     // All courses (desk) and the course page (desk).
@@ -164,6 +202,8 @@ test("Paper, 7 widths: shell pages share edges, one column start per template, 4
       const { page, close } = await open(browser, `/courses/${ctx.courseId}`, width, { auth: true });
       await expect(page.getByRole("heading", { level: 1, name: "Biology 101" })).toBeVisible();
       report.push(...(await shellChecks(page, width, "course-detail", { authed: true, template: "desk" })).map((s) => `course-detail@${width} ${s}`));
+      await expect(page.getByRole("link", { name: "Add your syllabus" })).toBeVisible();
+      await marginChecks(page, width, "course-detail");
       await close();
     }
     // Add a course (sheet) and sign-in (auth).
@@ -312,7 +352,8 @@ async function landmarks(browser: Browser, width: number, prefs: Record<string, 
     out.header = await box(page.locator("[data-site-header]"));
     out.nav = await box(page.getByRole("navigation", { name: "Primary" }));
     out.main = await landmark(page.locator("main"));
-    out.card = await landmark(page.locator("main .card").first());
+    // Slice 4: Today has no card any more; the 12th landmark is the Next step section (margin label + block).
+    out.nextStep = await landmark(page.locator("section[aria-labelledby=\"next-step-heading\"]"));
     out.primary = await box(page.locator("main .btn-primary").first());
     // Diagnostic only (printed when main differs): the heights of the dashboard's blocks.
     diag[`${width}:${JSON.stringify(prefs)}`] = await page.evaluate(() =>
@@ -357,11 +398,11 @@ for (const width of [390, 1280] as const) {
         const got = await landmarks(browser, width, { skin, theme });
         for (const [k, r] of Object.entries(base)) {
           const g = got[k];
-          // Calm's roomier card padding (the one sanctioned layout exception, 32 instead of 24) changes the first card's
-          // height and everything below it in the same column, and moves what sits inside a card (the primary button, the
-          // field) 8px inward. The card's own x and width must still match; so must every landmark outside a card.
+          // Calm's roomier card padding (the one sanctioned layout exception, 32 instead of 24) moves what sits inside a
+          // padded sheet 8px inward. Since slice 4 only the Add a course field sits in one (Today has no cards), so the
+          // allowance covers the field alone; every other landmark, main included, must match in Calm too.
           const calm = skin === "calm";
-          const insideCard = k === "primary" || k === "field";
+          const insideCard = k === "field";
           // A wider heading face may add lines to a .display element inside the landmark; the landmark may then grow by at
           // most those lines (and must not shrink). Every other height change is a layout difference and fails.
           const extraHeading = Math.max(0, (g.headingPx ?? 0) - (r.headingPx ?? 0));
@@ -369,7 +410,7 @@ for (const width of [390, 1280] as const) {
           const heightOk = near(dh, 0) || (extraHeading > 0 && dh > 0 && dh <= extraHeading + 1);
           const calmShift = near(g.x - r.x, 8) && (k === "field" ? near(r.width - g.width, 16) : near(r.width, g.width));
           const okX = (calm && insideCard && calmShift) || (near(r.x, g.x) && near(r.width, g.width));
-          const okY = (calm && (insideCard || k === "card" || k === "main")) || (near(r.y, g.y) && heightOk);
+          const okY = (calm && insideCard) || (near(r.y, g.y) && heightOk);
           if (!(okX && okY)) {
             diffs.push(`${skin}/${theme} ${k}: ${fmt(g)} vs paper ${fmt(r)}`);
             if (k === "main") diffs.push(`  main blocks ${skin}/${theme}: ${diag[`${width}:${JSON.stringify({ skin, theme })}`]} | paper: ${diag[`${width}:${JSON.stringify({ skin: "paper", theme: "light" })}`]}`);

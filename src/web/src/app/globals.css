@@ -792,6 +792,63 @@ html:has([data-lecture-root]) {
   .chevron {
     @apply shrink-0 text-muted;
   }
+
+  /* ---- Slice 4: the Desk margin and the page sheet (redesign-round2 2.3 Desk / Sheet, 2.7 Margin label, 5.3). ---- */
+
+  /* A Desk section: its label (.desk-label, styled .label) sits above its content below 1024 and hangs in the 5rem margin
+     column from 1024 (rule below, Desk template only). An optional action (.desk-action) shares the label's row and
+     baseline. Grid areas, so the DOM order (label, action, body) is the reading order at every width. */
+  .desk-section {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "label action" "body body";
+    align-items: baseline;
+    column-gap: 0.75rem;
+    row-gap: 0.5rem;
+  }
+  .desk-label {
+    grid-area: label;
+  }
+  .desk-action {
+    grid-area: action;
+    justify-self: end;
+  }
+  .desk-body {
+    grid-area: body;
+    min-width: 0;
+  }
+  /* The one sheet of a Sheet or Auth page (a form): below 640 square-edged and full-bleed like every sheet, with its
+     text on the page gutter (16px) so the field edge equals the heading's edge above it (R8, review A12). */
+  @media (max-width: 639px) {
+    .sheet-page {
+      margin-inline: -1rem;
+      padding-inline: 1rem;
+    }
+  }
+}
+
+/* Desk margin from 1024 (slice 4): the section steps back by the margin column plus the 2rem gap, so its label's ink
+   starts on the container edge (the same edge the lecture timestamps hang on) and its body stays on the column start.
+   The label keeps a 1rem clear space before the column. Without an action the label shares the body's first row and
+   baseline; with one, the label and the action share the first row and the body runs below. */
+@media (min-width: 1024px) {
+  main[data-template="desk"] .desk-section {
+    grid-template-columns: calc(var(--margin-col) + 2rem) minmax(0, 1fr) auto;
+    grid-template-areas: "label body body";
+    column-gap: 0;
+    margin-inline-start: calc(-1 * (var(--margin-col) + 2rem));
+  }
+  main[data-template="desk"] .desk-section:has(> .desk-action) {
+    grid-template-areas: "label . action" ". body body";
+  }
+  /* The negative end margin takes the label out of the row's height (a grid item contributes its margin box), so a label
+     that wraps in the 5rem margin ("Saturday, / October 31", or "Your courses" in a wide face) hangs beside what follows
+     instead of growing its row: the column's geometry never depends on a label (redesign-round2 3.3 item 3). Its first
+     baseline still aligns with the body's. Three label lines (72px) fit before the next section (48px gap + 24). */
+  main[data-template="desk"] .desk-label {
+    padding-inline-end: 1rem;
+    margin-block-end: -3rem;
+  }
 }
 
 /* Transcript reading layout (section 4 "Transcript line"): hanging timestamp column, 68ch measure, 17/28 line boxes

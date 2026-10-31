@@ -14,8 +14,12 @@ the 48px consent buttons stay (G1). **Redesign-round2 slice 3 (lecture screen) I
 in the same document): transcript as the sheet with the 5rem margin track for timestamps from 1280, the Quick recap result
 as a sheet above the transcript on desktop, the rail as a ledger, safety panels as notes, serif synthesis line; the
 landmark-rect gate and the lecture harness were extended and stay green; the Demo-source notice and tag are unchanged (G1,
-PO deferral). **T2-T6 NOT STARTED** (T2 needs slice 2's Segmented widths, now in place; T5's lecture pass over 10 looks can
-reuse slice 3's harness tests).
+PO deferral). **Redesign-round2 slice 4 (Today, course page, forms, sign-in) IMPLEMENTED 2026-10-31** ("Slice 4 results"
+in the same document): the Desk margin column now holds labels (date, "Next step", "Your courses", "Lecture", "Syllabus")
+from 1024; courses are ledger rows; Add a course and sign-in put the h1 above one sheet; no cards or panels remain on those
+screens. The landmark gate's 12th landmark is now Today's Next step section (the first card is gone) and Calm's allowance
+covers only the Add a course field (recorded there). **T2-T6 NOT STARTED** (T2 needs slice 2's Segmented widths, now in
+place; T5's lecture pass over 10 looks can reuse slice 3's harness tests).
 
 ## T0 token plumbing (DONE)
 Files changed:

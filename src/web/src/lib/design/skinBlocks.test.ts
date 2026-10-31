@@ -389,6 +389,62 @@ describe("lecture screen (redesign-round2 slice 3)", () => {
   });
 });
 
+// ---------------------------------------------------------------------------------------------------------------------
+// Slice 4 (redesign-round2 2.3 Desk / Sheet / Auth, 2.7 Margin label, 5.3): the Desk margin section, the page sheet, and
+// no boxes left on Today, the course page, All courses, Add a course and sign-in. Browser geometry is geometry.spec.ts.
+describe("Today, course page, forms, sign-in (redesign-round2 slice 4)", () => {
+  const find = (sel: string, ctx?: string) => RULES.find((r) => r.selector === sel && (ctx ? inMedia(r, ctx) : r.context.every((c) => c.startsWith("@layer"))));
+  const decls = (sel: string, ctx?: string) => Object.fromEntries(find(sel, ctx)?.decls ?? []) as Record<string, string>;
+  const SLICE4 = [
+    "components/DashboardView.tsx",
+    "components/DashboardPage.tsx",
+    "components/CourseCard.tsx",
+    "components/CourseDetailView.tsx",
+    "components/CourseDetailPage.tsx",
+    "components/AllCoursesPage.tsx",
+    "components/CourseForm.tsx",
+    "components/SignInView.tsx",
+    "components/syllabus/SyllabusCard.tsx",
+  ];
+  const src = (f: string) => readFileSync(path.join(SRC, f), "utf8");
+
+  it("a Desk section stacks label / action / body below 1024 and hangs its label in the 5rem margin from 1024", () => {
+    expect(decls(".desk-section")).toMatchObject({ display: "grid", "grid-template-areas": '"label action" "body body"', "align-items": "baseline" });
+    expect(decls(".desk-body")).toMatchObject({ "grid-area": "body", "min-width": "0" });
+    // From 1024 a margin label never sizes its row: a wrapped label hangs beside what follows (landmark gate across faces).
+    expect(decls('main[data-template="desk"] .desk-label', "min-width: 1024px")).toEqual({ "padding-inline-end": "1rem", "margin-block-end": "-3rem" });
+    const wide = decls('main[data-template="desk"] .desk-section', "min-width: 1024px");
+    expect(wide).toEqual({
+      "grid-template-columns": "calc(var(--margin-col) + 2rem) minmax(0, 1fr) auto",
+      "grid-template-areas": '"label body body"',
+      "column-gap": "0",
+      // The step back equals the Desk grid's margin column plus its 2rem gap, so the label's ink is on the container edge.
+      "margin-inline-start": "calc(-1 * (var(--margin-col) + 2rem))",
+    });
+    expect(decls('main[data-template="desk"] .desk-section:has(> .desk-action)', "min-width: 1024px")).toEqual({ "grid-template-areas": '"label . action" ". body body"' });
+    const desk = RULES.find((r) => r.selector === 'main[data-template="desk"]' && inMedia(r, "min-width: 1024px"));
+    expect(desk?.decls).toContainEqual(["column-gap", "2rem"]);
+  });
+
+  it("the page sheet is full-bleed below 640 with its text on the 16px gutter", () => {
+    expect(decls(".sheet-page", "max-width: 639px")).toEqual({ "margin-inline": "-1rem", "padding-inline": "1rem" });
+  });
+
+  it("no card or panel boxes remain on the slice 4 screens; ledgers and notes instead; labels are .label, never uppercase", () => {
+    for (const f of SLICE4) {
+      const s = src(f);
+      expect(s, f).not.toMatch(/className="[^"]*\b(card|card-accent|panel|panel-\w+|eyebrow)\b/);
+      expect(s, f).not.toMatch(/\bborder border-hair\b|rounded-card/);
+    }
+    expect(src("components/CourseCard.tsx")).toContain('className="ledger-row-link"');
+    expect(src("components/DashboardView.tsx")).toContain('<ul className="ledger">');
+    expect(src("components/AllCoursesPage.tsx")).toContain('<ul className="ledger">');
+    expect(src("components/syllabus/SyllabusCard.tsx")).toContain('className="ledger-row-link"');
+    // Sheet and Auth pages: the h1 sits outside the one sheet, which is a .sheet (not a card).
+    for (const f of ["components/CourseForm.tsx", "components/SignInView.tsx"]) expect(src(f)).toMatch(/<\/h1>[\s\S]*className="sheet sheet-page/);
+  });
+});
+
 describe("Type scale (redesign-round2 2.1): line boxes on the 4px grid", () => {
   const rootDecls = new Map<string, string>();
   for (const r of rootRules.filter((r) => r.context.length === 0)) for (const [k, v] of r.decls) rootDecls.set(k, v);

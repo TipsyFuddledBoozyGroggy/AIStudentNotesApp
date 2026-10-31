@@ -17,8 +17,8 @@ export function DashboardPage() {
   }
   if (status === "error") {
     return (
-      <div role="alert" className="panel panel-notice max-w-prose">
-        <p className="font-semibold">We can&apos;t reach the server at the moment.</p>
+      <div role="alert" className="note note-notice max-w-prose">
+        <p className="note-title">We can&apos;t reach the server at the moment.</p>
         <p className="mt-1 text-muted">Nothing was deleted. Try again when you like.</p>
         <button type="button" className="btn-primary mt-4" onClick={() => window.location.reload()}>
           Try again

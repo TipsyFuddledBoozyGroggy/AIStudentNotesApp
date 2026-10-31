@@ -22,4 +22,20 @@ describe("CourseDetailView", () => {
     link.click();
     expect(getUserMedia).not.toHaveBeenCalled();
   });
+
+  it("slice 4: Desk sections with margin labels, one filled button, Syllabus as one ledger row, no cards", async () => {
+    const { container } = render(<CourseDetailView course={course} />);
+    expect(container.querySelectorAll(".btn-primary")).toHaveLength(1);
+    expect(container.querySelectorAll(".card, .panel")).toHaveLength(0);
+    for (const name of ["Lecture", "Syllabus"]) {
+      const h = screen.getByRole("heading", { level: 2, name });
+      expect(h).toHaveClass("label", "desk-label");
+      expect(h.parentElement).toHaveClass("desk-section");
+    }
+    const syllabus = screen.getByRole("region", { name: "Syllabus" });
+    expect(syllabus.querySelector(".ledger > .ledger-row")).not.toBeNull();
+    // Unchanged wording beside the lecture entry (consent-adjacent; layout only in this slice).
+    expect(screen.getByText("Nothing is recorded until you choose to start. You will see what Tether does first, and you can pause or stop at any time.")).toBeInTheDocument();
+    expect(await axeViolations(container)).toEqual([]);
+  });
 });

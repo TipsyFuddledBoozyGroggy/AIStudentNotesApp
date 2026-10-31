@@ -43,7 +43,7 @@ export function CourseDetailPage() {
   if (state.s === "notfound" || state.s === "error") {
     return (
       <div className="max-w-prose space-y-4">
-        <h1 className="display text-3xl">{state.s === "notfound" ? "We can't find that course" : "We couldn't load this course"}</h1>
+        <h1 className="display text-display">{state.s === "notfound" ? "We can't find that course" : "We couldn't load this course"}</h1>
         <p className="text-muted">{state.s === "notfound" ? "It may have been removed, or it belongs to another account." : "Nothing was deleted. Try again in a moment."}</p>
         <Link href="/" className="btn-primary">
           Back to dashboard

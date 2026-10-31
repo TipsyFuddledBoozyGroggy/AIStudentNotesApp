@@ -10,7 +10,12 @@ interface Props {
   justAdded?: boolean;
 }
 
-/** Course detail. The lecture entry is a plain link: nothing starts, and no microphone is touched, until the consent screen's Start button. */
+/**
+ * Course page (redesign-round2 slice 4), Desk template, no cards: back link, h1, meta, then two sections whose labels hang
+ * in the margin column: "Lecture" (its sentence, unchanged, and the screen's one filled button) and "Syllabus" (one
+ * ledger row). The lecture entry is a plain link: nothing starts, and no microphone is touched, until the consent
+ * screen's Start button.
+ */
 export function CourseDetailView({ course, justAdded }: Props) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -20,12 +25,12 @@ export function CourseDetailView({ course, justAdded }: Props) {
   const meta = [course.code, course.term, course.instructor].filter(Boolean).join(" · ");
 
   return (
-    <div className="max-w-3xl space-y-8">
+    <div>
       <div>
         <Link href="/courses" className="link inline-flex min-h-[44px] items-center gap-1 text-sm no-underline hover:underline">
           <span aria-hidden="true">&larr;</span> Courses
         </Link>
-        <h1 ref={headingRef} tabIndex={-1} className="display mt-1 break-words text-3xl">
+        <h1 ref={headingRef} tabIndex={-1} className="display mt-1 break-words text-display">
           {course.name}
         </h1>
         {meta && <p className="mt-1 text-muted">{meta}</p>}
@@ -39,19 +44,21 @@ export function CourseDetailView({ course, justAdded }: Props) {
         )}
       </div>
 
-      <section aria-labelledby="lecture-heading" className="card card-accent">
-        <h2 id="lecture-heading" className="display text-2xl">
+      <section aria-labelledby="lecture-heading" className="desk-section mt-12">
+        <h2 id="lecture-heading" className="label desk-label">
           Lecture
         </h2>
-        <p className="mt-2 max-w-prose text-muted">Nothing is recorded until you choose to start. You will see what Tether does first, and you can pause or stop at any time.</p>
-        <Link href={`/courses/${encodeURIComponent(course.id)}/lecture`} className="btn-primary mt-5">
-          Start a lecture
-        </Link>
+        <div className="desk-body">
+          <p className="max-w-prose text-muted">Nothing is recorded until you choose to start. You will see what Tether does first, and you can pause or stop at any time.</p>
+          <Link href={`/courses/${encodeURIComponent(course.id)}/lecture`} className="btn-primary mt-4">
+            Start a lecture
+          </Link>
+        </div>
       </section>
 
-      <SyllabusCard courseId={course.id} />
+      <SyllabusCard courseId={course.id} className="mt-12" />
 
-      <Link href="/" className="btn-tertiary optical-start">
+      <Link href="/" className="btn-tertiary optical-start mt-12">
         Back to dashboard
       </Link>
     </div>

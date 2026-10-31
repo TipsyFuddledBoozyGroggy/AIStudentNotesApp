@@ -121,112 +121,112 @@ export function CourseForm({ onSubmit, onCreated, existingNames = [], draftDelay
   }
 
   return (
-    // Sheet template (themes-spec R2): 40rem, left-aligned to the column start. Slice 4 moves the h1 above the sheet.
-    <form onSubmit={(e) => void handleSubmit(e)} noValidate aria-labelledby="form-heading" className="card max-w-sheet space-y-6">
-      <div>
-        <h1 id="form-heading" className="display text-3xl">
-          Add a course
-        </h1>
-        <p className="mt-1 text-muted">Only the name is needed. Your answers are saved on this device as you type.</p>
-      </div>
+    // Sheet template (redesign-round2 2.3, slice 4): the h1 and its sentence on the canvas, above the one sheet, which holds
+    // only what is filled in. 40rem, left-aligned to the column start; full-bleed on phones with its text on the gutter.
+    <div className="max-w-sheet">
+      <h1 id="form-heading" className="display text-3xl">
+        Add a course
+      </h1>
+      <p className="mt-1 text-muted">Only the name is needed. Your answers are saved on this device as you type.</p>
+      <form onSubmit={(e) => void handleSubmit(e)} noValidate aria-labelledby="form-heading" className="sheet sheet-page mt-6 space-y-6">
+        {failCount > 0 && nameError && (
+          <div ref={summaryRef} tabIndex={-1} role="alert" className="note note-danger">
+            <h2 className="note-title text-danger">One thing to fix</h2>
+            <ul className="mt-1 list-disc pl-5">
+              <li>
+                <a
+                  href="#course-name"
+                  className="text-danger underline"
+                  onClick={(ev) => {
+                    ev.preventDefault();
+                    nameRef.current?.focus();
+                  }}
+                >
+                  {nameError}
+                </a>
+              </li>
+            </ul>
+          </div>
+        )}
 
-      {failCount > 0 && nameError && (
-        <div ref={summaryRef} tabIndex={-1} role="alert" className="panel panel-danger">
-          <h2 className="font-bold text-danger">One thing to fix</h2>
-          <ul className="mt-1 list-disc pl-5">
-            <li>
-              <a
-                href="#course-name"
-                className="text-danger underline"
-                onClick={(ev) => {
-                  ev.preventDefault();
-                  nameRef.current?.focus();
-                }}
-              >
-                {nameError}
-              </a>
-            </li>
-          </ul>
-        </div>
-      )}
-
-      {restored && (
-        <p role="status" className="panel panel-neutral text-sm">
-          Welcome back. We restored your draft.
-        </p>
-      )}
-
-      <div>
-        <label htmlFor="course-name" className="field-label">
-          Course name <span aria-hidden="true" className="font-normal text-muted">(required)</span>
-        </label>
-        <input
-          id="course-name"
-          ref={nameRef}
-          type="text"
-          className="field"
-          value={draft.name}
-          onChange={update("name")}
-          onBlur={() => setNameError(draft.name ? validateCourseName(draft.name) : nameError)}
-          required
-          aria-required="true"
-          aria-invalid={nameError ? true : undefined}
-          aria-describedby={[nameError ? "course-name-error" : "", duplicate ? "course-name-dup" : ""].filter(Boolean).join(" ") || undefined}
-          autoComplete="off"
-        />
-        {nameError && (
-          <p id="course-name-error" className="mt-2 font-semibold text-danger">
-            {nameError}
+        {restored && (
+          <p role="status" className="note note-neutral text-sm">
+            Welcome back. We restored your draft.
           </p>
         )}
-        {duplicate && (
-          <p id="course-name-dup" className="mt-2 text-sm text-muted">
-            You already have a course with this name. You can still save it.
-          </p>
+
+        <div>
+          <label htmlFor="course-name" className="field-label">
+            Course name <span aria-hidden="true" className="font-normal text-muted">(required)</span>
+          </label>
+          <input
+            id="course-name"
+            ref={nameRef}
+            type="text"
+            className="field"
+            value={draft.name}
+            onChange={update("name")}
+            onBlur={() => setNameError(draft.name ? validateCourseName(draft.name) : nameError)}
+            required
+            aria-required="true"
+            aria-invalid={nameError ? true : undefined}
+            aria-describedby={[nameError ? "course-name-error" : "", duplicate ? "course-name-dup" : ""].filter(Boolean).join(" ") || undefined}
+            autoComplete="off"
+          />
+          {nameError && (
+            <p id="course-name-error" className="mt-2 font-semibold text-danger">
+              {nameError}
+            </p>
+          )}
+          {duplicate && (
+            <p id="course-name-dup" className="mt-2 text-sm text-muted">
+              You already have a course with this name. You can still save it.
+            </p>
+          )}
+        </div>
+
+        <div>
+          <button
+            type="button"
+            className="btn-tertiary optical-start"
+            aria-expanded={showOptions}
+            aria-controls="course-options"
+            onClick={() => setShowOptions((s) => !s)}
+          >
+            {showOptions ? "Hide options" : "Show options"}
+          </button>
+          <p className="help">Code, term and instructor. Optional; you can add these later.</p>
+          <div id="course-options" hidden={!showOptions} className="mt-4 space-y-4 border-l-2 border-hair pl-4">
+            <div>
+              <label htmlFor="course-code" className="field-label">Course code</label>
+              <input id="course-code" className="field" value={draft.code} onChange={update("code")} autoComplete="off" />
+            </div>
+            <div>
+              <label htmlFor="course-term" className="field-label">Term</label>
+              <input id="course-term" className="field" value={draft.term} onChange={update("term")} autoComplete="off" />
+            </div>
+            <div>
+              <label htmlFor="course-instructor" className="field-label">Instructor</label>
+              <input id="course-instructor" className="field" value={draft.instructor} onChange={update("instructor")} autoComplete="off" />
+            </div>
+          </div>
+        </div>
+
+        {saveError && (
+          <div role="alert" className="note note-notice">
+            {saveError}
+          </div>
         )}
-      </div>
 
-      <div>
-        <button
-          type="button"
-          className="btn-tertiary optical-start"
-          aria-expanded={showOptions}
-          aria-controls="course-options"
-          onClick={() => setShowOptions((s) => !s)}
-        >
-          {showOptions ? "Hide options" : "Show options"}
-        </button>
-        <p className="help">Code, term and instructor. Optional; you can add these later.</p>
-        <div id="course-options" hidden={!showOptions} className="mt-4 space-y-4 border-l-2 border-hair pl-4">
-          <div>
-            <label htmlFor="course-code" className="field-label">Course code</label>
-            <input id="course-code" className="field" value={draft.code} onChange={update("code")} autoComplete="off" />
-          </div>
-          <div>
-            <label htmlFor="course-term" className="field-label">Term</label>
-            <input id="course-term" className="field" value={draft.term} onChange={update("term")} autoComplete="off" />
-          </div>
-          <div>
-            <label htmlFor="course-instructor" className="field-label">Instructor</label>
-            <input id="course-instructor" className="field" value={draft.instructor} onChange={update("instructor")} autoComplete="off" />
-          </div>
+        <div className="flex flex-wrap gap-3">
+          <button type="submit" className="btn-primary" disabled={saving} aria-disabled={saving}>
+            {saving ? "Saving..." : saveError ? "Try again" : "Save course"}
+          </button>
+          <Link href="/" className="btn-tertiary">
+            Cancel
+          </Link>
         </div>
-      </div>
-
-      {saveError && (
-        <div role="alert" className="panel panel-notice">
-          {saveError}
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-3">
-        <button type="submit" className="btn-primary" disabled={saving} aria-disabled={saving}>
-          {saving ? "Saving..." : saveError ? "Try again" : "Save course"}
-        </button>
-        <Link href="/" className="btn-tertiary">
-          Cancel
-        </Link>
-      </div>
-    </form>
+      </form>
+    </div>
   );
 }

@@ -18,17 +18,22 @@ export function searchCourses(courses: Course[], query: string): Course[] {
   });
 }
 
+/**
+ * All courses (redesign-round2 slice 4), Desk template: the h1 and "Add a course" on one baseline, the search field, then
+ * the courses as a ledger of whole-row links (no box). The search stays (behaviour), narrowed to the 28rem measure.
+ */
 export function AllCoursesPage() {
   const [query, setQuery] = useState("");
   const { status } = useRequireUser();
   const { state, reload } = useCourses(status === "authenticated");
+  const matches = state.status === "ready" ? searchCourses(state.courses, query) : [];
 
   return (
     <div className="space-y-6">
       {/* Heading and its action share a baseline (A6 / R7); the button's ink ends on the column edge (R6). Fixed 48px row
           from 360px so no heading face can change its height (R10); below that it wraps. */}
       <div className="flex flex-wrap items-baseline justify-between gap-3 xs:h-12">
-        <h1 className="display text-3xl">All courses</h1>
+        <h1 className="display text-display">All courses</h1>
         <Link href="/courses/new" className="btn-tertiary btn-sm optical-end">
           Add a course
         </Link>
@@ -39,8 +44,8 @@ export function AllCoursesPage() {
         </p>
       )}
       {state.status === "error" && (
-        <div role="alert" className="panel panel-notice max-w-prose">
-          <p className="font-semibold">{state.message}</p>
+        <div role="alert" className="note note-notice max-w-prose">
+          <p className="note-title">{state.message}</p>
           <p className="mt-1 text-muted">Nothing was deleted. Try again when you like.</p>
           <button type="button" className="btn-primary mt-4" onClick={reload}>
             Try again
@@ -48,7 +53,7 @@ export function AllCoursesPage() {
         </div>
       )}
       {state.status === "ready" && state.courses.length > 0 && (
-        <div className="max-w-md">
+        <div className="max-w-narrow">
           <label htmlFor="course-search" className="field-label">
             Search your courses
           </label>
@@ -63,22 +68,21 @@ export function AllCoursesPage() {
           />
           <p id="course-search-count" className="help mt-1">
             {query.trim()
-              ? `${searchCourses(state.courses, query).length} of ${state.courses.length} match.`
+              ? `${matches.length} of ${state.courses.length} match.`
               : `${state.courses.length} ${state.courses.length === 1 ? "course" : "courses"}.`}
           </p>
         </div>
       )}
-      {state.status === "ready" && (
-        searchCourses(state.courses, query).length > 0 ? (
-          <ul className="divide-y divide-hair overflow-hidden rounded-card border border-hair bg-surface">
-            {sortByRecentUse(searchCourses(state.courses, query)).map((c) => (
+      {state.status === "ready" &&
+        (matches.length > 0 ? (
+          <ul className="ledger">
+            {sortByRecentUse(matches).map((c) => (
               <CourseCard key={c.id} course={c} headingLevel={2} />
             ))}
           </ul>
         ) : (
-          <p className="text-muted">{query.trim() ? "No course matches that. Try fewer words." : "No courses yet."}</p>
-        )
-      )}
+          <p className="text-muted">{query.trim() ? "No course matches that. Try fewer words." : "No courses yet. Add one when you want to."}</p>
+        ))}
       <Link href="/" className="btn-tertiary optical-start">
         Back to dashboard
       </Link>

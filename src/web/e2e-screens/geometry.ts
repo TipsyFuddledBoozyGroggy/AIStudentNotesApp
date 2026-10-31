@@ -87,7 +87,8 @@ export async function baseline(l: Locator): Promise<number> {
     wrap.appendChild(text);
     const probe = document.createElement("span");
     probe.style.cssText = "display:inline-block;width:0;height:0;vertical-align:baseline";
-    wrap.appendChild(probe);
+    // Before the text, so a wrapped text node reports its FIRST line (slice 4: margin labels wrap in the 5rem column).
+    wrap.insertBefore(probe, text);
     const y = probe.getBoundingClientRect().bottom + window.scrollY;
     wrap.parentNode!.insertBefore(text, wrap);
     wrap.remove();

@@ -84,6 +84,17 @@ describe("CourseForm", () => {
     expect(onCreated).not.toHaveBeenCalled();
   });
 
+  it("slice 4 Sheet template: the h1 sits above the one sheet and names the form; notes, not panels", async () => {
+    const { container } = setup();
+    const form = screen.getByRole("form", { name: "Add a course" });
+    expect(form).toHaveClass("sheet", "sheet-page");
+    const h1 = screen.getByRole("heading", { level: 1, name: "Add a course" });
+    expect(form.contains(h1)).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Save course" }));
+    expect(await screen.findByRole("alert")).toHaveClass("note", "note-danger");
+    expect(container.querySelectorAll(".card, .panel")).toHaveLength(0);
+  });
+
   it("warns, without blocking, about a duplicate name", async () => {
     setup({ existingNames: ["Biology 101"] });
     await userEvent.type(screen.getByLabelText(/Course name/), "biology 101");
