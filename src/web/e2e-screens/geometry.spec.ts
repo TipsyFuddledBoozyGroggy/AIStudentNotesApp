@@ -13,6 +13,7 @@ import { baseline, box, contentEdges, controls, ink, near, offGrid, overflowX, p
 // the rail's first card (A9), and the on-grid report (item 10, report only).
 // Part 2, the set of rects of 12 landmark elements is equal within 1px across the 10 looks (5 skins x 2 modes) at 390
 // and 1280, except Calm's card padding and the heading-driven text wrap it allows (themes-spec 5.3 "theme independence").
+// Since slice 7 Gamer and Glass are also measured with their switch on (Grid texture, Solid surfaces): 14 looks per width.
 
 const ORIGIN = "http://localhost:3000";
 const OUT = path.join(__dirname, "..", "test-results", "redesign-screens");
@@ -441,7 +442,11 @@ for (const width of [390, 1280] as const) {
     for (const skin of SKINS) {
       for (const theme of MODES) {
         if (skin === "paper" && theme === "light") continue;
-        const got = await landmarks(browser, width, { skin, theme });
+        // Slice 7: Gamer and Glass are measured with their switch off (the default) and on (Grid texture / Solid surfaces).
+        const variants: Record<string, unknown>[] =
+          skin === "gamer" ? [{ skin, theme }, { skin, theme, texture: true }] : skin === "glass" ? [{ skin, theme }, { skin, theme, solid: true }] : [{ skin, theme }];
+        for (const prefs of variants) {
+        const got = await landmarks(browser, width, prefs);
         for (const [k, r] of Object.entries(base)) {
           const g = got[k];
           // Calm's roomier card padding (the one sanctioned layout exception, 32 instead of 24) moves what sits inside a
@@ -458,9 +463,10 @@ for (const width of [390, 1280] as const) {
           const okX = (calm && insideCard && calmShift) || (near(r.x, g.x) && near(r.width, g.width));
           const okY = (calm && insideCard) || (near(r.y, g.y) && heightOk);
           if (!(okX && okY)) {
-            diffs.push(`${skin}/${theme} ${k}: ${fmt(g)} vs paper ${fmt(r)}`);
-            if (k === "main") diffs.push(`  main blocks ${skin}/${theme}: ${diag[`${width}:${JSON.stringify({ skin, theme })}`]} | paper: ${diag[`${width}:${JSON.stringify({ skin: "paper", theme: "light" })}`]}`);
+            diffs.push(`${JSON.stringify(prefs)} ${k}: ${fmt(g)} vs paper ${fmt(r)}`);
+            if (k === "main") diffs.push(`  main blocks ${JSON.stringify(prefs)}: ${diag[`${width}:${JSON.stringify(prefs)}`]} | paper: ${diag[`${width}:${JSON.stringify({ skin: "paper", theme: "light" })}`]}`);
           }
+        }
         }
       }
     }

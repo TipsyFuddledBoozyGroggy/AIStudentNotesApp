@@ -178,6 +178,16 @@ describe.each(NAMES)("palette %s", (name) => {
     it.each(GRID_TEXT_ROLES)("grid texture: %s on grid >= 4.5:1", (t) => {
       expect(contrastRatio(p[t], p.grid)).toBeGreaterThanOrEqual(4.5);
     });
+    // Slice 7: the grid is a 1px line over canvas, so page text can sit on either "stop". Every text role (warning and
+    // danger included, not only GRID_TEXT_ROLES) and every boundary must hold on both, and the grid stays faint: a
+    // decorative line, not a boundary (below 3:1 against canvas).
+    it("grid texture, slice 7: every text role >= 4.5:1 and every boundary >= 3:1 on both stops (grid line and canvas); the line itself is faint", () => {
+      for (const stop of ["grid", "canvas"] as const) {
+        for (const t of TEXT_ROLES) expect([stop, t, contrastRatio(p[t], p[stop]) >= 4.5]).toEqual([stop, t, true]);
+        for (const u of BOUNDARY_ROLES) expect([stop, u, contrastRatio(p[u], p[stop]) >= 3]).toEqual([stop, u, true]);
+      }
+      expect(contrastRatio(p.grid, p.canvas)).toBeLessThan(1.5);
+    });
   }
 });
 

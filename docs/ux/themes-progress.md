@@ -27,9 +27,17 @@ far (paint only); consent card carved out of skin card decoration (non-Paper ski
 bordered button each, group heads as sans label-style disclosures, the calendar step as a Note in the flow (built sticky,
 reverted after an axe target-size failure), the Add syllabus form on the Sheet template around the unchanged Draft notice (G1), the confirm dialog's
 buttons at 44px (the `48px` ratchet entry for `ConfirmDialog.tsx` removed), notes and ledgers in the batch / sync / list
-screens; the geometry gate now measures the review page at the 7 Paper widths. **T3-T6 NOT STARTED** (T3/T4 =
-slice 7: Grid texture and Solid surfaces switch UIs and their emulateMedia fallback tests; T5's lecture pass over 10 looks
-can reuse slice 3's harness tests).
+screens; the geometry gate now measures the review page at the 7 Paper widths. **T3 + T4 IMPLEMENTED 2026-10-31 as
+redesign-round2 slice 7** ("Slice 7 results" in the same document): Gamer "Grid texture" and Glass "Solid surfaces"
+switches in Preferences (only for their theme, directly under the theme cards, persisted, announced once through the
+existing status line, strings in the linted `PREFS_COPY`); the whole lecture route (consent and mic-blocked included) has no
+page decoration and an opaque header (`main[data-route="lecture"]`); a T0 bug fixed (every media fallback left the Glass
+blur running behind an opaque bar; now `!important`); forced colours clear the page layer for Gamer-grid and Glass-dark;
+new `e2e-screens/gamer-glass.spec.ts` (emulateMedia + CDP reduced-transparency fallbacks, backdrop-filter / translucency
+DOM scan, no-glow scan, real-DOM contrast over every decoration stop, axe with the switches on, Low-stimulation captures per
+skin, report-only frame trace); landmark gate with the switches on and off. The Glass enter animation was NOT built
+(redesign-round2 2.6 forbids transforms and limits opacity to the scrim; recorded there). **T5-T6 NOT STARTED** (T5's
+lecture pass over 10 looks can reuse slice 3's harness tests).
 
 ## T0 token plumbing (DONE)
 Files changed:
@@ -100,11 +108,13 @@ No existing test was edited. The "Theme" -> "Colour mode" legend rename is T2 an
 - **T2** DONE (redesign-round2 slice 5; see that document). Left: the Gamer "Grid texture" and Glass "Solid surfaces"
   switches (shown only for their theme) are slice 7; choosing Gamer or Glass in the picker works today with the shipped
   palettes and T0 CSS.
-- **T3** Gamer: Grid texture switch (CSS done), no-glow checks. **T4** Glass: Solid surfaces switch (CSS done), enter
-  animation, emulateMedia fallback tests, backdrop-filter DOM scan. **T5** lecture pass over 10 looks (harness specs loop over
+- **T3** DONE (slice 7): Grid texture switch, no-glow checks. **T4** DONE (slice 7) except the enter animation (not built,
+  see slice 7 deviations): Solid surfaces switch, emulateMedia / CDP fallback tests, backdrop-filter DOM scan, a report-only
+  frame-time trace (headless, not a real-device measurement). **T5** lecture pass over 10 looks (harness specs loop over
   skins; three live regions). **T6** CI matrix (no CI records exist).
 - `e2e-screens/screens.spec.ts` captures Portal and Calm (light + dark) on 12 key screens at 390/1280 with axe since
-  slice 5; Gamer and Glass on those screens are still only covered by the landmark gate and the ui-kit captures (slice 7/8).
+  slice 5, and since slice 7 also Gamer with the grid on and Glass frosted (light + dark); Glass with Solid surfaces on is
+  axe-checked on 5 key screens in `gamer-glass.spec.ts`.
 - Theme copy lives in `src/components/prefsCopy.ts` and is linted by `ThemePicker.test.tsx` (done in slice 5).
 
 ## How to resume

@@ -49,6 +49,16 @@ export function templateFor(pathname: string): Template {
 }
 
 /**
+ * The lecture route (redesign-round2 slice 7): the consent screen, the mic-blocked screen, the live lecture and a reopened
+ * lecture, plus the dev-only lecture harness that renders the same screens. globals.css keys off `main[data-route="lecture"]`
+ * so no page decoration (Gamer grid, Glass gradient) and no frosted header appear anywhere on it, not only once
+ * `[data-lecture-root]` exists: starting a recording never restyles the page around the student.
+ */
+export function isLectureRoute(pathname: string): boolean {
+  return /^\/courses\/[^/]+\/lecture$/.test(pathname) || pathname.startsWith("/lectures/") || pathname.startsWith("/dev/lecture-harness/");
+}
+
+/**
  * Site shell (redesign-round2 2.3, slice 1): one 56px bar with the wordmark, the two destinations as text tabs (Today,
  * Courses), then Search or jump, Preferences and Sign out as quiet buttons; the display name lives in Preferences > Account.
  * Keyboard order: skip link, wordmark, Today, Courses, Search, Preferences, Sign out, main. Below 640px the actions wrap
@@ -189,7 +199,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       ) : null}
       <div data-shell className={container}>
-        <main id="main" tabIndex={-1} data-template={templateFor(pathname)} className="min-w-0 py-8">
+        <main id="main" tabIndex={-1} data-template={templateFor(pathname)} data-route={isLectureRoute(pathname) ? "lecture" : undefined} className="min-w-0 py-8">
           <div data-column-start className="min-w-0">
             {children}
           </div>

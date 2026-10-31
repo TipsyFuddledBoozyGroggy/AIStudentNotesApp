@@ -287,11 +287,14 @@
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   [data-chrome] { background: var(--c-chrome); }
 }
+/* Fallbacks: opaque chrome and NO filter. The filter reset is !important because the @supports blur rule above is more
+   specific (0,4,0) than these (slice 7 measured the blur still running behind an opaque bar at 390, under forced colours,
+   more contrast and reduced transparency). !important also means no later rule can bring the blur back here. */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active), (max-width: 1023px) {
   [data-chrome] {
     background: var(--c-chrome);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
 }
 html:has([data-lecture-root]) [data-chrome],
@@ -300,6 +303,13 @@ html:has([data-lecture-root]) [data-chrome],
   background: var(--c-chrome);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+}
+/* Slice 7: the whole lecture route (consent, mic blocked, live, reopened; AppShell marks main[data-route="lecture"]) has an
+   opaque header too, so the bar does not change when a recording starts. */
+html:has(main[data-route="lecture"]) [data-chrome] {
+  background: var(--c-chrome);
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 
 /* Page decoration (Glass gradient, Gamer grid): one static layer behind everything, never animated. Lecture routes
@@ -315,8 +325,16 @@ body::before {
 html:has([data-lecture-root]) body::before {
   background: none;
 }
+/* Slice 7: and nowhere on the lecture route (consent and mic-blocked screens included), so the Gamer grid and the Glass
+   gradient never sit around the consent card or under any lecture text, before or after Start recording. */
+html:has(main[data-route="lecture"]) body::before {
+  background: none;
+}
 @media (forced-colors: active) {
   [data-skin] { --page-bg: none; }
+  /* [data-skin="gamer"][data-texture="true"] and [data-skin="glass"][data-theme="dark"] (0,2,0) outrank the line above,
+     so the layer itself is cleared too (slice 7). */
+  body::before { background: none; }
 }
 
 html {

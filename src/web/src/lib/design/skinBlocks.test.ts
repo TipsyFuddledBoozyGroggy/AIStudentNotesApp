@@ -689,6 +689,65 @@ describe("Preferences side panel, Theme picker, Portal and Calm (redesign-round2
   });
 });
 
+describe("Gamer and Glass (redesign-round2 slice 7 = themes T3 + T4)", () => {
+  const filterDecls = (r: Rule) => r.decls.filter(([k]) => k === "backdrop-filter" || k === "-webkit-backdrop-filter");
+  it("backdrop-filter is only ever switched on for the site header, and only by the Glass rule that excludes Solid and Low-stimulation", () => {
+    const on = RULES.filter((r) => filterDecls(r).some(([, v]) => !/^none( !important)?$/.test(v)));
+    expect(on.map((r) => r.selector)).toEqual(['[data-skin="glass"]:not([data-solid="true"]):not([data-quiet="true"]) [data-chrome]']);
+    for (const r of on) {
+      expect(r.context.some((c) => c.startsWith("@supports (backdrop-filter"))).toBe(true);
+      for (const [, v] of filterDecls(r)) expect(v).toBe("blur(var(--blur)) saturate(1.4)");
+    }
+    // At most 20px (themes-spec 6 budget), and Low-stimulation zeroes it.
+    expect(bareSkinBlocks.find((r) => r.selector === '[data-skin="glass"]')?.decls).toContainEqual(["--blur", "20px"]);
+    expect(RULES.find((r) => r.selector.startsWith(':root[data-quiet="true"]') && r.decls.some(([k]) => k === "--blur"))?.decls).toContainEqual(["--blur", "0px"]);
+  });
+
+  it("every fallback clears the filter with !important (it must beat the 0,4,0 Glass rule): phone width, reduced transparency, more contrast, forced colours, the lecture route", () => {
+    const media = RULES.find((r) => r.selector === "[data-chrome]" && r.context.some((c) => /prefers-reduced-transparency: reduce.*prefers-contrast: more.*forced-colors: active.*max-width: 1023px/.test(c)));
+    expect(media?.decls).toEqual([["background", "var(--c-chrome)"], ["-webkit-backdrop-filter", "none !important"], ["backdrop-filter", "none !important"]]);
+    const route = RULES.find((r) => r.selector === 'html:has(main[data-route="lecture"]) [data-chrome]');
+    expect(route?.decls).toEqual([["background", "var(--c-chrome)"], ["-webkit-backdrop-filter", "none !important"], ["backdrop-filter", "none !important"]]);
+    // Solid surfaces, Low-stimulation and the live lecture: opaque chrome (the Glass rule's :not()s already keep its filter off).
+    expect(RULES.find((r) => r.selector.includes('[data-solid="true"] [data-chrome]'))?.decls).toContainEqual(["background", "var(--c-chrome)"]);
+    // No @supports: the opaque chrome.
+    expect(RULES.find((r) => r.selector === "[data-chrome]" && r.context.some((c) => c.startsWith("@supports not")))?.decls).toEqual([["background", "var(--c-chrome)"]]);
+  });
+
+  it("page decoration (Gamer grid, Glass gradient) lives only in --page-bg on body::before; texture is off unless data-texture=true; never on the lecture route; cleared under forced colours", () => {
+    const consumers = RULES.filter((r) => r.decls.some(([, v]) => v.includes("var(--page-bg)")));
+    expect(consumers.map((r) => r.selector)).toEqual(["body::before"]);
+    const setters = RULES.filter((r) => r.decls.some(([k, v]) => k === "--page-bg" && v !== "none" && !v.startsWith("none"))).map((r) => r.selector);
+    expect(setters).toEqual(['[data-skin="glass"]', '[data-skin="glass"][data-theme="dark"]', '[data-skin="gamer"][data-texture="true"]']);
+    // The bare Gamer block sets no page background: no grid by default.
+    expect(bareSkinBlocks.filter((r) => r.selector === '[data-skin="gamer"]').flatMap((r) => r.decls).some(([k]) => k === "--page-bg")).toBe(false);
+    expect(RULES.find((r) => r.selector === 'html:has(main[data-route="lecture"]) body::before')?.decls).toEqual([["background", "none"]]);
+    expect(RULES.find((r) => r.selector === "body::before" && inMedia(r, "forced-colors: active"))?.decls).toEqual([["background", "none"]]);
+    // body::before is fixed, behind everything, inert.
+    expect(RULES.find((r) => r.selector === "body::before" && r.context.length === 0)?.decls).toEqual(
+      expect.arrayContaining([["z-index", "-1"], ["pointer-events", "none"], ["position", "fixed"]]),
+    );
+  });
+
+  it("no glow in Gamer (or anywhere): no text-shadow, no filter, no blurred box-shadow in a Gamer rule, Gamer shadow tokens none, nothing animated", () => {
+    expect(structureCss).not.toMatch(/text-shadow\s*:/);
+    expect(structureCss).not.toMatch(/(^|[^-])filter\s*:\s*(?!none)/m);
+    for (const r of skinRules.filter((r) => r.selector.includes('[data-skin="gamer"]')))
+      for (const [k, v] of r.decls) {
+        expect([r.selector, k]).not.toEqual([r.selector, "text-shadow"]);
+        if (k === "box-shadow") expect([r.selector, v]).toEqual([r.selector, expect.not.stringMatching(/\d+px \d+px [1-9]/)]);
+        expect(k).not.toMatch(/^(animation|transition|filter)/);
+      }
+    const gamer = bareSkinBlocks.find((r) => r.selector === '[data-skin="gamer"]')!;
+    for (const s of ["--shadow-1", "--shadow-2", "--shadow-3"]) expect(gamer.decls).toContainEqual([s, "none"]);
+  });
+
+  it("the synthesis floor: no skin sets the size or line height of .synthesis or a transcript line (review 5.3)", () => {
+    for (const r of skinRules.filter((r) => /\.synthesis|\.transcript/.test(r.selector)))
+      for (const [k] of r.decls) expect([r.selector, k]).toEqual([r.selector, expect.not.stringMatching(/^(font-size|line-height|font)$/)]);
+  });
+});
+
 // ---------------------------------------------------------------------------------------------------------------------
 // Source lints. Ratchets count today's offenders per file and fail on any increase (the plan's slice 0 row); slices 1
 // and 2 bring the counts down and lower the baselines in the same change.

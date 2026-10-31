@@ -23,7 +23,8 @@ const systemDark = () => typeof window !== "undefined" && typeof window.matchMed
 /**
  * compact: the lecture's "Lecture settings" popover, which keeps Colour mode and Low-stimulation look only (themes-spec
  * 3.2: no Theme control mid-lecture, so nothing restyles the lecture suddenly). Full: Preferences > Look in the
- * spec's order: Theme, Colour mode, Low-stimulation look, Text size, Reading spacing, Density, Reduce motion, preview, Reset.
+ * spec's order: Theme (then Gamer's Grid texture or Glass's Solid surfaces, only for that theme), Colour mode,
+ * Low-stimulation look, Text size, Reading spacing, Density, Reduce motion, preview, Reset.
  */
 export function LookControls({ compact = false, onAnnounce }: { compact?: boolean; onAnnounce?(message: string): void }) {
   const { prefs, update: rawUpdate } = usePrefs();
@@ -32,6 +33,8 @@ export function LookControls({ compact = false, onAnnounce }: { compact?: boolea
     rawUpdate(patch);
     if (patch.skin) say(P.themeOn(THEMES.find((t) => t.id === patch.skin)?.name ?? "Paper"));
     if (patch.theme) say(P.mode[patch.theme]);
+    if (patch.texture !== undefined) say(patch.texture ? P.gridMsg.on : P.gridMsg.off);
+    if (patch.solid !== undefined) say(patch.solid ? P.solidMsg.on : P.solidMsg.off);
     if (patch.quiet !== undefined) say(patch.quiet ? "Low-stimulation look on." : "Low-stimulation look off.");
     if (patch.textSize) say(SIZE_MSG[patch.textSize]);
     if (patch.spacing) say(patch.spacing === "wide" ? "Reading spacing: wider." : "Reading spacing: standard.");
@@ -42,6 +45,13 @@ export function LookControls({ compact = false, onAnnounce }: { compact?: boolea
   return (
     <div className="space-y-5">
       {compact || !showThemes ? null : <ThemePicker value={prefs.skin} mode={resolveTheme(prefs.theme, systemDark())} onChange={(skin) => update({ skin })} />}
+      {/* Slice 7: the chosen theme's own switch, directly under the theme cards (redesign-round2-review 5.3) and only for
+          that theme. The stored value is kept when another theme is chosen; it has no effect there (CSS keys off the skin). */}
+      {compact || !showThemes ? null : prefs.skin === "gamer" ? (
+        <Switch label={P.gridLabel} hint={P.gridHint} checked={prefs.texture} onChange={(texture) => update({ texture })} />
+      ) : prefs.skin === "glass" ? (
+        <Switch label={P.solidLabel} hint={P.solidHint} checked={prefs.solid} onChange={(solid) => update({ solid })} />
+      ) : null}
       <Segmented<ThemePref>
         legend={P.colourModeLegend}
         hint={compact ? undefined : P.colourModeHint}
@@ -90,8 +100,8 @@ export function LookControls({ compact = false, onAnnounce }: { compact?: boolea
             ]}
           />
           <Switch
-            label="Reduce motion"
-            hint="Turns off every transition. Your device setting is always respected too."
+            label={P.reduceMotionLabel}
+            hint={P.reduceMotionHint}
             checked={prefs.reduceMotion}
             onChange={(reduceMotion) => update({ reduceMotion })}
           />

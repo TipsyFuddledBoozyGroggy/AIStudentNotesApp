@@ -27,12 +27,17 @@ const ALL_LOOKS = {
   "calm-dark": { skin: "calm", theme: "dark", quiet: false },
   "glass-light": { skin: "glass", theme: "light", quiet: false },
   "glass-dark": { skin: "glass", theme: "dark", quiet: false },
+  // Slice 7: Gamer with its Grid texture switch on (the switch-off Gamer looks stay ui-kit only).
+  "gamer-light-grid": { skin: "gamer", theme: "light", quiet: false, texture: true },
+  "gamer-dark-grid": { skin: "gamer", theme: "dark", quiet: false, texture: true },
 } as const;
 type AnyLook = keyof typeof ALL_LOOKS;
 const ALL_PALETTES = ["ui-kit"];
 // Slice 5 (= themes T2): Portal and Calm, light and dark, on the key screens built so far (Today, course, forms, sign-in,
 // consent, lecture, syllabus, Preferences), at 390 and 1280 with axe, beside the four base looks.
-const SKIN_LOOKS = ["portal-light", "portal-dark", "calm-light", "calm-dark"] as const satisfies readonly AnyLook[];
+// Slice 7 (= themes T3 / T4): Gamer with the Grid texture on and Glass with the frosted header (Solid surfaces off; the
+// Solid-on look is axe-checked in gamer-glass.spec.ts), light and dark, on the same screens.
+const SKIN_LOOKS = ["portal-light", "portal-dark", "calm-light", "calm-dark", "gamer-light-grid", "gamer-dark-grid", "glass-light", "glass-dark"] as const satisfies readonly AnyLook[];
 const SKIN_SCREENS = [
   "signin",
   "dashboard",
