@@ -39,7 +39,7 @@ export function CourseDetailView({ course, justAdded }: Props) {
         )}
       </div>
 
-      <section aria-labelledby="lecture-heading" className="card border-l-4 border-l-accent">
+      <section aria-labelledby="lecture-heading" className="card card-accent">
         <h2 id="lecture-heading" className="display text-2xl">
           Lecture
         </h2>
@@ -51,7 +51,7 @@ export function CourseDetailView({ course, justAdded }: Props) {
 
       <SyllabusCard courseId={course.id} />
 
-      <Link href="/" className="btn-quiet px-0">
+      <Link href="/" className="btn-quiet optical-start">
         Back to dashboard
       </Link>
     </div>

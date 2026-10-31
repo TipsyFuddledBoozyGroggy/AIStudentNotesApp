@@ -9,7 +9,9 @@ import {
   AudioSkippedNote,
   DemoNotice,
   FatalPanel,
+  GUTTERS,
   MismatchPanel,
+  NOTICE_SLOT,
   OfflineBanner,
   PausedPanel,
   SettingsPanel,
@@ -198,7 +200,7 @@ export function LectureScreen(props: LectureScreenProps) {
           <button
             type="button"
             aria-pressed={focus}
-            className={`btn-secondary hidden min-h-[48px] lg:inline-flex ${focus ? "border-accent bg-accent-subtle text-accent" : ""}`}
+            className={`btn-secondary hidden lg:inline-flex ${focus ? "border-accent bg-accent-subtle text-accent" : ""}`}
             onClick={() => updatePrefs({ focusMode: !focus })}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -217,7 +219,7 @@ export function LectureScreen(props: LectureScreenProps) {
       />
       <h1 className="sr-only">{props.courseName ? `Lecture: ${props.courseName}` : "Lecture"}</h1>
       {s.actionError ? (
-        <div className="mx-auto mt-3 max-w-content px-4">
+        <div className={NOTICE_SLOT}>
           <p data-testid="action-error" className="panel panel-notice">
             {s.actionError}
           </p>
@@ -228,18 +230,21 @@ export function LectureScreen(props: LectureScreenProps) {
       {notice}
       {props.runtime.demoSource ? <DemoNotice compact={notice !== null || offline} /> : null}
       {s.audioSkippedMs > 0 ? <AudioSkippedNote ms={s.audioSkippedMs} /> : null}
+      {/* Lecture template (redesign-round2 2.3): gutters 16 / 24 / 32 on the wrapper; the inner element's box IS the column,
+          so the fixed/sticky dock with the same max-width shares its edges (A11). Standard: transcript 1fr | aside 22.5rem,
+          gap 40, 72rem (80rem from 1536px). Focus: one 52rem column. */}
+      <div className={`mt-4 ${GUTTERS} ${props.runtime.ai ? (focus ? "pb-44" : "pb-44 lg:pb-0") : ""}`}>
       <div
         data-layout={focus ? "focus" : "standard"}
-        className={`mx-auto mt-4 grid gap-6 px-4 ${focus ? "max-w-[52rem]" : "max-w-content lg:grid-cols-[minmax(0,1fr)_360px]"} ${
-          props.runtime.ai ? (focus ? "pb-44" : "pb-44 lg:pb-0") : ""
-        }`}
+        className={`mx-auto grid gap-6 ${focus ? "max-w-focus" : "max-w-content lg:grid-cols-[minmax(0,1fr)_var(--lecture-aside-w)] lg:gap-10 2xl:max-w-lecture"}`}
       >
         <div className="min-w-0 space-y-4">
           {tldrInline ? tldr : null}
           {stopped ? (
             // Review tools (design-direction slice 8, narrow): only once the lecture has ended, so nothing moves during it.
-            <section aria-label="Review this lecture" className="flex flex-wrap items-end gap-3">
-              <div className="min-w-0 flex-1 basis-60">
+            // Toolbar grid (A10 / R9): the search field takes the column, the action ends on the column edge, helper below.
+            <section aria-label="Review this lecture" className="grid gap-x-6 gap-y-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="min-w-0">
                 <label htmlFor="lecture-search" className="label">
                   Search this lecture
                 </label>
@@ -250,14 +255,15 @@ export function LectureScreen(props: LectureScreenProps) {
                     : `${s.segments.length} ${s.segments.length === 1 ? "line" : "lines"}.`}
                 </p>
               </div>
-              <div className="pb-7">
+              {/* Sits level with the field: self-end minus the help line (24) and its gap (4). */}
+              <div className="sm:self-end sm:pb-7">
                 <button type="button" className="btn-secondary" aria-disabled="true" aria-describedby="export-reason">
                   Export to Google Docs
                 </button>
-                <p id="export-reason" className="help mt-1 max-w-[18rem]">
-                  Not built yet. Nothing is sent anywhere. When it exists it will ask you first.
-                </p>
               </div>
+              <p id="export-reason" className="help max-w-prose sm:col-span-2">
+                Not built yet. Nothing is sent anywhere. When it exists it will ask you first.
+              </p>
             </section>
           ) : null}
           <Transcript
@@ -279,6 +285,7 @@ export function LectureScreen(props: LectureScreenProps) {
           />
           {tldrInline ? null : tldr}
         </div>
+      </div>
       </div>
       <StopDialog
         open={stopOpen}

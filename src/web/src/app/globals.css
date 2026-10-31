@@ -318,12 +318,35 @@ html:has([data-lecture-root]) body::before {
 html {
   /* Sticky top bar (>= 1024) must not hide focused elements (WCAG 2.4.11). */
   scroll-padding-top: 5rem;
+  /* R10: classic scrollbars must not shift the container between short and long pages. */
+  scrollbar-gutter: stable;
 }
 
 body {
   @apply bg-canvas font-sans text-ink antialiased;
   font-size: 1.0625rem;
-  line-height: 1.55;
+  /* 17/28: the base line box sits on the 4px grid (redesign-round2 2.1; was 1.55 = 26.35px before slice 1). */
+  line-height: var(--leading-base);
+}
+
+/* Page templates (redesign-round2 2.3, themes-spec R2). AppShell sets data-template on <main> from the route; the shell
+   provides the gutters (16 / 24 / 32) and the 72rem container, and [data-column-start] marks the content column's left
+   edge that every heading, card and sheet starts on (geometry test, themes-spec 5.3 item 3).
+   - desk: a 5rem margin column from 1024px where labels and dates will hang (slice 4 fills it) | content 1fr.
+   - sheet: one 40rem sheet on canvas, left-aligned to the column start (the components set max-w-sheet).
+   - auth: 28rem centred, 96px from the top (the shell's 32px plus 64px here). */
+@media (min-width: 1024px) {
+  main[data-template="desk"] {
+    display: grid;
+    grid-template-columns: var(--margin-col) minmax(0, 1fr);
+    column-gap: 2rem;
+  }
+  main[data-template="desk"] > [data-column-start] {
+    grid-column: 2;
+  }
+}
+main[data-template="auth"] {
+  padding-top: 6rem;
 }
 
 h1, h2, h3 {
@@ -380,7 +403,6 @@ h1, h2, h3 {
 /* Live-lecture screens: the lecture bar REPLACES the site header (one sticky bar, section 3), and the sticky bar must
    not hide focused elements (SC 2.4.11). The bar wraps to two rows on phones, hence the larger padding there. */
 body:has([data-lecture-root]) [data-site-header],
-body:has([data-lecture-root]) [data-site-rail],
 body:has([data-lecture-root]) [data-site-prefs] {
   display: none;
 }
@@ -422,6 +444,8 @@ html:has([data-lecture-root]) {
   /* Buttons (section 4). One filled accent button per region. Press/hover change border or text only: no scale, no glow. */
   .btn {
     @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-control border-2 px-5 py-2 text-base font-semibold leading-tight;
+    /* Horizontal padding as a variable so .optical-start / .optical-end can pull the visible ink onto the column edge (R6). */
+    --btn-px: 1.25rem;
     transition-property: color, background-color, border-color, text-decoration-color;
     transition-duration: var(--dur-fast);
     transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
@@ -444,6 +468,7 @@ html:has([data-lecture-root]) {
   /* Quiet text button: for tertiary actions. Keeps a 44px target. */
   .btn-quiet {
     @apply btn border-transparent bg-transparent px-3 text-accent;
+    --btn-px: 0.75rem;
   }
   .btn-quiet:hover {
     @apply border-hair;
@@ -454,6 +479,35 @@ html:has([data-lecture-root]) {
   }
   .btn-sm {
     @apply min-h-[44px] px-3 py-1 text-sm;
+    --btn-px: 0.75rem;
+  }
+  /* R6 optical alignment: a text-only button's visible ink, not its box, sits on the shared edge. The negative margin
+     equals the button's horizontal padding plus its border, so the 44px hit area bleeds outward and the text does not move. */
+  .optical-start {
+    margin-inline-start: calc(-1 * (var(--btn-px, 0.75rem) + var(--btn-border-w)));
+  }
+  .optical-end {
+    margin-inline-end: calc(-1 * (var(--btn-px, 0.75rem) + var(--btn-border-w)));
+  }
+  /* Header destinations (redesign-round2 2.3): text tabs; the current one is bold with a 3px ink underline (no accent). */
+  .nav-tab {
+    @apply inline-flex min-h-[44px] items-center px-3 font-semibold text-muted;
+    box-shadow: inset 0 -3px 0 transparent;
+    transition-property: color, box-shadow;
+    transition-duration: var(--dur-fast);
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+  .nav-tab:hover {
+    @apply text-ink;
+  }
+  .nav-tab[aria-current="page"] {
+    @apply font-bold text-ink;
+    box-shadow: inset 0 -3px 0 var(--c-ink);
+  }
+  /* Wordmark: the serif's visual centre sits above its line box centre next to sans controls (A2); a 2px cap-height
+     nudge, measured in the browser (geometry.spec.ts checks the ink centres). */
+  .wordmark {
+    padding-top: 2px;
   }
   .btn-disabled,
   .btn[aria-disabled="true"]:not(.btn-steady) {
@@ -481,6 +535,20 @@ html:has([data-lecture-root]) {
   .card {
     @apply rounded-card border border-hair bg-surface shadow-1;
     padding: var(--pad-card);
+  }
+  /* Accent stripe on a card (Next step, Lecture): painted, not a border, so the text inset stays --pad-card + 1px like
+     every other card (A4 / R8). A pseudo-element rather than a box-shadow so no skin's card shadow or texture hides it. */
+  .card-accent {
+    position: relative;
+    overflow: hidden;
+  }
+  .card-accent::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: var(--note-stripe-w);
+    background: var(--c-accent);
   }
 
   /* Inline, non-modal panel with a left stripe that carries meaning (plus a shape and a word, never colour alone). */
@@ -520,13 +588,15 @@ html:has([data-lecture-root]) {
   }
 }
 
-/* Transcript reading layout (section 4 "Transcript line"): hanging timestamp column, 68ch measure, no zebra. */
+/* Transcript reading layout (section 4 "Transcript line"): hanging timestamp column, 68ch measure, 17/28 line boxes
+   (redesign-round2 3.3 item 1), no zebra. Timestamps share the text's first baseline (grid items aligned on baseline)
+   instead of the old 0.2em nudge. */
 @layer components {
   .transcript-line {
-    @apply mb-3 grid max-w-prose grid-cols-[3.25rem_minmax(0,1fr)] gap-x-3 rounded-control leading-[1.6];
+    @apply mb-3 grid max-w-prose grid-cols-[3.25rem_minmax(0,1fr)] items-baseline gap-x-3 rounded-control leading-7;
   }
   .transcript-time {
-    @apply pt-[0.2em] text-sm tabular-nums text-muted;
+    @apply text-sm leading-7 tabular-nums text-muted;
   }
   .transcript-divider {
     @apply mb-3 flex max-w-prose items-center gap-3 text-sm text-muted;
@@ -537,21 +607,42 @@ html:has([data-lecture-root]) {
     @apply h-px flex-1 bg-hair;
   }
   .transcript-partial {
-    @apply ml-[4rem] min-h-[1.6rem] max-w-prose italic text-muted;
+    @apply ml-16 min-h-7 max-w-prose italic text-muted;
+  }
+  /* The transcript panel: heading row inside the bordered box (A9) so the first box in each column shares a top edge. */
+  .transcript-panel {
+    @apply rounded-card border border-line bg-surface;
+  }
+  .transcript-panel-head {
+    @apply flex items-baseline justify-between gap-3 px-4 pt-4 sm:px-6;
+  }
+  /* Scrollable log. Outside a lecture root (tests, ui-kit) a plain viewport-relative height. */
+  .transcript {
+    height: 50vh;
+    min-height: 12rem;
   }
 }
 
-/* Transcript viewport height (section 3): fits between the sticky lecture bar and the Quick recap dock, so the newest
-   line (where follow-live scrolls to) is never hidden behind the dock. dvh keeps mobile browser bars into account. */
+/* Transcript viewport height (section 3): the log fills the space between the sticky lecture bar and the bottom of the
+   page (desktop) or the Quick recap dock (phone), so the newest line (where follow-live scrolls to) is never hidden
+   behind the dock. Re-derived for slice 1 (heading inside the panel, 4px type grid, 56px bar). All sums include the
+   Demo-source notice, which every lecture screen shows while the demo provider ships.
+   Desktop (>= 1024): bar 57 (56 + 1px rule) + grid top 16 + Demo notice 94 (12 + panel 82) + panel head 57 (1 + 16 +
+   32 + 8) + log + panel bottom rule 1 + root padding 32 = 257px above and below the log, so log = 100vh - 16rem.
+   Focus mode adds the collapsed TL;DR note (122 + 16) and the sticky dock (~130) on the same column: 100vh - 26rem.
+   Phone (< 1024): two-row bar 105 + 16 + collapsed TL;DR 138 + panel head 57 + dock 130 = 446 is more than a 667px
+   viewport can give, so the log takes 100dvh - 23rem (368px) and the page scrolls above it; the harness test "newest
+   transcript line is not hidden behind the dock" pins log height <= dock top - bar bottom. dvh keeps mobile browser
+   bars into account. */
 [data-lecture-root] .transcript {
-  height: max(12rem, calc(100dvh - 22rem));
+  height: max(12rem, calc(100dvh - 23rem));
 }
 @media (min-width: 1024px) {
   [data-lecture-root] .transcript {
-    height: max(22rem, calc(100vh - 15rem));
+    height: max(22rem, calc(100vh - 16rem));
   }
   [data-lecture-root] [data-layout="focus"] .transcript {
-    height: max(16rem, calc(100vh - 25rem));
+    height: max(16rem, calc(100vh - 26rem));
   }
 }
 
@@ -596,6 +687,12 @@ html:has([data-lecture-root]) {
 [data-skin="gamer"] .transcript-time {
   font-family: var(--f-jetbrains-mono), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
+}
+/* The lecture bar never varies between themes (redesign-round2 3.3 item 2: 56px on desktop under every skin). Gamer's wider
+   monospace Demo tag wrapped the bar to a second row at 1280 (geometry.spec.ts), so inside the bar a tag keeps the body
+   face in every skin. Same specificity as the Gamer rule above; later wins. */
+[data-lecture-status-bar] .tag {
+  font-family: var(--font-verbatim);
 }
 :root[data-quiet="true"][data-skin] .card { box-shadow: none; background-image: none; }
 

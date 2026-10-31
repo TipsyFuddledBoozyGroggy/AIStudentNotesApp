@@ -103,11 +103,12 @@ export function PreferencesPanel({ onClose, children }: { onClose(): void; child
   useEffect(() => {
     heading.current?.focus();
   }, []);
+  // Sheet template (themes-spec R2 / A3): 40rem, left-aligned to the column start, not centred. Slice 5 makes it a side panel.
   return (
     <section
       id="preferences"
       aria-labelledby="prefs-h2"
-      className="card mx-auto mb-6 mt-4 max-w-prose"
+      className="card mb-6 mt-4 max-w-sheet"
       onKeyDown={(e) => {
         if (e.key === "Escape") {
           e.stopPropagation();
@@ -115,7 +116,7 @@ export function PreferencesPanel({ onClose, children }: { onClose(): void; child
         }
       }}
     >
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-baseline justify-between gap-4">
         <div>
           <h2 id="prefs-h2" ref={heading} tabIndex={-1} className="display text-2xl">
             Preferences

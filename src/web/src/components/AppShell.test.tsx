@@ -11,7 +11,7 @@ const auth = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({ usePathname: () => "/courses/c1", useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }));
 vi.mock("./AuthProvider", () => ({ useAuth: () => ({ ...auth, refresh: vi.fn() }) }));
 
-import { AppShell } from "./AppShell";
+import { AppShell, templateFor } from "./AppShell";
 import { PrefsProvider } from "./PrefsProvider";
 
 const mount = () =>
@@ -84,6 +84,47 @@ describe("AppShell", () => {
   it("adds no live regions of its own (the lecture screen owns exactly three)", () => {
     const { container } = mount();
     expect(container.querySelectorAll('[aria-live],[role="status"],[role="alert"],[role="log"]')).toHaveLength(0);
+  });
+});
+
+describe("AppShell header tabs and templates (redesign-round2 slice 1, PO-17)", () => {
+  it("the two destinations are tabs inside the header bar; there is no Menu button and no rail; order is wordmark, Today, Courses, Search, Preferences, Sign out", () => {
+    mount();
+    const banner = screen.getByRole("banner");
+    const nav = within(banner).getByRole("navigation", { name: "Primary" });
+    expect(within(nav).getAllByRole("link").map((l) => l.textContent)).toEqual(["Today", "Courses"]);
+    expect(within(nav).getByRole("link", { name: "Courses" })).toHaveClass("nav-tab");
+    expect(screen.queryByRole("button", { name: "Menu" })).toBeNull();
+    expect(screen.getAllByRole("navigation")).toHaveLength(1);
+    const order = Array.from(banner.querySelectorAll<HTMLElement>("a, button")).map((el) => el.textContent?.replace(/Ctrl K$/, "").trim());
+    expect(order).toEqual(["Tether", "Today", "Courses", "Search or jump", "Preferences", "Sign out"]);
+    // The display name left the header for Preferences > Account.
+    expect(within(banner).queryByText("Alice")).toBeNull();
+  });
+
+  it("Preferences > Account shows the signed-in name", async () => {
+    const user = userEvent.setup();
+    mount();
+    await user.click(screen.getByRole("button", { name: "Preferences" }));
+    const panel = screen.getByRole("region", { name: "Preferences" });
+    expect(within(panel).getByRole("heading", { name: "Account" })).toBeInTheDocument();
+    expect(within(panel).getByText("Signed in as Alice.")).toBeInTheDocument();
+  });
+
+  it("main carries the page template from the route", () => {
+    expect(screen.queryByRole("main")).toBeNull();
+    mount();
+    expect(screen.getByRole("main")).toHaveAttribute("data-template", "desk"); // pathname /courses/c1
+    expect(screen.getByRole("main").firstElementChild).toHaveAttribute("data-column-start");
+    expect(templateFor("/")).toBe("desk");
+    expect(templateFor("/courses")).toBe("desk");
+    expect(templateFor("/courses/abc")).toBe("desk");
+    expect(templateFor("/courses/abc/syllabus")).toBe("desk");
+    expect(templateFor("/courses/new")).toBe("sheet");
+    expect(templateFor("/courses/abc/lecture")).toBe("sheet");
+    expect(templateFor("/lectures/ses_1")).toBe("sheet");
+    expect(templateFor("/signin")).toBe("auth");
+    expect(templateFor("/dev/ui-kit")).toBe("plain");
   });
 });
 

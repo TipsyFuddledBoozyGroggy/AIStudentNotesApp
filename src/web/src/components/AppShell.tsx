@@ -14,38 +14,50 @@ const DESTINATIONS = [
   { href: "/courses", label: "Courses", match: (p: string) => p.startsWith("/courses") },
 ] as const;
 
-function NavLinks({ pathname, vertical }: { pathname: string; vertical?: boolean }) {
+/** Two destinations as header tabs (redesign-round2 2.3, PO-17): a nav of links, the current one marked with aria-current. */
+function NavTabs({ pathname }: { pathname: string }) {
   return (
-    <ul className={vertical ? "space-y-1" : "flex flex-col gap-1 py-2"}>
-      {DESTINATIONS.map((d) => {
-        const current = d.match(pathname);
-        return (
+    // The wordmark sits in a fixed 7rem slot, so the tabs start at the same x under every heading face; -ml-5 (the bar's
+    // 8px gap plus the tab's 12px padding) puts the first tab's ink on that slot's edge, which from 1024px is also the
+    // Desk column start (5rem margin + 2rem gap). At 320 the wordmark and both tabs then share the first row.
+    <nav aria-label="Primary">
+      <ul className="-ml-5 flex items-center gap-x-2">
+        {DESTINATIONS.map((d) => (
           <li key={d.href}>
-            <Link
-              href={d.href}
-              aria-current={current ? "page" : undefined}
-              className={`flex min-h-[44px] items-center rounded-control border-l-4 px-3 ${
-                current ? "border-accent bg-surface font-bold text-ink" : "border-transparent font-semibold text-muted hover:border-line hover:text-ink"
-              }`}
-            >
+            <Link href={d.href} aria-current={d.match(pathname) ? "page" : undefined} className="nav-tab">
               {d.label}
             </Link>
           </li>
-        );
-      })}
-    </ul>
+        ))}
+      </ul>
+    </nav>
   );
 }
 
+export type Template = "desk" | "sheet" | "auth" | "plain";
+
 /**
- * Site shell (design-direction section 3): top bar (wordmark, Menu below 1024px, Preferences, name, Sign out), a left rail
- * from 1024px, and the main column. On the live lecture screen the lecture bar replaces all of this (globals.css).
+ * Page template by route (redesign-round2 2.3): Desk for Today, the course page, All courses and the syllabus screens;
+ * Sheet for Add a course and the consent screen; Auth for sign-in. Dev routes carry no template. On the live lecture
+ * screen the lecture root lays itself out and the shell's gutters are removed (globals.css).
+ */
+export function templateFor(pathname: string): Template {
+  if (pathname === "/signin") return "auth";
+  if (pathname.startsWith("/dev/")) return "plain";
+  if (pathname === "/courses/new" || /^\/courses\/[^/]+\/lecture$/.test(pathname) || pathname.startsWith("/lectures/")) return "sheet";
+  return "desk";
+}
+
+/**
+ * Site shell (redesign-round2 2.3, slice 1): one 56px bar with the wordmark, the two destinations as text tabs (Today,
+ * Courses), then Search or jump, Preferences and Sign out as quiet buttons; the display name lives in Preferences > Account.
+ * Keyboard order: skip link, wordmark, Today, Courses, Search, Preferences, Sign out, main. Below 640px the actions wrap
+ * onto a second row. On the live lecture screen the lecture bar replaces all of this (globals.css).
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const { status, user, signOut } = useAuth();
   const pathname = usePathname() ?? "/";
   const authed = status === "authenticated" && !!user;
-  const [menuOpen, setMenuOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const prefsButton = useRef<HTMLButtonElement>(null);
   const router = useRouter();
@@ -53,8 +65,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [courses, setCourses] = useState<Course[] | null>(null);
   const paletteOpener = useRef<HTMLElement | null>(null);
-
-  useEffect(() => setMenuOpen(false), [pathname]);
 
   const openPalette = useCallback(() => {
     paletteOpener.current = document.activeElement as HTMLElement | null;
@@ -124,73 +134,64 @@ export function AppShell({ children }: { children: ReactNode }) {
     queueMicrotask(() => prefsButton.current?.focus());
   };
 
+  // Container 72rem with the gutters 16 / 24 / 32 outside it (themes-spec R2): content-box, so the header, the Preferences
+  // panel, the content column and the lecture bar / columns all share one content edge (R3).
+  const container = "mx-auto box-content max-w-content px-4 sm:px-6 lg:px-8";
+
   return (
     <>
       <header data-site-header data-chrome className="z-10 border-b border-hair lg:sticky lg:top-0">
-        <div className="mx-auto flex min-h-[56px] max-w-content flex-wrap items-center gap-x-1 gap-y-1 px-4 py-1 sm:gap-x-2">
-          <Link href="/" className="display mr-auto inline-flex min-h-[44px] items-center text-2xl leading-none">
+        {/* 56px bar: 48px content minimum plus 4px padding above and below. */}
+        <div className={`${container} flex min-h-12 flex-wrap items-center gap-x-2 gap-y-1 py-1`}>
+          <Link href="/" className="wordmark display inline-flex min-h-[44px] min-w-28 items-center text-2xl leading-none">
             Tether
           </Link>
-          {authed ? (
-            <button type="button" className="btn-secondary btn-sm hidden gap-3 sm:inline-flex" aria-keyshortcuts="Control+K Meta+K" onClick={openPalette}>
-              Search or jump
-              <kbd aria-hidden="true" className="rounded border border-hair bg-sunken px-1.5 py-0.5 font-sans text-xs text-muted">
-                Ctrl K
-              </kbd>
-            </button>
-          ) : null}
-          {authed ? (
+          {authed ? <NavTabs pathname={pathname} /> : null}
+          {/* R6: one gap between the actions; the last one carries .optical-end so its ink, not its box, meets the container edge. */}
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
+            {authed ? (
+              <button type="button" className="btn-quiet btn-sm" aria-keyshortcuts="Control+K Meta+K" onClick={openPalette}>
+                Search or jump
+                <kbd aria-hidden="true" className="hidden rounded border border-hair bg-sunken px-1 font-sans text-xs text-muted md:inline">
+                  Ctrl K
+                </kbd>
+              </button>
+            ) : null}
             <button
+              ref={prefsButton}
               type="button"
-              className="btn-quiet btn-sm px-2.5 lg:hidden"
-              aria-expanded={menuOpen}
-              aria-controls="site-menu"
-              onClick={() => setMenuOpen((o) => !o)}
+              className={`btn-quiet btn-sm ${authed ? "" : "optical-end"}`}
+              aria-expanded={prefsOpen}
+              aria-controls="preferences"
+              onClick={() => (prefsOpen ? closePrefs() : setPrefsOpen(true))}
             >
-              Menu
+              Preferences
             </button>
-          ) : null}
-          <button
-            ref={prefsButton}
-            type="button"
-            className="btn-quiet btn-sm px-2.5"
-            aria-expanded={prefsOpen}
-            aria-controls="preferences"
-            onClick={() => (prefsOpen ? closePrefs() : setPrefsOpen(true))}
-          >
-            Preferences
-          </button>
-          {authed ? (
-            <>
-              <span className="hidden px-2 text-sm text-muted md:inline">{user.displayName}</span>
-              <button type="button" className="btn-secondary btn-sm px-3" onClick={() => void signOut()}>
+            {authed ? (
+              <button type="button" className="btn-quiet btn-sm optical-end" onClick={() => void signOut()}>
                 Sign out
               </button>
-            </>
-          ) : null}
+            ) : null}
+          </div>
         </div>
-        {authed && menuOpen ? (
-          <nav id="site-menu" aria-label="Primary" className="mx-auto max-w-content border-t border-hair px-4 lg:hidden">
-            <NavLinks pathname={pathname} />
-            <button type="button" className="btn-quiet mb-2 w-full justify-start sm:hidden" onClick={openPalette}>
-              Search or jump
-            </button>
-          </nav>
-        ) : null}
       </header>
       {prefsOpen ? (
-        <div data-site-prefs className="px-4">
-          <PreferencesPanel onClose={closePrefs} />
+        <div data-site-prefs className={container}>
+          <PreferencesPanel onClose={closePrefs}>
+            {authed ? (
+              <>
+                <h3 className="eyebrow mt-8">Account</h3>
+                <p className="mt-2">Signed in as {user.displayName}.</p>
+              </>
+            ) : null}
+          </PreferencesPanel>
         </div>
       ) : null}
-      <div data-shell className="mx-auto max-w-content px-4 lg:flex lg:gap-10">
-        {authed ? (
-          <nav data-site-rail aria-label="Primary" className="hidden w-[200px] shrink-0 pt-8 lg:block">
-            <NavLinks pathname={pathname} vertical />
-          </nav>
-        ) : null}
-        <main id="main" tabIndex={-1} className="min-w-0 flex-1 py-8">
-          {children}
+      <div data-shell className={container}>
+        <main id="main" tabIndex={-1} data-template={templateFor(pathname)} className="min-w-0 py-8">
+          <div data-column-start className="min-w-0">
+            {children}
+          </div>
         </main>
       </div>
       {paletteOpen ? <CommandPalette commands={commands} onClose={closePalette} loading={courses === null} /> : null}

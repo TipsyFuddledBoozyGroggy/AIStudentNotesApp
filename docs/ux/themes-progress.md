@@ -6,7 +6,8 @@ G4 stays NOT_RUN (no human, screen-reader or device testing). G1 stays BLOCKED: 
 Lead decisions applied: Q-PO1 label "Course portal" (code id `portal`, no third-party name or asset anywhere);
 Q-PO2 all four skins planned, Paper stays the default; Q-LEAD1 44px controls; Q-LEAD2 no per-theme theme-color meta.
 
-Status: **T0 DONE and green. T1-T6 NOT STARTED** (stopped at the Lead's wrap-up request; no T1 edits were made).
+Status: **T0 DONE and green. T1 IMPLEMENTED 2026-10-30 as redesign-round2 slice 1** (results, test changes and
+deviations recorded in `docs/ux/redesign-round2.md` under "Slice 1 results"; not committed). **T2-T6 NOT STARTED.**
 
 ## T0 token plumbing (DONE)
 Files changed:
@@ -71,12 +72,9 @@ No existing test was edited. The "Theme" -> "Colour mode" legend rename is T2 an
 ("Dark theme on.") is unchanged.
 
 ## NOT done (resume here, in order)
-- **T1 layout system** (spec 5.2/5.3): 4px type scale line-heights, `scrollbar-gutter: stable`, gutters 16/24/32, 80rem lecture
-  container from 1536px, 44px control height (bar Pause/Stop/Focus/settings and panel buttons are 48 today), optical
-  start/end utilities and header gaps (A1), templates (Preferences/consent/form left-aligned at 40rem, auth 28rem + 96px, drop
-  "TETHER" eyebrow), card insets with the accent stripe as inset shadow (A4), baseline rows (A6), quiet-button alignment (A7),
-  Transcript heading inside its panel (A9), Stopped toolbar grid (A10), Focus dock width = column (A11), phone meta wrap
-  (A12), remove off-scale classes (A13) + spacing scan test, `e2e-screens/geometry.ts` + `geometry.spec.ts`.
+- **T1 layout system**: done as redesign-round2 slice 1 (see that document, "Slice 1 results"). Left for later slices: A5
+  (Preferences switch-row insets, slice 2 owns `components/ui`), the Preferences side panel (slice 5), the `.tag` padding
+  (the consent page's Draft tag, gate G1; slice 2's Stamp), the 48px buttons inside the consent surfaces (G1).
 - **T2** Preferences: Theme radiogroup (5 cards, swatches can use nested `data-skin`/`data-theme`, which the CSS already
   supports), rename legend "Theme" -> "Colour mode" (update `AppShell.test.tsx` status "Dark theme on." -> spec's
   "Dark mode on." and record it), Reset look (use `lookDefaults()`), Preview card, status messages, rollback hides the control;

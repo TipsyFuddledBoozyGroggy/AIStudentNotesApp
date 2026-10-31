@@ -3,6 +3,7 @@
 import type { ReactNode, Ref } from "react";
 import { DEMO_SOURCE_TAG, STATUS_COPY as S } from "./copy";
 import { formatMs } from "./format";
+import { GUTTERS, LECTURE_CONTAINER } from "./Notices";
 import type { DisplayIndicator } from "./useLectureSession";
 
 export interface StatusBarProps {
@@ -111,8 +112,10 @@ export function StatusBar(p: StatusBarProps) {
   const showResume = p.display.kind === "Paused" || (p.display.kind !== "Recording" && p.serverPaused);
   const enabled = p.display.kind === "Recording" || p.display.kind === "Paused";
   return (
+    // 56px bar (redesign-round2 3.3 item 2): 44px pill and controls, 4px padding, one rule; wraps to two rows on phones (<= 112px).
+    // Gutters and container as the lecture columns under it (R3), 80rem from 1536px.
     <header data-lecture-status-bar className="sticky top-0 z-20 border-b border-line bg-surface" aria-label="Recording status">
-      <div className="mx-auto flex max-w-content flex-wrap items-center gap-x-3 gap-y-2 px-4 py-1.5 sm:py-2">
+      <div className={`${LECTURE_CONTAINER} flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 py-1 ${GUTTERS}`}>
         <div className={`inline-flex min-h-[44px] items-center gap-3 rounded-full border-2 py-1 pl-3 pr-4 ${PILL[shape]}`}>
           <h2 ref={p.headingRef} tabIndex={-1} className="flex items-center gap-2 text-lg font-bold leading-none">
             <Shape kind={shape} />
@@ -122,7 +125,7 @@ export function StatusBar(p: StatusBarProps) {
             {elapsedLabel(p.elapsedMs, p.showSeconds ?? false)}
           </span>
         </div>
-        <span data-testid="connection" className={`inline-flex items-center gap-1.5 text-sm font-semibold ${p.connected ? "text-muted" : "text-warning"}`}>
+        <span data-testid="connection" className={`inline-flex items-center gap-2 text-sm font-semibold ${p.connected ? "text-muted" : "text-warning"}`}>
           <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
             {p.connected ? (
               <circle cx="6" cy="6" r="4.5" fill="currentColor" />
@@ -141,7 +144,7 @@ export function StatusBar(p: StatusBarProps) {
               <button
                 ref={p.pauseRef}
                 type="button"
-                className="btn-secondary min-h-[48px] min-w-[48px] px-3 sm:px-5"
+                className="btn-secondary min-w-target px-3 sm:px-5"
                 aria-disabled={enabled ? undefined : true}
                 aria-describedby={enabled ? undefined : "bar-unavailable"}
                 onClick={() => {
@@ -153,7 +156,7 @@ export function StatusBar(p: StatusBarProps) {
                 {showResume ? RESUME_ICON : PAUSE_ICON}
                 {showResume ? S.resume : S.pause}
               </button>
-              <button ref={p.stopRef} type="button" className="btn-secondary min-h-[48px] min-w-[48px] px-3 sm:px-5" onClick={p.onStop}>
+              <button ref={p.stopRef} type="button" className="btn-secondary min-w-target px-3 sm:px-5" onClick={p.onStop}>
                 {STOP_ICON}
                 {S.stop}
               </button>

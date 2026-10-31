@@ -19,11 +19,16 @@ import {
 import type { MicFailure } from "./micSource";
 import type { LectureSettings } from "./settings";
 
+/** Lecture template gutters, 16 / 24 / 32 (themes-spec R2), shared by the bar, the notice slot and the columns. */
+export const GUTTERS = "px-4 sm:px-6 lg:px-8";
+/** Lecture container: 72rem, 80rem from 1536px (redesign-round2 2.3), content-box so the gutters sit outside it (R2 / R3). */
+export const LECTURE_CONTAINER = "mx-auto box-content max-w-content 2xl:max-w-lecture";
 /** Panel slot directly under the lecture bar (section 4 "Panel"): stripe + shape + words, never colour alone. */
-const slot = "mx-auto mt-3 max-w-content px-4";
+export const NOTICE_SLOT = `mt-3 ${LECTURE_CONTAINER} ${GUTTERS}`;
+const slot = NOTICE_SLOT;
 
 function PanelIcon({ kind }: { kind: "bars" | "slash" | "square" | "alert" | "info" }) {
-  const c = { width: 22, height: 22, viewBox: "0 0 22 22", "aria-hidden": true, focusable: false, className: "mt-0.5 shrink-0" } as const;
+  const c = { width: 22, height: 22, viewBox: "0 0 22 22", "aria-hidden": true, focusable: false, className: "mt-1 shrink-0" } as const;
   switch (kind) {
     case "bars":
       return (
@@ -99,14 +104,14 @@ export function PausedPanel(props: {
               <button
                 ref={props.resumeRef}
                 type="button"
-                className="btn-primary min-h-[56px] min-w-[48px] px-8"
+                className="btn-primary px-8"
                 aria-disabled={disabled ? true : undefined}
                 aria-describedby={props.resumeDisabledReason ? "resume-reason" : undefined}
                 onClick={() => !disabled && props.onResume()}
               >
                 {P.resume}
               </button>
-              <button ref={props.stopRef} type="button" className="btn-secondary min-h-[56px] min-w-[48px]" onClick={props.onStop}>
+              <button ref={props.stopRef} type="button" className="btn-secondary" onClick={props.onStop}>
                 {P.stop}
               </button>
             </div>
@@ -140,10 +145,10 @@ export function MismatchPanel(props: { micOff: boolean; onCheck(): void; onStop(
             </h2>
             <p className="mt-1">{props.micOff ? M.bodyMicOff : M.body}</p>
             <div className="mt-3 flex flex-wrap gap-3">
-              <button type="button" className="btn-primary min-h-[48px]" onClick={props.onCheck}>
+              <button type="button" className="btn-primary" onClick={props.onCheck}>
                 {M.check}
               </button>
-              <button type="button" className="btn-secondary min-h-[48px]" onClick={props.onStop}>
+              <button type="button" className="btn-secondary" onClick={props.onStop}>
                 {M.stop}
               </button>
             </div>
@@ -174,7 +179,7 @@ export function StoppedPanel(props: { reason: string | null; failed: boolean; on
               {SC.heading}
             </h2>
             <p className="mt-1">{text}</p>
-            <button type="button" className="btn-secondary mt-3 min-h-[48px]" onClick={props.onBack}>
+            <button type="button" className="btn-secondary mt-3" onClick={props.onBack}>
               {SC.back}
             </button>
           </div>
@@ -247,10 +252,10 @@ export function StopDialog(props: { open: boolean; paused: boolean; onConfirm():
         </h2>
         <p className="mt-2 text-muted">The transcript so far is kept.</p>
         <div className="mt-6 flex flex-wrap justify-end gap-3">
-          <button ref={keepRef} type="button" className="btn-primary min-h-[48px]" onClick={cancel}>
+          <button ref={keepRef} type="button" className="btn-primary" onClick={cancel}>
             {props.paused ? D.cancel : D.cancelActive}
           </button>
-          <button type="button" className="btn-secondary min-h-[48px]" onClick={props.onConfirm}>
+          <button type="button" className="btn-secondary" onClick={props.onConfirm}>
             {D.confirm}
           </button>
         </div>
@@ -289,7 +294,7 @@ export function SettingsPanel({ settings, onChange, extra }: { settings: Lecture
         }
       }}
     >
-      <summary className="btn-quiet min-h-[48px] cursor-pointer list-none px-2 sm:px-3 [&::-webkit-details-marker]:hidden">{ST.heading}</summary>
+      <summary className="btn-quiet cursor-pointer list-none px-2 sm:px-3 [&::-webkit-details-marker]:hidden">{ST.heading}</summary>
       <div className="absolute right-0 top-full z-30 mt-2 max-h-[70vh] w-[min(26rem,calc(100vw-2rem))] overflow-y-auto rounded-sheet border border-line bg-raised p-5 shadow-2">
         <p className="eyebrow">Look</p>
         <div className="mt-3">
@@ -299,7 +304,7 @@ export function SettingsPanel({ settings, onChange, extra }: { settings: Lecture
         <div className="mt-2 space-y-1">
           {rows.map(([k, label, checked, set]) => (
             <label key={k} className="flex min-h-[44px] cursor-pointer items-start gap-3 rounded-control px-1 py-2 hover:bg-sunken">
-              <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--c-accent)]" checked={checked} onChange={(e) => set(e.target.checked)} />
+              <input type="checkbox" className="mt-1 h-5 w-5 shrink-0 accent-[var(--c-accent)]" checked={checked} onChange={(e) => set(e.target.checked)} />
               <span>{label}</span>
             </label>
           ))}
@@ -355,11 +360,11 @@ export function FatalPanel(props: { kind: "signed_out" | "unavailable"; onBack()
         <p className="mt-1">{signedOut ? FATAL_COPY.signedOutBody : FATAL_COPY.unavailableBody}</p>
         <div className="mt-3 flex flex-wrap gap-3">
           {signedOut ? (
-            <a className="btn-primary min-h-[48px]" href="/signin">
+            <a className="btn-primary" href="/signin">
               {FATAL_COPY.signIn}
             </a>
           ) : (
-            <button type="button" className="btn-primary min-h-[48px]" onClick={props.onBack}>
+            <button type="button" className="btn-primary" onClick={props.onBack}>
               {FATAL_COPY.back}
             </button>
           )}

@@ -65,7 +65,9 @@ export function ConsentStart({ courseName, onStart, onCancel, attestation, error
   };
 
   return (
-    <section aria-labelledby="consent-h1" className="card mx-auto max-w-[640px]">
+    // Sheet template container only (slice 1): 40rem = the former 640px, left-aligned to the column start instead of centred.
+    // Everything inside the card (wording, tag, buttons, dialog) is unchanged: gate G1.
+    <section aria-labelledby="consent-h1" className="card max-w-sheet">
       <p className="eyebrow">Before you start</p>
       <h1 id="consent-h1" ref={headingRef} tabIndex={-1} className="display mt-1 break-words text-3xl">
         <PlainText value={C.heading(courseName)} />

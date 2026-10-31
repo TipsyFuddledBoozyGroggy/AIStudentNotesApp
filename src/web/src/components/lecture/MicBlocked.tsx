@@ -26,7 +26,7 @@ export function MicBlocked({ reason, nothingRecordedConfirmed, onTryAgain, onBac
     [B.firefox, B.firefoxBody],
   ];
   return (
-    <section aria-labelledby="blocked-h1" className="card mx-auto max-w-[640px]">
+    <section aria-labelledby="blocked-h1" className="card max-w-sheet">
       <div className="flex items-start gap-3">
         <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true" focusable="false" className="mt-1 shrink-0 text-muted">
           <rect x="10" y="3" width="8" height="14" rx="4" fill="none" stroke="currentColor" strokeWidth="2" />
@@ -39,10 +39,10 @@ export function MicBlocked({ reason, nothingRecordedConfirmed, onTryAgain, onBac
       </div>
       <p className="mt-3 text-lg">{body}</p>
       <div className="mt-5 flex flex-wrap gap-3">
-        <button type="button" className="btn-primary min-h-[48px]" aria-disabled={busy ? true : undefined} onClick={() => !busy && onTryAgain()}>
+        <button type="button" className="btn-primary" aria-disabled={busy ? true : undefined} onClick={() => !busy && onTryAgain()}>
           {B.tryAgain}
         </button>
-        <button type="button" className="btn-secondary min-h-[48px]" onClick={onBack}>
+        <button type="button" className="btn-secondary" onClick={onBack}>
           {B.back}
         </button>
       </div>

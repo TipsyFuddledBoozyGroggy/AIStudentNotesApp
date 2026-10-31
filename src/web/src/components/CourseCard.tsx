@@ -12,12 +12,17 @@ export function CourseCard({ course, headingLevel = 3 }: { course: Course; headi
   const H = headingLevel === 2 ? "h2" : "h3";
   const meta = [course.code, course.term].filter(Boolean).join(" · ");
   return (
-    <li className="flex items-center justify-between gap-4 px-5 py-4">
+    // Row inset = card padding + border (R8): 24px like every card, not 20. Meta wraps without an orphan and the
+    // "No lectures yet" line is hidden on phones (A12); a real last-lecture date always shows.
+    <li className="flex items-center justify-between gap-4 px-card py-4">
       <div className="min-w-0">
-        <H className="break-words text-lg font-semibold leading-snug">{course.name}</H>
-        <p className="mt-0.5 text-sm text-muted">
-          {meta ? <span>{meta} · </span> : null}
-          {lastLecture(course)}
+        <H className="break-words text-lg font-semibold">{course.name}</H>
+        <p className="mt-1 text-pretty text-sm text-muted">
+          {meta ? <span>{meta}</span> : null}
+          <span className={course.lastSessionAt ? "" : "hidden sm:inline"}>
+            {meta ? " · " : ""}
+            {lastLecture(course)}
+          </span>
         </p>
       </div>
       <Link href={`/courses/${encodeURIComponent(course.id)}`} className="btn-secondary btn-sm shrink-0">

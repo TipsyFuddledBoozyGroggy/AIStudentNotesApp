@@ -121,7 +121,8 @@ export function CourseForm({ onSubmit, onCreated, existingNames = [], draftDelay
   }
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} noValidate aria-labelledby="form-heading" className="card max-w-prose space-y-6">
+    // Sheet template (themes-spec R2): 40rem, left-aligned to the column start. Slice 4 moves the h1 above the sheet.
+    <form onSubmit={(e) => void handleSubmit(e)} noValidate aria-labelledby="form-heading" className="card max-w-sheet space-y-6">
       <div>
         <h1 id="form-heading" className="display text-3xl">
           Add a course
@@ -188,7 +189,7 @@ export function CourseForm({ onSubmit, onCreated, existingNames = [], draftDelay
       <div>
         <button
           type="button"
-          className="btn-quiet -ml-3"
+          className="btn-quiet optical-start"
           aria-expanded={showOptions}
           aria-controls="course-options"
           onClick={() => setShowOptions((s) => !s)}

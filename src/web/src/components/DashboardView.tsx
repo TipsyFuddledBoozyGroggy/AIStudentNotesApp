@@ -121,7 +121,7 @@ export function DashboardView({ state, displayName, onRetry }: Props) {
 
       <div className="mt-8 grid gap-block lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:gap-10">
         <div className="min-w-0 space-y-10">
-          <section aria-labelledby="next-step-heading" className="card border-l-4 border-l-accent">
+          <section aria-labelledby="next-step-heading" className="card card-accent">
             <h2 id="next-step-heading" className="eyebrow">
               Next step
             </h2>
@@ -151,11 +151,13 @@ export function DashboardView({ state, displayName, onRetry }: Props) {
 
           {courses.length > 0 && (
             <section aria-labelledby="courses-heading">
-              <div className="flex flex-wrap items-end justify-between gap-3">
+              {/* Heading and its action share a baseline (A6 / R7); the button's ink ends on the column edge (R6). The row is
+                  a fixed 44px from 360px so a heading face's metrics cannot change its height (R10); below that it wraps. */}
+              <div className="flex flex-wrap items-baseline justify-between gap-3 xs:h-11">
                 <h2 id="courses-heading" className="display text-2xl">
                   Your courses
                 </h2>
-                <Link href="/courses/new" className="btn-secondary btn-sm">
+                <Link href="/courses/new" className="btn-quiet btn-sm optical-end">
                   Add a course
                 </Link>
               </div>
@@ -165,7 +167,7 @@ export function DashboardView({ state, displayName, onRetry }: Props) {
                 ))}
               </ul>
               {courses.length > MAX_DASHBOARD_COURSES && (
-                <Link href="/courses" className="btn-quiet mt-3 px-0">
+                <Link href="/courses" className="btn-quiet optical-start mt-3">
                   See all courses
                 </Link>
               )}

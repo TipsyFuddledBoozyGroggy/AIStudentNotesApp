@@ -90,7 +90,7 @@ function SaidLines({ text, onCite, citations }: { text: string; onCite(segmentId
         ))}
       </ul>
       {hidden > 0 ? (
-        <button type="button" className="btn-quiet btn-sm mt-2 -ml-3" aria-expanded={all} aria-controls="qr-said" onClick={() => setAll((a) => !a)}>
+        <button type="button" className="btn-quiet btn-sm optical-start mt-2" aria-expanded={all} aria-controls="qr-said" onClick={() => setAll((a) => !a)}>
           {all ? C.hideEarlier : C.showEarlier}
         </button>
       ) : null}
@@ -138,7 +138,7 @@ function Result({
           {C.resultHeading}
         </h3>
         {/* A visible way out without scrolling the sheet (review M1); same action as "Back to lecture". */}
-        <button type="button" className="btn-quiet btn-sm -mr-2 -mt-1 shrink-0" onClick={onDone}>
+        <button type="button" className="btn-quiet btn-sm optical-end shrink-0" onClick={onDone}>
           {C.backShort}
         </button>
       </div>
@@ -199,7 +199,7 @@ function Result({
           ) : null}
           {hasDetail ? (
             <>
-              <button type="button" className="btn-quiet btn-sm mt-2 -ml-3" aria-expanded={more} aria-controls="qr-more" onClick={() => setMore((m) => !m)}>
+              <button type="button" className="btn-quiet btn-sm optical-start mt-2" aria-expanded={more} aria-controls="qr-more" onClick={() => setMore((m) => !m)}>
                 {more ? C.hideDetail : C.showDetail}
               </button>
               {more ? (
@@ -268,7 +268,7 @@ function Result({
         </>
       )}
       <div className="mt-4">
-        <button type="button" className="btn-secondary min-h-[48px]" onClick={onDone}>
+        <button type="button" className="btn-secondary" onClick={onDone}>
           {C.done}
         </button>
       </div>
@@ -310,11 +310,12 @@ export function QuickRecapPanel({ ai, hubCatchUps, onCite, onDone, docked = fals
       data-docked={docked ? "true" : undefined}
       className={
         docked
-          ? "fixed inset-x-0 bottom-0 z-20 max-h-[60dvh] min-w-0 overflow-y-auto border-t-2 border-line bg-raised px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-2 lg:mx-auto lg:max-w-[52rem] lg:rounded-t-sheet lg:border-x-2"
-          : "fixed inset-x-0 bottom-0 z-20 max-h-[60dvh] min-w-0 overflow-y-auto border-t-2 border-line bg-raised px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-2 lg:sticky lg:inset-x-auto lg:bottom-auto lg:top-[5.5rem] lg:z-auto lg:max-h-[calc(100vh-7rem)] lg:rounded-card lg:border lg:border-hair lg:bg-surface lg:p-5 lg:shadow-1"
+          ? // Focus dock: the same 52rem token as the Focus column, whose box has no padding of its own, so the dock's edges equal the column's (A11).
+            "fixed inset-x-0 bottom-0 z-20 max-h-[60dvh] min-w-0 overflow-y-auto border-t-2 border-line bg-raised px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-2 lg:mx-auto lg:max-w-focus lg:rounded-t-sheet lg:border-x-2"
+          : "fixed inset-x-0 bottom-0 z-20 max-h-[60dvh] min-w-0 overflow-y-auto border-t-2 border-line bg-raised px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-2 lg:sticky lg:inset-x-auto lg:bottom-auto lg:top-[4.5rem] lg:z-auto lg:max-h-[calc(100vh-7rem)] lg:rounded-card lg:border lg:border-hair lg:bg-surface lg:p-5 lg:shadow-1"
       }
     >
-      <div className="mx-auto max-w-[52rem]">
+      <div className="mx-auto max-w-focus">
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="qr-h2" className="display text-xl">
           {C.heading}

@@ -176,6 +176,7 @@ describe("Type scale (redesign-round2 2.1): line boxes on the 4px grid", () => {
   const rootDecls = new Map<string, string>();
   for (const r of rootRules.filter((r) => r.context.length === 0)) for (const [k, v] of r.decls) rootDecls.set(k, v);
   const px = (rem: string) => parseFloat(rem) * 16;
+  const find = (sel: string) => RULES.find((r) => r.selector === sel && r.context.every((c) => c.startsWith("@layer")));
 
   it.each(Object.entries(TYPE_SCALE).filter(([k]) => k !== "display"))("--type-%s / --leading-%s declared, leading a multiple of 4px, size >= 13px", (k, v) => {
     expect(rootDecls.get(`--type-${k}`)).toBe(v.size);
@@ -197,8 +198,43 @@ describe("Type scale (redesign-round2 2.1): line boxes on the 4px grid", () => {
     expect((tailwind.theme?.extend?.fontSize as Record<string, unknown>).display).toEqual(["var(--text-display)", "var(--leading-display)"]);
   });
 
-  it("the shipped Tailwind sizes are untouched in this slice (slice 1 moves line boxes; nothing may move here)", () => {
-    expect(tailwind.theme?.extend?.fontSize).toMatchObject({ xs: ["0.8125rem", "1.4"], base: ["1.0625rem", "1.55"], "3xl": ["2.375rem", "1.2"] });
+  // Slice 1 (= themes T1) flipped Tailwind's fontSize from the shipped ratios (1.4 / 1.55 / 1.2) to the 4px-grid tokens, as
+  // slice 0 deferred and the Lead confirmed (redesign-round2 "Slice 0 results", open item 2). Slice 0 pinned the old values
+  // here so the flip would be a deliberate edit; this is that edit.
+  it("Tailwind's fontSize equals the type-scale tokens (every line box on the 4px grid); 3xl is 38/44; body leading is the base token", () => {
+    const sizes = tailwind.theme?.extend?.fontSize as Record<string, [string, string]>;
+    for (const [k, v] of Object.entries(TYPE_SCALE).filter(([k]) => k !== "display")) expect([k, sizes[k]]).toEqual([k, [v.size, v.leading]]);
+    expect(sizes["3xl"]).toEqual(["2.375rem", "2.75rem"]);
+    for (const [k, [size, leading]] of Object.entries(sizes).filter(([k]) => k !== "display")) {
+      expect([k, px(leading) % 4]).toEqual([k, 0]);
+      expect(px(leading)).toBeGreaterThan(px(size));
+    }
+    expect(find("body")?.decls).toContainEqual(["line-height", "var(--leading-base)"]);
+  });
+
+  it("transcript lines are 17/28 with the timestamp on the text's baseline; the partial row reserves one 28px line", () => {
+    const line = find(".transcript-line")?.decls.find(([k]) => k === "@apply")?.[1] ?? "";
+    expect(line).toContain("leading-7");
+    expect(line).toContain("items-baseline");
+    expect(find(".transcript-time")?.decls.find(([k]) => k === "@apply")?.[1]).toContain("leading-7");
+    expect(find(".transcript-partial")?.decls.find(([k]) => k === "@apply")?.[1]).toContain("min-h-7");
+  });
+
+  it("layout system (slice 1): scrollbar-gutter stable, 56px bar / 44px controls, templates, optical utilities", () => {
+    expect(RULES.find((r) => r.selector === "html" && r.context.length === 0)?.decls).toContainEqual(["scrollbar-gutter", "stable"]);
+    expect(find(".optical-start")?.decls).toEqual([["margin-inline-start", "calc(-1 * (var(--btn-px, 0.75rem) + var(--btn-border-w)))"]]);
+    expect(find(".optical-end")?.decls).toEqual([["margin-inline-end", "calc(-1 * (var(--btn-px, 0.75rem) + var(--btn-border-w)))"]]);
+    expect(find(".btn")?.decls).toContainEqual(["--btn-px", "1.25rem"]);
+    for (const cls of [".btn-quiet", ".btn-sm"]) expect(find(cls)?.decls).toContainEqual(["--btn-px", "0.75rem"]);
+    expect(find('.nav-tab[aria-current="page"]')?.decls).toContainEqual(["box-shadow", "inset 0 -3px 0 var(--c-ink)"]);
+    // The accent stripe is painted, so a striped card's text inset stays --pad-card + 1px (A4 / R8).
+    expect(find(".card-accent::before")?.decls).toContainEqual(["width", "var(--note-stripe-w)"]);
+    expect(find(".card-accent")?.decls).not.toContainEqual(expect.arrayContaining(["padding"]));
+    const desk = RULES.find((r) => r.selector === 'main[data-template="desk"]' && inMedia(r, "min-width: 1024px"));
+    expect(desk?.decls).toContainEqual(["grid-template-columns", "var(--margin-col) minmax(0, 1fr)"]);
+    expect(RULES.find((r) => r.selector === 'main[data-template="auth"]')?.decls).toEqual([["padding-top", "6rem"]]);
+    expect(tailwind.theme?.extend?.maxWidth).toMatchObject({ content: "72rem", lecture: "80rem", sheet: "40rem", narrow: "28rem", focus: "52rem" });
+    expect(tailwind.theme?.extend?.minHeight).toEqual({ target: "44px" }); // "primary 48" is gone (A8)
   });
 });
 
@@ -314,36 +350,32 @@ describe("source lints (redesign-round2 slice 0)", () => {
     });
   });
 
-  // themes-spec R1 / 5.3: half-step spacing classes are off the 4px scale. Slice 1 removes them (A13).
+  // themes-spec R1 / 5.3: half-step spacing classes are off the 4px scale. Slice 1 removed them (A13) except: the .tag
+  // padding (the consent page's Draft tag, gate G1), the consent pop-up's checkbox nudge (G1) and the Demo summary stamp
+  // (slice 2's Stamp primitive). Baselines tightened 2026-10-30.
   it("half-step spacing ratchet: no new p-/m-/gap-/space- *.5 classes", () => {
     ratchet(countBy(/\b(?:p|m|gap|space-[xy]|inset|top|left|right|bottom)[xytblr]?-\d+\.5\b/g), {
       "app/globals.css": 2,
-      "components/AppShell.tsx": 4,
-      "components/CourseCard.tsx": 1,
-      "components/SignInView.tsx": 1,
       "components/lecture/ConsentDialog.tsx": 1,
-      "components/lecture/Notices.tsx": 2,
       "components/lecture/QuickRecapPanel.tsx": 1,
-      "components/lecture/StatusBar.tsx": 2,
     });
   });
 
-  // Arbitrary lengths outside the allowlist (control heights 44/56/64, the 48px primaries that slice 1 lowers to 44, the
-  // 3.25rem timestamp column, the 0.2em underline offset).
+  // Arbitrary lengths outside the allowlist (control heights 44/56/64, the 3.25rem timestamp column, the 0.2em underline
+  // offset). 48px left the allowlist in slice 1 (one control height, 44): the three files that still carry it are the
+  // consent surfaces (gate G1) and the syllabus confirm dialog (slice 6), pinned here so no new 48px control appears.
   it("arbitrary-length ratchet: no new -[Npx]/-[Nrem]/... values outside the allowlist", () => {
-    const ALLOW = /-\[(44px|48px|56px|64px|3\.25rem_|0\.2em)\]?/;
+    const ALLOW = /-\[(44px|56px|64px|3\.25rem_|0\.2em)\]?/;
     ratchet(countBy(/-\[[0-9.]+(?:px|rem|em|vh|dvh|vw|ch)(?:\]|_)/g, (m) => !ALLOW.test(m)), {
-      "app/globals.css": 4,
-      "components/AppShell.tsx": 2,
+      "app/globals.css": 1,
       "components/CommandPalette.tsx": 2,
       "components/PreferencesPanel.tsx": 1,
-      "components/lecture/ConsentStart.tsx": 1,
-      "components/lecture/LectureScreen.tsx": 2,
-      "components/lecture/MicBlocked.tsx": 1,
+      "components/lecture/ConsentDialog.tsx": 2,
+      "components/lecture/ConsentStart.tsx": 3,
       "components/lecture/Notices.tsx": 1,
-      "components/lecture/QuickRecapPanel.tsx": 9,
+      "components/lecture/QuickRecapPanel.tsx": 6,
       "components/lecture/TldrPanel.tsx": 1,
-      "components/lecture/Transcript.tsx": 2,
+      "components/syllabus/ConfirmDialog.tsx": 2,
       "components/ui/Segmented.tsx": 1,
       "components/ui/Switch.tsx": 3,
     });

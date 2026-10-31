@@ -103,9 +103,14 @@ export function Transcript({ segments, lecture, pauses, announceLines, handleRef
 
   return (
     <section aria-labelledby="transcript-h2" className="relative min-w-0">
-      <h2 id="transcript-h2" className="display text-xl">
-        {T.heading}
-      </h2>
+      {/* The heading sits inside the bordered panel as its header row (A9), so the panel top aligns with the rail's first
+          card; the scrollable log below keeps its id, role, name and focusability. */}
+      <div className="transcript-panel">
+        <div className="transcript-panel-head">
+          <h2 id="transcript-h2" className="display text-xl">
+            {T.heading}
+          </h2>
+        </div>
       {/* Scrollable region: focusable (axe scrollable-region-focusable) and labelled. aria-live stays off;
           the opt-in finals region is a separate child so partials/corrections can never be announced. */}
       <div
@@ -122,7 +127,7 @@ export function Transcript({ segments, lecture, pauses, announceLines, handleRef
             jumpToLive();
           }
         }}
-        className="transcript mt-3 h-[50vh] min-h-[12rem] overflow-y-auto rounded-card border border-line bg-surface px-4 py-4 sm:px-6"
+        className="transcript mt-2 overflow-y-auto rounded-b-card px-4 pb-4 sm:px-6"
       >
         {items.length === 0 && !partial ? <p className="text-muted">{searching ? "No line matches that. Try fewer words." : T.empty}</p> : null}
         {items.map((it) => {
@@ -163,6 +168,7 @@ export function Transcript({ segments, lecture, pauses, announceLines, handleRef
         <div data-region="finals" aria-live={announceLines ? "polite" : "off"} aria-atomic="true" className="sr-only">
           {announceLines ? finalsText : ""}
         </div>
+      </div>
       </div>
       {showJump ? (
         <button type="button" className="btn-secondary btn-sm mt-2 shadow-2" onClick={jumpToLive}>

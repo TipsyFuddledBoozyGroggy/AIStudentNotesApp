@@ -25,9 +25,11 @@ export function AllCoursesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      {/* Heading and its action share a baseline (A6 / R7); the button's ink ends on the column edge (R6). Fixed 48px row
+          from 360px so no heading face can change its height (R10); below that it wraps. */}
+      <div className="flex flex-wrap items-baseline justify-between gap-3 xs:h-12">
         <h1 className="display text-3xl">All courses</h1>
-        <Link href="/courses/new" className="btn-secondary btn-sm">
+        <Link href="/courses/new" className="btn-quiet btn-sm optical-end">
           Add a course
         </Link>
       </div>
@@ -77,7 +79,7 @@ export function AllCoursesPage() {
           <p className="text-muted">{query.trim() ? "No course matches that. Try fewer words." : "No courses yet."}</p>
         )
       )}
-      <Link href="/" className="btn-quiet px-0">
+      <Link href="/" className="btn-quiet optical-start">
         Back to dashboard
       </Link>
     </div>

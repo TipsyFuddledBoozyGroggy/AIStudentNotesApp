@@ -48,7 +48,7 @@ export function TldrPanel({ summary, status, onCite, collapsible = false, live =
         {collapsible ? (
           <button
             type="button"
-            className="btn-quiet btn-sm -mr-2"
+            className="btn-quiet btn-sm optical-end"
             aria-expanded={open}
             aria-controls="tldr-body"
             aria-label={open ? "Less of the TL;DR" : "More of the TL;DR"}
@@ -88,7 +88,7 @@ export function TldrPanel({ summary, status, onCite, collapsible = false, live =
               </ul>
             ) : null}
             {canMore ? (
-              <button type="button" className="btn-quiet btn-sm mt-2 -ml-3" aria-expanded={more} onClick={() => setMore((m) => !m)}>
+              <button type="button" className="btn-quiet btn-sm optical-start mt-2" aria-expanded={more} onClick={() => setMore((m) => !m)}>
                 {more ? C.showLess : C.showMore}
               </button>
             ) : null}
@@ -107,7 +107,7 @@ export function TldrPanel({ summary, status, onCite, collapsible = false, live =
         <div hidden={!(live || hold)} className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-hair pt-3">
           <button
             type="button"
-            className="btn-quiet btn-sm -ml-3"
+            className="btn-quiet btn-sm optical-start"
             onClick={() => {
               setFrozen(summary);
               setHold((h) => !h);
