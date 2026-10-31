@@ -1,115 +1,414 @@
 name: CI
+# Authored 2026-11-01. NEVER RUN ON GITHUB as of this writing (no run record exists; RELEASE_GATES G5 stays NOT_RUN
+# until one does). See docs/ops/ci-matrix.md for the job table, local equivalents and known limits.
+#
+# Action pins: every `uses:` is a full commit SHA with the tag in the trailing comment. The SHAs were read from the
+# public tag refs with `git ls-remote` on 2026-10-31; they have not been exercised by a run. Dependabot
+# (.github/dependabot.yml, ecosystem github-actions) proposes bumps.
 on:
   pull_request:
   push:
     branches: [main]
+
+# Least privilege by default; a job that needs more declares it itself.
 permissions:
   contents: read
+
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: "22"
+  DOTNET_VERSION: "10.0.x"        # src/api/global.json pins 10.0.403 with rollForward latestFeature
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+  # Throwaway CI database from docker-compose.yml (dev-only credentials, not secrets).
+  CI_DB_CONN: "Host=127.0.0.1;Port=5432;Database=college_companion_dev;Username=cc_dev;Password=cc_dev_only_password"
 
 jobs:
-  detect:
-    runs-on: ubuntu-latest
+  # Docs-only changes (docs/**, *.md, .claude/**) skip the heavy jobs. Skipped jobs report as successful, so they
+  # still satisfy a required status check. gitleaks always runs. No third-party action: plain git diff.
+  changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
-      web: ${{ steps.d.outputs.web }}
-      api: ${{ steps.d.outputs.api }}
+      code: ${{ steps.f.outputs.code }}
     steps:
-      - uses: actions/checkout@v4
-      - id: d
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - id: f
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
         run: |
-          [ -f src/web/package.json ] && echo "web=true" >> "$GITHUB_OUTPUT" || echo "web=false" >> "$GITHUB_OUTPUT"
-          if ls src/api/*.sln src/api/*.slnx src/api/*.csproj >/dev/null 2>&1 || [ -n "$(find src/api -name '*.csproj' 2>/dev/null | head -1)" ]; then
-            echo "api=true" >> "$GITHUB_OUTPUT"; else echo "api=false" >> "$GITHUB_OUTPUT"; fi
+          set -eu
+          base=""
+          if [ "$EVENT" = "pull_request" ]; then base="$PR_BASE"; fi
+          if [ "$EVENT" = "push" ] && [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then base="$PUSH_BEFORE"; fi
+          if [ -z "$base" ] || ! git fetch --no-tags --depth=1 origin "$base" 2>/dev/null; then
+            echo "No usable base commit: running everything."; echo "code=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          changed="$(git diff --name-only "$base" HEAD)"
+          echo "Changed files:"; echo "$changed"
+          # Anything that is not documentation counts as code (workflows, compose, src, tests, configs).
+          if echo "$changed" | grep -qvE '^(docs/|\.claude/)|\.md$'; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Docs-only change: heavy jobs skipped."; echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
 
   web:
-    needs: detect
-    if: needs.detect.outputs.web == 'true'
-    runs-on: ubuntu-latest
+    name: web (tsc, eslint, copy and skin lint, vitest, audit, build)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: src/web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
-          node-version: 22
+          persist-credentials: false
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: src/web/package-lock.json
-      - run: npm ci
-      - run: npm run lint
-      - run: npm test --if-present
-      - run: npm run build
+      - name: Install (npm ci)
+        run: npm ci
+      - name: Typecheck (tsc --noEmit)
+        run: npm run typecheck
+      - name: ESLint
+        run: npm run lint
+      # Explicit named gate. These files are also part of the full vitest run below; running them first gives a
+      # separate, named failure for wording and design-token rules (banned words, skin blocks hold no layout
+      # properties, accent-usage ratchet, theme copy).
+      - name: Copy and skin lint gate
+        run: >-
+          npx vitest run
+          src/components/lecture/copy.test.ts
+          src/components/syllabus/copy.test.ts
+          src/lib/design/skinBlocks.test.ts
+          src/components/ThemePicker.test.tsx
+      - name: Unit tests (vitest)
+        run: npm test
+      - name: npm audit, production dependencies (any severity fails)
+        run: npm audit --omit=dev --audit-level=low
+      - name: npm audit, all dependencies (high and critical fail; moderate dev-only findings allowed explicitly)
+        run: |
+          # KNOWN AND ACCEPTED (2026-10-31): 14 moderate findings, all dev-only, all via the `minimatch` chain under
+          # eslint / typescript-eslint plugins. They are not in the shipped bundle (the production audit above is
+          # clean). This step still FAILS on any high or critical finding, and on any moderate count above 14, so a
+          # new moderate finding is a deliberate decision, not silence. Lower the number when the chain is fixed.
+          npm audit --audit-level=high
+          npm audit --json > "$RUNNER_TEMP/audit.json" || true
+          node -e '
+            const m = require(process.argv[1]).metadata.vulnerabilities;
+            console.log("audit counts", JSON.stringify(m));
+            if (m.moderate > 14 || m.low > 0) { console.error("New low/moderate findings beyond the 14 accepted dev-only minimatch ones"); process.exit(1); }
+          ' "$RUNNER_TEMP/audit.json"
+      - name: Production build (next build)
+        run: npm run build
 
   api:
-    needs: detect
-    if: needs.detect.outputs.api == 'true'
-    runs-on: ubuntu-latest
+    name: api (build with warnings as errors, unit and integration tests)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: src/api
-    # Integration tests create and drop their own cc_test_* databases (need CREATEDB).
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: ci_user
-          POSTGRES_PASSWORD: ci_only_password   # throwaway CI container, not a secret
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U ci_user"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     env:
-      ConnectionStrings__Default: "Host=localhost;Port=5432;Database=postgres;Username=ci_user;Password=ci_only_password"
+      ConnectionStrings__Default: "Host=127.0.0.1;Port=5432;Database=college_companion_dev;Username=cc_dev;Password=cc_dev_only_password"   # compose dev-only default
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
-          dotnet-version: 10.0.x   # PO-1: fallback 8.0.x if .NET 10 is not adopted
-      - run: dotnet restore
-      - run: dotnet build --no-restore -c Release
-      - run: dotnet test --no-build -c Release
+          persist-credentials: false
+      - uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25  # v4.1.0
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('src/api/**/*.csproj', 'src/api/Directory.Build.props', 'src/api/global.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+      # The repo's compose file, so the tests run against the HARDENED Postgres (SB-01 log settings), exactly as
+      # developers do. The integration tests create and drop their own cc_test_* databases and need no dev API.
+      - name: Start Postgres (docker compose, hardened logging)
+        working-directory: .
+        run: docker compose up -d --wait postgres
+      - name: Restore
+        run: dotnet restore
+      # Directory.Build.props already sets TreatWarningsAsErrors=true (0 warnings today); repeated here so the gate
+      # survives someone editing the props file.
+      - name: Build (Release, warnings as errors)
+        run: dotnet build --no-restore -c Release -warnaserror
+      - name: Test (unit, contract, architecture, AI, syllabus, integration)
+        run: dotnet test --no-build -c Release --logger "trx;LogFileName=results.trx" --results-directory "$RUNNER_TEMP/trx"
+      # SB-01: after the tests ran, scan the DB server log. Passive = any CANARY marker the suites wrote;
+      # active = a fresh CHECK violation carrying a canary. See docs/ops/db-log-canary.sh.
+      - name: DB log canary (SB-01)
+        if: ${{ !cancelled() }}
+        working-directory: .
+        run: |
+          bash docs/ops/db-log-canary.sh cc-postgres-dev --passive
+          bash docs/ops/db-log-canary.sh cc-postgres-dev
+      - name: Upload test results and DB log (on failure)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08  # v4.6.0
+        with:
+          name: api-test-results
+          path: ${{ runner.temp }}/trx
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # Harness e2e needs no API, no login and no microphone (synthetic fixtures). Own job so its `next dev` on :3100
+  # never runs beside the real-stack job's server in the same directory.
+  e2e-harness:
+    name: e2e harness (Playwright, no API)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: src/web
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+      - run: npm ci
+      - id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Install Chromium (browser cached; OS libraries always installed)
+        run: npx playwright install --with-deps chromium
+      - name: Harness e2e (serial)
+        run: npx playwright test -c playwright.harness.config.ts --workers=1
+      - name: Upload Playwright output (on failure)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08  # v4.6.0
+        with:
+          name: e2e-harness-output
+          path: |
+            src/web/test-results
+            src/web/playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # Real stack: hardened Postgres (compose) + the API (Development env, dev login) + `npm run dev:real` + Playwright.
+  # Everything is SERIAL (--workers=1, one spec per step): the dev login is limited to 10 per minute per IP and the
+  # lecture specs start many sessions. The API gets the same relaxed dev-only limits docker-compose.dev.yml uses.
+  e2e-real:
+    name: e2e real stack (Playwright, axe, screens)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: src/web
+    env:
+      API_PROXY_TARGET: http://localhost:5080
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+      - uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25  # v4.1.0
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('src/api/**/*.csproj', 'src/api/Directory.Build.props', 'src/api/global.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - run: npm ci
+      - id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Install Chromium (browser cached; OS libraries always installed)
+        run: npx playwright install --with-deps chromium
+      - name: Start Postgres (docker compose, hardened logging)
+        working-directory: .
+        run: docker compose up -d --wait postgres
+      - name: Build and start the API (Development env, port 5080)
+        working-directory: .
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ConnectionStrings__Default: ${{ env.CI_DB_CONN }}
+          Security__AllowedOrigins__0: "http://localhost:3000"
+          RateLimiting__AuthPermitPerMinute: "1000"
+          RateLimiting__AudioTicketPermitPerMinute: "600"
+          RateLimiting__WritePermitPerMinute: "300"
+          RateLimiting__ApiPermitPerMinute: "1200"
+        run: |
+          dotnet build src/api/src/Tether.Host -c Release
+          nohup dotnet run --project src/api/src/Tether.Host -c Release --no-build --no-launch-profile --urls http://127.0.0.1:5080 > "$RUNNER_TEMP/api.log" 2>&1 &
+          curl -fsS --retry 60 --retry-delay 2 --retry-connrefused http://127.0.0.1:5080/health/live
+      - name: Start the web app against the real API (npm run dev:real, port 3000)
+        run: |
+          nohup npm run dev:real > "$RUNNER_TEMP/web.log" 2>&1 &
+          curl -fsS --retry 60 --retry-delay 3 --retry-connrefused --max-time 120 http://localhost:3000/signin > /dev/null
+      # Reuse configs: they attach to the servers started above instead of starting second ones.
+      - name: Real-stack e2e (courses, lecture, notes, syllabus; serial)
+        run: npx playwright test -c playwright.reuse.config.ts --workers=1
+      - name: Geometry
+        if: ${{ !cancelled() }}
+        run: npx playwright test -c playwright.screens.config.ts e2e-screens/geometry.spec.ts --workers=1
+      - name: Screens and axe
+        if: ${{ !cancelled() }}
+        run: npx playwright test -c playwright.screens.config.ts e2e-screens/screens.spec.ts --workers=1
+      - name: Skins
+        if: ${{ !cancelled() }}
+        run: npx playwright test -c playwright.screens.config.ts e2e-screens/skins.spec.ts --workers=1
+      - name: Gamer and Glass
+        if: ${{ !cancelled() }}
+        run: npx playwright test -c playwright.screens.config.ts e2e-screens/gamer-glass.spec.ts --workers=1
+      - name: Lecture looks
+        if: ${{ !cancelled() }}
+        run: npx playwright test -c playwright.screens.config.ts e2e-screens/lecture-looks.spec.ts --workers=1
+      - name: DB log canary (SB-01)
+        if: ${{ !cancelled() }}
+        working-directory: .
+        run: |
+          bash docs/ops/db-log-canary.sh cc-postgres-dev --passive
+          bash docs/ops/db-log-canary.sh cc-postgres-dev
+      - name: Upload Playwright output, axe reports and server logs (on failure)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08  # v4.6.0
+        with:
+          name: e2e-real-output
+          path: |
+            src/web/test-results
+            src/web/playwright-report
+            ${{ runner.temp }}/api.log
+            ${{ runner.temp }}/web.log
+          retention-days: 7
+          if-no-files-found: ignore
 
   secret-scan:
-    runs-on: ubuntu-latest
+    name: secret scan (gitleaks, full history)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
           fetch-depth: 0   # full history (SEC-019)
+          persist-credentials: false
       - name: gitleaks
         run: |
+          # Release tarball is not checksum-verified here (no verified hash available offline); see docs/ops/ci-matrix.md.
           curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar -xz gitleaks
           ./gitleaks detect --source . --redact --verbose
 
   dependency-audit:
-    needs: detect
-    runs-on: ubuntu-latest
+    name: dependency audit (.NET vulnerable packages)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - if: needs.detect.outputs.web == 'true'
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
-          node-version: 22
-      - name: npm audit (fails on high/critical)
-        if: needs.detect.outputs.web == 'true'
-        working-directory: src/web
-        run: npm audit --audit-level=high
-      - if: needs.detect.outputs.api == 'true'
-        uses: actions/setup-dotnet@v4
+          persist-credentials: false
+      - uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25  # v4.1.0
         with:
-          dotnet-version: 10.0.x
-      - name: dotnet vulnerable packages
-        if: needs.detect.outputs.api == 'true'
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: dotnet list package --vulnerable (High or Critical fails)
         working-directory: src/api
         run: |
           dotnet restore
           dotnet list package --vulnerable --include-transitive 2>&1 | tee audit.txt
           ! grep -qE "High|Critical" audit.txt
-      - name: Skipped notice
-        if: needs.detect.outputs.web != 'true' && needs.detect.outputs.api != 'true'
-        run: echo "No src/web or src/api yet; audit skipped."
+
+  dependency-review:
+    name: dependency review (pull requests)
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+      # Needs the dependency graph, which is free for public repositories and part of GitHub Advanced Security
+      # for private ones. If this step errors with "Dependency review is not supported", enable the graph or drop the job.
+      - uses: actions/dependency-review-action@3b139cfc5fae8b618d3eae3675e383bb1769c019  # v4.5.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: never
+
+  # There is no API Dockerfile yet (no deployable image exists). This scans what the repo does ship or run:
+  # the Postgres image used by compose (fails on fixable HIGH/CRITICAL), the dotnet SDK dev-tooling image
+  # (report only: it is never deployed) and the repo's config files (compose, workflows) for misconfiguration.
+  image-scan:
+    name: container and config scan (Trivy)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Trivy image scan, postgres:16-alpine (gate)
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5  # v0.30.0
+        with:
+          scan-type: image
+          image-ref: postgres:16-alpine
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Trivy image scan, dotnet SDK dev image (report only)
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5  # v0.30.0
+        with:
+          scan-type: image
+          image-ref: mcr.microsoft.com/dotnet/sdk:10.0
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"
+      - name: Trivy config scan (compose and workflows)
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5  # v0.30.0
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: "1"

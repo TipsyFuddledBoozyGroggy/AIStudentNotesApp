@@ -1,0 +1,28 @@
+# Authored 2026-11-01. Takes effect only once pushed to the default branch of the GitHub repo.
+# Update PRs are grouped and capped so they do not flood the queue; they run the same CI as any PR.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      actions: { patterns: ["*"] }
+  - package-ecosystem: npm
+    directory: /src/web
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: nuget
+    directory: /src/api
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3

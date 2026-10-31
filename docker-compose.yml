@@ -4,6 +4,32 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: cc-postgres-dev
+    # SB-01 (docs/security/syllabus-built-review.md): keep row and statement text out of the Postgres SERVER log.
+    # Applies to EVERY environment; a production DB must carry the same settings (managed DB parameter group).
+    #  - log_error_verbosity=terse            drops DETAIL ("Failing row contains (...)"), HINT, QUERY, CONTEXT
+    #  - log_min_error_statement=panic        never append the failing STATEMENT (it holds literals/params) to an ERROR
+    #  - log_statement=none, log_duration=off, log_min_duration_statement=-1, log_min_duration_sample=-1
+    #  - log_parameter_max_length(_on_error)=0  never log bound-parameter values
+    # No auto_explain: shared_preload_libraries/session_preload_libraries stay empty (do not add it).
+    # The ERROR line itself (constraint name, relation) is kept for debugging. Proven by docs/ops/db-log-canary.sh.
+    command:
+      - postgres
+      - -c
+      - log_error_verbosity=terse
+      - -c
+      - log_min_error_statement=panic
+      - -c
+      - log_statement=none
+      - -c
+      - log_duration=off
+      - -c
+      - log_min_duration_statement=-1
+      - -c
+      - log_min_duration_sample=-1
+      - -c
+      - log_parameter_max_length=0
+      - -c
+      - log_parameter_max_length_on_error=0
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-cc_dev}                      # DEV ONLY default
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cc_dev_only_password} # DEV ONLY default, never reuse

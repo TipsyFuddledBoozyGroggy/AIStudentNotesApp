@@ -1,0 +1,51 @@
+name: CodeQL
+# Authored 2026-11-01, NEVER RUN ON GITHUB. Code scanning results need GitHub code scanning enabled for the repo
+# (free for public repositories; GitHub Advanced Security for private ones). Without it the upload step errors.
+# Docs-only pull requests/pushes are skipped via paths-ignore; the weekly schedule always runs. Because paths-ignore
+# means no check is reported for docs-only changes, do NOT make a CodeQL check "required" in branch protection
+# until this is revisited (a required check that never reports blocks the merge).
+on:
+  pull_request:
+    paths-ignore: ["docs/**", "**/*.md", ".claude/**"]
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "**/*.md", ".claude/**"]
+  schedule:
+    - cron: "17 4 * * 1"   # Mondays 04:17 UTC
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write   # upload SARIF
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: csharp
+            build-mode: none          # no-build extraction; avoids the SDK/Postgres setup for this job
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@48ab28a6f5dbc2a99bf1e0131198dd8f1df78169  # v3.28.0
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended
+      - uses: github/codeql-action/analyze@48ab28a6f5dbc2a99bf1e0131198dd8f1df78169  # v3.28.0
+        with:
+          category: "/language:${{ matrix.language }}"
