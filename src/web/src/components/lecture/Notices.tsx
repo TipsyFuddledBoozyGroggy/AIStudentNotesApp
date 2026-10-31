@@ -164,9 +164,12 @@ export function MismatchPanel(props: { micOff: boolean; onCheck(): void; onStop(
 }
 
 /**
- * `openPageHref` (PO-19, stop-redirect.md section 5): the live route passes the lecture's own page; the link (push
- * semantics) follows "Back to course". The reopen page passes nothing, so the link never points at the page it is on.
- * Without it the markup is exactly as before.
+ * `openPageHref` (PO-19, stop-redirect.md section 5): the live route passes the lecture's own page; the link follows
+ * "Back to course". It REPLACES the history entry (Lead decision, redesign-round2.md "Lead decisions on the Stop
+ * redirect" 1): the live route is the start flow and its state does not survive a client navigation, so a pushed entry
+ * made Back show the consent screen; replaced, Back goes to the course page exactly as after the notice's "Open the
+ * lecture's page". The reopen page passes nothing, so the link never points at the page it is on. Without it the markup
+ * is exactly as before.
  */
 export function StoppedPanel(props: { reason: string | null; failed: boolean; onBack(): void; headingRef?: Ref<HTMLHeadingElement>; openPageHref?: string }) {
   const r = props.reason;
@@ -193,7 +196,7 @@ export function StoppedPanel(props: { reason: string | null; failed: boolean; on
                 <button type="button" className="btn-secondary" onClick={props.onBack}>
                   {SC.back}
                 </button>
-                <Link href={props.openPageHref} className="btn-tertiary">
+                <Link href={props.openPageHref} replace className="btn-tertiary">
                   {SC.openPage}
                 </Link>
               </div>

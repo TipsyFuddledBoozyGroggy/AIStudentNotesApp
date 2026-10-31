@@ -127,7 +127,7 @@ test("13 + 14: Stop -> the notice -> Open the lecture's page: the URL is replace
   expect(focused).not.toBe("stopped-h2"); // a reload moves no focus
 });
 
-test("17: Stay here keeps the live route with focus on the Stopped heading; the Stopped note's link opens the lecture's page with push semantics", async () => {
+test("17: Stay here keeps the live route with focus on the Stopped heading; the Stopped note's link replaces the URL with the lecture's page and Back goes to the course page", async () => {
   test.setTimeout(120_000);
   const sid = await startFromCoursePage();
   await confirmStop(sid);
@@ -143,12 +143,14 @@ test("17: Stay here keeps the live route with focus on the Stopped heading; the 
   await link.click();
   await expect(page).toHaveURL(new RegExp(`/lectures/${sid}$`));
   await expect(page.getByTestId("state-label")).toHaveText("Stopped");
-  expect(await historyLength()).toBe(before + 1); // pushed
+  expect(await historyLength()).toBe(before); // replaced, not pushed (Lead decision 1 on the Stop redirect)
   await expect(page.locator("#stopped-h2")).not.toBeFocused(); // no marker on this path: no arrival focus
   await page.goBack();
-  await expect(page).toHaveURL(new RegExp(`/courses/${course.id}/lecture$`));
-  const shown = (await page.getByTestId("state-label").count()) > 0 ? `the lecture screen (${await page.getByTestId("state-label").textContent()})` : (await page.locator("main h1").first().textContent()) ?? "?";
-  console.log(`[stop-move e2e] Back from the lecture's page after Stay here shows: ${shown}`);
+  // Back skips the start flow (whose consent screen was the original confusion) and lands on the course page, exactly
+  // as after the notice's "Open the lecture's page" (test 13 + 14).
+  await expect(page).toHaveURL(new RegExp(`/courses/${course.id}$`));
+  await expect(page.getByRole("link", { name: "Start a lecture" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: `Start lecture: ${course.name}` })).toHaveCount(0);
   // The checked box was discarded: the next Stop asks again (asserted in the next test's first lecture).
   expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.includes("stopMove")))).toEqual([]);
 });

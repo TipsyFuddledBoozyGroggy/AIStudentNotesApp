@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentType } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as b from "@/lib/lecture/builders";
 import { axeViolations } from "@/test/axe";
@@ -15,6 +16,20 @@ import {
   takeArrivedFromStop,
 } from "./settings";
 import { baseEvents, flush, mountLecture, SID } from "./testUtils";
+
+// The real next/link renders (markup unchanged); the wrapper only records its props, so the Stopped note's link can be
+// pinned to replace semantics (Lead decision 1 on the Stop redirect, redesign-round2.md).
+const linkCalls = vi.hoisted(() => [] as Array<Record<string, unknown>>);
+vi.mock("next/link", async (importOriginal) => {
+  const mod = (await importOriginal()) as { default: unknown };
+  const d = mod.default as { default?: unknown };
+  const Real = (d.default ?? d) as ComponentType<Record<string, unknown>>;
+  function RecordingLink(props: Record<string, unknown>) {
+    linkCalls.push(props);
+    return <Real {...props} />;
+  }
+  return { __esModule: true, default: RecordingLink };
+});
 
 // PO-19 (docs/ux/stop-redirect.md section 6, unit criteria 1 and 3 to 10): the move notice after the student's own Stop,
 // the "Don't show this again" preference, the arrival on the lecture's page, the never-open cases. Synthetic data on the
@@ -338,6 +353,16 @@ describe("criterion 5: never opens and never moves for anything but the student'
     const a = await mountLecture({ events: [...events], track: "ended", route: { openPageHref: HREF } });
     expect(pageLink()).toHaveAttribute("href", HREF);
     expect(await axeViolations(a.container)).toEqual([]);
+  });
+
+  it("the Stopped note's link replaces the history entry (Back then goes to the course page, not the start flow)", async () => {
+    linkCalls.length = 0;
+    await mountLecture({ events: baseEvents("Stopped", "user"), track: "ended", route: { openPageHref: HREF } });
+    const mine = linkCalls.filter((p) => p.href === HREF);
+    expect(mine.length).toBeGreaterThan(0);
+    for (const p of mine) expect(p.replace).toBe(true);
+    // Markup unchanged by the prop: the same anchor, class and text as before.
+    expect(pageLink()!.outerHTML).toBe(`<a class="btn-tertiary" href="${HREF}">${STOPPED_COPY.openPage}</a>`);
   });
 
   it("without openPageHref the Stopped note markup is exactly as before (one Back to course button with mt-3)", async () => {
