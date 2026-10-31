@@ -349,6 +349,24 @@ describe("lecture screen (redesign-round2 slice 3)", () => {
     expect(screen).toContain("xl:grid-cols-subgrid");
   });
 
+  it("slice 8: from 1280 times and lead citations are right-aligned in the margin track; below 1280 no rule moves them; desk labels stay left", () => {
+    expect(unlayered("[data-lecture-root] .transcript-time, [data-lecture-root] .hang-row > :first-child", "min-width: 1280px")).toEqual({
+      "justify-self": "end",
+      "text-align": "end",
+      "align-items": "flex-end",
+    });
+    expect(unlayered("[data-lecture-root] .hang-row > :first-child .cite", "min-width: 1280px")).toEqual({ "justify-content": "flex-end" });
+    // Only inside the 1280 query: no other rule aligns a time or a lead column to the end.
+    for (const r of RULES.filter((r) => /transcript-time|hang-row > :first-child/.test(r.selector) && r.decls.some(([k, v]) => /justify-self|text-align|justify-content/.test(k) && /end/.test(v))))
+      expect(inMedia(r, "min-width: 1280px"), r.selector).toBe(true);
+    for (const r of RULES.filter((r) => r.selector.includes("desk-label"))) for (const [k, v] of r.decls) expect([k, v]).not.toEqual(["text-align", "end"]);
+  });
+
+  it("slice 8: the collapsed TL;DR line is 20/28 with a 56px reserve below 640 and 24/32 + 64 from 640 (review 1.1); expanded stays 24/32", () => {
+    const tldr = readFileSync(path.join(SRC, "components/lecture/TldrPanel.tsx"), "utf8");
+    expect(tldr).toContain('collapsed ? "line-clamp-2 min-h-14 text-lg sm:min-h-16 sm:text-xl" : "text-xl"');
+  });
+
   it(".lecture-rail is a ledger (tint, rule between rows, no bleed) and sticks under the bar from 1024; .rail-title is sans 15/24 bold ink", () => {
     expect(decls(".lecture-rail")).toEqual({ "--ledger-inset": "1rem", background: "var(--ledger-bg)" });
     expect(decls(".rail-row + .rail-row")).toEqual({ "border-top": "1px solid var(--ledger-rule)" });

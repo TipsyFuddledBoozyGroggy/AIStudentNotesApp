@@ -339,17 +339,22 @@ test("Paper, 7 widths: lecture bar 56px with 44px pill and controls, columns sha
       const line = page.locator(".transcript-line").first();
       if (!near(await px(line, "line-height"), 28, 0.5)) problems.push(`transcript line-height ${await px(line, "line-height")}`);
       if (!near(await px(line, "font-size"), 17, 0.5)) problems.push(`transcript font-size ${await px(line, "font-size")}`);
-      // Slice 3, the margin track from 1280 (redesign-round2 2.3 / 5.1): the first timestamp starts on the column's left
-      // edge, on the page; the sheet's surface starts 5rem + 40px in; the heading and the words sit 24px + 1px inside it
-      // (the same text edge in standard and Focus layouts). Below 1280 the timestamp column is inside the sheet.
+      // Slice 3, the margin track from 1280 (redesign-round2 2.3 / 5.1): the timestamps hang in the margin, on the page;
+      // the sheet's surface starts 5rem + 40px in; the heading and the words sit 24px + 1px inside it (the same text edge
+      // in standard and Focus layouts). Below 1280 the timestamp column is inside the sheet.
+      // Slice 8 (redesign-round2-review 1.2, recorded change): the first timestamp's ink ENDS at the margin track's end
+      // (column + 5rem), right-aligned against the sheet, and starts inside the track; before slice 8 it started on the
+      // column's left edge.
       {
         const sheet = await box(page.locator(".transcript-panel"));
         const time = await box(page.locator(".transcript-time").first());
+        const timeInk = await box(page.locator(".transcript-time > [aria-hidden]").first());
         const words = await box(line.locator("> span").nth(1));
         const head = await ink(page.getByRole("heading", { name: "Transcript" }));
         if (width >= 1280) {
           if (!near(sheet.x, col.x, 1)) problems.push(`sheet box left ${sheet.x} vs column ${col.x}`);
-          if (!near(time.x, col.x, 1)) problems.push(`timestamp left ${time.x} vs margin ${col.x}`);
+          if (!near(timeInk.x + timeInk.width, col.x + 80, 1)) problems.push(`timestamp ink right ${timeInk.x + timeInk.width} vs margin end ${col.x + 80}`);
+          if (timeInk.x < col.x - 0.5) problems.push(`timestamp ink left ${timeInk.x} outside the margin track ${col.x}`);
           if (!near(words.x, col.x + 80 + 40 + 25, 1.5)) problems.push(`transcript words left ${words.x} vs ${col.x + 145}`);
           if (!near(head.x, col.x + 145, 1.5)) problems.push(`transcript heading left ${head.x} vs ${col.x + 145}`);
         } else {
@@ -440,7 +445,8 @@ test("slice 8a: Make notes block and Ready sheet geometry; the Ready sheet equal
         if (before[0] !== before[1]) problems.push(`painted start ${before[0]} vs ${before[1]}`);
         const lead = await box(page.locator("[data-notes-bullet] .cite").first());
         const time = await box(page.locator(".transcript-time").first());
-        if (width >= 1280 && !near(lead.x, time.x, 1)) problems.push(`lead citation x ${lead.x} vs transcript time ${time.x}`);
+        // Slice 8 (recorded change): both are right-aligned in the margin track now, so their END edges match (before: x).
+        if (width >= 1280 && !near(lead.x + lead.width, time.x + time.width, 1)) problems.push(`lead citation right ${lead.x + lead.width} vs transcript time right ${time.x + time.width}`);
         if (width < 640 && (await page.locator("#lecture-notes").evaluate((e) => getComputedStyle(e).borderTopLeftRadius)) !== "0px") problems.push("phone sheet not square");
         for (const c of await page.locator("#lecture-notes .cite").all()) {
           const b = await box(c);

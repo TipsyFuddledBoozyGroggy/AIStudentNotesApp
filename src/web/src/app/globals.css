@@ -1368,6 +1368,19 @@ html:has([data-lecture-root]) {
   [data-lecture-root] .hang-indent {
     margin-inline-start: var(--hang-text);
   }
+  /* Slice 8 (redesign-round2-review 1.2): times and citation times hug their line. In the margin track they are set flush
+     to its end (right-aligned against the sheet), so a time's ink ends at margin + 5rem, 65px from the words, instead of
+     starting on the container edge 105px away. Labels start on the page edge; data that belongs to a line hugs the line.
+     Desk margin labels stay left. Below 1280 the times sit inside the sheet as before. */
+  [data-lecture-root] .transcript-time,
+  [data-lecture-root] .hang-row > :first-child {
+    justify-self: end;
+    text-align: end;
+    align-items: flex-end;
+  }
+  [data-lecture-root] .hang-row > :first-child .cite {
+    justify-content: flex-end;
+  }
 }
 
 /* Inside the lecture the filled primary (the usual window, Resume recording, Check again) answers hover with a 1px inner

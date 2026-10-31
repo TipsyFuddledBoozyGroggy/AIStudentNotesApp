@@ -126,8 +126,11 @@ test("desktop 1280: the recap result is a sheet above the transcript; first line
   await expect(result.getByRole("button", { name: "Close recap" })).toBeVisible();
   await expect(result.getByRole("button", { name: "Back to lecture" })).toBeVisible();
   // Citation times hang in the margin, on the page, left of the sheet's painted surface; the words share the transcript's text edge.
+  // Slice 8 (redesign-round2-review 1.2, recorded change): the time is right-aligned in the 5rem margin track, so the
+  // citation's box ENDS at the track's end (sheet box + 80px) and starts inside the track; before it started on rb.x.
   const cite = (await result.getByRole("button", { name: /go to transcript line$/ }).first().boundingBox())!;
-  expect(Math.abs(cite.x - rb!.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(cite.x + cite.width - (rb!.x + 80))).toBeLessThanOrEqual(1);
+  expect(cite.x).toBeGreaterThanOrEqual(rb!.x - 0.5);
   const lead = (await result.locator(".synthesis").boundingBox())!;
   const words = (await page.locator(".transcript-line > span").nth(1).boundingBox())!;
   expect(Math.abs(lead.x - words.x)).toBeLessThanOrEqual(1);

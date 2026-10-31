@@ -130,7 +130,9 @@ export function Transcript({ segments, lecture, pauses, announceLines, handleRef
         }}
         className="transcript mt-2 overflow-y-auto px-4 pb-4 sm:px-6"
       >
-        {items.length === 0 && !partial ? <p className="text-muted">{searching ? "No line matches that. Try fewer words." : T.empty}</p> : null}
+        {/* hang-indent (slice 8): from 1280 the empty / no-match line starts on the words' text edge inside the sheet, not
+            in the margin track across the sheet's border (seen on the reopen route with no words). */}
+        {items.length === 0 && !partial ? <p className="hang-indent text-muted">{searching ? "No line matches that. Try fewer words." : T.empty}</p> : null}
         {items.map((it) => {
           if (it.kind === "seg") {
             return (

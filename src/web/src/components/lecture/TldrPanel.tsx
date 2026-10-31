@@ -75,7 +75,9 @@ export function TldrPanel({ summary, status, onCite, collapsible = false, live =
       {shown ? (
         // Collapsed: two lines reserved (clamp + min height), so the note is the same height in every heading face and a
         // revision that grows from one line to two never moves the transcript under it (landmark gate; Principle 3).
-        <p className={`synthesis mt-2 text-xl ${collapsed ? "line-clamp-2 min-h-16" : ""}`}>
+        // Slice 8 (review 1.1): below 640 the collapsed line is 20/28 with a 56px reserve (24/32 + 64 from 640), so more
+        // summaries fill both lines on a phone; still larger than the 17px verbatim text (the synthesis size floor).
+        <p className={`synthesis mt-2 ${collapsed ? "line-clamp-2 min-h-14 text-lg sm:min-h-16 sm:text-xl" : "text-xl"}`}>
           <PlainText value={shown.tldr} />
         </p>
       ) : (

@@ -58,7 +58,9 @@ test("1280 Paper: the Ready sheet shares the transcript sheet's edges; heading o
   expect(Math.abs(h2.x - th.x)).toBeLessThanOrEqual(1);
   const lead = (await page.locator("[data-notes-bullet] .cite").first().boundingBox())!;
   const time = (await page.locator(".transcript-time").first().boundingBox())!;
-  expect(Math.abs(lead.x - time.x)).toBeLessThanOrEqual(1); // in the margin track, like the transcript times
+  // In the margin track, like the transcript times. Slice 8 (recorded change): both are right-aligned in the track, so
+  // their END edges match; before slice 8 their left edges did.
+  expect(Math.abs(lead.x + lead.width - (time.x + time.width))).toBeLessThanOrEqual(1);
   expect(lead.x + lead.width).toBeLessThan(h2.x);
   for (const c of await page.locator("#lecture-notes .cite").all()) expect((await c.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   // Serif headings, verbatim-face bullets (PO-17a).

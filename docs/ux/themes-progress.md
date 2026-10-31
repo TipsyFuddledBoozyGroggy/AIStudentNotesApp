@@ -6,7 +6,7 @@ G4 stays NOT_RUN (no human, screen-reader or device testing). G1 stays BLOCKED: 
 Lead decisions applied: Q-PO1 label "Course portal" (code id `portal`, no third-party name or asset anywhere);
 Q-PO2 all four skins planned, Paper stays the default; Q-LEAD1 44px controls; Q-LEAD2 no per-theme theme-color meta.
 
-Status: **T0 DONE and green. T1 IMPLEMENTED 2026-10-30 as redesign-round2 slice 1** (results, test changes and
+Status: **T0 DONE and green. T5 DONE (slice 8, 2026-10-31). T1 IMPLEMENTED 2026-10-30 as redesign-round2 slice 1** (results, test changes and
 deviations recorded in `docs/ux/redesign-round2.md` under "Slice 1 results"; not committed). **Redesign-round2 slice 2
 (primitives v2) IMPLEMENTED 2026-10-31** ("Slice 2 results" in the same document): A5 (Preferences switch-row insets,
 `.hover-row`) and Segmented equal option widths are done there; the `.tag` padding stays (consent Draft tag, gate G1) and
@@ -36,7 +36,7 @@ blur running behind an opaque bar; now `!important`); forced colours clear the p
 new `e2e-screens/gamer-glass.spec.ts` (emulateMedia + CDP reduced-transparency fallbacks, backdrop-filter / translucency
 DOM scan, no-glow scan, real-DOM contrast over every decoration stop, axe with the switches on, Low-stimulation captures per
 skin, report-only frame trace); landmark gate with the switches on and off. The Glass enter animation was NOT built
-(redesign-round2 2.6 forbids transforms and limits opacity to the scrim; recorded there). **T5-T6 NOT STARTED** (T5's
+(redesign-round2 2.6 forbids transforms and limits opacity to the scrim; recorded there). **T6 NOT STARTED; T5 was NOT STARTED at this point** (T5's
 lecture pass over 10 looks can reuse slice 3's harness tests). **Redesign-round2 slices 8b and 8c IMPLEMENTED 2026-10-31**
 ("Slice 8b results" / "Slice 8c results" in `redesign-round2.md`; spec `make-notes-rail-demo-notice.md`; not committed):
 8b (PO-18c) renders the lecture Demo-source notice as a one-line Note with its unchanged body behind "Details" in every
@@ -52,6 +52,15 @@ sheet with cited bullets; the TL;DR row captions a Final revision. Themes impact
 `.lecture-sheet`, `.synthesis` (h3 follows each skin's heading face), `.hang-row` and `.cite`; no new CSS rule and no skin
 rule; a new geometry test holds the Ready sheet's x / y / width equal across the 14 looks at 390 and 1280 and checks that
 in every look the h3 differs from the 17/28 bullets by face or size; `lecture-notes-ready` is captured in the skin looks.
+**T5 IMPLEMENTED 2026-10-31 as redesign-round2 slice 8** ("Slice 8 results" in `redesign-round2.md`; not committed): the
+lecture family (live, paused, stopped, stopped with notes ready, Quick recap result, disconnected, mismatch, mic denied,
+the real consent page, Focus mode, the real reopen route) under the ten looks at 390 and 1280 in the new
+`e2e-screens/lecture-looks.spec.ts`, with axe (color-contrast included) and computed-style invariants (transcript metrics,
+face and surface; the synthesis size floor; pill and bar boxes and colours; opaque lecture text surfaces; live regions;
+landmark boxes equal to Paper light; Low-stimulation never dims the pill or removes the safety stripe). Changes, the same in
+every theme: lecture times right-aligned in the margin track from 1280; the collapsed TL;DR line 20/28 with a 56px reserve
+below 640; the empty-transcript line on the words' edge at 1280 (one defect the pass found). Two findings left for the Lead:
+Paper + Low-stimulation (Fog / Dusk) flattens the status tints; a dev-only StrictMode hub race on the reopen route.
 
 ## T0 token plumbing (DONE)
 Files changed:
@@ -124,8 +133,8 @@ No existing test was edited. The "Theme" -> "Colour mode" legend rename is T2 an
   palettes and T0 CSS.
 - **T3** DONE (slice 7): Grid texture switch, no-glow checks. **T4** DONE (slice 7) except the enter animation (not built,
   see slice 7 deviations): Solid surfaces switch, emulateMedia / CDP fallback tests, backdrop-filter DOM scan, a report-only
-  frame-time trace (headless, not a real-device measurement). **T5** lecture pass over 10 looks (harness specs loop over
-  skins; three live regions). **T6** CI matrix (no CI records exist).
+  frame-time trace (headless, not a real-device measurement). **T5** DONE (slice 8): lecture pass over 10 looks in
+  `e2e-screens/lecture-looks.spec.ts` (three live regions included). **T6** CI matrix (no CI records exist).
 - `e2e-screens/screens.spec.ts` captures Portal and Calm (light + dark) on 12 key screens at 390/1280 with axe since
   slice 5, and since slice 7 also Gamer with the grid on and Glass frosted (light + dark); Glass with Solid surfaces on is
   axe-checked on 5 key screens in `gamer-glass.spec.ts`.
