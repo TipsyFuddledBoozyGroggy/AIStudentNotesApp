@@ -33,12 +33,18 @@ const config: Config = {
         chrome: v("chrome"),
         "on-chrome": v("on-chrome"),
         grid: v("grid"),
+        // redesign-round2 2.2: list tint between canvas and surface (ledger rows, lecture rail).
+        ledger: v("ledger"),
       },
       fontFamily: {
         sans: ["var(--font-body)", "system-ui", "sans-serif"],
         // The heading face is chosen per skin in globals.css (--font-head); Paper's is Newsreader.
         serif: "var(--font-head)",
         head: "var(--font-head)",
+        // Token contract v2 (Layer C): serif = synthesis (what the lecture or the app concluded), sans = verbatim words,
+        // controls and data. Roles only in slice 0; screens adopt them from slice 2.
+        synthesis: "var(--font-synthesis)",
+        verbatim: "var(--font-verbatim)",
       },
       fontSize: {
         xs: ["0.8125rem", "1.4"],
@@ -48,7 +54,11 @@ const config: Config = {
         xl: ["1.5rem", "1.2"],
         "2xl": ["1.875rem", "1.2"],
         "3xl": ["2.375rem", "1.2"],
+        // redesign-round2 2.1: h1 display step (44/48, phone 34/40) from the --text-display tokens in globals.css.
+        display: ["var(--text-display)", "var(--leading-display)"],
       },
+      // Layer C layout tokens (redesign-round2 3.1); consumed by the templates from slice 1.
+      width: { "margin-col": "var(--margin-col)", aside: "var(--aside-w)", "lecture-aside": "var(--lecture-aside-w)" },
       // Per-skin radii (themes-spec 2.5); Paper keeps 8 / 12 / 16.
       borderRadius: { control: "var(--r-control)", card: "var(--r-card)", sheet: "var(--r-sheet)" },
       boxShadow: { 1: "var(--shadow-1)", 2: "var(--shadow-2)", 3: "var(--shadow-3)" },

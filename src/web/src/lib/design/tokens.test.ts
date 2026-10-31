@@ -9,6 +9,7 @@ import {
   FILLED_PAIRS,
   GLASS,
   GRID_TEXT_ROLES,
+  LEDGER_TINTED,
   PALETTES,
   PALETTE_LOOKS,
   PLAIN_BACKGROUNDS,
@@ -19,6 +20,7 @@ import {
   paletteFor,
   type Palette,
   type PaletteName,
+  type Role,
 } from "./tokens";
 
 // Source of truth for colour (design-direction.md slice 0, themes-spec.md 2.3): the docs' contrast tables were computed
@@ -111,6 +113,27 @@ describe("globals.css cascade equals tokens.ts", () => {
     eq(resolve({ "data-theme": "dark" }), "nightDesk");
     eq(resolve({ "data-quiet": "true" }), "fog");
     eq(resolve({ "data-theme": "dark", "data-quiet": "true" }), "dusk");
+  });
+
+  it("every palette block declares every role (no leakage between palettes)", () => {
+    const paletteBlocks = BLOCKS.filter((b) => b.decls.length > 0);
+    expect(paletteBlocks).toHaveLength(NAMES.length);
+    for (const b of paletteBlocks) {
+      const declared = b.decls.map(([k]) => k).sort();
+      expect([b.selectors.join(", "), declared]).toEqual([b.selectors.join(", "), [...ROLES].sort()]);
+    }
+  });
+
+  it("ledger: Paper light and dark have their own tint; every other palette sets ledger = surface (redesign-round2 2.2)", () => {
+    expect(PALETTES.paper.ledger).toBe("#FAF8F3");
+    expect(PALETTES.nightDesk.ledger).toBe("#181B21");
+    for (const n of NAMES) {
+      if (LEDGER_TINTED.includes(n)) {
+        // Between canvas and surface in luminance, so rows can sit on the page without a box.
+        const [lc, ll, ls] = [PALETTES[n].canvas, PALETTES[n].ledger, PALETTES[n].surface].map(relativeLuminance);
+        expect(lc < ll && ll < ls || lc > ll && ll > ls).toBe(true);
+      } else expect([n, PALETTES[n].ledger]).toEqual([n, PALETTES[n].surface]);
+    }
   });
 
   it("Low-stimulation does not swap palette on the four new skins (their colours are tested as they are)", () => {
@@ -240,6 +263,32 @@ const SPEC_TABLE: Record<string, number[]> = {
   glassLight: [12.47, 5.81, 5.41, 7.06, 5.04, 5.01, 6.12, 6.01, 3.78, 15.16 /* doc 15.20 */],
   glassDark: [11.48, 6.0, 5.64, 7.75, 5.9, 7.38, 7.55, 6.2, 3.25, 15.2],
 };
+// redesign-round2.md 2.4: the new `ledger` role, hand-computed for Paper light (#FAF8F3) and Night desk (#181B21). The
+// recomputation wins; a disagreement beyond 0.02 is flagged here and the doc is corrected ("Slice 0 results").
+const LEDGER_HAND: [PaletteName, Role, number, number][] = [
+  ["paper", "ink", 16.21, 4.5],
+  ["paper", "muted", 7.23, 4.5],
+  ["paper", "accent", 9.24, 4.5],
+  ["paper", "recording", 6.2, 4.5],
+  ["paper", "success", 6.16, 4.5],
+  ["paper", "warning", 7.53, 4.5],
+  ["paper", "danger", 7.4, 4.5],
+  ["paper", "border-strong", 3.47, 3],
+  ["nightDesk", "ink", 14.33, 4.5],
+  ["nightDesk", "muted", 7.17, 4.5],
+  ["nightDesk", "accent", 9.02, 4.5],
+  ["nightDesk", "recording", 7.53, 4.5],
+  ["nightDesk", "success", 9.41, 4.5],
+  ["nightDesk", "warning", 9.63, 4.5],
+  ["nightDesk", "danger", 7.91, 4.5],
+  ["nightDesk", "border-strong", 4.33, 3],
+];
+it.each(LEDGER_HAND)("redesign-round2 2.4: %s %s on ledger recomputes to %s (within 0.02) and meets %s:1", (n, role, hand, need) => {
+  const got = contrastRatio(PALETTES[n][role], PALETTES[n].ledger);
+  expect(got).toBeGreaterThanOrEqual(need);
+  expect([role, Math.abs(got - hand) <= 0.02, Number(got.toFixed(2))]).toEqual([role, true, Number(got.toFixed(2))]);
+});
+
 it.each(Object.entries(SPEC_TABLE))("themes-spec hand values for %s are within 0.02", (n, hand) => {
   const p = PALETTES[n as PaletteName];
   const bg = n.endsWith("Dark") ? p.raised : p.sunken;

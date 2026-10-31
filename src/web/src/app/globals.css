@@ -15,14 +15,14 @@
   --c-canvas: #F5F2EA; --c-surface: #FFFFFF; --c-raised: #FFFFFF; --c-sunken: #ECE8DE; --c-ink: #1C1B19; --c-muted: #57534A;
   --c-accent: #2E3C8C; --c-on-accent: #FFFFFF; --c-accent-subtle: #E6E8F5; --c-recording: #B42318; --c-recording-subtle: #FCEBE8; --c-success: #1B6B3A;
   --c-success-subtle: #E7F3EA; --c-warning: #7A4300; --c-warning-subtle: #FBF0D9; --c-danger: #9F1D24; --c-border-strong: #8A8579; --c-border-hair: #DAD5C8;
-  --c-focus: #2E3C8C; --c-chrome: #FFFFFF; --c-on-chrome: #1C1B19; --c-grid: #F5F2EA;
+  --c-focus: #2E3C8C; --c-chrome: #FFFFFF; --c-on-chrome: #1C1B19; --c-grid: #F5F2EA; --c-ledger: #FAF8F3;
 }
 :root[data-theme="dark"],
 [data-skin="paper"][data-theme="dark"] {
   --c-canvas: #14161B; --c-surface: #1C1F26; --c-raised: #242831; --c-sunken: #0F1115; --c-ink: #ECEAE4; --c-muted: #A3A7B3;
   --c-accent: #A9B8FF; --c-on-accent: #10131F; --c-accent-subtle: #242831; --c-recording: #FF8A7A; --c-recording-subtle: #242831; --c-success: #6FD39A;
   --c-success-subtle: #242831; --c-warning: #F2B84B; --c-warning-subtle: #242831; --c-danger: #FF8F98; --c-border-strong: #7A7F90; --c-border-hair: #2E333D;
-  --c-focus: #A9B8FF; --c-chrome: #1C1F26; --c-on-chrome: #ECEAE4; --c-grid: #14161B;
+  --c-focus: #A9B8FF; --c-chrome: #1C1F26; --c-on-chrome: #ECEAE4; --c-grid: #14161B; --c-ledger: #181B21;
 }
 /* Low-stimulation look on Paper, light ("Fog"). Only Paper swaps palette under Low-stimulation (themes-spec 3.1). */
 :root:not([data-skin])[data-quiet="true"],
@@ -30,7 +30,7 @@
   --c-canvas: #EEEDE8; --c-surface: #F6F5F1; --c-raised: #F6F5F1; --c-sunken: #E4E2DB; --c-ink: #2B2A27; --c-muted: #5E5B54;
   --c-accent: #3F4A6B; --c-on-accent: #FFFFFF; --c-accent-subtle: #F6F5F1; --c-recording: #A12B20; --c-recording-subtle: #F6F5F1; --c-success: #1B6B3A;
   --c-success-subtle: #F6F5F1; --c-warning: #7A4300; --c-warning-subtle: #F6F5F1; --c-danger: #9F1D24; --c-border-strong: #7F7B70; --c-border-hair: #D6D4CC;
-  --c-focus: #3F4A6B; --c-chrome: #F6F5F1; --c-on-chrome: #2B2A27; --c-grid: #EEEDE8;
+  --c-focus: #3F4A6B; --c-chrome: #F6F5F1; --c-on-chrome: #2B2A27; --c-grid: #EEEDE8; --c-ledger: #F6F5F1;
 }
 /* Low-stimulation look on Paper, dark ("Dusk"). Complete on purpose: the design doc's block omitted --c-muted. */
 :root:not([data-skin])[data-theme="dark"][data-quiet="true"],
@@ -38,61 +38,62 @@
   --c-canvas: #14161B; --c-surface: #1C1F26; --c-raised: #242831; --c-sunken: #0F1115; --c-ink: #D6D4CE; --c-muted: #A3A7B3;
   --c-accent: #B4BCD6; --c-on-accent: #10131F; --c-accent-subtle: #242831; --c-recording: #FF8A7A; --c-recording-subtle: #242831; --c-success: #6FD39A;
   --c-success-subtle: #242831; --c-warning: #F2B84B; --c-warning-subtle: #242831; --c-danger: #FF8F98; --c-border-strong: #7A7F90; --c-border-hair: #2E333D;
-  --c-focus: #B4BCD6; --c-chrome: #1C1F26; --c-on-chrome: #D6D4CE; --c-grid: #14161B;
+  --c-focus: #B4BCD6; --c-chrome: #1C1F26; --c-on-chrome: #D6D4CE; --c-grid: #14161B; --c-ledger: #1C1F26;
 }
 [data-skin="portal"] {
   --c-canvas: #F2F4F7; --c-surface: #FFFFFF; --c-raised: #FFFFFF; --c-sunken: #E4E8ED; --c-ink: #1B2733; --c-muted: #4A5866;
   --c-accent: #0A5AA8; --c-on-accent: #FFFFFF; --c-accent-subtle: #E3EEF9; --c-recording: #B42318; --c-recording-subtle: #FCEBE8; --c-success: #1B6B3A;
   --c-success-subtle: #E7F3EA; --c-warning: #7A4300; --c-warning-subtle: #FBF0D9; --c-danger: #9F1D24; --c-border-strong: #6F7F8F; --c-border-hair: #D5DCE3;
-  --c-focus: #0A5AA8; --c-chrome: #1E3347; --c-on-chrome: #FFFFFF; --c-grid: #F2F4F7;
+  --c-focus: #0A5AA8; --c-chrome: #1E3347; --c-on-chrome: #FFFFFF; --c-grid: #F2F4F7; --c-ledger: #FFFFFF;
 }
 [data-skin="portal"][data-theme="dark"] {
   --c-canvas: #10161C; --c-surface: #18202A; --c-raised: #202A36; --c-sunken: #0B1015; --c-ink: #E6ECF2; --c-muted: #A3B0BE;
   --c-accent: #6DB3F2; --c-on-accent: #07182A; --c-accent-subtle: #202A36; --c-recording: #FF8A7A; --c-recording-subtle: #202A36; --c-success: #6FD39A;
   --c-success-subtle: #202A36; --c-warning: #F2B84B; --c-warning-subtle: #202A36; --c-danger: #FF8F98; --c-border-strong: #6B7B8C; --c-border-hair: #26313D;
-  --c-focus: #6DB3F2; --c-chrome: #0B1015; --c-on-chrome: #E6ECF2; --c-grid: #10161C;
+  --c-focus: #6DB3F2; --c-chrome: #0B1015; --c-on-chrome: #E6ECF2; --c-grid: #10161C; --c-ledger: #18202A;
 }
 [data-skin="gamer"] {
   --c-canvas: #EEF1F5; --c-surface: #FFFFFF; --c-raised: #FFFFFF; --c-sunken: #DDE3EA; --c-ink: #0D1520; --c-muted: #455566;
   --c-accent: #006A85; --c-on-accent: #FFFFFF; --c-accent-subtle: #DDF1F7; --c-recording: #B42318; --c-recording-subtle: #FCEBE8; --c-success: #1B6B3A;
   --c-success-subtle: #E7F3EA; --c-warning: #7A4300; --c-warning-subtle: #FBF0D9; --c-danger: #9F1D24; --c-border-strong: #66778A; --c-border-hair: #D2DAE3;
-  --c-focus: #006A85; --c-chrome: #0D1B2A; --c-on-chrome: #E8EEF5; --c-grid: #E1E7EE;
+  --c-focus: #006A85; --c-chrome: #0D1B2A; --c-on-chrome: #E8EEF5; --c-grid: #E1E7EE; --c-ledger: #FFFFFF;
 }
 [data-skin="gamer"][data-theme="dark"] {
   --c-canvas: #0A0E14; --c-surface: #101722; --c-raised: #172030; --c-sunken: #060A0F; --c-ink: #E8EEF5; --c-muted: #94A3B5;
   --c-accent: #4FD8F0; --c-on-accent: #04141A; --c-accent-subtle: #172030; --c-recording: #FF8A7A; --c-recording-subtle: #172030; --c-success: #6FD39A;
   --c-success-subtle: #172030; --c-warning: #F2B84B; --c-warning-subtle: #172030; --c-danger: #FF8F98; --c-border-strong: #66778A; --c-border-hair: #1F2A38;
-  --c-focus: #4FD8F0; --c-chrome: #060A0F; --c-on-chrome: #E8EEF5; --c-grid: #141C27;
+  --c-focus: #4FD8F0; --c-chrome: #060A0F; --c-on-chrome: #E8EEF5; --c-grid: #141C27; --c-ledger: #101722;
 }
 [data-skin="calm"] {
   --c-canvas: #EEF0EA; --c-surface: #F7F8F4; --c-raised: #F7F8F4; --c-sunken: #E2E6DD; --c-ink: #26302B; --c-muted: #55605A;
   --c-accent: #2F6B57; --c-on-accent: #FFFFFF; --c-accent-subtle: #E3EDE7; --c-recording: #B42318; --c-recording-subtle: #FCEBE8; --c-success: #1B6B3A;
   --c-success-subtle: #E7F3EA; --c-warning: #7A4300; --c-warning-subtle: #FBF0D9; --c-danger: #9F1D24; --c-border-strong: #6E7B73; --c-border-hair: #D8DDD3;
-  --c-focus: #2F6B57; --c-chrome: #F7F8F4; --c-on-chrome: #26302B; --c-grid: #EEF0EA;
+  --c-focus: #2F6B57; --c-chrome: #F7F8F4; --c-on-chrome: #26302B; --c-grid: #EEF0EA; --c-ledger: #F7F8F4;
 }
 [data-skin="calm"][data-theme="dark"] {
   --c-canvas: #151A18; --c-surface: #1D2321; --c-raised: #252C29; --c-sunken: #101412; --c-ink: #DCE3DE; --c-muted: #9DAAA3;
   --c-accent: #8FC7B0; --c-on-accent: #0E1A15; --c-accent-subtle: #252C29; --c-recording: #FF8A7A; --c-recording-subtle: #252C29; --c-success: #6FD39A;
   --c-success-subtle: #252C29; --c-warning: #F2B84B; --c-warning-subtle: #252C29; --c-danger: #FF8F98; --c-border-strong: #6F7D75; --c-border-hair: #2C3431;
-  --c-focus: #8FC7B0; --c-chrome: #1D2321; --c-on-chrome: #DCE3DE; --c-grid: #151A18;
+  --c-focus: #8FC7B0; --c-chrome: #1D2321; --c-on-chrome: #DCE3DE; --c-grid: #151A18; --c-ledger: #1D2321;
 }
 [data-skin="glass"] {
   --c-canvas: #DCE6F7; --c-surface: #FFFFFF; --c-raised: #FFFFFF; --c-sunken: #D9E2F1; --c-ink: #172033; --c-muted: #475569;
   --c-accent: #0A4FC9; --c-on-accent: #FFFFFF; --c-accent-subtle: #E4ECFB; --c-recording: #B42318; --c-recording-subtle: #FCEBE8; --c-success: #1B6B3A;
   --c-success-subtle: #E7F3EA; --c-warning: #7A4300; --c-warning-subtle: #FBF0D9; --c-danger: #9F1D24; --c-border-strong: #62718C; --c-border-hair: #C9D5EA;
-  --c-focus: #0A4FC9; --c-chrome: #F4F7FD; --c-on-chrome: #172033; --c-grid: #DCE6F7;
+  --c-focus: #0A4FC9; --c-chrome: #F4F7FD; --c-on-chrome: #172033; --c-grid: #DCE6F7; --c-ledger: #FFFFFF;
 }
 [data-skin="glass"][data-theme="dark"] {
   --c-canvas: #171B30; --c-surface: #1E2338; --c-raised: #272D47; --c-sunken: #0F1322; --c-ink: #E9ECF8; --c-muted: #A4ACC8;
   --c-accent: #8EA2FF; --c-on-accent: #0B1030; --c-accent-subtle: #272D47; --c-recording: #FF8A7A; --c-recording-subtle: #272D47; --c-success: #6FD39A;
   --c-success-subtle: #272D47; --c-warning: #F2B84B; --c-warning-subtle: #272D47; --c-danger: #FF8F98; --c-border-strong: #6F7BA3; --c-border-hair: #2E3554;
-  --c-focus: #8EA2FF; --c-chrome: #121629; --c-on-chrome: #E9ECF8; --c-grid: #171B30;
+  --c-focus: #8EA2FF; --c-chrome: #121629; --c-on-chrome: #E9ECF8; --c-grid: #171B30; --c-ledger: #1E2338;
 }
 /* end of palette tokens */
 
-/* Structure per look (themes-spec 2.5). A skin is paint only: it may set colour, radius, shadow, heading face and
-   decoration, never padding, margin, gap, width, height, display, position or order (rule R11). The one sanctioned
-   exception is Calm's roomier --pad-card (a step of the 4px scale), and only at Comfortable density. */
+/* Layer B: structure per look (themes-spec 2.5; redesign-round2 3.1). A skin is paint only: it may set colour, radius,
+   shadow, heading face and decoration, never padding, margin, gap, width, height, display, position or order (rule R11;
+   skinBlocks.test.ts lints every [data-skin] rule). The one sanctioned exception is Calm's roomier --pad-card (a step of
+   the 4px scale), and only at Comfortable density. --scrim is per mode (redesign-round2 2.7 proposed .6 light / .7 dark; kept at .55 in both modes, same as before, because the consent pop-up shares the backdrop: PO-17b, gate G1). */
 :root {
   --shadow-1: 0 1px 2px rgba(28, 27, 25, 0.06);
   --shadow-2: 0 8px 24px rgba(28, 27, 25, 0.14);
@@ -118,7 +119,53 @@
   --shadow-1: none;
   --shadow-2: none;
   --shadow-3: none;
+  --scrim: rgba(20, 22, 27, 0.55);
   color-scheme: dark;
+}
+/* Layer C: component tokens (redesign-round2 3.1 / 3.2), set once here from Layers A and B. Components consume only these
+   and the Layer A roles. A skin block may redeclare only --sheet-radius and --btn-radius; skinBlocks.test.ts enforces it.
+   --font-synthesis / --font-verbatim: Product Owner decision, the serif speaks for what the lecture or the app concluded
+   (headings, TL;DR line, recap lead), the sans for verbatim words, controls and data. Roles only here; screens adopt them
+   in later slices. */
+:root {
+  --sheet-bg: var(--c-surface);
+  --sheet-border: var(--c-border-hair);
+  --sheet-radius: var(--r-sheet);
+  --ledger-bg: var(--c-ledger);
+  --ledger-rule: var(--c-border-hair);
+  --note-stripe-w: 4px;
+  --btn-radius: var(--r-control);
+  --btn-border-w: 2px;
+  --link-ink: var(--c-ink);
+  --link-line: var(--c-accent);
+  --label-ink: var(--c-muted);
+  --pill-h: 44px;
+  --control-h: 44px;
+  --control-h-lg: 56px;
+  --control-h-xl: 64px;
+  --focus-w: 3px;
+  --focus-offset: 2px;
+  --margin-col: 5rem;
+  --aside-w: 20rem;
+  --lecture-aside-w: 22.5rem;
+  --stamp-ink: var(--c-warning);
+  --stamp-border: var(--c-warning);
+  --stamp-bg: var(--c-warning-subtle);
+  --stamp-radius: 4px;
+  --font-synthesis: var(--font-head);
+  --font-verbatim: var(--font-body), system-ui, sans-serif;
+  /* Type scale (redesign-round2 2.1): line boxes on the 4px grid. Tailwind's fontSize keeps the shipped line-heights
+     until slice 1 switches it to these, so this slice moves nothing. The display step is 34/40 on phones, 44/48 from 640px. */
+  --type-xs: 0.8125rem; --leading-xs: 1.25rem;
+  --type-sm: 0.9375rem; --leading-sm: 1.5rem;
+  --type-base: 1.0625rem; --leading-base: 1.75rem;
+  --type-lg: 1.25rem; --leading-lg: 1.75rem;
+  --type-xl: 1.5rem; --leading-xl: 2rem;
+  --type-2xl: 1.875rem; --leading-2xl: 2.25rem;
+  --text-display: 2.125rem; --leading-display: 2.5rem;
+}
+@media (min-width: 640px) {
+  :root { --text-display: 2.75rem; --leading-display: 3rem; }
 }
 [data-skin="portal"] {
   --font-head: var(--f-source-sans), var(--font-body), system-ui, sans-serif;
@@ -299,11 +346,12 @@ h1, h2, h3 {
   font-variant-numeric: tabular-nums;
 }
 
-/* Two-tone ring: 3px focus colour plus a canvas-coloured halo, 3:1+ in all four palettes (section 2.7). */
+/* Two-tone ring: 3px focus colour plus a canvas-coloured halo, 3:1+ in every palette (section 2.7). Width and offset are
+   Layer C tokens that no skin may change (redesign-round2 3.3 item 3). The halo is ring + offset = 5px. */
 :focus-visible {
-  outline: 3px solid var(--c-focus);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 5px var(--c-canvas);
+  outline: var(--focus-w) solid var(--c-focus);
+  outline-offset: var(--focus-offset);
+  box-shadow: 0 0 0 calc(var(--focus-w) + var(--focus-offset)) var(--c-canvas);
 }
 
 /* Programmatic focus targets (headings, transcript lines) do not need a ring. */
