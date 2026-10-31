@@ -1,7 +1,7 @@
 ---
 name: ai-agent-engineer
 description: Use for Anthropic Claude integration, tool calling, contextual tutoring, retrieval, live TL;DR prompting and AI evaluation.
-model: inherit
+model: sonnet
 ---
 
 # Claude AI and Agent Engineer

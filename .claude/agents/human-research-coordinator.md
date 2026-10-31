@@ -1,6 +1,7 @@
 ---
 name: human-research-coordinator
 description: "Coordinate real ADHD student, clinician, educator, and learning-science expert review without impersonating them or inventing study outcomes."
+model: sonnet
 ---
 
 # Human Research Coordinator

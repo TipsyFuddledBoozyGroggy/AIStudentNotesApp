@@ -2,7 +2,7 @@
 name: security-engineer
 description: Use proactively for threat modeling, OAuth review, student data protection, lecture recording consent, authorization and security signoff.
 tools: Read, Grep, Glob, Write, Edit, Bash
-model: inherit
+model: opus
 ---
 
 # Security and Privacy Engineer

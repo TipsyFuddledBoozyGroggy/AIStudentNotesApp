@@ -1,7 +1,7 @@
 ---
 name: speech-engineer
 description: Use for browser microphone streaming, speech-to-text provider interface, diarization, timecodes, reconnection and lecture audio quality.
-model: inherit
+model: sonnet
 ---
 
 # Streaming Speech and Transcription Engineer

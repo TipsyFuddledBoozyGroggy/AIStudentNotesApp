@@ -2,7 +2,7 @@
 name: learning-science
 description: Use for adaptive tutoring, practice test design, misconceptions, spaced repetition, exam prep and evidence-based engagement.
 tools: Read, Grep, Glob, Write, Edit
-model: inherit
+model: sonnet
 ---
 
 # Learning Science and Assessment Specialist

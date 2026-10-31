@@ -1,7 +1,7 @@
 ---
 name: devops-engineer
 description: Use for local containers, deployment pipelines, secret management, monitoring, cost controls, resilience and release operations.
-model: inherit
+model: sonnet
 ---
 
 # DevOps and Infrastructure Engineer

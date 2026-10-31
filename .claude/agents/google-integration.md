@@ -1,7 +1,7 @@
 ---
 name: google-integration
 description: Use for Google OAuth 2.0, Google Docs/Drive import-export, Calendar synchronization, scopes, reminders and API failure handling.
-model: inherit
+model: sonnet
 ---
 
 # Google Workspace Integration Engineer

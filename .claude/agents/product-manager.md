@@ -2,7 +2,7 @@
 name: product-manager
 description: Use proactively for product discovery, MVP scope, user stories, acceptance criteria, roadmap and dependency management.
 tools: Read, Grep, Glob, Write, Edit
-model: inherit
+model: sonnet
 ---
 
 # Product Manager

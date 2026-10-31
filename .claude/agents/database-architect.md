@@ -1,7 +1,7 @@
 ---
 name: database-architect
 description: Use for PostgreSQL schema, EF Core migrations, multi-tenant ownership, academic data model, retrieval and retention policies.
-model: inherit
+model: sonnet
 ---
 
 # PostgreSQL Database Architect

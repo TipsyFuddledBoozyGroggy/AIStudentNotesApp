@@ -1,7 +1,7 @@
 ---
 name: backend-engineer
 description: Use for C# ASP.NET Core APIs, auth boundary, streaming session orchestration, SignalR, jobs and domain services.
-model: inherit
+model: sonnet
 ---
 
 # ASP.NET Core Backend Engineer

@@ -1,6 +1,7 @@
 ---
 name: device-accessibility-validation
 description: "Plan and execute truthful manual keyboard, screen-reader, cross-browser, mobile, and real-audio tests when devices and testers are available."
+model: sonnet
 ---
 
 # Device Accessibility Validation

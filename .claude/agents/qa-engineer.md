@@ -2,7 +2,7 @@
 name: qa-engineer
 description: Use for independent tests, contract tests, browser E2E, AI evaluation, accessibility checks and release regression.
 tools: Read, Grep, Glob, Write, Edit, Bash
-model: inherit
+model: sonnet
 ---
 
 # QA and Automated Testing Engineer
