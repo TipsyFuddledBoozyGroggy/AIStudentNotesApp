@@ -48,3 +48,6 @@ Before pushing a workflow change, lint it:
 
 ## Running integration tests next to the dev API
 `PersistenceTests.Rolling_back_every_migration_leaves_no_module_tables_behind` (and the migrate-down/up test) roll migrations back on the **shared dev database**. If the dev API container (`aistudentnotesapp-api-1`) or a Playwright run is using the same database, the rollback test can fail (seen 2026-10-30). Stop the API first (`docker stop aistudentnotesapp-api-1`), run `dotnet test`, then start it again for E2E. A separate test database per run would remove this coupling (not done).
+
+### Load-sensitive integration tests (seen 2026-11-01)
+`AiRouteTests.Concurrent_requests_with_the_same_key_make_exactly_one_catch_up_and_all_get_it` (expects 5 `Idempotency-Replayed` headers, got 4) and a one-off `ObjectDisposedException` in `RealtimeLogCanaryTests` failed when the dotnet suite ran while another agent was running Playwright against the same machine and Postgres. Three clean runs with nothing else running: 600/600 each. Run the dotnet integration suite on an otherwise idle machine. A real defect is not ruled out for the catch-up test; if it fails on an idle machine, treat it as a product race (same-key catch-up replay) and write a deterministic reproduction.

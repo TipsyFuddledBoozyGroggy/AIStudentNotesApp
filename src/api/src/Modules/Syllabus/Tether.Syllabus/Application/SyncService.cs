@@ -28,6 +28,14 @@ internal sealed class MockCalendar(SyllabusCore core) : ICalendarProvider
         return await core.Sql.ExecAsync("DELETE FROM syllabus.calendar_events WHERE item_id = @p0 AND user_id = @p1", ct, itemId, core.Uid);
     }
 
+    /// <summary>
+    /// SB-05: course purge. Removes every mock event of the course. Called after the purge committed, so the FK cascade has normally removed
+    /// them already and this returns 0; it is the hook where a real provider (calendar.v1) would queue its removal intents. Never fault-injected:
+    /// a removal must never block a delete.
+    /// </summary>
+    public Task<int> RemoveCourseEventsAsync(Guid courseId, CancellationToken ct) =>
+        core.Sql.ExecAsync("DELETE FROM syllabus.calendar_events WHERE course_id = @p0 AND user_id = @p1", ct, courseId, core.Uid);
+
     public bool FaultInjected => Faulty;
 
     private static DayOfWeek Dow(string code) => code switch

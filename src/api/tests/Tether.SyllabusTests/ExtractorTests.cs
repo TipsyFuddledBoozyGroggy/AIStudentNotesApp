@@ -135,6 +135,99 @@ public class ExtractorTests
         Assert.Equal("please_check", o.Confidence);
     }
 
+    // ---- SB-02: a long line (no line breaks, as when text is copied out of a PDF) with dates in the middle ----
+
+    private static void AssertWithinColumns(string canon, ProposedSnippet s)
+    {
+        Assert.Equal(s.Text, canon.Substring(s.Start, s.End - s.Start));
+        Assert.Equal(s.ContextText, canon.Substring(s.ContextStart, s.ContextEnd - s.ContextStart));
+        Assert.True(s.ContextStart <= s.Start && s.End <= s.ContextEnd, "context must contain the snippet");
+        Assert.InRange(TextPolicy.CodePoints(s.Text), 1, 600);                       // varchar(600) / ck_items_snippet_text
+        Assert.InRange(TextPolicy.CodePoints(s.ContextText), 1, 1500);               // varchar(1500) / ck_items_context
+        // never a split surrogate pair at either end of either window
+        foreach (var (a, b) in new[] { (s.Start, s.End), (s.ContextStart, s.ContextEnd) })
+        {
+            Assert.False(char.IsLowSurrogate(canon[a]), "window starts inside a surrogate pair");
+            Assert.False(char.IsHighSurrogate(canon[b - 1]), "window ends inside a surrogate pair");
+        }
+    }
+
+    private static ExtractorOutput RunCanon(string raw, out string canon)
+    {
+        canon = DocumentText.Canonicalize(raw).Text;
+        return X.Extract(new ExtractorInput(canon, new DateOnly(2026, 8, 24), new DateOnly(2026, 12, 11), "America/New_York", false, false));
+    }
+
+    [Theory]
+    [InlineData(3000, 1500)]   // the review's 3,000-character single-line fixture, date in the middle
+    [InlineData(3000, 800)]    // date just past the old 700-character margin from the start
+    [InlineData(3000, 2200)]   // ... and from the end
+    [InlineData(1501, 750)]    // one code point over the full-line limit
+    [InlineData(20000, 9000)]  // a whole document on one line
+    public void A_long_line_with_a_date_in_the_middle_stays_within_the_column_limits(int length, int at)
+    {
+        const string date = "Midterm exam on Oct 19, 2026 at 10:00 AM";
+        var raw = new string('x', at) + " " + date + " " + new string('y', Math.Max(1, length - at - date.Length - 2));
+        var o = RunCanon(raw, out var canon);
+        var item = Assert.Single(o.Items);
+        Assert.Equal(new DateOnly(2026, 10, 19), item.Date);
+        AssertWithinColumns(canon, item.Snippet);
+        Assert.Contains("Oct 19, 2026", item.Snippet.Text);
+        Assert.Equal(1500, TextPolicy.CodePoints(item.Snippet.ContextText));          // a long line fills the window, it is not cut short
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void Astral_characters_at_every_cut_position_never_split_a_surrogate_pair(int shift)
+    {
+        // a line made only of astral characters on both sides of the date, shifted so the cuts land on high and on low surrogates
+        var left = new string('a', shift) + string.Concat(Enumerable.Repeat("\U0001F600", 900));
+        var right = string.Concat(Enumerable.Repeat("\U0001D11E", 900)) + new string('b', shift);
+        var o = RunCanon(left + " Quiz due Oct 20, 2026 " + right, out var canon);
+        var item = Assert.Single(o.Items);
+        AssertWithinColumns(canon, item.Snippet);
+        Assert.True(canon.Length > 3000, "the line is far longer than 1,500 code points in UTF-16 units");
+    }
+
+    [Fact]
+    public void Several_dates_on_one_long_line_give_one_item_and_unclaimed_dates_all_within_the_limits()
+    {
+        var pad = new string('z', 700);
+        var raw = pad + " Exam on Oct 19, 2026 " + pad + " also Nov 3, 2026 " + pad + " and 2026-12-01 " + pad + " then 9/14/2026 " + pad;
+        var o = RunCanon(raw, out var canon);
+        var item = Assert.Single(o.Items);
+        AssertWithinColumns(canon, item.Snippet);
+        Assert.Equal(3, o.Unclaimed.Count);
+        Assert.All(o.Unclaimed, u => AssertWithinColumns(canon, u));
+        Assert.All(o.Items, i => Assert.True(SyllabusLimits.Fits(i), "every proposed item fits its columns"));
+    }
+
+    [Fact]
+    public void A_short_line_keeps_the_full_line_as_its_context()
+    {
+        var o = RunCanon("Header line\nMidterm exam: Oct 19, 2026 at 10:00 AM\nFooter", out var canon);
+        var s = o.Items.Single().Snippet;
+        Assert.Equal("Midterm exam: Oct 19, 2026 at 10:00 AM", s.ContextText);
+        AssertWithinColumns(canon, s);
+    }
+
+    [Fact]
+    public void The_column_guard_refuses_any_field_over_its_limit()
+    {
+        var ok = RunCanon("Midterm exam: Oct 19, 2026 at 10:00 AM", out _).Items.Single();
+        Assert.True(SyllabusLimits.Fits(ok));
+        Assert.False(SyllabusLimits.Fits(ok with { Snippet = ok.Snippet with { ContextText = new string('c', 1501) } }));
+        Assert.False(SyllabusLimits.Fits(ok with { Snippet = ok.Snippet with { Text = new string('s', 601) } }));
+        Assert.False(SyllabusLimits.Fits(ok with { Title = new string('t', 201) }));
+        Assert.False(SyllabusLimits.Fits(ok with { DateText = new string('d', 121) }));
+        Assert.False(SyllabusLimits.Fits(ok with { TimeText = new string('h', 61) }));
+        Assert.False(SyllabusLimits.Fits(ok with { ConfidenceReason = new string('r', 201) }));
+        Assert.True(SyllabusLimits.Fits(ok with { Snippet = ok.Snippet with { ContextText = string.Concat(Enumerable.Repeat("\U0001F600", 1500)) } }));   // code points, not UTF-16 units
+    }
+
     [Fact]
     public void Titles_pass_the_text_policy_and_item_cap_holds()
     {

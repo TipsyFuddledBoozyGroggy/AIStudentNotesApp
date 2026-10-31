@@ -66,22 +66,25 @@ internal sealed class SyllabusService(SyllabusCore core, ICourseOwnership course
         var hit = await LookupKeyAsync(Routes.CreateTemplate, idemKey, ct);
         var candidate = hit is not null;
         // step 6: limits decided from counters only, before any body is read
-        if (multipart && !uploads.TryEnter(uid)) return SyllabusProblem.RateLimited();
+        if (!candidate)
+        {
+            var quota = await CheckQuotasAsync(courseId, ct);
+            if (quota is not null)
+            {
+                // An identical create with this key may have committed between the step-5 lookup and this check (its key and its job
+                // commit together, so if its job is visible here its key is too). Such a request is a candidate replay and skips the
+                // quotas (contract P2 2.1: "gets the replay ... not 409 extraction_in_progress"); anything else keeps the refusal.
+                hit = await LookupKeyAsync(Routes.CreateTemplate, idemKey, ct);
+                candidate = hit is not null;
+                if (!candidate) return quota;
+            }
+        }
+        // still step 6, the last check before the body: SB-09, pasted text goes through the same per-user create gate and bytes-in-flight
+        // budget as an upload (each reserves its own wire cap), so a flood of 1 MB pastes cannot bypass it. A same-key retry waits here for the
+        // create in flight and then continues as a replay (its key is found again under the create lock in CommitCreateAsync).
+        if (!await uploads.EnterAsync(uid, idemKey, multipart ? core.Options.UploadMaxBytes : core.Options.PasteBodyBytes, ct)) return SyllabusProblem.RateLimited();
         try
         {
-            if (!candidate)
-            {
-                var quota = await CheckQuotasAsync(courseId, ct);
-                if (quota is not null)
-                {
-                    // An identical create with this key may have committed between the step-5 lookup and this check (its key and its job
-                    // commit together, so if its job is visible here its key is too). Such a request is a candidate replay and skips the
-                    // quotas (contract P2 2.1: "gets the replay ... not 409 extraction_in_progress"); anything else keeps the refusal.
-                    hit = await LookupKeyAsync(Routes.CreateTemplate, idemKey, ct);
-                    candidate = hit is not null;
-                    if (!candidate) return quota;
-                }
-            }
             // step 7: body (streaming caps)
             CreateSyllabusRequest req; string material; string contentSha; string? uploadText; string? fileType; SniffKind kind = SniffKind.Text;
             if (multipart)
@@ -100,7 +103,8 @@ internal sealed class SyllabusService(SyllabusCore core, ICourseOwnership course
                 if (!JsonBody.TryBind<CreateSyllabusRequest>(bytes!, out var r) || r is null) return SyllabusProblem.InvalidBare();
                 if (r.Text is null) return SyllabusProblem.Invalid("text", "required");     // exactly one of file or text
                 req = r; uploadText = r.Text; fileType = null; contentSha = "";
-                material = Material("POST", Routes.CreateTemplate, coursePath, "paste", Hashing.Sha256Hex(r.Text), r.Title, r.TermStart, r.TermEnd, r.DefaultTimezone, r.AllowDuplicate ? "1" : "0", r.NoticeVersion, r.Attestation.AcceptedAt);
+                // SB-04: attestation.accepted is part of the fingerprint on both paths
+                material = Material("POST", Routes.CreateTemplate, coursePath, "paste", Hashing.Sha256Hex(r.Text), r.Title, r.TermStart, r.TermEnd, r.DefaultTimezone, r.AllowDuplicate ? "1" : "0", r.NoticeVersion, r.Attestation.Accepted ? "1" : "0", r.Attestation.AcceptedAt);
             }
             // candidate replay: compare the fingerprint now (before validation); its bytes are discarded
             if (hit is not null)
@@ -124,7 +128,7 @@ internal sealed class SyllabusService(SyllabusCore core, ICourseOwnership course
             }
             return await CommitCreateAsync(http, courseId, idemKey, req, title, termStart, termEnd, multipart, fileType, contentSha, doc, Fingerprint(material), ct);
         }
-        finally { if (multipart) uploads.Leave(uid); }
+        finally { uploads.Leave(uid); }
     }
 
     private async Task<IResult?> CheckQuotasAsync(Guid courseId, CancellationToken ct)
@@ -253,6 +257,8 @@ internal sealed class SyllabusService(SyllabusCore core, ICourseOwnership course
                 var winner = await LookupKeyAsync(Routes.CreateTemplate, idemKey, ct);
                 if (winner is not null) return await ReplayOrMismatchAsync(http, winner, fingerprint, ct);
             }
+            // SB-05: the course was purged after the ownership check (the course FK refuses the insert): the course is gone, so 404, not 500
+            if (pg.SqlState == PostgresErrorCodes.ForeignKeyViolation && !await courses.IsOwnedByAsync(uid, courseId, ct)) return SyllabusProblem.NotFound();
             log.LogWarning("Syllabus create failed with SQLSTATE {SqlState}", pg.SqlState);   // code only, never row data
             throw;
         }
@@ -314,13 +320,16 @@ internal sealed class SyllabusService(SyllabusCore core, ICourseOwnership course
     /// job's next write), re-keys the live create key into a content-free tombstone, writes the audit row and deletes the syllabus; the DB
     /// cascade removes items, text, snippets, jobs, runs, sync records and the mock events. Returns false if the syllabus does not exist.
     /// </summary>
-    public static async Task<bool> DeleteCoreAsync(SyllabusCore core, Guid syllabusId, CancellationToken ct)
+    /// <param name="debrisDueBy">SB-10: set by the 7 day debris purge only. The "still debris" conditions it selected on are re-checked AFTER the
+    /// row lock (failed or needs_text, purge_after due by this instant, no student-authored item), so a syllabus that stopped being debris
+    /// between the selection and the delete (a future retry, needs_text hand entry or re-extraction) is never deleted. False if not deleted.</param>
+    public static async Task<bool> DeleteCoreAsync(SyllabusCore core, Guid syllabusId, CancellationToken ct, DateTimeOffset? debrisDueBy = null)
     {
         // B1-01: the cascade can meet a job-row writer in the opposite lock order; PostgreSQL aborts one side (40P01). The whole transaction
         // rolled back, so the delete is retried a bounded number of times (same approach as the Lectures session delete).
         for (var attempt = 0; ; attempt++)
         {
-            try { return await DeleteOnceAsync(core, syllabusId, ct); }
+            try { return await DeleteOnceAsync(core, syllabusId, debrisDueBy, ct); }
             catch (Exception ex) when (Pg.IsDeadlockOrSerialization(ex) && attempt < 4)
             {
                 core.Db.ChangeTracker.Clear();
@@ -329,11 +338,17 @@ internal sealed class SyllabusService(SyllabusCore core, ICourseOwnership course
         }
     }
 
-    private static async Task<bool> DeleteOnceAsync(SyllabusCore core, Guid syllabusId, CancellationToken ct)
+    private static async Task<bool> DeleteOnceAsync(SyllabusCore core, Guid syllabusId, DateTimeOffset? debrisDueBy, CancellationToken ct)
     {
         var uid = core.Uid; var now = core.Now();
         await using var tx = await core.Db.Database.BeginTransactionAsync(ct);
         if (!await core.LockSyllabusAsync(syllabusId, ct)) { await tx.RollbackAsync(ct); return false; }
+        if (debrisDueBy is { } due && await core.Sql.ScalarAsync<int?>("""
+                SELECT 1 FROM syllabus.syllabi s WHERE s.id = @p0 AND s.user_id = @p1 AND s.status IN ('failed','needs_text')
+                  AND s.purge_after IS NOT NULL AND s.purge_after <= @p2
+                  AND NOT EXISTS (SELECT 1 FROM syllabus.items i WHERE i.syllabus_id = s.id AND i.user_id = s.user_id AND i.origin = 'student')
+                """, ct, syllabusId, uid, due) is null)
+        { await tx.RollbackAsync(ct); return false; }
         await core.Sql.ExecAsync("""
             UPDATE syllabus.idempotency_keys SET tombstoned_at = @p0, result_id = NULL, course_id = NULL
             WHERE user_id = @p1 AND result_kind = 'syllabus' AND tombstoned_at IS NULL AND result_id = @p2

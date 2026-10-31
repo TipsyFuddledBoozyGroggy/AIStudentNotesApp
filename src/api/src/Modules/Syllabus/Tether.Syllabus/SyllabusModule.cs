@@ -60,6 +60,8 @@ public static class SyllabusModule
         builder.Services.AddScoped<SyllabusService>();
         builder.Services.AddScoped<ItemService>();
         builder.Services.AddScoped<SyncService>();
+        // SB-05: course purge cuts off running extraction and AI calls, audits each cascaded syllabus and removes the course's mock events
+        builder.Services.AddScoped<Tether.Courses.Contracts.ICourseLifecycleHandler, SyllabusCourseLifecycleHandler>();
         return builder;
     }
 

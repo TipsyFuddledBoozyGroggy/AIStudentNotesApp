@@ -31,6 +31,8 @@ internal sealed class SyllabusOptions
     public int JsonBodyBytes { get; init; } = 16 * 1024;
     public int MetadataBytes { get; init; } = 4 * 1024;
     public int UploadReadSeconds { get; init; } = 60;
+    /// <summary>SB-09: how long a same-key retry of a create waits for the user's create slot before it is 429 (proposal, not measured).</summary>
+    public int CreateGateWaitMilliseconds { get; init; } = 10_000;
     public int WritePermitPerMinute { get; init; } = 20;
     public int ReadPermitPerMinute { get; init; } = 120;
     public int SyncPerSyllabusPerMinute { get; init; } = 6;
@@ -280,25 +282,72 @@ internal sealed class RateGate(TimeProvider clock)
     }
 }
 
-/// <summary>R3-05: one streaming upload per user and a global bytes-in-flight budget; each accepted upload reserves the full cap.</summary>
+/// <summary>
+/// R3-05 and SB-09: the create gate for BOTH create paths (multipart upload and pasted-text JSON). One create body in flight per user and a
+/// global bytes-in-flight budget; each accepted create reserves its full wire cap (10 MB for an upload, 1 MB for a paste) before any body
+/// byte is read. A request with a DIFFERENT Idempotency-Key while the user's slot is taken is refused at once (429). A request with the
+/// SAME key is a retry of the create in flight: it waits (bounded in time and count, its body still unread) and then enters, so it becomes
+/// the contract's replay instead of a 429 (API_CONTRACTS_P2 2.1, candidate replays). In-process only, like JobCancellation (ADR-020d).
+/// </summary>
 internal sealed class UploadGate(SyllabusOptions options)
 {
+    /// <summary>Same-key retries that may wait for one user's slot at a time; more are refused at once.</summary>
+    public const int MaxWaitersPerUser = 8;
+
+    private sealed class Slot(string key, long reserved)
+    {
+        public string Key { get; } = key;
+        public long Reserved { get; } = reserved;
+        public int Waiters { get; set; }
+        public TaskCompletionSource Released { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
     private readonly object _lock = new();
-    private readonly HashSet<Guid> _users = [];
+    private readonly Dictionary<Guid, Slot> _users = [];
     private long _reserved;
 
-    public bool TryEnter(Guid userId)
+    /// <summary>True when the caller holds the user's slot (and must call <see cref="Leave"/>); false means 429.</summary>
+    public async Task<bool> EnterAsync(Guid userId, string idempotencyKey, long reserveBytes, CancellationToken ct)
     {
-        lock (_lock)
+        var deadline = Environment.TickCount64 + options.CreateGateWaitMilliseconds;   // monotonic; a real wait, not the app clock
+        while (true)
         {
-            if (_users.Contains(userId) || _reserved + options.UploadMaxBytes > options.BytesInFlight) return false;
-            _users.Add(userId); _reserved += options.UploadMaxBytes; return true;
+            Slot held;
+            lock (_lock)
+            {
+                if (!_users.TryGetValue(userId, out held!))
+                {
+                    if (_reserved + reserveBytes > options.BytesInFlight) return false;
+                    _users[userId] = new Slot(idempotencyKey, reserveBytes);
+                    _reserved += reserveBytes;
+                    return true;
+                }
+                if (!string.Equals(held.Key, idempotencyKey, StringComparison.Ordinal) || held.Waiters >= MaxWaitersPerUser) return false;
+                held.Waiters++;
+            }
+            try
+            {
+                var left = TimeSpan.FromMilliseconds(deadline - Environment.TickCount64);
+                if (left <= TimeSpan.Zero) return false;
+                try { await held.Released.Task.WaitAsync(left, ct); }
+                catch (TimeoutException) { return false; }
+            }
+            finally { lock (_lock) held.Waiters--; }
         }
     }
 
+    /// <summary>Test introspection: whether a create of this user currently holds the gate.</summary>
+    internal bool IsHeld(Guid userId) { lock (_lock) return _users.ContainsKey(userId); }
+
     public void Leave(Guid userId)
     {
-        lock (_lock) { if (_users.Remove(userId)) _reserved -= options.UploadMaxBytes; }
+        Slot? s;
+        lock (_lock)
+        {
+            if (!_users.Remove(userId, out s)) return;
+            _reserved -= s.Reserved;
+        }
+        s.Released.TrySetResult();
     }
 }
 

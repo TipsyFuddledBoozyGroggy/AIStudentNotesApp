@@ -54,7 +54,27 @@ internal static class SyllabusEndpoints
         W(g.MapPost("/syllabi/{id}/calendar-sync", Sync));
         W(g.MapPost("/syllabi/{id}/calendar-sync/remove", Remove));
         R(g.MapGet("/syllabi/{id}/unclaimed-dates", Unclaimed));
-        R(g.MapGet("/syllabi/{id}/export", Export));
+        // SB-07: export writes an audit row and spends the export budget, so it is not a "safe" GET. It refuses any cross-site or same-site
+        // request by Fetch Metadata (a link or redirect on another site is a top-level navigation that carries the Lax cookie) and any
+        // foreign Origin; the web client's same-origin fetch sends Sec-Fetch-Site: same-origin and is unaffected.
+        R(g.MapGet("/syllabi/{id}/export", Export)).AddEndpointFilter(async (ctx, next) =>
+            IsCrossSiteRead(ctx.HttpContext.Request, origins) ? SyllabusProblem.Csrf() : await next(ctx));
+    }
+
+    /// <summary>
+    /// SB-07 (contract section 8, additive clarification): true when a read with side effects must be refused as 403 csrf_failed. A
+    /// <c>Sec-Fetch-Site</c> header other than exactly <c>same-origin</c> or <c>none</c> (the user typed the address), more than one such header,
+    /// or an <c>Origin</c> header that is not an allow-listed origin. A request without Fetch Metadata (non-browser clients, browsers too old to
+    /// send it) is allowed: the residual for those browsers is the one the review accepted (audit noise and export budget, response unreadable).
+    /// </summary>
+    internal static bool IsCrossSiteRead(HttpRequest request, string[] origins)
+    {
+        var site = request.Headers["Sec-Fetch-Site"];
+        if (site.Count > 1) return true;
+        if (site.Count == 1 && !string.Equals(site[0], "same-origin", StringComparison.Ordinal) && !string.Equals(site[0], "none", StringComparison.Ordinal)) return true;
+        var origin = request.Headers.Origin;
+        if (origin.Count == 0) return false;
+        return origin.Count != 1 || string.IsNullOrEmpty(origin[0]) || !origins.Contains(origin[0]!, StringComparer.Ordinal);
     }
 
     // ---- step 3 helpers ----

@@ -20,8 +20,10 @@ public static class LogPipelineCanary
     public const string FakeToken = "CANARY-02-FAKE-TOKEN-ya29.c0ffee";
     public const string QueryToken = "CANARY-02-QUERY-TOKEN-91e3";
     public const string CookieValue = "CANARY-02-COOKIE-VALUE-b00b";
+    /// <summary>SB-08: the client filename of a multipart upload (read for its extension only, never logged).</summary>
+    public const string FileName = "CANARY-02-FILENAME-5c2e";
 
-    public static readonly string[] All = [LectureText, SyllabusText, FakeToken, QueryToken, CookieValue];
+    public static readonly string[] All = [LectureText, SyllabusText, FakeToken, QueryToken, CookieValue, FileName];
 
     /// <summary>Every category at Trace, set through the same configuration an operator would use. The Host's own filters must still win.</summary>
     public static IEnumerable<KeyValuePair<string, string?>> TraceEverything(string connectionString) =>
@@ -117,12 +119,30 @@ public class DevelopmentLogPipelineCanaryTests(DevelopmentLogPipelineCanaryTests
         var accepted = await c.SendAsync(req);
         Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
         var sid = (await accepted.BodyAsync()).GetProperty("id").GetString()!;
-        for (var i = 0; i < 100; i++)
+        await WaitTerminalAsync(c, sid);
+
+        // SB-08: syllabus text through a multipart FILE upload (the filename carries a sentinel too) and the worker, then a malformed
+        // UTF-16 file (lone surrogate) that intake refuses with 415.
+        var upCourse = (await (await c.PostAsJsonAsync("/api/v1/courses", new { name = "Upload course" })).BodyAsync()).GetProperty("id").GetString()!;
+        var meta = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, object?>
         {
-            var s = await (await c.GetAsync($"/api/v1/syllabi/{sid}")).BodyAsync();
-            if (s.GetProperty("status").GetString() is "ready" or "failed") break;
-            await Task.Delay(100);
+            ["defaultTimezone"] = "America/New_York", ["noticeVersion"] = "draft-2026-10", ["attestation"] = new { accepted = true, acceptedAt = DateTimeOffset.UtcNow.ToString("O") },
+        });
+        async Task<HttpResponseMessage> UploadAsync(byte[] file)
+        {
+            var form = new MultipartFormDataContent { { new StringContent(meta, Encoding.UTF8, "application/json"), "metadata" } };
+            var part = new ByteArrayContent(file);
+            part.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/plain");
+            form.Add(part, "file", LogPipelineCanary.FileName + ".txt");
+            var up = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/courses/{upCourse}/syllabi") { Content = form };
+            up.Headers.TryAddWithoutValidation("Idempotency-Key", "k" + Guid.NewGuid().ToString("N"));
+            return await c.SendAsync(up);
         }
+        var uploaded = await UploadAsync(Encoding.UTF8.GetBytes(LogPipelineCanary.SyllabusText + " upload\nQuiz due Oct 20, 2026 at 9:00 AM"));
+        Assert.Equal(HttpStatusCode.Accepted, uploaded.StatusCode);
+        await WaitTerminalAsync(c, (await uploaded.BodyAsync()).GetProperty("id").GetString()!);
+        byte[] loneSurrogate = [0xFF, 0xFE, .. Encoding.Unicode.GetBytes(LogPipelineCanary.SyllabusText + " bad"), 0x00, 0xD8, (byte)'x', 0x00];
+        Assert.Equal(HttpStatusCode.UnsupportedMediaType, (await UploadAsync(loneSurrogate)).StatusCode);
 
         // A failing row: Postgres echoes the row ("Failing row contains ...") and Npgsql is told to include it.
         await f.ExecAsync($"alter table courses.courses add constraint ck_canary check (name not like '%FAIL-{LogPipelineCanary.LectureText}%')");
@@ -133,6 +153,16 @@ public class DevelopmentLogPipelineCanaryTests(DevelopmentLogPipelineCanaryTests
         await Task.Delay(300);
 
         LogPipelineCanary.AssertClean(f.Logs.Lines.ToArray(), requireDbCategories: true);
+    }
+
+    private static async Task WaitTerminalAsync(HttpClient c, string sid)
+    {
+        for (var i = 0; i < 100; i++)
+        {
+            var s = await (await c.GetAsync($"/api/v1/syllabi/{sid}")).BodyAsync();
+            if (s.GetProperty("status").GetString() is "ready" or "failed") return;
+            await Task.Delay(100);
+        }
     }
 }
 

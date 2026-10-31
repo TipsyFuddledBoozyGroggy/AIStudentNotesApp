@@ -118,14 +118,18 @@ internal static class UploadIntake
             if (textBytes is null || !TryDecodeText(textBytes, out var t)) return Fail(SyllabusProblem.Unsupported());   // binary, NUL, bad encoding
             decoded = t;
         }
-        // Canonical JSON of the metadata part (sorted members) for the fingerprint.
-        var canonical = string.Join("|", new[]
-        {
-            "t=" + (meta.Title ?? ""), "ts=" + (meta.TermStart ?? ""), "te=" + (meta.TermEnd ?? ""), "tz=" + meta.DefaultTimezone,
-            "ad=" + (meta.AllowDuplicate ? "1" : "0"), "nv=" + meta.NoticeVersion, "aa=" + meta.Attestation.AcceptedAt,
-        });
-        return new IntakeResult(null, meta, canonical, fileSha, kind, decoded);
+        return new IntakeResult(null, meta, MetadataCanonical(meta), fileSha, kind, decoded);
     }
+
+    /// <summary>
+    /// SB-04: the canonical form of the metadata part for the fingerprint. Every member, in a fixed order, goes through the length-prefixed
+    /// <see cref="SyllabusService.Material"/> encoding (no '|' join: "X|ts=..." in a title can no longer collide with a term value), null stays
+    /// distinct from an empty string, and <c>attestation.accepted</c> is included, so a same-user retry with any different metadata is a
+    /// different fingerprint (400), never a replay.
+    /// </summary>
+    internal static string MetadataCanonical(CreateSyllabusRequest meta) =>
+        SyllabusService.Material("metadata.v2", meta.Title, meta.TermStart, meta.TermEnd, meta.DefaultTimezone, meta.AllowDuplicate ? "1" : "0",
+            meta.NoticeVersion, meta.Attestation.Accepted ? "1" : "0", meta.Attestation.AcceptedAt);
 
     private static async Task<(SniffKind Kind, string? Sha, byte[]? TextBytes, IResult? Error)> ReadFileAsync(Stream body, SyllabusOptions opt, CancellationToken ct)
     {

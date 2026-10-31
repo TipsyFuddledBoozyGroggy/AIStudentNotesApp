@@ -140,7 +140,13 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
         try
         {
             var items = new List<SyllabusItem>(); var alts = new List<ItemAlternative>(); var proposals = new List<ItemProposal>();
-            foreach (var p in output.Items.Take(opt.MaxAiItems))
+            // SB-02: the orchestrator does not trust the extractor's field lengths. An item or unclaimed date that would overflow a column is
+            // dropped and counted (droppedInvalid) instead of failing the whole syllabus with invalid_output.
+            var proposed = output.Items.Take(opt.MaxAiItems).ToList();
+            var fitting = proposed.Where(SyllabusLimits.Fits).ToList();
+            var unclaimedFitting = output.Unclaimed.Take(200).Where(SyllabusLimits.Fits).ToList();
+            var droppedInvalid = output.DroppedInvalid + (proposed.Count - fitting.Count);
+            foreach (var p in fitting)
             {
                 var id = Ids.New();
                 items.Add(new SyllabusItem
@@ -166,7 +172,7 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
             db.Items.AddRange(items);
             await db.SaveChangesAsync(ct);                       // parents first: the DB enforces the FK chain
             db.Alternatives.AddRange(alts); db.Proposals.AddRange(proposals);
-            db.Unclaimed.AddRange(output.Unclaimed.Take(200).Select(u => new UnclaimedDate
+            db.Unclaimed.AddRange(unclaimedFitting.Select(u => new UnclaimedDate
             {
                 Id = Ids.New(), UserId = uid, SyllabusId = syl.Id, SnippetStart = u.Start, SnippetEnd = u.End, SnippetPage = null, SnippetPrecision = u.Precision,
                 SnippetText = u.Text, ContextText = u.ContextText, ContextStart = u.ContextStart, ContextEnd = u.ContextEnd, CreatedAt = now,
@@ -179,7 +185,7 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
                 UPDATE syllabus.syllabi SET status = 'ready', status_reason = NULL, injection_suspect = @p0, batch_approve_allowed = @p1, dropped_invalid = @p2,
                     extractor_version = @p3, model = @p4, schema_version = 'syllabus.extract.v1', updated_at = @p5, purge_after = NULL
                 WHERE id = @p6 AND user_id = @p7
-                """, ct, suspect, batch, output.DroppedInvalid, extractor.Version, extractor.Model, now, syl.Id, uid);
+                """, ct, suspect, batch, droppedInvalid, extractor.Version, extractor.Model, now, syl.Id, uid);
             await core.Sql.ExecAsync("""
                 UPDATE syllabus.extraction_jobs SET state = 'succeeded', finished_at = @p0, lease_owner = NULL, lease_expires_at = NULL, stage = NULL
                 WHERE id = @p1 AND user_id = @p2
@@ -235,6 +241,9 @@ internal sealed class SyllabusMaintenance(IServiceScopeFactory scopes, TimeProvi
 
     public sealed record Result(int TextsPurged, int DebrisDeleted, int KeysSwept, int JobsSwept, int CountersSwept, int AuditPurged = 0);
 
+    /// <summary>Test seam (SB-10 race test): runs after the debris candidates are selected and before any is deleted. Null in production.</summary>
+    internal Func<CancellationToken, Task>? BeforeDebrisDelete { get; set; }
+
     public async Task<Result> RunOnceAsync(CancellationToken ct)
     {
         var now = Now();
@@ -255,14 +264,15 @@ internal sealed class SyllabusMaintenance(IServiceScopeFactory scopes, TimeProvi
             await tx.CommitAsync(ct);
         }
         int purged = 0, deleted = 0;
+        if (debris.Count > 0 && BeforeDebrisDelete is { } hook) await hook(ct);
         foreach (var (id, user) in debris)
         {
             try
             {
                 await using var scope = scopes.CreateUserScope(user);
                 var core = scope.ServiceProvider.GetRequiredService<SyllabusCore>();
-                scope.ServiceProvider.GetRequiredService<JobCancellation>().Cancel(id);
-                if (await SyllabusService.DeleteCoreAsync(core, id, ct)) deleted++;
+                // SB-10: the delete re-checks "still debris" under the row lock; only a syllabus that still qualifies has its job cancelled and is deleted
+                if (await SyllabusService.DeleteCoreAsync(core, id, ct, debrisDueBy: now)) { scope.ServiceProvider.GetRequiredService<JobCancellation>().Cancel(id); deleted++; }
             }
             catch (Exception ex) when (ex is not OperationCanceledException) { log.LogWarning("Debris purge failed with {ExceptionType}", ex.GetType().Name); }
         }

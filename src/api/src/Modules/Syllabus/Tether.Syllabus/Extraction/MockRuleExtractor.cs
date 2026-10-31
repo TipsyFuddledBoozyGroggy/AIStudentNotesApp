@@ -427,16 +427,29 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
         var snippetText = text.Substring(start, end - start);
         // Context window: the full line around the snippet (up to 1,500 code points; a longer line is cut around the snippet). Matching of the
         // supersession cues runs over the snippet and this window, so neighbouring unrelated lines must not leak into it.
-        var cs = ls; var ce = le;
-        if (TextPolicy.CodePoints(text.Substring(cs, ce - cs)) > 1500)
-        {
-            cs = Math.Max(ls, start - 700); ce = Math.Min(le, end + 700);
-            if (cs > ls && char.IsLowSurrogate(text[cs])) cs--;
-            if (ce < le && char.IsHighSurrogate(text[ce - 1])) ce--;
-            while (cs < start && text[cs] == ' ') cs++;
-            while (ce > end && text[ce - 1] == ' ') ce--;
-        }
+        var (cs, ce) = ContextWindow(text, ls, le, start, end, SyllabusLimits.ContextText);
         return new ProposedSnippet(start, end, snippetText, cs, ce, text.Substring(cs, ce - cs), "exact");
+    }
+
+    /// <summary>
+    /// SB-02: the context window around [start, end) inside the line [ls, le), at most <paramref name="maxCodePoints"/> code points in total
+    /// (the snippet included), so it always fits varchar(1500). It grows one code point at a time on each side (half the remaining budget each,
+    /// any budget one side cannot use goes to the other), so it never splits a surrogate pair and its bounds stay UTF-16 offsets into the text.
+    /// </summary>
+    internal static (int Start, int End) ContextWindow(string text, int ls, int le, int start, int end, int maxCodePoints)
+    {
+        if (TextPolicy.CodePoints(text.Substring(ls, le - ls)) <= maxCodePoints) return (ls, le);
+        var budget = maxCodePoints - TextPolicy.CodePoints(text.Substring(start, end - start));
+        var cs = start; var ce = end;
+        var left = budget / 2; var right = budget - left;
+        int Back(int i) => i - (i - 2 >= ls && char.IsLowSurrogate(text[i - 1]) && char.IsHighSurrogate(text[i - 2]) ? 2 : 1);
+        int Fwd(int i) => i + (i + 1 < le && char.IsHighSurrogate(text[i]) && char.IsLowSurrogate(text[i + 1]) ? 2 : 1);
+        for (; left > 0 && cs > ls; left--) cs = Back(cs);
+        for (right += left; right > 0 && ce < le; right--) ce = Fwd(ce);          // unused left budget moves right
+        for (; right > 0 && cs > ls; right--) cs = Back(cs);                        // unused right budget moves back left
+        while (cs < start && text[cs] == ' ') cs++;
+        while (ce > end && text[ce - 1] == ' ') ce--;
+        return (cs, ce);
     }
 
     private static void AddUnclaimed(List<ProposedSnippet> list, string text, List<(int Start, int End)> lines, int li, DateHit hit)
@@ -455,4 +468,24 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
 internal static class ExtractorInputExtensions
 {
     public static int MaxAi(this ExtractorInput _) => 200;
+}
+
+/// <summary>
+/// SB-02: the column limits of syllabus.items / unclaimed_dates in Unicode code points (PostgreSQL varchar(n) and char_length count code
+/// points; docs/data/schema-syllabus-p2.md). The orchestrator re-checks every proposed field against them before insert, so an extractor that
+/// overflows a column drops that one item (counted in droppedInvalid) instead of failing the whole syllabus with invalid_output.
+/// </summary>
+internal static class SyllabusLimits
+{
+    public const int Title = 200, DateText = 120, TimeText = 60, ConfidenceReason = 200, SnippetText = 600, ContextText = 1500;
+
+    private static bool Len(string? s, int max, bool required = false) => s is null ? !required : s.Length > 0 && TextPolicy.CodePoints(s) <= max;
+
+    public static bool Fits(ProposedSnippet s) =>
+        Len(s.Text, SnippetText, required: true) && Len(s.ContextText, ContextText, required: true)
+        && s.Start >= 0 && s.End > s.Start && s.ContextStart <= s.Start && s.End <= s.ContextEnd;
+
+    public static bool Fits(ProposedItem p) =>
+        Len(p.Title, Title, required: true) && Len(p.DateText, DateText) && Len(p.TimeText, TimeText) && Len(p.ConfidenceReason, ConfidenceReason, required: true)
+        && Fits(p.Snippet);
 }
