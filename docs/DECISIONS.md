@@ -140,3 +140,12 @@ These are Lead Architect choices under delegation. Reversible. They approve no s
 | PO-17a | Serif type is the voice of synthesis (summary lines, "Most recent", headings); transcript and interactive text stay sans. Reversible by a token. | PO decided |
 | PO-17b | Recording-consent screens and Demo-source presentation are unchanged for now (gate G1); the spec's two consent recommendations are DEFERRED, not closed, and stay for the PO and counsel. | PO decided |
 | PO-17c | `adhd-ux-specialist` and `frontend-engineer` run on the `fable` model. | PO decided |
+
+## Decisions on the redesign open items (2026-10-31)
+
+| ID | Decision | Status |
+|---|---|---|
+| PO-18 | Push the redesign slices 0-6 to origin/main. | Done (4cacf5d..7dd222e) |
+| PO-18a | Non-Paper themes give the consent screen no page decoration (no Gamer grid, no Glass gradient) and an opaque header. Consent card, wording and pop-up unchanged. | PO accepted |
+| PO-18b | Syllabus review: implement a reserved-space rail so "one fill always in view" works without a sticky bar over targets (SC 2.5.8). Design by `adhd-ux-specialist` (fable) first. | PO decided; not built |
+| PO-18c | Follow the `fable` design review's recommendation for the Demo-source notice on lecture screens (`docs/ux/redesign-round2-review.md` section 6; also redesign-round2.md): render it as a one-line Note with the body behind "Details", and the Demo tag leaves the bar on desktop as it already does on phones. Wording is unchanged word for word; the recording status stays always visible. Supersedes the PO-17b deferral for this item only. Counsel not consulted; gate G1 is not cleared by this (PO risk acceptance for the personal-use scope, PO-16). | PO decided; not built |
