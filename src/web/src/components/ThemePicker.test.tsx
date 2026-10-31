@@ -56,9 +56,12 @@ describe("Theme picker (themes-spec 3.2)", () => {
     expect(cards.map((c) => c.getAttribute("data-theme-card"))).toEqual(["paper", "portal", "gamer", "calm", "glass"]);
     expect(cards.map((c) => c.textContent)).toEqual(THEMES.map((t) => `${t.name}${t.description}`));
     expect(within(group).getByRole("radio", { name: "Paper" })).toHaveAttribute("aria-checked", "true");
+    // Pinned literally (redesign-round2-review 3.1 replaced all five descriptions: a theme is paint only, no layout claim).
     expect(within(group).getByRole("radio", { name: "Course portal" })).toHaveAccessibleDescription(
-      "A familiar course-site layout: dark top bar, light page, plain cards.",
+      "The look of a course website: dark top bar, light grey page, small corners.",
     );
+    // The one sentence above the cards describes the whole group (review 3.1 themeHint).
+    expect(group).toHaveAccessibleDescription("A theme changes colours, corners and heading type. Layout, words and controls stay the same.");
     expect(cards.filter((c) => c.tabIndex === 0)).toHaveLength(1);
     expect(cards.filter((c) => c.tabIndex === 0)[0]).toHaveAttribute("data-theme-card", "paper");
     // Theme comes first in Look, then Colour mode (separate control).
@@ -199,5 +202,27 @@ describe("copy (language guide; themes-spec 3.2 and 6)", () => {
     for (const t of THEMES) expect(spec).toContain(`"${t.description}"`);
     expect(THEMES.map((t) => t.name)).toEqual(["Paper", "Course portal", "Gamer", "Calm", "Glass"]);
     expect(strings.join(" ")).not.toMatch(/\bcanvas\b/i); // no third-party product name in the UI
+  });
+  it("the Low-stimulation hint is the spec's string and the rendered hint comes from the linted registry (review 3.2)", () => {
+    const spec = readFileSync(path.join(__dirname, "../../../../docs/ux/themes-spec.md"), "utf8");
+    expect(spec).toContain(`"${PREFS_COPY.lowStimHint}"`);
+    expect(PREFS_COPY.lowStimHint).toBe("Removes shadows, texture, gradients and movement. On Paper the colours soften too. Recording status is never dimmed.");
+    // The registry is what the FORBIDDEN loop above scans; prove the hint is in it.
+    expect(strings).toContain(PREFS_COPY.lowStimHint);
+    expect(strings).toContain(PREFS_COPY.themeHint);
+    // Both Look surfaces render exactly the registry string as the switch's description...
+    for (const compact of [false, true]) {
+      const view = render(
+        <PrefsProvider>
+          <LookControls compact={compact} />
+        </PrefsProvider>,
+      );
+      expect(within(view.container).getByRole("switch", { name: PREFS_COPY.lowStimLabel })).toHaveAccessibleDescription(PREFS_COPY.lowStimHint);
+      view.unmount();
+    }
+    // ...and the component passes it by reference, not as a prop literal the lint would never see.
+    const src = readFileSync(path.join(__dirname, "PreferencesPanel.tsx"), "utf8");
+    expect(src).toContain("hint={P.lowStimHint}");
+    expect(src).not.toMatch(/label="Low-stimulation look"/);
   });
 });

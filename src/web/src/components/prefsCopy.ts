@@ -7,15 +7,20 @@ import type { Skin } from "@/lib/design/tokens";
 import type { ThemePref } from "@/lib/design/prefs";
 
 export const THEMES: readonly { id: Skin; name: string; description: string }[] = [
-  { id: "paper", name: "Paper", description: "Warm paper and ink. The default." },
-  { id: "portal", name: "Course portal", description: "A familiar course-site layout: dark top bar, light page, plain cards." },
-  { id: "gamer", name: "Gamer", description: "Technical look with sharp edges and a dark first feel. No game mechanics." },
-  { id: "calm", name: "Calm", description: "Quiet colours, soft shapes, extra room." },
-  { id: "glass", name: "Glass", description: "A frosted top bar and soft layers. Text always sits on solid panels." },
+  { id: "paper", name: "Paper", description: "Cream page, dark ink, serif headings. The default." },
+  { id: "portal", name: "Course portal", description: "The look of a course website: dark top bar, light grey page, small corners." },
+  { id: "gamer", name: "Gamer", description: "Sharp corners and monospace headings. No game mechanics." },
+  { id: "calm", name: "Calm", description: "Muted green and grey, rounded shapes, no shadows." },
+  { id: "glass", name: "Glass", description: "Frosted top bar on wide screens, soft gradient page. Text and the lecture always sit on solid surfaces." },
 ];
 
+// Wording fixes (redesign-round2-review 3.1 / 3.2): a theme is paint only, so no description claims layout, cards,
+// a dark mode or extra room; the Low-stimulation hint lives here (not as a prop literal) so the copy lint sees it.
 export const PREFS_COPY = {
   themeLegend: "Theme",
+  themeHint: "A theme changes colours, corners and heading type. Layout, words and controls stay the same.",
+  lowStimLabel: "Low-stimulation look",
+  lowStimHint: "Removes shadows, texture, gradients and movement. On Paper the colours soften too. Recording status is never dimmed.",
   colourModeLegend: "Colour mode",
   colourModeHint: "System follows your device.",
   themeOn: (name: string) => `${name} theme on.`,

@@ -54,8 +54,8 @@ export function LookControls({ compact = false, onAnnounce }: { compact?: boolea
         ]}
       />
       <Switch
-        label="Low-stimulation look"
-        hint="Softer colours, no shadows, no movement. Recording status stays just as clear."
+        label={P.lowStimLabel}
+        hint={P.lowStimHint}
         checked={prefs.quiet}
         onChange={(quiet) => update({ quiet })}
       />

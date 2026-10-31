@@ -31,7 +31,11 @@ export function ThemePicker({ value, mode, onChange }: { value: Skin; mode: "lig
       <p id={id} className="font-semibold text-ink">
         {PREFS_COPY.themeLegend}
       </p>
-      <div role="radiogroup" aria-labelledby={id} className="theme-cards mt-2">
+      {/* One answer for every card to "does it change the layout?" (redesign-round2-review 3.1; true by the landmark gate). */}
+      <p id={`${id}-hint`} className="help mt-1">
+        {PREFS_COPY.themeHint}
+      </p>
+      <div role="radiogroup" aria-labelledby={id} aria-describedby={`${id}-hint`} className="theme-cards mt-2">
         {THEMES.map((t, i) => {
           const on = t.id === value;
           return (
