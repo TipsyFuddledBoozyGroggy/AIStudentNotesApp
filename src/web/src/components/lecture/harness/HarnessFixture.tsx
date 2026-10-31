@@ -10,6 +10,8 @@ import { FIXTURES, type Spec } from "./fixtures";
 
 const SID = "ses_harness";
 const noop = () => undefined;
+/** PO-19: the harness's stand-in user id for the "Don't show this again" key (synthetic; no account). */
+export const HARNESS_USER = "harness-user";
 
 function LiveFixture({ spec }: { spec: NonNullable<Spec["live"]> }) {
   const parts = useMemo(() => {
@@ -20,6 +22,7 @@ function LiveFixture({ spec }: { spec: NonNullable<Spec["live"]> }) {
     return { runtime, controls, track, mic: new FakeMicSource("ok") };
   }, [spec]);
   const [remaining, setRemaining] = useState(spec.script?.length ?? 0);
+  const [opened, setOpened] = useState(0);
 
   useEffect(() => {
     if (!spec.after) return;
@@ -36,8 +39,12 @@ function LiveFixture({ spec }: { spec: NonNullable<Spec["live"]> }) {
         onBackToCourse={noop}
         initialLecture={parts.controls.initialLecture}
         settingsOverride={{ shortcuts: spec.shortcuts ?? false }}
+        {...(spec.liveRoute
+          ? { openPageHref: `/lectures/${SID}`, onOpenPage: () => setOpened((n) => n + 1), userId: HARNESS_USER }
+          : {})}
       />
       <HarnessControlsBar
+        opened={opened}
         remaining={remaining}
         onStep={() => {
           parts.controls.step();
@@ -54,6 +61,7 @@ function LiveFixture({ spec }: { spec: NonNullable<Spec["live"]> }) {
 
 /** Dev-only fixture controls. Deliberately outside the lecture view and outside the live regions. */
 function HarnessControlsBar(p: {
+  opened: number;
   remaining: number;
   onStep(): void;
   onDrop(): void;
@@ -81,6 +89,11 @@ function HarnessControlsBar(p: {
           Server pauses (mic stays on)
         </button>
       </div>
+      {p.opened > 0 ? (
+        <p data-testid="harness-opened" className="mt-2 text-sm">
+          Open the lecture&apos;s page pressed {p.opened} time(s). The real route replaces the URL with /lectures/{SID}.
+        </p>
+      ) : null}
     </section>
   );
 }

@@ -82,9 +82,21 @@ async function checkAndStart(page: Page): Promise<string> {
   return body.id;
 }
 
+/**
+ * PO-19 (docs/ux/stop-redirect.md criterion 18): a confirmed Stop now opens the move notice over the Stopped screen. This
+ * helper presses "Open the lecture's page" (alice never checks "Don't show this again"), asserts the URL became the
+ * lecture's own page with the same session id, and that it shows Stopped there; each test continues on that page. The
+ * original "Stopped on the live route" assertion is kept, before the notice.
+ */
 async function stopLecture(page: Page) {
+  const sid = startedSessions.at(-1);
   await page.getByRole("button", { name: "Stop", exact: true }).first().click();
   await page.getByRole("dialog").getByRole("button", { name: "Stop", exact: true }).click();
+  await expect(page.getByTestId("state-label")).toHaveText("Stopped");
+  const notice = page.getByRole("dialog", { name: "This lecture has its own page" });
+  await expect(notice.getByRole("button", { name: "Open the lecture's page" })).toBeFocused();
+  await notice.getByRole("button", { name: "Open the lecture's page" }).click();
+  await expect(page).toHaveURL(new RegExp(`/lectures/${sid ?? "[^/]+"}$`));
   await expect(page.getByTestId("state-label")).toHaveText("Stopped");
 }
 

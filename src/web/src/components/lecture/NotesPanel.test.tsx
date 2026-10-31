@@ -195,6 +195,40 @@ describe("no POST without a click (1.9 AC2): the LectureAi port is spied across 
     expect(ai2.requestNotes).not.toHaveBeenCalled();
     expect(ai.requestNotes).not.toHaveBeenCalled();
   });
+
+  // PO-19 (stop-redirect.md section 5, criterion 8): the same shape across the move to the lecture's page.
+  it("Stop -> the move notice -> Open the lecture's page -> unmount -> remount (arrivedFromStop) with Pending: zero requestNotes; the remount GETs once and resumes the poll", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const ai = aiMock();
+    const onOpenPage = vi.fn();
+    await mountLecture({ ai, route: { onOpenPage, openPageHref: `/lectures/${SID}`, userId: "u1" } });
+    await userEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Stop" }));
+    await flush();
+    const notice = screen.getByRole("dialog", { name: "This lecture has its own page" });
+    expect(notesSection()).toBeInTheDocument(); // the real state, behind the scrim
+    await userEvent.click(within(notice).getByRole("button", { name: "Open the lecture's page" }));
+    expect(onOpenPage).toHaveBeenCalledTimes(1);
+    expect(ai.getNotes).toHaveBeenCalledTimes(1);
+    cleanup(); // the live route unmounts with the replace
+    await advance(NOTES_POLL_SLOW_MS * 3);
+    expect(ai.getNotes).toHaveBeenCalledTimes(1); // the unmounted hook polls nothing
+    expect(ai.requestNotes).not.toHaveBeenCalled();
+
+    // The lecture's page: a fresh screen on the Stopped session, notes Pending on the server.
+    const ai2 = aiMock({ get: [PENDING, PENDING, READY] });
+    const m2 = await stopped(ai2, { route: { arrivedFromStop: true } });
+    await flush();
+    expect(ai2.getNotes).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("notes-pending")).toBeInTheDocument();
+    await advance(NOTES_POLL_FAST_MS + 50);
+    expect(ai2.getNotes).toHaveBeenCalledTimes(2); // the poll resumed from the fresh GET
+    expect(ai2.requestNotes).not.toHaveBeenCalled();
+    expect(ai.requestNotes).not.toHaveBeenCalled();
+    // The Pending announcement is not repeated on the new page; the arrival is said once.
+    expect(m2.statusLog.filter((t) => /notes/i.test(t))).toEqual([]);
+    expect(m2.statusLog.filter((t) => t === "Lecture stopped. This is the lecture's own page.")).toHaveLength(1);
+  });
 });
 
 describe("the press (1.5, AC3, AC4)", () => {

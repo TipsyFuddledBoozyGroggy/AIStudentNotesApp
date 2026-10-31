@@ -37,6 +37,11 @@ export interface UseLectureSessionOptions {
   initialElapsedMs?: number;
   /** Focus the status heading and say "Recording started." once (coming from the start flow). */
   justStarted?: boolean;
+  /**
+   * PO-19: the student's own Stop moved them to this page (the one-shot marker). Starts with the focus intent the Stop
+   * press set, so focus lands on the Stopped heading once the screen shows Stopped. A reload has no marker.
+   */
+  arrivedFromStop?: boolean;
 }
 
 export interface PauseRecord {
@@ -80,7 +85,7 @@ export function useLectureSession(opts: UseLectureSessionOptions) {
   const [micIssue, setMicIssue] = useState<MicFailure | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [stopQueued, setStopQueued] = useState(false);
-  const [focusIntent, setFocusIntent] = useState<FocusIntent>(opts.justStarted ? "status-heading" : null);
+  const [focusIntent, setFocusIntent] = useState<FocusIntent>(opts.justStarted ? "status-heading" : opts.arrivedFromStop ? "stopped-heading" : null);
   const [elapsedMs, setElapsedMs] = useState(opts.initialElapsedMs ?? 0);
   const elapsedRef = useRef(elapsedMs);
   const [pauses, setPauses] = useState<PauseRecord[]>([]);

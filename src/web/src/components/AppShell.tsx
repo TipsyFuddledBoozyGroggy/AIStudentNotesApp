@@ -188,7 +188,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
       {prefsOpen ? (
         <div data-site-prefs className={container}>
-          <PreferencesPanel onClose={closePrefs}>
+          <PreferencesPanel onClose={closePrefs} userId={authed ? user.id : null}>
             {authed ? (
               <>
                 <h3 className="label mt-8">Account</h3>

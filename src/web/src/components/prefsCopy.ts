@@ -40,6 +40,11 @@ export const PREFS_COPY = {
   reset: "Reset look to defaults",
   resetDone: "Look reset to defaults.",
   resetHint: "Theme, colour mode, text and motion go back to how they started. Lecture settings stay as they are.",
+  // PO-19 (docs/ux/stop-redirect.md section 4): Preferences > Lectures, one switch (On = ask, the default).
+  lecturesLegend: "Lectures",
+  stopMoveLabel: "Ask before opening the lecture's page after Stop",
+  stopMoveHint: "On: a short note explains the move and waits for your choice. Off: the page opens on its own after Stop.",
+  stopMoveMsg: { on: "Ask before opening the lecture's page: on.", off: "Ask before opening the lecture's page: off." },
   previewCaption: "Preview with your current look",
   preview: {
     heading: "The chain rule",

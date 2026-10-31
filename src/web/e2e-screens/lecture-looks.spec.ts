@@ -71,6 +71,8 @@ interface Screen {
   prefs?: Record<string, unknown>;
   ready: (p: Page) => Promise<void>;
   act?: (p: Page) => Promise<void>;
+  /** Extra per-look checks on the loaded page (problems as strings). */
+  check?: (p: Page, where: string) => Promise<string[]>;
 }
 let reopenReloads = 0;
 const fixture = (p: Page) => expect(p.getByText(/^Fixture:/)).toBeVisible();
@@ -94,6 +96,40 @@ const SCREENS: Screen[] = [
   { name: "mic-denied", url: () => "/dev/lecture-harness/mic-denied", ready: fixture },
   { name: "consent", url: () => `/courses/${ctx.courseId}/lecture`, auth: true, ready: (p) => expect(p.getByRole("heading", { level: 1, name: `Start lecture: ${ctx.courseName}` })).toBeVisible() },
   { name: "focus", url: () => "/dev/lecture-harness/live-quick-recap", prefs: { focusMode: true }, ready: fixture },
+  {
+    // PO-19 (stop-redirect.md criterion 11): the move notice open over the Stopped screen, reached through the UI (Stop in
+    // the bar, Stop in the confirm) on the `live` fixture, which renders as the live route. Axe and every invariant run
+    // with it open; the landmarks compared with Paper light are the page behind it (the notice's own box follows each
+    // theme's heading face and Calm's card padding, so it is checked per look instead: inside the screen, controls at
+    // least 44px, the primary focused, no horizontal overflow, the pill behind it reading Stopped).
+    name: "stop-move",
+    url: () => "/dev/lecture-harness/live",
+    ready: async (p) => (await fixture(p), await expect(p.getByTestId("state-label")).toHaveText("Recording")),
+    act: async (p) => {
+      await p.getByRole("button", { name: "Stop", exact: true }).click();
+      await p.getByRole("dialog", { name: "Stop and save this lecture?" }).getByRole("button", { name: "Stop", exact: true }).click();
+      await expect(p.getByRole("dialog", { name: "This lecture has its own page" })).toBeVisible();
+      await expect(p.getByRole("button", { name: "Open the lecture's page" })).toBeFocused();
+    },
+    check: async (p, where) =>
+      (
+        await p.evaluate(() => {
+          const out: string[] = [];
+          const d = document.querySelector<HTMLElement>("[data-testid=stop-move-dialog]");
+          if (!d) return ["the move notice is not open"];
+          const r = d.getBoundingClientRect();
+          if (r.top < 15.5 || r.bottom > innerHeight - 15.5) out.push(`notice ${Math.round(r.top)}..${Math.round(r.bottom)} outside the screen ${innerHeight}`);
+          for (const t of [...Array.from(d.querySelectorAll("button")), d.querySelector("input")!.closest("label")!]) {
+            const b = t.getBoundingClientRect();
+            if (b.height < 43.5 || b.width < 43.5) out.push(`"${(t.textContent ?? "").trim()}" ${Math.round(b.width)}x${Math.round(b.height)}`);
+          }
+          if ((document.activeElement?.textContent ?? "").trim() !== "Open the lecture's page") out.push(`focus on "${document.activeElement?.textContent}"`);
+          if (document.querySelector("[data-testid=state-label]")?.textContent !== "Stopped") out.push("pill not Stopped");
+          if (document.documentElement.scrollWidth > document.documentElement.clientWidth) out.push("horizontal overflow");
+          return out;
+        })
+      ).map((x) => `${where}: ${x}`),
+  },
   {
     name: "reopen",
     url: () => `/lectures/${ctx.sessionId}`,
@@ -435,6 +471,7 @@ for (const s of SCREENS) {
         const p = await probe(page, width);
         const axe = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
         for (const v of axe.violations) problems.push(`${where}: axe ${v.id} (${v.impact}): ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`);
+        if (s.check) problems.push(...(await s.check(page, where)));
         await close();
         problems.push(...invariants(p, where));
         if (!ref) ref = p;

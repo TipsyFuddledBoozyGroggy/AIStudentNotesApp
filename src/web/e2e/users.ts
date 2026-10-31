@@ -24,6 +24,8 @@ export const USERS = {
   notes: `e2e-notes-${id}@dev.local`,
   // Reopen-route hub lifecycle (slice 8x): its own user, because the hub caps concurrent connections per user (C-26: 3).
   reopen: `e2e-reopen-${id}@dev.local`,
+  // PO-19 move after Stop: its own user, because "Don't show this again" is a per-user preference the spec turns on and off.
+  stopmove: `e2e-stopmove-${id}@dev.local`,
 } as const;
 export const authFile = (email: string) => path.join(AUTH_DIR, `${email}.json`);
 export const stateFor = (k: keyof typeof USERS) => authFile(USERS[k]);

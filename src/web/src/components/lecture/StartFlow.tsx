@@ -17,6 +17,10 @@ export interface StartFlowProps {
   onBackToCourse: () => void;
   attestation?: { dateLabel: string };
   demoExpected?: boolean;
+  /** PO-19: the signed-in user's id (scopes "Don't show this again"). */
+  userId?: string | null;
+  /** PO-19: move to the lecture's own page after the student's own Stop (writes the marker, replaces the URL). */
+  onOpenLecture?: (sessionId: string) => void;
 }
 
 type Phase =
@@ -37,7 +41,7 @@ export function StartFlow(props: StartFlowProps) {
   );
 }
 
-function StartFlowInner({ courseId, courseName, backend, mic, onBackToCourse, attestation, demoExpected }: StartFlowProps) {
+function StartFlowInner({ courseId, courseName, backend, mic, onBackToCourse, attestation, demoExpected, userId, onOpenLecture }: StartFlowProps) {
   const [phase, setPhase] = useState<Phase>({ name: "consent", error: null });
   const busy = useRef(false);
 
@@ -95,7 +99,19 @@ function StartFlowInner({ courseId, courseName, backend, mic, onBackToCourse, at
       );
     case "live":
       return (
-        <LectureScreen runtime={phase.runtime} track={phase.track} mic={mic} onBackToCourse={onBackToCourse} courseName={courseName} justStarted />
+        <LectureScreen
+          runtime={phase.runtime}
+          track={phase.track}
+          mic={mic}
+          onBackToCourse={onBackToCourse}
+          courseName={courseName}
+          justStarted
+          // PO-19: the live route links every Stopped / Failed rendering to the lecture's own page, and moves there after
+          // the student's own confirmed Stop (stop-redirect.md sections 1 and 5).
+          openPageHref={`/lectures/${encodeURIComponent(phase.runtime.sessionId)}`}
+          onOpenPage={onOpenLecture ? () => onOpenLecture(phase.runtime.sessionId) : undefined}
+          userId={userId}
+        />
       );
   }
 }

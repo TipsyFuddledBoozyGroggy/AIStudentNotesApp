@@ -113,6 +113,8 @@ export const ANNOUNCE = {
   offlinePaused: "No connection for a minute, so recording was paused. The microphone is off.",
   signedOut: "You were signed out. The microphone is off and nothing more is being recorded.",
   unavailable: "This lecture can not be reached. The microphone is off.",
+  // PO-19 (docs/ux/stop-redirect.md section 2): said once, on the lecture's page, after the move a student's Stop made.
+  movedAfterStop: "Lecture stopped. This is the lecture's own page.",
 } as const;
 
 export const PAUSED_COPY = {
@@ -145,6 +147,22 @@ export const STOPPED_COPY = {
   system: "This lecture was ended by the system. Your transcript is saved.",
   back: "Back to course",
   stoppingOffline: "Stopping... will finish when you are back online.",
+  // PO-19: the link in the Stopped note on the live route only (never on the page it points to).
+  openPage: "Open this lecture's page",
+} as const;
+
+/**
+ * PO-19 (docs/ux/stop-redirect.md section 2): the move notice that opens when the student's own confirmed Stop reaches
+ * Stopped. Normal copy (not DRAFT): it discloses nothing about recording, consent, retention or the Demo source.
+ */
+export const STOP_MOVE_COPY = {
+  heading: "This lecture has its own page",
+  body: "Your transcript, summary and notes are kept on it. Reloading that page shows them again.",
+  bodyHere: "This screen is for starting a lecture. Reloading here shows the start screen instead.",
+  checkbox: "Don't show this again",
+  checkboxHint: "Next time, the lecture's page opens as soon as the lecture stops.",
+  open: "Open the lecture's page",
+  stay: "Stay here",
 } as const;
 
 export const BLOCKED_COPY = {

@@ -77,6 +77,18 @@ test("Make notes after Stop: one deliberate POST, Pending then Ready, cited bull
   await expect(page.getByTestId("state-label")).toHaveText("Stopped");
   started.splice(started.indexOf(sid), 1);
   expect((await mountGet).status()).toBe(409);
+  // PO-19 (stop-redirect.md criterion 18): the confirmed Stop opens the move notice; "Open the lecture's page" replaces the
+  // live route with /lectures/{id}, whose fresh screen asks GET once more (409). No POST anywhere in the move. The press
+  // below is made on the lecture's own page (was: on the live route).
+  const getsBeforeMove = gets;
+  const moveGet = page.waitForResponse((r) => r.url().endsWith(`/sessions/${sid}/notes`) && r.request().method() === "GET");
+  await page.getByRole("dialog", { name: "This lecture has its own page" }).getByRole("button", { name: "Open the lecture's page" }).click();
+  await expect(page).toHaveURL(new RegExp(`/lectures/${sid}$`));
+  expect((await moveGet).status()).toBe(409);
+  await expect(page.getByTestId("state-label")).toHaveText("Stopped");
+  expect(gets).toBeGreaterThan(getsBeforeMove); // a fresh GET on the lecture's page
+  console.log(`[notes e2e] GET /notes: ${getsBeforeMove} on the live route, ${gets - getsBeforeMove} after the move; POST: ${posts.length}`);
+  expect(posts).toHaveLength(0);
   const notes = page.locator("#lecture-notes");
   await expect(notes.getByRole("heading", { level: 2, name: "Notes" })).toBeVisible();
   await expect(notes).toContainText("Nothing is sent unless you press it. (Draft wording.)");

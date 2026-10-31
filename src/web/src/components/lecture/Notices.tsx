@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { LookControls } from "../PreferencesPanel";
 import { usePrefs } from "../PrefsProvider";
@@ -162,7 +163,12 @@ export function MismatchPanel(props: { micOff: boolean; onCheck(): void; onStop(
   );
 }
 
-export function StoppedPanel(props: { reason: string | null; failed: boolean; onBack(): void; headingRef?: Ref<HTMLHeadingElement> }) {
+/**
+ * `openPageHref` (PO-19, stop-redirect.md section 5): the live route passes the lecture's own page; the link (push
+ * semantics) follows "Back to course". The reopen page passes nothing, so the link never points at the page it is on.
+ * Without it the markup is exactly as before.
+ */
+export function StoppedPanel(props: { reason: string | null; failed: boolean; onBack(): void; headingRef?: Ref<HTMLHeadingElement>; openPageHref?: string }) {
   const r = props.reason;
   const text =
     r === "auto_stop_paused_timeout" || r === "hard_cap" || r === "abandoned" || r === "user"
@@ -182,9 +188,20 @@ export function StoppedPanel(props: { reason: string | null; failed: boolean; on
               {SC.heading}
             </h2>
             <p className="mt-1">{text}</p>
-            <button type="button" className="btn-secondary mt-3" onClick={props.onBack}>
-              {SC.back}
-            </button>
+            {props.openPageHref ? (
+              <div className="mt-3 flex flex-wrap gap-3">
+                <button type="button" className="btn-secondary" onClick={props.onBack}>
+                  {SC.back}
+                </button>
+                <Link href={props.openPageHref} className="btn-tertiary">
+                  {SC.openPage}
+                </Link>
+              </div>
+            ) : (
+              <button type="button" className="btn-secondary mt-3" onClick={props.onBack}>
+                {SC.back}
+              </button>
+            )}
           </div>
         </div>
       </section>

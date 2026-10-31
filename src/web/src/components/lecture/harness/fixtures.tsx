@@ -42,6 +42,12 @@ export interface Spec {
     /** Run once after mount (e.g. simulate unplugging the microphone). */
     after?: (c: { controls: HarnessControls; track: FakeMicTrack | null }) => void;
     shortcuts?: boolean;
+    /**
+     * PO-19: render as the live route does (StartFlow): the Stopped note links to the lecture's page and the student's
+     * own Stop opens the move notice. The harness has no router: "Open the lecture's page" is recorded in the dev-only
+     * controls bar instead of moving.
+     */
+    liveRoute?: boolean;
   };
   custom?: () => ReactNode;
 }
@@ -217,6 +223,7 @@ export const FIXTURES: Record<string, Spec> = {
       track: "live",
       // The real runtime always has the AI routes (realRuntime.ts); without them this fixture hid Quick recap entirely.
       rt: { ai: fakeAi },
+      liveRoute: true,
       script: [
         b.partialEvent(SID, 4, 1, "so now the chain"),
         b.finalEvent(SID, "7", 4, "So now the chain rule: outer derivative times inner derivative.", 12000),

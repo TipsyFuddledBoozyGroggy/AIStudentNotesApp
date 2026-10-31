@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 import * as b from "@/lib/lecture/builders";
 import type { HubEvent } from "@/lib/lecture";
 import { AnnouncerProvider } from "./Announcer";
-import { LectureScreen } from "./LectureScreen";
+import { LectureScreen, type LectureScreenProps } from "./LectureScreen";
 import { FakeMicSource, FakeMicTrack } from "./micSource";
 import { createHarnessRuntime, type HarnessRuntimeOptions } from "./harnessRuntime";
 
@@ -29,9 +29,14 @@ export interface Mounted {
 
 /** Mounts LectureScreen on the harness runtime and records every text the status/alert regions receive. */
 export async function mountLecture(
-  o: Partial<HarnessRuntimeOptions> & { track?: "live" | "ended" | "stubborn" | "none"; settings?: Parameters<typeof LectureScreen>[0]["settingsOverride"] } = {},
+  o: Partial<HarnessRuntimeOptions> & {
+    track?: "live" | "ended" | "stubborn" | "none";
+    settings?: Parameters<typeof LectureScreen>[0]["settingsOverride"];
+    /** PO-19 props (live route: onOpenPage / openPageHref / userId; reopen page: arrivedFromStop). Absent: as before. */
+    route?: Pick<LectureScreenProps, "onOpenPage" | "openPageHref" | "userId" | "arrivedFromStop">;
+  } = {},
 ): Promise<Mounted> {
-  const { track: trackMode = "live", settings, ...rt } = o;
+  const { track: trackMode = "live", settings, route, ...rt } = o;
   const { runtime, controls } = createHarnessRuntime({ sessionId: SID, events: baseEvents(), ...rt });
   const mic = new FakeMicSource("ok");
   const track = trackMode === "none" ? null : new FakeMicTrack();
@@ -47,6 +52,7 @@ export async function mountLecture(
         onBackToCourse={onBack}
         initialLecture={controls.initialLecture}
         settingsOverride={settings ?? {}}
+        {...route}
       />
     </AnnouncerProvider>
   );

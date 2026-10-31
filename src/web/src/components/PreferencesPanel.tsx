@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { lookDefaults, resolveTheme, themesEnabled, type Density, type Spacing, type TextSize, type ThemePref } from "@/lib/design/prefs";
+import { loadStopMove, saveStopMove } from "./lecture/settings";
 import { Disclosure } from "./ui/Disclosure";
 import { Segmented } from "./ui/Segmented";
 import { Switch } from "./ui/Switch";
@@ -178,13 +179,39 @@ function LookPreview() {
 }
 
 /**
+ * Preferences > Lectures (PO-19, stop-redirect.md section 4): one switch, On = ask before opening the lecture's page after
+ * Stop (the default), Off = open it directly. Reads and writes the signed-in user's own key through the lecture settings
+ * helpers; not in the lecture settings popover (one place to change it). Shown only when a user is signed in.
+ */
+function LectureControls({ userId, onAnnounce }: { userId: string; onAnnounce(message: string): void }) {
+  const [direct, setDirect] = useState(() => loadStopMove(userId)); // keyed by userId by the caller
+  return (
+    <>
+      <h3 className="label mt-8">{P.lecturesLegend}</h3>
+      <div className="mt-3">
+        <Switch
+          label={P.stopMoveLabel}
+          hint={P.stopMoveHint}
+          checked={!direct}
+          onChange={(ask) => {
+            saveStopMove(userId, !ask);
+            setDirect(loadStopMove(userId));
+            onAnnounce(ask ? P.stopMoveMsg.on : P.stopMoveMsg.off);
+          }}
+        />
+      </div>
+    </>
+  );
+}
+
+/**
  * Preferences (redesign-round2 2.7 Side panel, slice 5). From 1024px a fixed right-hand panel (24rem, surface, hair left
  * edge); the page beside it reflows so all of it stays visible and usable (non-modal: no scrim, no inert, no focus trap).
  * Below 1024px it sits in the page flow under the header, as before. It takes focus on open, returns focus to its opener
  * on close, Escape closes it. Its head (title, Close, the status line) stays in view while the panel scrolls. Saved on
  * this device only.
  */
-export function PreferencesPanel({ onClose, children }: { onClose(): void; children?: ReactNode }) {
+export function PreferencesPanel({ onClose, children, userId = null }: { onClose(): void; children?: ReactNode; userId?: string | null }) {
   const heading = useRef<HTMLHeadingElement>(null);
   // One plain confirmation per change, visible and in a status line that exists only while this panel is open (it is
   // never mounted on the live lecture screen, which keeps exactly three live regions). Identical text within 10 s is dropped.
@@ -230,6 +257,7 @@ export function PreferencesPanel({ onClose, children }: { onClose(): void; child
         <div className="mt-3">
           <LookControls onAnnounce={announce} />
         </div>
+        {userId ? <LectureControls key={userId} userId={userId} onAnnounce={announce} /> : null}
         {children}
         <h3 className="label mt-8">About</h3>
         <div className="mt-2 space-y-1">

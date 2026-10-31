@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, type LectureSessionDto } from "@/lib/api";
 import { useRequireUser } from "../AuthProvider";
 import { AnnouncerProvider } from "./Announcer";
 import { LectureScreen } from "./LectureScreen";
 import { BrowserMicSource } from "./micSource";
 import { createRealRuntime } from "./realRuntime";
+import { takeArrivedFromStop } from "./settings";
 
 type State = { s: "loading" } | { s: "notfound" } | { s: "error" } | { s: "ready"; session: LectureSessionDto };
 
@@ -23,6 +24,15 @@ export function LectureReopenPage() {
   const { status } = useRequireUser();
   const [state, setState] = useState<State>({ s: "loading" });
   const mic = useMemo(() => new BrowserMicSource(), []);
+  // PO-19: the one-shot marker the live route wrote just before the move, read and removed on the first mount. The ref
+  // keeps the answer across StrictMode's simulated remount (whose second read would find nothing). A reload has none.
+  const arrival = useRef<{ id: string; arrived: boolean } | null>(null);
+  const [arrivedFromStop, setArrivedFromStop] = useState(false);
+  useEffect(() => {
+    if (!sessionId) return;
+    if (arrival.current?.id !== sessionId) arrival.current = { id: sessionId, arrived: takeArrivedFromStop(sessionId) };
+    setArrivedFromStop(arrival.current.arrived);
+  }, [sessionId]);
 
   useEffect(() => {
     if (status !== "authenticated" || !sessionId) return;
@@ -64,6 +74,7 @@ export function LectureReopenPage() {
         track={null}
         mic={mic}
         courseName={session.title ?? undefined}
+        arrivedFromStop={arrivedFromStop}
         onBackToCourse={() => router.push(`/courses/${encodeURIComponent(session.courseId)}`)}
       />
     </AnnouncerProvider>

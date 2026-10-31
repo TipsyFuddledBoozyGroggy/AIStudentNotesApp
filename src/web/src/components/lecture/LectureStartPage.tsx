@@ -7,6 +7,7 @@ import { api, ApiError, type Course } from "@/lib/api";
 import { useRequireUser } from "../AuthProvider";
 import { BrowserMicSource } from "./micSource";
 import { createRealBackend } from "./realRuntime";
+import { markArrivedFromStop } from "./settings";
 import { StartFlow } from "./StartFlow";
 
 type State = { s: "loading" } | { s: "notfound" } | { s: "error" } | { s: "ready"; course: Course };
@@ -16,7 +17,7 @@ export function LectureStartPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id;
   const router = useRouter();
-  const { status } = useRequireUser();
+  const { status, user } = useRequireUser();
   const [state, setState] = useState<State>({ s: "loading" });
   const backend = useMemo(() => createRealBackend({ api }), []);
   const mic = useMemo(() => new BrowserMicSource(), []);
@@ -59,6 +60,13 @@ export function LectureStartPage() {
       mic={mic}
       demoExpected={process.env.NEXT_PUBLIC_EXPECT_DEMO_SOURCE !== "0"}
       onBackToCourse={() => router.push(`/courses/${encodeURIComponent(id)}`)}
+      userId={user?.id ?? null}
+      // PO-19: the one-shot marker first, then replace the live entry, so Back goes to the page before it (the course page)
+      // and a later reload of the lecture's page has no marker (no focus move, no announcement).
+      onOpenLecture={(sessionId) => {
+        markArrivedFromStop(sessionId);
+        router.replace(`/lectures/${encodeURIComponent(sessionId)}`);
+      }}
     />
   );
 }

@@ -61,3 +61,50 @@ describe("NOTES_COPY (slice 8a)", () => {
     expect(notes.filter((s) => /\b(still|just|right now|behind|missed|lost)\b/i.test(s))).toEqual([]);
   });
 });
+
+// PO-19 (docs/ux/stop-redirect.md section 2): the move notice, the Stopped-note link and the arrival announcement are
+// pinned word for word against the spec's table, then linted (FORBIDDEN, 20 words a sentence, the spec's own hand-check
+// words). The five Preferences strings are pinned here too; ThemePicker.test.tsx lints the whole PREFS_COPY registry.
+describe("STOP_MOVE_COPY (PO-19)", () => {
+  const spec = readFileSync(path.resolve(process.cwd(), "../../docs/ux/stop-redirect.md"), "utf8");
+  const section = spec.slice(spec.indexOf("## 2. Copy"), spec.indexOf("## 3. Behaviour"));
+  const rows = [...section.matchAll(/^\| `([^`]+)` \| `([^`]+)` \|/gm)].map((m) => [m[1]!, m[2]!] as const);
+  const lecture = rows.filter(([k]) => !k.startsWith("lecturesLegend") && !k.startsWith("stopMove"));
+  const prefs = rows.filter(([k]) => k.startsWith("lecturesLegend") || k.startsWith("stopMove"));
+
+  it("the spec tables have the nine lecture rows and the five Preferences rows", () => {
+    expect(lecture.map(([k]) => k)).toEqual(["heading", "body", "bodyHere", "checkbox", "checkboxHint", "open", "stay", "STOPPED_COPY.openPage", "ANNOUNCE.movedAfterStop"]);
+    expect(prefs.map(([k]) => k)).toEqual(["lecturesLegend", "stopMoveLabel", "stopMoveHint", "stopMoveMsg.on", "stopMoveMsg.off"]);
+    expect(Object.keys(copy.STOP_MOVE_COPY)).toEqual(lecture.slice(0, 7).map(([k]) => k));
+  });
+
+  it.each(lecture)("%s matches the spec word for word", (key, text) => {
+    const v = key === "STOPPED_COPY.openPage" ? copy.STOPPED_COPY.openPage : key === "ANNOUNCE.movedAfterStop" ? copy.ANNOUNCE.movedAfterStop : copy.STOP_MOVE_COPY[key as keyof typeof copy.STOP_MOVE_COPY];
+    expect(v).toBe(text);
+  });
+
+  it.each(prefs)("PREFS_COPY.%s matches the spec word for word", async (key, text) => {
+    const { PREFS_COPY } = await import("../prefsCopy");
+    const v = key === "stopMoveMsg.on" ? PREFS_COPY.stopMoveMsg.on : key === "stopMoveMsg.off" ? PREFS_COPY.stopMoveMsg.off : PREFS_COPY[key as "lecturesLegend" | "stopMoveLabel" | "stopMoveHint"];
+    expect(v).toBe(text);
+  });
+
+  it("the new strings pass the lint, stay under 20 words a sentence, and use none of the spec's hand-checked words", async () => {
+    const { PREFS_COPY } = await import("../prefsCopy");
+    const fresh = [
+      ...collectStrings(copy.STOP_MOVE_COPY),
+      copy.STOPPED_COPY.openPage,
+      copy.ANNOUNCE.movedAfterStop,
+      PREFS_COPY.lecturesLegend,
+      PREFS_COPY.stopMoveLabel,
+      PREFS_COPY.stopMoveHint,
+      ...collectStrings(PREFS_COPY.stopMoveMsg),
+    ];
+    expect(fresh).toHaveLength(14);
+    for (const [, re] of FORBIDDEN) expect(fresh.filter((s) => re.test(s))).toEqual([]);
+    expect(sentencesOver(fresh, 20)).toEqual([]);
+    expect(fresh.filter((s) => /!|\b(just|still|right now|behind|missed|lost|you should)\b/i.test(s))).toEqual([]);
+    // Normal copy, not DRAFT (G1 untouched): no draft suffix, nothing about recording, consent, retention or the Demo source.
+    expect(fresh.filter((s) => /draft|record|consent|retain|retention|demo/i.test(s))).toEqual([]);
+  });
+});

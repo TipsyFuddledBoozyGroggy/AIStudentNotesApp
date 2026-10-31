@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { LectureState } from "@/lib/lecture";
-import { OFFLINE_COPY, TRANSCRIPT_COPY as T } from "./copy";
+import { useAnnouncer } from "./Announcer";
+import { ANNOUNCE, OFFLINE_COPY, TRANSCRIPT_COPY as T } from "./copy";
 import { formatMs } from "./format";
 import type { MicSource, MicTrack } from "./micSource";
 import {
@@ -22,8 +23,9 @@ import {
 import { NotesPanel } from "./NotesPanel";
 import type { LectureRuntime } from "./ports";
 import { usePrefs } from "../PrefsProvider";
-import { useLectureSettings, type LectureSettings } from "./settings";
+import { loadStopMove, saveStopMove, useLectureSettings, type LectureSettings } from "./settings";
 import { StatusBar } from "./StatusBar";
+import { StopMoveDialog } from "./StopMoveDialog";
 import { focusQuickRecap, QuickRecapPanel, QuickRecapResult } from "./QuickRecapPanel";
 import { TldrPanel } from "./TldrPanel";
 import { matchesQuery, Transcript, type TranscriptHandle } from "./Transcript";
@@ -43,7 +45,21 @@ export interface LectureScreenProps {
   settingsOverride?: Partial<LectureSettings>;
   /** Course name for the page heading (the only h1 on the live screen). */
   courseName?: string;
+  /**
+   * PO-19, live route only (docs/ux/stop-redirect.md): moves to the lecture's own page (the caller writes the arrival
+   * marker, then replaces the URL). Absent (the reopen page): the student's Stop never opens the move notice.
+   */
+  onOpenPage?: () => void;
+  /** PO-19, live route only: the lecture's own page, linked from the Stopped note (push semantics). */
+  openPageHref?: string;
+  /** PO-19: the signed-in user's id, which scopes the "Don't show this again" preference. Unknown: always ask. */
+  userId?: string | null;
+  /** PO-19: this page was opened by the move (one-shot marker): focus the Stopped heading and say so once. */
+  arrivedFromStop?: boolean;
 }
+
+/** A Stopped reason the student's own Stop produces (system reasons never open the move notice). */
+const userStopReason = (r: string | null) => r === null || r === "" || r === "user";
 
 /** Live view and every state that replaces or decorates it (Paused, Stopped, mismatch, offline). */
 const SKIP =
@@ -65,8 +81,23 @@ export function LectureScreen(props: LectureScreenProps) {
     initialLecture: props.initialLecture,
     initialElapsedMs: props.initialElapsedMs,
     justStarted: props.justStarted,
+    arrivedFromStop: props.arrivedFromStop,
   });
+  const announcer = useAnnouncer();
   const [stopOpen, setStopOpen] = useState(false);
+  // PO-19 move notice (stop-redirect.md sections 1 and 3). Armed only by the confirm press of a Stop that is not queued
+  // (connected, no fatal state); dropped when the pending window closes without Stopped, on a queued stop, a fatal state
+  // or Failed. No timer of its own: the existing PENDING_MAX_MS bound on `pending` is the window.
+  const moveArmed = useRef(false);
+  const moveFired = useRef(false);
+  const pageOpened = useRef(false);
+  const arrivalToAnnounce = useRef(!!props.arrivedFromStop);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const openPage = () => {
+    if (pageOpened.current) return; // one move per screen, whatever is pressed twice
+    pageOpened.current = true;
+    props.onOpenPage?.();
+  };
   const [query, setQuery] = useState("");
   const transcript = useRef<TranscriptHandle>(null);
   // Quick recap state lives here because its two halves render in different places: the window buttons in the rail or
@@ -84,6 +115,24 @@ export function LectureScreen(props: LectureScreenProps) {
   const kind = s.raw.kind;
   const serverState = s.lecture.sessionState;
 
+  // PO-19: the armed Stop reached Stopped (declared before the focus rules so it decides first in the same commit). The
+  // notice replaces the Stopped-heading focus that press would otherwise get; with "Don't show this again" saved, the
+  // page moves at once and no dialog renders at all.
+  useEffect(() => {
+    if (!moveArmed.current) return;
+    if (kind === "Stopped" && serverState === "Stopped" && s.fatal === null && userStopReason(s.reason)) {
+      moveArmed.current = false;
+      moveFired.current = true;
+      s.clearFocusIntent();
+      if (loadStopMove(props.userId)) openPage();
+      else setMoveOpen(true);
+    } else if (s.pending === null || s.stopQueued || s.fatal !== null || serverState === "Failed") {
+      moveArmed.current = false;
+    }
+    // Re-checked on every change that can settle an armed Stop (the arming press itself changes `pending` or `stopQueued`).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, serverState, s.fatal, s.reason, s.pending, s.stopQueued, props.userId]);
+
   // Focus rules (UX 3): only after the student's own action; system changes never move focus.
   useEffect(() => {
     if (!s.focusIntent || s.pending) return;
@@ -100,13 +149,30 @@ export function LectureScreen(props: LectureScreenProps) {
     if (target) {
       target.focus();
       s.clearFocusIntent();
+      // PO-19: arriving through the move, one status announcement when focus lands on the Stopped heading.
+      if (target === stoppedRef.current && arrivalToAnnounce.current) {
+        arrivalToAnnounce.current = false;
+        announcer.status(ANNOUNCE.movedAfterStop);
+      }
     }
   });
 
-  // A system auto-stop removes the focused Paused panel: move focus to the Stopped heading only then.
+  // A system auto-stop removes the focused Paused panel: move focus to the Stopped heading only then. PO-19: only for a
+  // lecture this screen has seen running (Active or Paused); loading an already-stopped lecture (a reload or a reopen, where
+  // the hub's Join turns "not connected" into Stopped) is not a stop and moves no focus (stop-redirect.md sections 3, 5).
+  const seenRunning = useRef(false);
+  useEffect(() => {
+    if (serverState === "Active" || serverState === "Paused") seenRunning.current = true;
+  }, [serverState]);
   const prevKind = useRef(kind);
   useEffect(() => {
-    if (prevKind.current !== "Stopped" && kind === "Stopped" && (document.activeElement === document.body || document.activeElement === null)) {
+    if (moveFired.current) {
+      // The move notice (or the move) takes this Stop's focus instead (PO-19).
+      moveFired.current = false;
+      prevKind.current = kind;
+      return;
+    }
+    if (seenRunning.current && prevKind.current !== "Stopped" && kind === "Stopped" && (document.activeElement === document.body || document.activeElement === null)) {
       stoppedRef.current?.focus();
     }
     prevKind.current = kind;
@@ -155,7 +221,7 @@ export function LectureScreen(props: LectureScreenProps) {
   } else if (kind === "Mismatch" && !(s.micLost && s.raw.kind === "Mismatch" && s.raw.reason === "server-active-without-live-track") && !s.pending) {
     notice = <MismatchPanel micOff={!s.raw.stopCapture} onCheck={s.checkAgain} onStop={() => setStopOpen(true)} />;
   } else if (stopped) {
-    notice = <StoppedPanel reason={s.reason} failed={serverState === "Failed"} onBack={props.onBackToCourse} headingRef={stoppedRef} />;
+    notice = <StoppedPanel reason={s.reason} failed={serverState === "Failed"} onBack={props.onBackToCourse} headingRef={stoppedRef} openPageHref={props.openPageHref} />;
   } else if (serverState === "Paused" || (s.micLost && kind === "Mismatch")) {
     notice = (
       <PausedPanel
@@ -317,9 +383,24 @@ export function LectureScreen(props: LectureScreenProps) {
         onCancel={() => setStopOpen(false)}
         onConfirm={() => {
           setStopOpen(false);
+          // PO-19: arm the move notice only for a Stop that goes to the server now (not queued offline, no fatal state).
+          moveArmed.current = props.onOpenPage !== undefined && s.connection === "connected" && s.fatal === null && s.pending !== "stopping";
           void s.stop();
         }}
       />
+      {moveOpen ? (
+        <StopMoveDialog
+          onOpen={(remember) => {
+            if (remember) saveStopMove(props.userId, true);
+            openPage();
+          }}
+          onStay={() => {
+            // The checkbox value is discarded: staying is not "move me without asking next time".
+            setMoveOpen(false);
+            stoppedRef.current?.focus();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
