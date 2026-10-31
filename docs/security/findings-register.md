@@ -13,6 +13,7 @@ How to read it:
 - Updated 2026-10-29 from the calendar.v1 re-review: CV-01 and CV-02 are FIXED-VERIFIED at contract level; CV-03..CV-24 are FIXED-CONTRACT-ONLY (or DEFERRED-WITH-REASON for CV-21); CVR-N01..N08 added as LOW. No other row was touched. GR-1 stays OPEN HIGH: only the Product Owner can downgrade it, and no ruling exists.
 
 - Updated 2026-10-29 (batch 1 verification, commit 096ba8e): M1R-N01, M1R-N02, P2B1-02, P2B1-10, P2B1-11, P2B1-14 are FIXED-VERIFIED (evidence in `docs/security/batch1-verification.md`). New rows B1V-01 (MEDIUM) and B1V-02..B1V-08 (LOW) were added. Expected greps and counts below are updated.
+- Updated 2026-10-31 (notes after Stop, PO-18d): rows NAS-01..NAS-09 from `docs/security/notes-after-stop-review.md` (commit 0a60d51) and NAS-R01..NAS-R09 from the re-review of the fixes in commit afde659 (`docs/security/notes-after-stop-rereview.md`) were added. ID prefix NAS (original review), NAS-R (re-review). FIXED-VERIFIED on these rows means I READ the code AND a test that would fail without the fix; **I did not run any test on 2026-10-31** (the dev API and DB were in use), so none of these rows is RAN. 0 CRITICAL, 0 HIGH. Counts below are updated. PO-18a..d are recorded where they touch findings (Part II, notes-after-Stop section).
 
 # Part I. Gate summary
 
@@ -38,10 +39,11 @@ What this means for the current working tree:
 
 Everything else rated HIGH in any review is FIXED-VERIFIED (M1-F01, F02, F03; M2C-01, 02, 06, 07, 13, 14, 21, 23, 25; P2C-01, 02, 05, 06, 08, 16, 20, 24; CV-01, CV-02).
 
-## 3. Open MEDIUM (blocks production): 27
+## 3. Open MEDIUM (blocks production): 31 (plus GR-1 in section 2 = 32 rows)
 
 | Area | Open MEDIUM | Count |
 |---|---|---|
+| AI notes after Stop (PO-18d) | NAS-04, NAS-05, NAS-R01, NAS-R02 | 4 |
 | Authentication, sessions, cookies | M1-F07, M1-F08b, M2C-08, NEW-02 | 4 |
 | Edge: proxy, headers, CSRF, rate limits | M1-F04 | 1 |
 | Logging | B1V-01 | 1 |
@@ -50,7 +52,14 @@ Everything else rated HIGH in any review is FIXED-VERIFIED (M1-F01, F02, F03; M2
 | calendar.v1 contract (unbuilt; FIXED-CONTRACT-ONLY) | CV-03, CV-04, CV-05, CV-06, CV-07, CV-08, CV-09, CV-10, CV-11, CV-12, CV-13 | 11 |
 | Google tokens and residency (unbuilt) | GR-2, GR-3, GR-5, GR-6, GR-7 | 5 |
 | Governance, deletion, scanning | NEW-01, NEW-03 | 2 |
-| **Total** | | **27** |
+| **Total** | | **31** |
+
+**AI notes after Stop (4)** (mock provider only; the provider guard refuses any real vendor, so these block a real provider as well as production)
+
+- NAS-04 [OPEN]: Grounding is now checked, but prompt injection can still produce a cited, stored note (residual and NAS-R01 bypasses); real-model eval, language-guard enforcement and the "AI-generated" label are not done (G2).
+- NAS-05 [OPEN]: noticeVersion is required, allow-listed and stored on the press and the audit row (engineering part verified by reading); the notice text, pre-press confirmation and "sent to AI on <date>" are G1 and not done.
+- NAS-R01 [OPEN]: The grounding check accepts meaning-changing edits: dropped negation, month or weekday swaps, number words, and Unicode number forms (circled, superscript, Roman).
+- NAS-R02 [OPEN]: The 1,800 s queue-wait limit is applied only on a GET or press; the job starts a press of any age, so the transcript can be sent hours after the press.
 
 **Authentication, sessions, cookies (4)**
 
@@ -105,9 +114,11 @@ Everything else rated HIGH in any review is FIXED-VERIFIED (M1-F01, F02, F03; M2
 
 Note: M1R-N01, M1R-N02 and P2B1-02 left this list on 2026-10-29 (FIXED-VERIFIED, batch 1). Note: the 11 calendar.v1 MEDIUM rows were re-reviewed on 2026-10-29 and are FIXED-CONTRACT-ONLY: the contract defect is closed, but nothing is built, so they stay production blockers until their implementation tests exist and pass (contract section 16 'Required'; per-row tests are in Part II and in the re-review). Numbers in CV-06 and CV-13 are PROPOSAL pending PO/devops (PO-10q).
 
-## 4. LOW (noted, no gate): 51 not resolved, 49 resolved
+## 4. LOW (noted, no gate): 59 not resolved, 52 resolved
 
 Not resolved (noted; no deadline):
+
+- AI notes after Stop (added 2026-10-31): NAS-09 [FIXED-UNVERIFIED] backend push of the Final summary documented and tested by reading; web strict-parser test not written; NAS-R03 [OPEN] per-press cap above the notes daily sub-cap, no remaining-allowance check before the first call; NAS-R04 [OPEN] a session created in the purge gap gets no post-commit notice and no deletion audit row; NAS-R05 [OPEN] Final summary revision append not conditional on the press being Pending; NAS-R06 [OPEN] A006/M008 Down drop evidence columns unguarded; NAS-R07 [OPEN] notice id not required by the DB, client-asserted, retired ids may stay allowed; NAS-R08 [OPEN] instruction rules reject lectures that name Claude, GPT or LLMs; NAS-R09 [OPEN] integration host pool of 6 connections lowers race-test contention
 
 - Authentication, sessions, cookies: M1R-N06 [OPEN] Expired/revoked identity.sessions rows are never deleted
 - Edge: proxy, headers, CSRF, rate limits: M1-F09 [OPEN] Dev-login gating is sound; residual: no CI check that the dev compose override is never deployed; M1R-N05 [DEFERRED-WITH-REASON] Authentication runs before the limiter, so revoked-cookie floods cost a DB read each
@@ -122,15 +133,15 @@ Not resolved (noted; no deadline):
 
 ## 5. Counts
 
-By severity and status (all 211 findings; Observations are not counted). FIXED-CONTRACT-ONLY counts as unresolved: it is verified in the contract, not at runtime.
+By severity and status (all 229 findings; Observations are not counted). FIXED-CONTRACT-ONLY counts as unresolved: it is verified in the contract, not at runtime. Updated 2026-10-31 with 18 notes-after-Stop rows (7 MEDIUM, 11 LOW); the 6 NAS rows marked FIXED-VERIFIED rest on reading code and tests, not on a run.
 
 | Severity | FIXED-VERIFIED | FIXED-CONTRACT-ONLY | FIXED-UNVERIFIED | OPEN | DEFERRED-WITH-REASON | SUPERSEDED | Total | Unresolved |
 |---|---|---|---|---|---|---|---|---|
 | CRITICAL | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | HIGH | 22 | 0 | 0 | 0 | 0 | 0 | 22 | 0 |
-| MEDIUM | 58 | 11 | 3 | 8 | 6 | 3 | 89 | 28 |
-| LOW | 48 | 10 | 5 | 27 | 9 | 1 | 100 | 51 |
-| **Total** | **128** | **21** | **8** | **35** | **15** | **4** | **211** | **79** |
+| MEDIUM | 61 | 11 | 3 | 12 | 6 | 3 | 96 | 32 |
+| LOW | 51 | 10 | 6 | 34 | 9 | 1 | 111 | 59 |
+| **Total** | **134** | **21** | **9** | **46** | **15** | **4** | **229** | **91** |
 
 Observations (Info, not findings): 41 entries listed at the end.
 
@@ -168,7 +179,7 @@ Run from `/Users/jamie/Dev/AIStudentNotesApp`. Every step must pass; then say th
    ```
    grep -E '^\| [^|]+ \| [^|]+ \| (CRITICAL|HIGH|MEDIUM) \| (OPEN|FIXED-CONTRACT-ONLY|FIXED-UNVERIFIED|DEFERRED-WITH-REASON) \|' docs/security/findings-register.md
    ```
-   Today it prints 28 rows (0 HIGH + 28 MEDIUM, of which 11 are calendar.v1 rows FIXED-CONTRACT-ONLY, and GR-1 is one of the 28). Expected MEDIUM-only count: `grep -cE '^\| [^|]+ \| [^|]+ \| MEDIUM \| (OPEN|FIXED-CONTRACT-ONLY|FIXED-UNVERIFIED|DEFERRED-WITH-REASON) \|' docs/security/findings-register.md` prints 28.
+   Today it prints 32 rows (0 HIGH + 32 MEDIUM, of which 11 are calendar.v1 rows FIXED-CONTRACT-ONLY, 4 are notes-after-Stop rows NAS-04, NAS-05, NAS-R01, NAS-R02, and GR-1 is one of the 32). Expected MEDIUM-only count: `grep -cE '^\| [^|]+ \| [^|]+ \| MEDIUM \| (OPEN|FIXED-CONTRACT-ONLY|FIXED-UNVERIFIED|DEFERRED-WITH-REASON) \|' docs/security/findings-register.md` prints 32.
 2. For every FIXED-VERIFIED row you rely on, re-open the evidence (test name still exists and passes in CI, not only locally). `grep -c 'RAN 2026-10-29' docs/security/findings-register.md` shows how many rest on my local run; none rests on a GitHub CI run because CI has never run (NEW-03).
 3. Controls that exist only as contract text or design and have no implementation yet. They are not open rows today because the code does not exist, but each becomes a production blocker the moment its feature ships. Confirm none of these features is in the release, or implement and test them first:
    - Syllabus parser sandbox, ingest worker, tmpfs volume, hostile-file fixtures (P2C-01, P2C-02, P2D-R3-03..06; contract 5.1).
@@ -194,6 +205,8 @@ Examined: migration `A004_RenameLostTrackToQuickRecap`, the renamed route and it
 ## 8. What I ran and what I did not verify
 
 **Ran (2026-10-29, Docker, working tree as found):** `docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm dotnet dotnet test src/api/Tether.slnx` finished with exit 0: ContractTests 830, AiTests 241, SyllabusTests 95, IntegrationTests 478, ArchitectureTests 19; 0 failed, 0 skipped. This also shows the uncommitted rename, A004 and LanguageGuard code builds and its tests pass. I made no source or test change; the build writes `bin/obj` output, and the test factories create their own `cc_test_*` databases on the dev Postgres (I did not check whether they are dropped afterwards).
+
+**2026-10-31 (notes-after-Stop rows): ran nothing.** For the NAS and NAS-R rows I used only `git show`, `git log`, `grep`/`sed`/`wc` and file reads at HEAD `afde659`. I ran no test, build, migration or app (the dev API, the dev DB and a dev server were in use by a frontend agent, and the Lead asked for read-only). The commit's figures (99 syllabus, 312 AI, 22 architecture, 870 contract, 580 integration, x3) are the author's claim. NAS FIXED-VERIFIED rows mean code AND a test that would fail without the fix were READ; a qa-engineer run is still needed to attach RAN evidence.
 
 **Not verified:**
 - Web unit tests, lint, typecheck and Playwright (not run). So M2C-16, M2B3R-N06 and the web parts of M2C-28 rest on reviews and my greps only.
@@ -500,6 +513,33 @@ Reviewer ratings were: GR-1 'High until PO/legal decide', GR-2 Medium, GR-3 Medi
 | B1V-07 | batch 1 verification | LOW | OPEN | NONE | With ICU, DocumentText.Canonicalize (DocumentText.cs:24) throws ArgumentException on a lone surrogate; TextPolicy catches it, Canonicalize does not. Not reachable over HTTP today (escaped lone surrogates in JSON gave 400 in a probe). | Scratch probe: 'canonicalize THROWS ArgumentException'. |
 | B1V-08 | batch 1 verification | LOW | OPEN | NONE | Edge validators are lenient: any /8 IPv4 (public too) or /32 IPv6 network is accepted as a trusted proxy; HSTS always sends includeSubDomains for a year and cannot be configured (no preload token; browsers ignore it over plain http). On a shared parent domain it pins sibling subdomains to HTTPS. AllowedHosts defaults to 'localhost', so probes with another Host header get 400. | Scratch probe: 1.0.0.0/8 accepted. READ Program.cs:171-172. |
 
+## AI notes after Stop (notes-after-stop-review.md, commit 0a60d51; notes-after-stop-rereview.md, commit afde659)
+
+PO-18d (option B): a deliberate "Make notes" press after Stop is the only thing that sends a stopped lecture's transcript to the AI. All rows are on the mock provider; the provider guard refuses any real vendor (`AiOptions.cs:186-194`). Evidence tag READ = code and test read on 2026-10-31, NOT RUN. Paths are under `src/api/`.
+
+Decisions that touch these findings: **PO-18c** (Demo-source notice shown as a one-line note with Details, wording unchanged) is a Product Owner risk acceptance for the personal-use scope; counsel was not consulted and **G1 is not cleared** by it; the less prominent notice must be included in the G1 notice review alongside NAS-05. **PO-18a** (no decoration on the consent screen in non-Paper themes, consent card unchanged) and **PO-18b** (syllabus reserved-space rail) change no security finding. **PO-18d** is the basis of every row below.
+
+| ID | Source | Sev | Status | Gate | Summary | Evidence |
+|---|---|---|---|---|---|---|
+| NAS-01 | notes-after-stop NAS-01 | MEDIUM | FIXED-VERIFIED | PRODUCTION | Course purge could be beaten by a notes call starting between the pre-commit notice and the commit. | READ: SessionCutoff tombstone (10 min, lease born cancelled), NotesService.cs:137,343, post-commit OnPurgedAsync (CourseEndpoints Delete, CourseLifecycleHandler scoped). Tests NotesReviewFixTests tombstone tests; AiNotesReviewTests AiNotesPurgeGapTests (job between calls, new press, queued press; pre- and post-commit notices recorded). Single instance only (ADR-020d). Residual NAS-R04. |
+| NAS-02 | notes-after-stop NAS-02 | MEDIUM | FIXED-VERIFIED | PRODUCTION | Notes shared the live budget pool and breaker, so presses could starve live TL;DR and Quick recap. | READ: BudgetMath.NotesWouldExceed, BudgetGate.SpendAsync/ReserveAsync (month floor in atomic add), AiHealth two lanes. Tests NotesReviewFixTests breaker and budget tests; AiNotesReviewTests sub-cap and live-floor tests (both directions). Figures are placeholders (G2); per-session cap still shared (contract deviation d). |
+| NAS-03 | notes-after-stop NAS-03 | MEDIUM | FIXED-VERIFIED | PRODUCTION | One user could monopolise the notes lane; queued presses expired before running; final summary could be skipped silently. | READ: ux_lecture_notes_pending_user + pre-check (NotesService.cs:148), limiter release by identity, window from started_at, StaleAfter = worst case + 60 s (820 s) with startup refusal, finalSummaryStatus + CHECK. Tests: AiNotesReviewTests one-pending tests, queue-wait window test, final-failure test; NotesReviewFixTests stale, limiter, FinalStateOf. Queue-wait bound not enforced at job start: split out as NAS-R02. Window moved from press time to job start: Lead/PO to acknowledge. |
+| NAS-04 | notes-after-stop NAS-04 | MEDIUM | OPEN | PRODUCTION | Prompt injection in the transcript can become a cited, stored note; headings were never grounded. | Engineering part READ: NotesGrounding support and instruction rules, hostile segment never a source, heading grounded or rebuilt, 14-case notes-redteam.v1.json (theory test). Still open: bypasses in NAS-R01, the documented residual (a false statement a speaker made), real-model eval (G2), language-guard enforcement, "AI-generated" label in UI and export. |
+| NAS-05 | notes-after-stop NAS-05 | MEDIUM | OPEN | PRODUCTION | Press sends the whole transcript; nothing recorded what the student was told (G1). | Engineering part READ: body {"noticeVersion"} required and allow-listed (AiEndpoints PostNotes, Ai:Notes:NoticeVersions), stored on lecture_notes and audit_events (A006, M008); AiNotesTests.cs:199-200,264-266. Open: notice text, pre-press confirmation, "sent to AI on <date>" (G1, legal-compliance-reviewer, PO); see NAS-R07. Provider guard still refuses real vendors. |
+| NAS-06 | notes-after-stop NAS-06 | LOW | FIXED-VERIFIED | NONE | A press expired by a GET could be overwritten back to Ready. | READ: NotesStore writes all conditional on state = 'Pending', owner-scoped; NotesJobs cancel on expiry. Tests AiNotesReviewTests A_ready_result_is_never_written_over..., A_press_that_expires_mid_call.... Adjacent gap NAS-R05. |
+| NAS-07 | notes-after-stop NAS-07 | LOW | FIXED-VERIFIED | NONE | Per-press cost estimate ignored the repair attempt. | READ: NotesRunner.PressEstimate (x2), default cap 600,000. Test NotesReviewFixTests The_per_press_estimate_counts_the_repair_attempt.... See NAS-R03. |
+| NAS-08 | notes-after-stop NAS-08 | LOW | FIXED-VERIFIED | NONE | Audit row not linkable to vendor calls; limiter token not returned on audit failure. | READ: press id as audit_events.subject_id, ai_usage.press_id (CHECK ck_ai_usage_press), limiter release in finally. Tests AiNotesTests.cs:263-268; AiNotesReviewTests A_failed_audit_write_creates_nothing.... |
+| NAS-09 | notes-after-stop NAS-09 | LOW | FIXED-UNVERIFIED | NONE | Final summary pushed on the hub while the contract said notes have no hub event. | Backend READ: API_CONTRACTS section 17 updated; AiNotesReviewTests The_final_summary_is_pushed_only_to_the_owners_joined_connection.... Web strict-parser test for a Final revision not written (frontend; M2B3R-N06). |
+| NAS-R01 | notes-after-stop-rereview | MEDIUM | OPEN | PRODUCTION | Grounding check accepts meaning-changing edits: "not" is a stop word, month/weekday swaps pass the 50% rule, number words are not checked as numbers, Unicode number forms (No/Nl) are separators so a phone number written in them is invisible. | READ Validators.cs:375,418-435,447-458; hand-evaluated five cases in the re-review. Fix: NFKC, char.IsNumber, verbatim critical terms (numbers incl. words, months, weekdays, negators), at most one unsupported term; red-team v2 fixtures. Owner ai-agent-engineer. |
+| NAS-R02 | notes-after-stop-rereview | MEDIUM | OPEN | PRODUCTION | MaxQueueWait (1,800 s) is enforced only on a GET or press; TryStartAsync starts a press of any age, so a queued press can be sent hours after it was pressed. | READ NotesService.cs:223-234,244-245,341-345; contract section 17 states the bound. Fix: requested_at condition in TryStartAsync (and probe backstop); fake-clock test with no GET. Owner backend-engineer. |
+| NAS-R03 | notes-after-stop-rereview | LOW | OPEN | NONE | Per-press cap (600,000) is above the notes daily sub-cap (500,000 default) and the remaining allowance is not checked before the first call, so a press can send some parts, hit the sub-cap and end BudgetLimited; retries resend. | READ AiOptions.cs:62, NotesFrom, NotesService.cs:386-394. |
+| NAS-R04 | notes-after-stop-rereview | LOW | OPEN | NONE | A session created in the purge gap is not in the pre-commit list: no post-commit cut-off notice, no session.delete audit row. Courses swallows OnPurgedAsync errors without a log. | READ SessionService.cs:84,257,272; CourseLifecycleHandler.cs:17,22. Mostly pre-existing. |
+| NAS-R05 | notes-after-stop-rereview | LOW | OPEN | NONE | Final summary revision is appended and pushed without checking that the press is still Pending (narrow window after expiry). | READ SummaryEngine.cs:352-360,415. |
+| NAS-R06 | notes-after-stop-rereview | LOW | OPEN | NONE | A006 and M008 Down drop notice/press evidence columns (M008 on the append-only audit table) with no guard; A005 refuses Down when evidence exists. | READ both migrations and A005 Down. |
+| NAS-R07 | notes-after-stop-rereview | LOW | OPEN | NONE | notice_version (and audit subject_id) nullable for new rows with no CHECK tying them to notes.requested; the id is client-asserted; retired ids can stay allow-listed. | READ AiDbContext ck_lecture_notes_notice, M008, AiOptions NoticeVersions. Part of G1 work. |
+| NAS-R08 | notes-after-stop-rereview | LOW | OPEN | NONE | Instruction rules treat any mention of Claude, GPT-N, OpenAI, Anthropic or LLM as an instruction, so lectures about Claude Shannon, Monet or ML lose notes (fails closed, no reason shown). | READ Validators.cs:395. |
+| NAS-R09 | notes-after-stop-rereview | LOW | OPEN | NONE | Integration host and helpers now share a 6-connection pool; race tests with 6-20 parallel operations overlap less in the DB, so check-then-insert races are exercised less. Pooling itself is safe (only transaction-local set_config, xact advisory locks). | READ ApiFactory.cs:42, Jobs.cs:303-305, AiBudgetTests.cs:58,86. Owner devops-engineer. |
+
 ## Findings added by this register
 
 Gaps implied by the reviews and decisions that no review gave an ID. Rated by the policy; where unsure, the higher level.
@@ -561,7 +601,7 @@ RN-07 (register): `docs/DECISIONS.md` PO-9k and `docs/vendors/google-verificatio
 # Summary (5 lines)
 
 1. Open CRITICAL: 0. Open HIGH: 0 (GR-1 was downgraded to MEDIUM by the Product Owner on 2026-10-29, PO-14a), so the security register no longer blocks a git push. CV-01 and CV-02 are FIXED-VERIFIED at contract level.
-2. Open MEDIUM: 28 (blocks production; includes GR-1), of which 11 are calendar.v1 items FIXED-CONTRACT-ONLY (need implementation tests); LOW not resolved: 51 (noted, includes CVR-N01..N08 and B1V-02..B1V-08).
-3. 211 findings (14 review documents, 3 added by this register, 8 from batch 1 verification); 132 resolved (FIXED-VERIFIED or SUPERSEDED), 79 unresolved; 41 observations (S1-S13 added as one row).
+2. Open MEDIUM: 32 (blocks production; includes GR-1), of which 11 are calendar.v1 items FIXED-CONTRACT-ONLY (need implementation tests) and 4 are notes-after-Stop rows (NAS-04, NAS-05, NAS-R01, NAS-R02); LOW not resolved: 59 (noted, includes CVR-N01..N08, B1V-02..B1V-08, NAS-09 and NAS-R03..R09).
+3. 229 findings (16 review documents, 3 added by this register, 8 from batch 1 verification); 138 resolved (FIXED-VERIFIED or SUPERSEDED), 91 unresolved; 41 observations (S1-S13 added as one row). The 6 notes-after-Stop FIXED-VERIFIED rows rest on reading only (2026-10-31, nothing run).
 4. Full .NET suite passed on 2026-10-29 (830 contract, 241 AI, 99 syllabus, 534 integration, 22 architecture; rerun after commit 096ba8e); web tests, CI, scanners, Google behaviour (T1-T12) and all human gates were not verified.
 5. The rename, A004 migration, renamed route and LanguageGuard introduced no new CRITICAL, HIGH or MEDIUM finding; this register clears no release gate. RN-07 (PO's personal address in committed history) stays.
