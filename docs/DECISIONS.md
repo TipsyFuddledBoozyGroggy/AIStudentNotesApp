@@ -131,3 +131,12 @@ These are Lead Architect choices under delegation. Reversible. They approve no s
 | PO-15g | Review now: Anthropic commercial terms and DPA (C6, blocks first real Claude call), speech-to-text vendor terms, document-parsing licences (C9) when a library is proposed. | Assigned |
 | PO-16 | Scope and consent for now: Tether will probably be used only by the Product Owner, partly as a way to learn about AI tools and see which approaches work best. Recording consent is a **pop-up where the student attests that the teacher gave consent**; nothing more for now (supersedes the consent-wording deferral for the pop-up itself; fuller wording stays DEFERRED). Agents still work to their fullest ability and legal still reports every issue it finds, but CRITICAL and HIGH ratings are calibrated to this personal, non-commercial scope. Ratings are re-rated in the register with a stated reason and stay provisional. Gate G1 is **not** cleared by this: it is a PO risk acceptance for personal use, recorded in `docs/legal/legal-register.md` L-02. | PO decided (2026-10-30) |
 
+
+## UI/UX refactor round 2 (2026-10-31)
+
+| ID | Decision | Status |
+|---|---|---|
+| PO-17 | UX refactor round 2 (`docs/ux/redesign-round2.md`, written by adhd-ux-specialist on the fable model): header tabs ("Today / Courses") replace the left rail. | PO decided |
+| PO-17a | Serif type is the voice of synthesis (summary lines, "Most recent", headings); transcript and interactive text stay sans. Reversible by a token. | PO decided |
+| PO-17b | Recording-consent screens and Demo-source presentation are unchanged for now (gate G1); the spec's two consent recommendations are DEFERRED, not closed, and stay for the PO and counsel. | PO decided |
+| PO-17c | `adhd-ux-specialist` and `frontend-engineer` run on the `fable` model. | PO decided |
