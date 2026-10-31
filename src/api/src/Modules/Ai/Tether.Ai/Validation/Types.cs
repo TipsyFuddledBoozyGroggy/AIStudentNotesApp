@@ -42,6 +42,20 @@ internal sealed record TopicState(string Key, string Text, IReadOnlyList<Citatio
 
 internal sealed record SummaryDelta(string Tldr, IReadOnlyList<TopicState> Topics, IReadOnlyList<string> NewTerms, int DroppedCitations, int DroppedTopics, bool Sanitized);
 
+// ---------------- lecture notes (PO-18d) ----------------
+
+/// <summary>The only citable segments of one notes call (its part of the stored transcript).</summary>
+internal sealed record NotesContext(IReadOnlyDictionary<string, SourceLine> Allowed);
+
+/// <summary>One cited statement. Also the stored and wire shape (<c>notes.schema.json</c> bullet).</summary>
+internal sealed record NotesBullet(string Text, IReadOnlyList<CitationRef> Citations);
+
+/// <summary>Also the stored and wire shape (<c>notes.schema.json</c> section).</summary>
+internal sealed record NotesSection(string Heading, IReadOnlyList<NotesBullet> Bullets);
+
+/// <param name="DroppedBullets">Bullets removed because none of their segment ids resolved to this part of the transcript.</param>
+internal sealed record NotesChunkResult(IReadOnlyList<NotesSection> Sections, int DroppedBullets, int DroppedSections, bool Sanitized);
+
 // ---------------- Quick recap ----------------
 
 internal sealed record CatchUpContext(IReadOnlyDictionary<string, SourceLine> Allowed, bool WindowHasSegments);

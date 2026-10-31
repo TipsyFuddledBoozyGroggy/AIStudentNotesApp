@@ -70,6 +70,23 @@ internal sealed class SessionPortsService(LecturesDbContext db, ICurrentUser cur
     }
 }
 
+/// <summary>
+/// <see cref="ISessionAuditLog"/>: one content-free row per call (C-30). The table is append-only (M006 trigger) and keeps the row after
+/// the session is deleted, like every other session audit event.
+/// </summary>
+internal sealed class SessionAuditLog(LecturesDbContext db, ICurrentUser currentUser, TimeProvider clock) : ISessionAuditLog
+{
+    public async Task<bool> RecordNotesRequestedAsync(Guid userId, Guid sessionId, CancellationToken ct = default)
+    {
+        if (currentUser.UserId != userId) return false; // wrong scope behaves like "nothing to audit against"
+        var row = new AuditEvent { Id = Ids.New(), UserId = userId, SessionId = sessionId, Action = AuditActions.NotesRequested, OccurredAt = clock.GetUtcNow() };
+        db.AuditEvents.Add(row);
+        try { await db.SaveChangesAsync(ct); }
+        finally { db.Entry(row).State = EntityState.Detached; }
+        return true;
+    }
+}
+
 /// <summary>In-memory last-activity marks (hub Ping, audio frames). Lost on restart; the job then falls back to the last state event.</summary>
 internal sealed class SessionActivityTracker(TimeProvider clock) : ISessionActivity
 {

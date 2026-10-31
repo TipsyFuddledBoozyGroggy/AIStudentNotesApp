@@ -257,3 +257,73 @@ internal static class CatchUpValidator
         return list;
     }
 }
+
+/// <summary>
+/// Validates one lecture-notes call (PO-18d; the C# twin of the model reply shape in <see cref="Prompts.PromptLibrary.Notes"/>). Closed
+/// shapes, bounded lengths, sanitised text, and the grounding rule: a bullet keeps only citations that resolve to segments of THIS
+/// part of the stored transcript (timecodes looked up from them, never taken from the model); a bullet with none is DROPPED, a section
+/// left without bullets is dropped, and a reply with nothing grounded is rejected.
+/// </summary>
+internal static class NotesValidator
+{
+    public const int MaxSections = 6, MaxBullets = 8, MaxHeading = 80, MaxText = 300, MaxIds = 8;
+
+    public static Validated<NotesChunkResult> Validate(string json, NotesContext ctx)
+    {
+        if (!JsonShape.TryParseObject(json, out var doc)) return Validated<NotesChunkResult>.Fail(ValidationCodes.NotJson);
+        using (doc)
+        {
+            try { return Validated<NotesChunkResult>.Success(Run(doc.RootElement, ctx)); }
+            catch (Reject r) { return Validated<NotesChunkResult>.Fail(r.Code); }
+        }
+    }
+
+    private static NotesChunkResult Run(JsonElement root, NotesContext ctx)
+    {
+        if (!JsonShape.Exactly(root, ["sections"])) throw new Reject(ValidationCodes.SchemaInvalid);
+        var sectionsEl = root.GetProperty("sections");
+        if (sectionsEl.ValueKind != JsonValueKind.Array) throw new Reject(ValidationCodes.SchemaInvalid);
+        if (sectionsEl.GetArrayLength() > MaxSections) throw new Reject(ValidationCodes.Overlong);
+
+        var sanitized = false;
+        int droppedBullets = 0, droppedSections = 0;
+        var sections = new List<NotesSection>();
+        foreach (var s in sectionsEl.EnumerateArray())
+        {
+            if (!JsonShape.Exactly(s, ["heading", "bullets"])) throw new Reject(ValidationCodes.SchemaInvalid);
+            var heading = JsonShape.AsString(s.GetProperty("heading")) ?? throw new Reject(ValidationCodes.SchemaInvalid);
+            if (heading.Length > MaxHeading) throw new Reject(ValidationCodes.Overlong);
+            var bulletsEl = s.GetProperty("bullets");
+            if (bulletsEl.ValueKind != JsonValueKind.Array) throw new Reject(ValidationCodes.SchemaInvalid);
+            if (bulletsEl.GetArrayLength() > MaxBullets) throw new Reject(ValidationCodes.Overlong);
+
+            var bullets = new List<NotesBullet>();
+            foreach (var b in bulletsEl.EnumerateArray())
+            {
+                if (!JsonShape.Exactly(b, ["text", "segmentIds"])) throw new Reject(ValidationCodes.SchemaInvalid);
+                var text = JsonShape.AsString(b.GetProperty("text")) ?? throw new Reject(ValidationCodes.SchemaInvalid);
+                if (text.Length > MaxText) throw new Reject(ValidationCodes.Overlong);
+                var idsEl = b.GetProperty("segmentIds");
+                if (idsEl.ValueKind != JsonValueKind.Array) throw new Reject(ValidationCodes.SchemaInvalid);
+                if (idsEl.GetArrayLength() > MaxIds) throw new Reject(ValidationCodes.Overlong);
+                var cites = new List<CitationRef>();
+                foreach (var idEl in idsEl.EnumerateArray())
+                {
+                    var id = JsonShape.AsString(idEl) ?? throw new Reject(ValidationCodes.SchemaInvalid);
+                    if (ctx.Allowed.TryGetValue(id, out var line) && cites.All(c => c.SegmentId != id)) cites.Add(new CitationRef(id, line.StartMs));
+                }
+                var clean = OutputSanitizer.Clean(text, out var changed);
+                sanitized |= changed;
+                if (cites.Count == 0 || clean.Length == 0) { droppedBullets++; continue; } // uncited claims never reach the student
+                bullets.Add(new NotesBullet(clean, cites));
+            }
+            var cleanHeading = OutputSanitizer.Clean(heading, out var hc);
+            sanitized |= hc;
+            if (bullets.Count == 0) { droppedSections++; continue; }
+            if (cleanHeading.Length == 0) throw new Reject(ValidationCodes.SchemaInvalid);
+            sections.Add(new NotesSection(cleanHeading, bullets));
+        }
+        if (sections.Count == 0) throw new Reject(ValidationCodes.Ungrounded);
+        return new NotesChunkResult(sections, droppedBullets, droppedSections, sanitized);
+    }
+}

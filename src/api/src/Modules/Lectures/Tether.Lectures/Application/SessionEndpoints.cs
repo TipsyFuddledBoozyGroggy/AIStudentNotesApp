@@ -25,8 +25,7 @@ internal static class SessionEndpoints
         g.MapDelete("/{id:guid}", (Guid id, SessionService svc, CancellationToken ct) => svc.DeleteAsync(id, ct));
         g.MapPost("/{id:guid}/audio-ticket", IssueTicket).RequireRateLimiting(AudioTicketPolicy);
 
-        // summary, quick-recap and catch-ups are served by the AI module (B3). Notes stay a placeholder until their increment.
-        g.MapGet("/{id:guid}/notes", GetNotes);
+        // summary, quick-recap, catch-ups and (PO-18d) notes are served by the AI module.
     }
 
     private static async Task<IResult> Create(Guid courseId, CreateSessionRequest? body, HttpContext http, SessionService svc,
@@ -98,9 +97,4 @@ internal static class SessionEndpoints
         var (ticket, problem) = await svc.IssueTicketAsync(id, ct);
         return problem ?? Results.Ok(ticket);
     }
-
-    // ---- placeholder until the notes increment: ownership is enforced, content does not exist yet ----
-
-    private static async Task<IResult> GetNotes(Guid id, SessionService svc, CancellationToken ct) =>
-        await svc.ExistsAsync(id, ct) ? Problems.InvalidState() : Problems.NotFound("Session not found.");
 }

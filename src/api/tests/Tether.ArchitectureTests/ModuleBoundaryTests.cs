@@ -85,7 +85,8 @@ public class ModuleBoundaryTests
         AssertPublicSurface(Transcript, "TranscriptModule");
         AssertPublicSurface(Syllabus, "SyllabusModule");
         AssertPublicSurface(LecturesContracts, "IAudioTicketConsumer", "LectureState", "SessionInfo", "SessionStateRecord", "SessionStateChange",
-            "ISessionDirectory", "ISessionEventReader", "ISessionSequencer", "ISessionLifecycleObserver", "ISessionActivity", "IDemoSourceIndicator");
+            "ISessionDirectory", "ISessionEventReader", "ISessionSequencer", "ISessionLifecycleObserver", "ISessionActivity", "IDemoSourceIndicator",
+            "ISessionAuditLog"); // PO-18d: content-free audit of the notes press, written by the AI module
     }
 
     private static void AssertPublicSurface(Assembly asm, params string[] allowed)

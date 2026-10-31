@@ -1,0 +1,15 @@
+{
+  "notesId": "nt_0192f0a1b2c34d5e8f9a0b1c2d3e4f51",
+  "revision": 2,
+  "status": "Ready",
+  "source": "model",
+  "requestedAt": "2026-10-31T14:02:11+00:00",
+  "generatedAt": "2026-10-31T14:02:40+00:00",
+  "coveredFromMs": 0,
+  "coveredToMs": 5400000,
+  "sections": [
+    { "heading": "Cell cycle", "bullets": [ { "text": "Interphase is the longest stage.", "citations": [ { "segmentId": "seg_14", "startMs": 61000 } ] } ] }
+  ],
+  "finalSummaryRevision": null,
+  "truncated": true
+}

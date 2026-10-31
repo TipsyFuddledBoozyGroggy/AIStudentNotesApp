@@ -44,6 +44,8 @@ public static class AiModule
         services.AddScoped<AiGateway>();
         services.AddScoped<SummaryStore>();
         services.AddScoped<CatchUpService>();
+        services.AddScoped<Notes.NotesPressProbe>();
+        services.AddScoped<Notes.NotesService>();
         services.AddScoped<ISummaryJoinSource, SummaryJoinSource>();
 
         services.AddSingleton<AiHealth>();
@@ -57,14 +59,18 @@ public static class AiModule
         services.AddSingleton<CatchUpQueue>();
         services.AddSingleton<CatchUpLimiter>();
         services.AddSingleton<CatchUpRunner>();
+        services.AddSingleton<Notes.NotesQueue>();
+        services.AddSingleton<Notes.NotesLimiter>();
+        services.AddSingleton<Notes.NotesRunner>();
         services.AddSingleton<ReservationReaper>();
         services.AddHostedService(sp => sp.GetRequiredService<ReservationReaper>());
         services.AddHostedService<SummaryWorker>();
         services.AddHostedService(sp => sp.GetRequiredService<CatchUpRunner>());
+        services.AddHostedService(sp => sp.GetRequiredService<Notes.NotesRunner>());
         return builder;
     }
 
-    /// <summary>REST: summary, quick-recap and catch-ups. Map under <c>/api/v1</c>.</summary>
+    /// <summary>REST: summary, quick-recap, catch-ups and (PO-18d) notes after Stop. Map under <c>/api/v1</c>.</summary>
     public static IEndpointRouteBuilder MapAiEndpoints(this IEndpointRouteBuilder api)
     {
         AiEndpoints.Map(api);

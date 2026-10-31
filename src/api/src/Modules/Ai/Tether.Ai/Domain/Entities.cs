@@ -52,6 +52,41 @@ internal sealed class CatchUpRow : IUserOwned
 }
 
 /// <summary>
+/// PO-18d: ONE deliberate "Make notes" press on a stopped lecture, and what it produced. It is both the durable request record (the
+/// only thing the gateway accepts as permission to send a stopped session's transcript to a provider, while it is <c>Pending</c>) and
+/// the derived notes (invariant 5: stored apart from the transcript, with the seq range and model that produced them). Deleted with
+/// the session (composite FK cascade). One row per attempt; a new attempt exists only after an Unavailable or BudgetLimited one.
+/// The press itself is also audited, content-free, in <c>lectures.audit_events</c>, which outlives the session.
+/// </summary>
+internal sealed class LectureNotesRow : IUserOwned
+{
+    public Guid Id { get; set; }
+    public Guid SessionId { get; set; }
+    public Guid UserId { get; set; }
+    public int Revision { get; set; }
+    public string State { get; set; } = NotesStates.Pending;
+    public string IdempotencyKey { get; set; } = "";
+    public DateTimeOffset RequestedAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+    public string SectionsJson { get; set; } = "[]";
+    public long? CoveredFromMs { get; set; }
+    public long? CoveredToMs { get; set; }
+    public long? SourceFromSeq { get; set; }
+    public long? SourceToSeq { get; set; }
+    public bool Truncated { get; set; }
+    public int? FinalSummaryRevision { get; set; }
+    public string? Model { get; set; }
+    public string? PromptVersion { get; set; }
+}
+
+/// <summary>Fixed vocabulary for <see cref="LectureNotesRow.State"/> (also a database CHECK and the wire <c>status</c>).</summary>
+internal static class NotesStates
+{
+    public const string Pending = "Pending", Ready = "Ready", Unavailable = "Unavailable", BudgetLimited = "BudgetLimited", NotNeeded = "NotNeeded";
+    public static readonly string[] All = [Pending, Ready, Unavailable, BudgetLimited, NotNeeded];
+}
+
+/// <summary>
 /// Usage ledger row (design section 10, SEC-037). Content-free by construction: ids, counts, a fixed vocabulary and an estimate.
 /// It deliberately has no foreign key to the session, so deleting a lecture does not hand the student their daily budget back;
 /// it is removed with the user (cascade).

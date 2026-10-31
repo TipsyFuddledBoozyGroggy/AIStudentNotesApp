@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/notes-request.schema.json",
+  "title": "notes-request",
+  "description": "Body of POST /sessions/{id}/notes: exactly an empty object. The press carries no options; the Idempotency-Key header is required.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 0,
+  "properties": {}
+}

@@ -122,4 +122,6 @@ internal static class AuditActions
     public const string SessionDelete = "session.delete";
     public const string TicketIssued = "audio_ticket.issued";
     public const string TicketRejected = "audio_ticket.rejected";
+    /// <summary>PO-18d: a deliberate "Make notes" press after Stop. Written through <see cref="Tether.Lectures.Contracts.ISessionAuditLog"/> by the AI module.</summary>
+    public const string NotesRequested = "notes.requested";
 }

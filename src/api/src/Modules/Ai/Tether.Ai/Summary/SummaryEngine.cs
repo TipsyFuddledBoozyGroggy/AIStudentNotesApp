@@ -323,49 +323,80 @@ internal sealed class SummaryEngine(IServiceScopeFactory scopes, AiOptions optio
     /// </summary>
     private async Task<string?> CompactAsync(SessionSummaryState st, IServiceProvider sp, ILiveEventPublisher publisher, CancellationToken ct)
     {
-        var store = sp.GetRequiredService<SummaryStore>();
-        var reader = sp.GetRequiredService<ITranscriptSegmentReader>();
-        var gateway = sp.GetRequiredService<AiGateway>();
-        var latest = await store.LatestAsync(st.SessionId, ct);
+        var latest = await sp.GetRequiredService<SummaryStore>().LatestAsync(st.SessionId, ct);
         if (latest is null) return null;
 
         // Read the whole source in pages, forming character-bounded chunks; keep only the newest CompactionMaxChunks in memory.
-        var chunks = new List<List<FinalSegment>>();
-        var current = new List<FinalSegment>();
-        var used = 0;
+        var reader = sp.GetRequiredService<ITranscriptSegmentReader>();
+        var chunks = new NewestChunks(options.Summary.CompactionChunkChars, options.Summary.CompactionMaxChunks);
         long afterSeq = 0;
-        var totalChunks = 0;
         while (true)
         {
             var page = await reader.ReadFinalsAfterAsync(st.UserId, st.SessionId, afterSeq, 200, ct);
             if (page.Count == 0) break;
-            foreach (var s in page)
-            {
-                var len = Math.Min(s.Text.Length, Prompts.PromptRenderer.MaxLineChars) + 16;
-                if (used + len > options.Summary.CompactionChunkChars && current.Count > 0)
-                {
-                    chunks.Add(current); totalChunks++; current = []; used = 0;
-                    if (chunks.Count > options.Summary.CompactionMaxChunks) chunks.RemoveAt(0);
-                }
-                current.Add(s); used += len;
-            }
+            foreach (var s in page) chunks.Add(s);
             afterSeq = page[^1].Seq;
             if (page.Count < 200) break;
         }
-        if (current.Count > 0) { chunks.Add(current); totalChunks++; if (chunks.Count > options.Summary.CompactionMaxChunks) chunks.RemoveAt(0); }
-        if (chunks.Count == 0) return null;
+        var (failure, row) = await RederiveAsync(st.UserId, st.SessionId, latest, chunks.Complete(), "Draft", null, sp, ct);
+        if (row is not null) await PublishRevisionAsync(publisher, st.UserId, st.SessionId, row, ct);
+        return failure;
+    }
 
-        var carriedOver = totalChunks > chunks.Count; // older chunks were not re-read: start from the existing summary
-        IReadOnlyList<TopicState> topics = carriedOver ? SummaryJson.Read<List<TopicState>>(latest.TopicsJson) : [];
-        var tldr = latest.Tldr;
+    /// <summary>
+    /// PO-18d: the FINAL summary revision, made only as part of a deliberate "Make notes" press on a stopped session (never on Stop
+    /// itself, B3-06). The same re-derivation as compaction, over <paramref name="source"/> (the stored finals the press read), with
+    /// status <c>Final</c> and workflow <see cref="AiWorkflow.FinalSummary"/>, which the gateway runs only while press
+    /// <paramref name="pressId"/> is pending. Returns the stored revision, or the failure code (no revision is stored then).
+    /// </summary>
+    public async Task<(int? Revision, string? Failure)> FinalAsync(Guid userId, Guid sessionId, Guid pressId, IReadOnlyList<FinalSegment> source, IServiceProvider sp, CancellationToken ct)
+    {
+        var latest = await sp.GetRequiredService<SummaryStore>().LatestAsync(sessionId, ct);
+        var plan = Plan(source);
+        if (plan.Kept.Count == 0) return (null, null);
+        var (failure, row) = await RederiveAsync(userId, sessionId, latest, plan, "Final", pressId, sp, ct);
+        if (row is null) return (null, failure ?? AiFailure.Unavailable);
+        await PublishRevisionAsync(sp.GetRequiredService<ILiveEventPublisher>(), userId, sessionId, row, ct);
+        return (row.Revision, null);
+    }
+
+    /// <summary>The requests a final summary starts with, for the per-press cost estimate (later chunks also carry the topics so far, so this is an estimate).</summary>
+    public IReadOnlyList<AiRequest> PlanFinalRequests(Guid userId, Guid sessionId, Guid pressId, SummaryRevisionRow? latest, IReadOnlyList<FinalSegment> source)
+    {
+        var plan = Plan(source);
+        var carriedOver = latest is not null && plan.Dropped;
+        IReadOnlyList<TopicState> topics = carriedOver ? SummaryJson.Read<List<TopicState>>(latest!.TopicsJson) : [];
+        return plan.Kept.Select(c => SummaryRequests.BuildDelta(userId, sessionId, latest?.Revision ?? 0, topics, [], c, options.Summary, options.CallTimeout,
+            compaction: true, workflow: AiWorkflow.FinalSummary, pressId: pressId).Request).ToList();
+    }
+
+    private NewestChunks.Result Plan(IReadOnlyList<FinalSegment> source)
+    {
+        var chunks = new NewestChunks(options.Summary.CompactionChunkChars, options.Summary.CompactionMaxChunks);
+        foreach (var s in source) chunks.Add(s);
+        return chunks.Complete();
+    }
+
+    /// <summary>Re-derives a revision from source chunks and appends it. <paramref name="latest"/> may be null (a final summary of a lecture that never got a live one).</summary>
+    private async Task<(string? Failure, SummaryRevisionRow? Row)> RederiveAsync(Guid userId, Guid sessionId, SummaryRevisionRow? latest, NewestChunks.Result plan,
+        string status, Guid? pressId, IServiceProvider sp, CancellationToken ct)
+    {
+        var chunks = plan.Kept;
+        if (chunks.Count == 0) return (null, null);
+        var gateway = sp.GetRequiredService<AiGateway>();
+        var baseRevision = latest?.Revision ?? 0;
+        var carriedOver = latest is not null && plan.Dropped; // older chunks were not re-read: start from the existing summary
+        IReadOnlyList<TopicState> topics = carriedOver ? SummaryJson.Read<List<TopicState>>(latest!.TopicsJson) : [];
+        var tldr = latest?.Tldr ?? "";
         var terms = new List<string>();
         string model = "";
+        var workflow = status == "Final" ? AiWorkflow.FinalSummary : AiWorkflow.Compaction;
         foreach (var chunk in chunks)
         {
-            var built = SummaryRequests.BuildDelta(st.UserId, st.SessionId, latest.Revision, topics, [], chunk, options.Summary, options.CallTimeout, compaction: true);
-            var ctx = new SummaryContext(latest.Revision, built.Allowed);
+            var built = SummaryRequests.BuildDelta(userId, sessionId, baseRevision, topics, [], chunk, options.Summary, options.CallTimeout, compaction: true, workflow: workflow, pressId: pressId);
+            var ctx = new SummaryContext(baseRevision, built.Allowed);
             var outcome = await gateway.RunAsync(built.Request, json => LanguageGuard.Apply(SummaryValidator.Validate(json, ctx), d => LanguageGuard.Texts(d, ctx), options.LanguageGuardEnforce, log, "RollingSummary"), ct);
-            if (!outcome.Ok) return outcome.Failure;
+            if (!outcome.Ok) return (outcome.Failure, null);
             topics = SummaryMerger.Merge(topics, outcome.Value!);
             tldr = outcome.Value!.Tldr;
             terms.AddRange(outcome.Value.NewTerms);
@@ -375,19 +406,26 @@ internal sealed class SummaryEngine(IServiceScopeFactory scopes, AiOptions optio
         var all = chunks.SelectMany(c => c).ToList();
         var row = new SummaryRevisionRow
         {
-            SessionId = st.SessionId, UserId = st.UserId, Revision = latest.Revision + 1, Kind = "Compaction", Status = "Draft",
-            BasedOnSeq = all.Max(s => s.Seq), SourceFromSeq = carriedOver ? latest.SourceFromSeq : all.Min(s => s.Seq), SourceToSeq = all.Max(s => s.Seq),
-            CoveredFromMs = carriedOver ? latest.CoveredFromMs : all.Min(s => s.StartMs), CoveredToMs = Math.Max(latest.CoveredToMs, all.Max(s => s.EndMs)),
+            SessionId = sessionId, UserId = userId, Revision = baseRevision + 1, Kind = "Compaction", Status = status,
+            BasedOnSeq = all.Max(s => s.Seq), SourceFromSeq = carriedOver ? latest!.SourceFromSeq : all.Min(s => s.Seq), SourceToSeq = all.Max(s => s.Seq),
+            CoveredFromMs = carriedOver ? latest!.CoveredFromMs : all.Min(s => s.StartMs), CoveredToMs = Math.Max(latest?.CoveredToMs ?? 0, all.Max(s => s.EndMs)),
             Tldr = tldr, TopicsJson = SummaryJson.Write(topics), TermsJson = SummaryJson.Write(terms.Distinct(StringComparer.OrdinalIgnoreCase).TakeLast(30).ToList()),
             CitationsJson = SummaryJson.Write(SummaryMerger.Citations(topics)), Model = model, PromptVersion = Prompts.PromptLibrary.RollingSummaryVersion, CreatedAt = clock.GetUtcNow(),
         };
-        if (await store.AppendAsync(row, latest.Revision, ct) == AppendResult.Ok) await PublishRevisionAsync(publisher, st, row, ct);
-        return null;
+        return await sp.GetRequiredService<SummaryStore>().AppendAsync(row, baseRevision, ct) switch
+        {
+            AppendResult.Ok => (null, row),
+            AppendResult.SessionGone => (AiFailure.SessionClosed, null),
+            _ => (AiFailure.InvalidOutput, null),
+        };
     }
 
-    private async Task PublishRevisionAsync(ILiveEventPublisher publisher, SessionSummaryState st, SummaryRevisionRow row, CancellationToken ct)
+    private Task PublishRevisionAsync(ILiveEventPublisher publisher, SessionSummaryState st, SummaryRevisionRow row, CancellationToken ct) =>
+        PublishRevisionAsync(publisher, st.UserId, st.SessionId, row, ct);
+
+    private async Task PublishRevisionAsync(ILiveEventPublisher publisher, Guid userId, Guid sessionId, SummaryRevisionRow row, CancellationToken ct)
     {
-        try { await publisher.PublishEphemeralAsync(st.UserId, st.SessionId, "summary.revision", SummaryJson.ToPayload(row), ct); }
+        try { await publisher.PublishEphemeralAsync(userId, sessionId, "summary.revision", SummaryJson.ToPayload(row), ct); }
         catch (Exception ex) when (ex is not OperationCanceledException) { log.LogWarning("Summary publish failed: {ExceptionType}", ex.GetType().Name); }
     }
 

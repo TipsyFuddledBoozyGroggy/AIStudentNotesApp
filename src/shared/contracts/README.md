@@ -75,3 +75,7 @@ The frontend should validate the same fixtures with a draft 2020-12 validator (f
 ## syllabus.v1 (Phase 2 slice 1, DRAFT, not frozen)
 
 `syllabus.v1/` holds the DRAFT schemas for `docs/API_CONTRACTS_P2.md`; `lecture.v1` stays frozen and is untouched. Every syllabus schema basename starts with `syllabus` so fixtures stay flat in `fixtures/valid` and `fixtures/invalid` with the same `{schema}--{case}.json` naming; `ContractFixtureTests` registers both folders. Extra semantic checks (item key derivation, snippet offsets, approval invariants, doc/schema drift) live in `SyllabusContractTests`. Same strictness policy as above (`additionalProperties: false` everywhere). Same test commands.
+
+## lecture.v1 additive: notes after Stop (PO-18d, 2026-10-31)
+
+`notes.schema.json` (response of `POST` and `GET /sessions/{id}/notes`) and `notes-request.schema.json` (the `{}` body) are additive to the frozen lecture.v1 (`docs/API_CONTRACTS.md` section 17). Every `Notes` field is always present; an `if/then/else` on `status` makes `Ready` the only status with content (`source`, `generatedAt`, `coveredFromMs/ToMs`, at least one section) and forces every other status to the empty shell. Each bullet needs 1 to 8 citations. Fixtures: `notes--*.json`, `notes-request--*.json` in `fixtures/valid` and `fixtures/invalid`.

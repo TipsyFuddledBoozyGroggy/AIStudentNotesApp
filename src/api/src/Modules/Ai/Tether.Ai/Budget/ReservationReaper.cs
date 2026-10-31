@@ -55,7 +55,7 @@ internal sealed class ReservationReaper(IServiceScopeFactory scopes, AiOptions o
     /// <summary>Settles stale reservations to zero and returns how many it processed. <paramref name="startup"/> treats every reservation as stale.</summary>
     public async Task<int> SweepAsync(bool startup, CancellationToken ct)
     {
-        var maxCall = options.CallTimeout > options.CatchUp.Timeout ? options.CallTimeout : options.CatchUp.Timeout;
+        var maxCall = options.LongestCallTimeout; // includes the notes call timeout (PO-18d)
         var cutoff = startup ? clock.GetUtcNow().AddDays(1) : clock.GetUtcNow() - (maxCall + Cfg.Grace);
 
         await using var scope = scopes.CreateAsyncScope();

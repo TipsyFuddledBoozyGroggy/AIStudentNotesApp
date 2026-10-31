@@ -22,7 +22,11 @@ internal interface IAiClient
     Task<AiResponse> CompleteAsync(AiRequest request, CancellationToken ct);
 }
 
-internal enum AiWorkflow { RollingSummary, Compaction, QuickRecap, SyllabusExtract }
+/// <summary>
+/// <see cref="Notes"/> and <see cref="FinalSummary"/> (PO-18d) are the only workflows that may run for a STOPPED lecture, and only while a
+/// "Make notes" press is pending for that user and session (<see cref="AiRequest.PressId"/>). Every other lecture workflow needs an Active session.
+/// </summary>
+internal enum AiWorkflow { RollingSummary, Compaction, QuickRecap, SyllabusExtract, Notes, FinalSummary }
 
 /// <summary>Fast maps to the cheap model, Balanced to the mid model (config). There is no Deep tier on the live path (ADR-009).</summary>
 internal enum AiTier { Fast, Balanced }
@@ -60,8 +64,11 @@ internal readonly record struct AiScope(string Kind, Guid Id)
 /// </summary>
 internal sealed record AiRequest(
     AiWorkflow Workflow, string PromptVersion, AiTier Tier, string System, string Instruction, IReadOnlyList<UntrustedBlock> Blocks,
-    int MaxOutputTokens, Guid UserId, Guid SessionId, string IdempotencyKey, TimeSpan Timeout, string? RepairHint = null, AiScope? Scope = null)
+    int MaxOutputTokens, Guid UserId, Guid SessionId, string IdempotencyKey, TimeSpan Timeout, string? RepairHint = null, AiScope? Scope = null, Guid? PressId = null)
 {
+    /// <summary>True for the two after-Stop workflows (PO-18d). They are refused unless <see cref="PressId"/> names a live press.</summary>
+    public bool IsAfterStop => Workflow is AiWorkflow.Notes or AiWorkflow.FinalSummary;
+
     /// <summary>The scope the work is accounted and cut off under. Null means the lecture session in <see cref="SessionId"/> (every lecture caller).</summary>
     public AiScope EffectiveScope => Scope ?? AiScope.Lecture(SessionId);
 

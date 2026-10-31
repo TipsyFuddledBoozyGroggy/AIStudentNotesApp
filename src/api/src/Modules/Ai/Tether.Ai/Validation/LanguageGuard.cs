@@ -160,6 +160,15 @@ internal static partial class LanguageGuard
         foreach (var g in r.Gaps) yield return new GuardText(g, all);
     }
 
+    public static IEnumerable<GuardText> Texts(NotesChunkResult r, NotesContext ctx)
+    {
+        foreach (var s in r.Sections)
+        {
+            yield return new GuardText(s.Heading, Cited(ctx.Allowed, s.Bullets.SelectMany(b => b.Citations).ToList()));
+            foreach (var b in s.Bullets) yield return new GuardText(b.Text, Cited(ctx.Allowed, b.Citations));
+        }
+    }
+
     // ---------------- pipeline gate ----------------
 
     /// <summary>

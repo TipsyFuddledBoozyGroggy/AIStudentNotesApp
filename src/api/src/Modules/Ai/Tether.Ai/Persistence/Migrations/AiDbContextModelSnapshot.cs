@@ -131,7 +131,7 @@ namespace Tether.Ai.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_ai_usage_tokens", "input_tokens >= 0 AND cached_tokens >= 0 AND output_tokens >= 0 AND est_cost_micros >= 0 AND latency_ms >= 0");
 
-                            t.HasCheckConstraint("ck_ai_usage_workflow", "(scope_kind = 'lecture' AND workflow IN ('RollingSummary','Compaction','QuickRecap')) OR (scope_kind = 'syllabus' AND workflow = 'SyllabusExtract')");
+                            t.HasCheckConstraint("ck_ai_usage_workflow", "(scope_kind = 'lecture' AND workflow IN ('RollingSummary','Compaction','QuickRecap','Notes','FinalSummary')) OR (scope_kind = 'syllabus' AND workflow = 'SyllabusExtract')");
                         });
                 });
 
@@ -223,6 +223,114 @@ namespace Tether.Ai.Persistence.Migrations
                             t.HasCheckConstraint("ck_catch_ups_kind", "kind IN ('Extractive','Ai')");
 
                             t.HasCheckConstraint("ck_catch_ups_window", "window_minutes IN (2,5,10)");
+                        });
+                });
+
+            modelBuilder.Entity("Tether.Ai.Domain.LectureNotesRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<long?>("CoveredFromMs")
+                        .HasColumnType("bigint")
+                        .HasColumnName("covered_from_ms");
+
+                    b.Property<long?>("CoveredToMs")
+                        .HasColumnType("bigint")
+                        .HasColumnName("covered_to_ms");
+
+                    b.Property<int?>("FinalSummaryRevision")
+                        .HasColumnType("integer")
+                        .HasColumnName("final_summary_revision");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<string>("Model")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("model");
+
+                    b.Property<string>("PromptVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("prompt_version");
+
+                    b.Property<DateTimeOffset>("RequestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("requested_at");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer")
+                        .HasColumnName("revision");
+
+                    b.Property<string>("SectionsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("sections");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<long?>("SourceFromSeq")
+                        .HasColumnType("bigint")
+                        .HasColumnName("source_from_seq");
+
+                    b.Property<long?>("SourceToSeq")
+                        .HasColumnType("bigint")
+                        .HasColumnName("source_to_seq");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("state");
+
+                    b.Property<bool>("Truncated")
+                        .HasColumnType("boolean")
+                        .HasColumnName("truncated");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessionId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_lecture_notes_pending")
+                        .HasFilter("state = 'Pending'");
+
+                    b.HasIndex("SessionId", "Revision")
+                        .IsUnique()
+                        .HasDatabaseName("ux_lecture_notes_session_revision");
+
+                    b.HasIndex("UserId", "SessionId", "IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_lecture_notes_idempotency");
+
+                    b.ToTable("lecture_notes", "ai", t =>
+                        {
+                            t.HasCheckConstraint("ck_lecture_notes_content", "(state = 'Ready' AND completed_at IS NOT NULL AND covered_from_ms IS NOT NULL) OR (state <> 'Ready' AND sections = '[]'::jsonb AND final_summary_revision IS NULL AND covered_from_ms IS NULL AND NOT truncated)");
+
+                            t.HasCheckConstraint("ck_lecture_notes_key", "length(idempotency_key) BETWEEN 1 AND 64");
+
+                            t.HasCheckConstraint("ck_lecture_notes_pending", "state <> 'Pending' OR completed_at IS NULL");
+
+                            t.HasCheckConstraint("ck_lecture_notes_range", "(covered_from_ms IS NULL AND covered_to_ms IS NULL) OR (covered_from_ms >= 0 AND covered_from_ms <= covered_to_ms)");
+
+                            t.HasCheckConstraint("ck_lecture_notes_revision", "revision > 0");
+
+                            t.HasCheckConstraint("ck_lecture_notes_state", "state IN ('Pending','Ready','Unavailable','BudgetLimited','NotNeeded')");
                         });
                 });
 

@@ -55,6 +55,17 @@ public interface ISessionActivity
     void Touch(Guid sessionId);
 }
 
+/// <summary>
+/// Content-free audit of student actions that other modules own (C-30): user id, session id, a FIXED action and the time, in the
+/// append-only <c>lectures.audit_events</c> table, which survives deletion of the session. There is no free-text parameter on purpose.
+/// The caller must run in a user scope for <paramref name="userId"/>; a mismatch writes nothing and returns false.
+/// </summary>
+public interface ISessionAuditLog
+{
+    /// <summary>PO-18d: the student pressed "Make notes" on a stopped session (the only thing that may send its transcript to an AI after Stop).</summary>
+    Task<bool> RecordNotesRequestedAsync(Guid userId, Guid sessionId, CancellationToken ct = default);
+}
+
 /// <summary>True while the transcript source is a deterministic demo/replay provider, never a real recording.</summary>
 public interface IDemoSourceIndicator
 {

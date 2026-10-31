@@ -38,15 +38,32 @@ internal sealed record CatchUpOptions(int PerMinutePerSession, int WindowMaxChar
 internal sealed record BreakerOptions(int FailuresToOpen, TimeSpan OpenFor, TimeSpan ProviderCapOpenFor);
 
 /// <summary>
+/// PO-18d "Make notes" after Stop. Every figure is a PROPOSAL (placeholders like the budgets, gate G2). <see cref="PerRequestMicro"/> is the cap
+/// on the ESTIMATED cost of everything one press may send (notes chunks plus the final summary); a press over it makes no call at all.
+/// The calls are also held against the ordinary lecture-pool caps (per session, per user-day, per month) one by one.
+/// </summary>
+internal sealed record NotesOptions(
+    int ChunkChars, int MaxChunks, int MaxSegments, int MaxOutputTokens, TimeSpan Timeout, int Workers, int QueueCapacity, TimeSpan StaleAfter,
+    int PerMinutePerUser, int MaxAttemptsPerSession, long PerRequestMicro)
+{
+    public static NotesOptions Default { get; } = new(12_000, 10, 6_000, 1_500, TimeSpan.FromSeconds(30), 1, 16, TimeSpan.FromMinutes(10), 6, 5, 300_000);
+}
+
+/// <summary>
 /// Configuration for the AI module (keys <c>Ai:*</c>). Nothing here is a verified vendor figure. The API key, when one is ever
 /// configured, is read by <see cref="AiProviderGuard"/> only to check that it is present; it is never stored in this record.
 /// </summary>
 internal sealed record AiOptions(
     bool Enabled, string Provider, TimeSpan CallTimeout, BudgetOptions Budget, TierPrice Fast, TierPrice Balanced,
     SummaryOptions Summary, CatchUpOptions CatchUp, BreakerOptions Breaker, MockFault MockFault, TimeSpan MockLatency,
-    Tether.Ai.Budget.ReaperOptions? Reaper = null, bool LanguageGuardEnforce = false)
+    Tether.Ai.Budget.ReaperOptions? Reaper = null, bool LanguageGuardEnforce = false, NotesOptions? NotesConfig = null)
 {
     public TierPrice Price(AiTier tier) => tier == AiTier.Fast ? Fast : Balanced;
+
+    public NotesOptions Notes => NotesConfig ?? NotesOptions.Default;
+
+    /// <summary>The longest any single provider call may run (the reservation reaper waits at least this long before reclaiming a hold).</summary>
+    public TimeSpan LongestCallTimeout => new[] { CallTimeout, CatchUp.Timeout, Notes.Timeout }.Max();
 
     public static AiOptions From(IConfiguration c)
     {
@@ -96,7 +113,20 @@ internal sealed record AiOptions(
             Summary: summary, CatchUp: catchUp, Breaker: breaker, MockFault: fault, MockLatency: TimeSpan.FromMilliseconds(c.GetValue("Ai:Mock:LatencyMs", 0)),
             Reaper: new Tether.Ai.Budget.ReaperOptions(Secs(c, "Ai:Reaper:IntervalSeconds", 60), Secs(c, "Ai:Reaper:GraceSeconds", 180)),
             // LanguageGuard (docs/ux/language-guide.md 5.2) is LOG-ONLY unless this is true; measure the rule hit rates before enforcing.
-            LanguageGuardEnforce: c.GetValue("Ai:LanguageGuard:Enforce", false));
+            LanguageGuardEnforce: c.GetValue("Ai:LanguageGuard:Enforce", false),
+            NotesConfig: NotesFrom(c));
+    }
+
+    private static NotesOptions NotesFrom(IConfiguration c)
+    {
+        var d = NotesOptions.Default;
+        var n = c.GetSection("Ai:Notes");
+        return new NotesOptions(
+            ChunkChars: n.GetValue("ChunkChars", d.ChunkChars), MaxChunks: n.GetValue("MaxChunks", d.MaxChunks), MaxSegments: n.GetValue("MaxSegments", d.MaxSegments),
+            MaxOutputTokens: n.GetValue("MaxOutputTokens", d.MaxOutputTokens), Timeout: TimeSpan.FromSeconds(n.GetValue("TimeoutSeconds", d.Timeout.TotalSeconds)),
+            Workers: n.GetValue("Workers", d.Workers), QueueCapacity: n.GetValue("QueueCapacity", d.QueueCapacity),
+            StaleAfter: TimeSpan.FromSeconds(n.GetValue("StaleSeconds", d.StaleAfter.TotalSeconds)), PerMinutePerUser: n.GetValue("PerMinutePerUser", d.PerMinutePerUser),
+            MaxAttemptsPerSession: n.GetValue("MaxAttemptsPerSession", d.MaxAttemptsPerSession), PerRequestMicro: n.GetValue("PerRequestMicroUsd", d.PerRequestMicro));
     }
 }
 
@@ -124,7 +154,7 @@ internal static class AiProviderGuard
             throw new InvalidOperationException("Ai:Mock:LatencyMs is set but the environment is not Development or Test.");
         var syl = options.Budget.For(Tether.SharedKernel.Ai.AiScopeKinds.Syllabus);
         if (options.Budget.PerSessionMicro <= 0 || options.Budget.PerUserDailyMicro <= 0 || options.Budget.GlobalMonthlyMicro <= 0
-            || syl.PerScopeMicro <= 0 || syl.PerUserDailyMicro <= 0 || syl.GlobalMonthlyMicro <= 0)
+            || syl.PerScopeMicro <= 0 || syl.PerUserDailyMicro <= 0 || syl.GlobalMonthlyMicro <= 0 || options.Notes.PerRequestMicro <= 0)
             throw new InvalidOperationException("Ai:Budget caps must be positive. To switch AI off set Ai:Enabled=false.");
     }
 }

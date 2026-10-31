@@ -42,3 +42,41 @@ internal static class FlushPolicy
         return enough && spaced;
     }
 }
+
+/// <summary>
+/// Groups finals, in order, into chunks of at most <c>chunkChars</c> prompt characters and keeps only the NEWEST <c>maxChunks</c> of
+/// them in memory (compaction and the final summary re-derive from source in bounded calls). Pure.
+/// </summary>
+internal sealed class NewestChunks(int chunkChars, int maxChunks)
+{
+    public sealed record Result(IReadOnlyList<IReadOnlyList<Tether.Transcript.Contracts.FinalSegment>> Kept, bool Dropped);
+
+    private readonly List<List<Tether.Transcript.Contracts.FinalSegment>> _chunks = [];
+    private List<Tether.Transcript.Contracts.FinalSegment> _current = [];
+    private int _used;
+    private bool _dropped;
+
+    public static int Cost(Tether.Transcript.Contracts.FinalSegment s) => Math.Min(s.Text.Length, Prompts.PromptRenderer.MaxLineChars) + 16;
+
+    public void Add(Tether.Transcript.Contracts.FinalSegment s)
+    {
+        var len = Cost(s);
+        if (_used + len > chunkChars && _current.Count > 0) Push();
+        _current.Add(s);
+        _used += len;
+    }
+
+    private void Push()
+    {
+        _chunks.Add(_current);
+        _current = [];
+        _used = 0;
+        if (_chunks.Count > Math.Max(1, maxChunks)) { _chunks.RemoveAt(0); _dropped = true; }
+    }
+
+    public Result Complete()
+    {
+        if (_current.Count > 0) Push();
+        return new Result(_chunks.Select(c => (IReadOnlyList<Tether.Transcript.Contracts.FinalSegment>)c).ToList(), _dropped);
+    }
+}

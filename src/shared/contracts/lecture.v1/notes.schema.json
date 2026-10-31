@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/lecture.v1/notes.schema.json",
+  "title": "notes",
+  "description": "Lecture notes made by ONE deliberate student press after Stop (PO-18d, API_CONTRACTS section 17). Response of POST and GET /sessions/{id}/notes. Only status Ready carries content; every other status has no sections, no source and no times. Every bullet cites at least one stored transcript segment of the same session.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "notesId",
+    "revision",
+    "status",
+    "source",
+    "requestedAt",
+    "generatedAt",
+    "coveredFromMs",
+    "coveredToMs",
+    "sections",
+    "finalSummaryRevision",
+    "truncated"
+  ],
+  "properties": {
+    "notesId": {
+      "description": "Id of this press (one attempt). Opaque.",
+      "type": "string",
+      "pattern": "^nt_[0-9a-f]{32}$"
+    },
+    "revision": {
+      "description": "Attempt number within the session, starting at 1. A new attempt exists only after an Unavailable or BudgetLimited one.",
+      "$ref": "common.schema.json#/$defs/revision"
+    },
+    "status": {
+      "description": "Pending: being made (poll GET). Ready: content below. Unavailable: the AI step failed or was cut off. BudgetLimited: a budget cap stopped it. NotNeeded: the lecture has no transcript text, so nothing was sent anywhere.",
+      "type": "string",
+      "enum": [
+        "Pending",
+        "Ready",
+        "Unavailable",
+        "BudgetLimited",
+        "NotNeeded"
+      ]
+    },
+    "source": {
+      "description": "Only when Ready: mock = deterministic extractive mock, not a language model; model = a real provider.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "mock",
+        "model",
+        null
+      ]
+    },
+    "requestedAt": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "generatedAt": {
+      "oneOf": [
+        {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "coveredFromMs": {
+      "oneOf": [
+        {
+          "$ref": "common.schema.json#/$defs/ms"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "coveredToMs": {
+      "oneOf": [
+        {
+          "$ref": "common.schema.json#/$defs/ms"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sections": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/section"
+      }
+    },
+    "finalSummaryRevision": {
+      "description": "The summary revision (status Final) made by the same press; read it with GET /sessions/{id}/summary?revision=N. Null when none was made.",
+      "oneOf": [
+        {
+          "$ref": "common.schema.json#/$defs/revision"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "truncated": {
+      "description": "True when the lecture was longer than the notes input limit, so the end of it is not covered (see coveredToMs).",
+      "type": "boolean"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "Ready"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "type": "string"
+          },
+          "coveredFromMs": {
+            "type": "integer"
+          },
+          "coveredToMs": {
+            "type": "integer"
+          },
+          "sections": {
+            "minItems": 1
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "source": {
+            "type": "null"
+          },
+          "generatedAt": {
+            "type": "null"
+          },
+          "coveredFromMs": {
+            "type": "null"
+          },
+          "coveredToMs": {
+            "type": "null"
+          },
+          "sections": {
+            "maxItems": 0
+          },
+          "finalSummaryRevision": {
+            "type": "null"
+          },
+          "truncated": {
+            "const": false
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "heading",
+        "bullets"
+      ],
+      "properties": {
+        "heading": {
+          "description": "Untrusted plain text (C-28).",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "bullets": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": {
+            "$ref": "#/$defs/bullet"
+          }
+        }
+      }
+    },
+    "bullet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "citations"
+      ],
+      "properties": {
+        "text": {
+          "description": "Untrusted plain text (C-28).",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "citations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "$ref": "common.schema.json#/$defs/citation"
+          }
+        }
+      }
+    }
+  }
+}

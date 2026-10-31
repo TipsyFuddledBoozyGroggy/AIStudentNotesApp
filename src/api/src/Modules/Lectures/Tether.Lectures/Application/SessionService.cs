@@ -253,10 +253,12 @@ internal sealed class SessionService(
         if (!purge) return;
 
         var now = Now();
-        foreach (var id in await db.Sessions.AsNoTracking().Where(s => s.CourseId == courseId).Select(s => s.Id).ToListAsync(ct))
-            AddAudit(AuditActions.SessionDelete, id, now);
+        var all = await db.Sessions.AsNoTracking().Where(s => s.CourseId == courseId).Select(s => s.Id).ToListAsync(ct);
+        foreach (var id in all) AddAudit(AuditActions.SessionDelete, id, now);
         await db.SaveChangesAsync(ct);
-        foreach (var id in live)
+        // Every purged session, not only the live ones: a STOPPED session can still have an in-flight "Make notes" provider call (PO-18d)
+        // that the AI module cancels on this notification. For a session with no live connection or call the observers do nothing.
+        foreach (var id in all)
         {
             activity.Forget(id);
             await NotifyDeletedAsync(UserId, id, ct);

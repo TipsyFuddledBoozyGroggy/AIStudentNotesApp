@@ -39,6 +39,7 @@ public static class LecturesModule
         builder.Services.AddScoped<ISessionDirectory>(sp => sp.GetRequiredService<SessionPortsService>());
         builder.Services.AddScoped<ISessionEventReader>(sp => sp.GetRequiredService<SessionPortsService>());
         builder.Services.AddScoped<ISessionSequencer>(sp => sp.GetRequiredService<SessionPortsService>());
+        builder.Services.AddScoped<ISessionAuditLog, SessionAuditLog>();
         builder.Services.AddScoped<SessionLifecycleJob>();
         var jobSeconds = Math.Max(1, builder.Configuration.GetValue("Lectures:LifecycleJobSeconds", 30));
         builder.Services.AddHostedService(sp => new SessionLifecycleService(

@@ -24,9 +24,8 @@ public sealed class BlockingAiFactory : ApiFactory
     ];
 }
 
-public class AiSessionCutoffTests(BlockingAiFactory factory) : AiRouteTestBase(factory), IClassFixture<BlockingAiFactory>
+public class AiSessionCutoffTests(BlockingAiFactory factory) : NotesTestBase(factory), IClassFixture<BlockingAiFactory>
 {
-    private MockAiClient Mock => F.Services.GetRequiredService<MockAiClient>();
     private SummaryScheduler Scheduler => F.Services.GetRequiredService<SummaryScheduler>();
 
     public static TheoryData<string> Actions => new() { "pause", "stop", "delete" };
@@ -87,7 +86,9 @@ public class AiSessionCutoffTests(BlockingAiFactory factory) : AiRouteTestBase(f
         AssertActed(await ActAsync(a.Client, id, action), action);
         var before = Mock.Calls;
 
-        await Scheduler.TickAsync(default); // pause used to request a flush and stop a final pass; neither may reach the provider now
+        // Pause used to request a flush and Stop a final pass; neither may reach the provider now (B3-06). PO-18d keeps that: a Final summary
+        // after Stop is made only by the deliberate "Make notes" press (AiNotesTests), never by Stop itself.
+        await Scheduler.TickAsync(default);
 
         Assert.Equal(before, Mock.Calls);
         await AssertNothingHeldOrSpentAsync(a.UserId);
@@ -265,5 +266,47 @@ public class AiSessionCutoffTests(BlockingAiFactory factory) : AiRouteTestBase(f
         await Task.Delay(300);
         Assert.Equal(before, Mock.Calls);
         await AssertNothingHeldOrSpentAsync(a.UserId);
+    }
+
+    // ---------- PO-18d: Delete cuts off an in-flight "Make notes" call ----------
+
+    [Fact]
+    public async Task Deleting_mid_job_cancels_the_in_flight_call_and_leaves_no_notes_summary_or_hold()
+    {
+        var (a, id) = await StoppedSessionAsync();
+        var before = Mock.Calls;
+        Assert.Equal(HttpStatusCode.Accepted, (await PressAsync(a.Client, id)).StatusCode);
+        for (var i = 0; i < 200 && Mock.Calls < before + 1; i++) await Task.Delay(25);
+        Assert.Equal(before + 1, Mock.Calls); // the notes call is in flight, blocked
+
+        Assert.Equal(HttpStatusCode.NoContent, (await a.Client.DeleteAsync($"/api/v1/sessions/{id}")).StatusCode);
+        for (var i = 0; i < 200 && await F.ScalarAsync($"select count(*) from ai.ai_usage where user_id = '{a.UserId}' and outcome = 'reserved'") > 0; i++) await Task.Delay(25);
+        await Task.Delay(300); // give the job time to (wrongly) make the final-summary call or store something
+
+        Assert.Equal(before + 1, Mock.Calls); // no final-summary call, no repair
+        Assert.Equal(0, await NotesRowsAsync(id));
+        Assert.Equal(0, await F.ScalarAsync($"select count(*) from ai.summary_revisions where session_id = '{id}'"));
+        await AssertNothingHeldAsync(a.UserId);
+        Assert.Equal(0, await F.ScalarAsync($"select coalesce(sum(est_cost_micros),0) from ai.ai_usage where user_id = '{a.UserId}'"));
+        Assert.Equal(1, await PressAuditsAsync(a.UserId)); // the content-free audit of the press survives, like session.delete
+    }
+
+    [Fact]
+    public async Task Purging_the_course_of_a_stopped_session_cancels_its_in_flight_notes_call_and_removes_everything()
+    {
+        var (a, id) = await StoppedSessionAsync();
+        var course = await F.TextAsync($"select course_id from lectures.lecture_sessions where id = '{id}'");
+        var before = Mock.Calls;
+        Assert.Equal(HttpStatusCode.Accepted, (await PressAsync(a.Client, id)).StatusCode);
+        for (var i = 0; i < 200 && Mock.Calls < before + 1; i++) await Task.Delay(25);
+        Assert.Equal(before + 1, Mock.Calls);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await a.Client.DeleteAsync($"/api/v1/courses/{course}?purge=true")).StatusCode);
+        for (var i = 0; i < 200 && await F.ScalarAsync($"select count(*) from ai.ai_usage where user_id = '{a.UserId}' and outcome = 'reserved'") > 0; i++) await Task.Delay(25);
+        await Task.Delay(300);
+
+        Assert.Equal(before + 1, Mock.Calls); // cancelled by the purge notification, not by the 30 s call timeout; no final-summary call
+        Assert.Equal(0, await NotesRowsAsync(id));
+        await AssertNothingHeldAsync(a.UserId);
     }
 }

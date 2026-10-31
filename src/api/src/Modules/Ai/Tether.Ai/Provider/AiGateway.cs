@@ -72,7 +72,7 @@ internal sealed class AiHealth(AiOptions options, TimeProvider clock)
 /// </summary>
 internal sealed class AiGateway(
     IAiClient client, UsageLedger ledger, BudgetGate budget, AiHealth health, AiOptions options, SessionCutoff cutoff, ISessionDirectory directory, ILogger<AiGateway> log,
-    IEnumerable<IAiDocumentScopeProbe>? documentProbes = null)
+    IEnumerable<IAiDocumentScopeProbe>? documentProbes = null, Notes.NotesPressProbe? notesProbe = null)
 {
     public async Task<GatewayOutcome<T>> RunAsync<T>(AiRequest request, Func<string, Validated<T>> validate, CancellationToken ct) where T : class
     {
@@ -200,7 +200,16 @@ internal sealed class AiGateway(
         try
         {
             var scope = req.EffectiveScope;
-            if (scope.IsLecture) return await directory.FindAsync(req.UserId, scope.Id, ct) is { State: LectureState.Active };
+            if (scope.IsLecture)
+            {
+                var info = await directory.FindAsync(req.UserId, scope.Id, ct);
+                // PO-18d: after Stop the ONLY permission is a pending "Make notes" press of this user for this session, re-read here before every
+                // call. Active, Paused, Failed, deleted, someone else's, no press, a finished or an expired press: all refuse.
+                if (req.IsAfterStop)
+                    return info is { State: LectureState.Stopped } && req.PressId is { } press && notesProbe is not null
+                        && await notesProbe.IsLiveAsync(req.UserId, scope.Id, press, ct);
+                return info is { State: LectureState.Active };
+            }
             var probe = documentProbes?.FirstOrDefault(p => p.Kind == scope.Kind);
             return probe is not null && await probe.IsLiveAsync(req.UserId, scope.Id, ct);
         }
@@ -211,7 +220,10 @@ internal sealed class AiGateway(
         }
     }
 
-    private long EstimateMicro(AiRequest r)
+    private long EstimateMicro(AiRequest r) => Estimate(options, r);
+
+    /// <summary>The amount the gateway holds against the caps for one call (input estimate plus the full output allowance).</summary>
+    internal static long Estimate(AiOptions options, AiRequest r)
     {
         var p = options.Price(r.Tier);
         var inTokens = PromptRenderer.EstimateTokens(PromptRenderer.Render(r));

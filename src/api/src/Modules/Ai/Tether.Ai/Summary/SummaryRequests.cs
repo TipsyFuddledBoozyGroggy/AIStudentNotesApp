@@ -45,7 +45,7 @@ internal static class SummaryRequests
     }
 
     public static Built BuildDelta(Guid userId, Guid sessionId, int baseRevision, IReadOnlyList<TopicState> existing, IReadOnlyList<FinalSegment> recent,
-        IReadOnlyList<FinalSegment> fresh, SummaryOptions o, TimeSpan timeout, bool compaction = false)
+        IReadOnlyList<FinalSegment> fresh, SummaryOptions o, TimeSpan timeout, bool compaction = false, AiWorkflow? workflow = null, Guid? pressId = null)
     {
         var (kept, truncated) = TakeNewestWithin(fresh, compaction ? o.CompactionChunkChars : o.MaxNewChars);
         var (recentKept, _) = TakeNewestWithin(recent, o.RecentWindowChars);
@@ -57,9 +57,10 @@ internal static class SummaryRequests
         };
         var allowed = new Dictionary<string, SourceLine>(StringComparer.Ordinal);
         foreach (var s in recentKept.Concat(kept)) allowed[s.SegmentId] = ToLine(s);
-        var workflow = compaction ? AiWorkflow.Compaction : AiWorkflow.RollingSummary;
-        var req = new AiRequest(workflow, PromptLibrary.RollingSummaryVersion, AiTier.Fast, compaction ? PromptLibrary.Compaction : PromptLibrary.RollingSummary,
-            $"baseRevision={baseRevision}", blocks, o.MaxOutputTokens, userId, sessionId, $"sum:{sessionId:N}:{(compaction ? "c" : "d")}:{baseRevision}", timeout);
+        var wf = workflow ?? (compaction ? AiWorkflow.Compaction : AiWorkflow.RollingSummary);
+        var tag = wf switch { AiWorkflow.FinalSummary => "f", AiWorkflow.Compaction => "c", _ => "d" };
+        var req = new AiRequest(wf, PromptLibrary.RollingSummaryVersion, AiTier.Fast, compaction ? PromptLibrary.Compaction : PromptLibrary.RollingSummary,
+            $"baseRevision={baseRevision}", blocks, o.MaxOutputTokens, userId, sessionId, $"sum:{sessionId:N}:{tag}:{baseRevision}", timeout, PressId: pressId);
         return new Built(req, allowed, truncated);
     }
 }

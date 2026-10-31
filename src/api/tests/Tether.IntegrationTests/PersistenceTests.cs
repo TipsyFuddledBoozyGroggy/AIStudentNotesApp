@@ -202,6 +202,7 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
             ("fk_courses_user_id", "courses", "identity", "c"),
             ("fk_idempotency_keys_course_user", "syllabus", "courses", "c"),
             ("fk_idempotency_keys_user", "syllabus", "identity", "c"),
+            ("fk_lecture_notes_session_user", "ai", "lectures", "c"), // PO-18d (A005): notes after Stop, composite, cascade with the session
             ("fk_lecture_sessions_course_id", "lectures", "courses", "c"),
             ("fk_lecture_sessions_user_id", "lectures", "identity", "c"),
             ("fk_summary_revisions_session_user", "ai", "lectures", "c"),

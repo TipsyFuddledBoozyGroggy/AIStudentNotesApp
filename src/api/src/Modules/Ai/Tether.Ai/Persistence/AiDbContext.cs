@@ -11,6 +11,7 @@ internal sealed class AiDbContext(DbContextOptions<AiDbContext> options, ICurren
     public DbSet<SummaryRevisionRow> Summaries => Set<SummaryRevisionRow>();
     public DbSet<CatchUpRow> CatchUps => Set<CatchUpRow>();
     public DbSet<AiUsageRow> Usage => Set<AiUsageRow>();
+    public DbSet<LectureNotesRow> Notes => Set<LectureNotesRow>();
 
     private Guid CurrentUserId => currentUser.UserId ?? Guid.Empty;
 
@@ -85,7 +86,8 @@ internal sealed class AiDbContext(DbContextOptions<AiDbContext> options, ICurren
             {
                 t.HasCheckConstraint("ck_ai_usage_tokens", "input_tokens >= 0 AND cached_tokens >= 0 AND output_tokens >= 0 AND est_cost_micros >= 0 AND latency_ms >= 0");
                 t.HasCheckConstraint("ck_ai_usage_outcome", $"outcome IN ({outcomes})");
-                t.HasCheckConstraint("ck_ai_usage_workflow", "(scope_kind = 'lecture' AND workflow IN ('RollingSummary','Compaction','QuickRecap')) OR (scope_kind = 'syllabus' AND workflow = 'SyllabusExtract')");
+                // PO-18d (A005): Notes and FinalSummary are lecture-pool workflows; the gateway runs them only for a Stopped session with a live press.
+                t.HasCheckConstraint("ck_ai_usage_workflow", "(scope_kind = 'lecture' AND workflow IN ('RollingSummary','Compaction','QuickRecap','Notes','FinalSummary')) OR (scope_kind = 'syllabus' AND workflow = 'SyllabusExtract')");
                 t.HasCheckConstraint("ck_ai_usage_scope_kind", "scope_kind IN ('lecture','syllabus')");
                 t.HasCheckConstraint("ck_ai_usage_pool", "pool IN ('lecture','syllabus') AND pool = scope_kind");
                 t.HasCheckConstraint("ck_ai_usage_scope_session", "(scope_kind = 'lecture' AND session_id IS NOT NULL AND session_id = scope_id) OR (scope_kind = 'syllabus' AND session_id IS NULL)");
@@ -111,6 +113,44 @@ internal sealed class AiDbContext(DbContextOptions<AiDbContext> options, ICurren
             b.HasIndex(x => new { x.SessionId, x.CreatedAt }).HasDatabaseName("ix_ai_usage_session_created");
             b.HasIndex(x => new { x.UserId, x.ScopeKind, x.ScopeId, x.CreatedAt }).HasDatabaseName("ix_ai_usage_scope_created");
             b.HasIndex(x => new { x.UserId, x.Pool, x.CreatedAt }).HasDatabaseName("ix_ai_usage_user_pool_created");
+            b.HasQueryFilter(x => x.UserId == CurrentUserId);
+        });
+
+        modelBuilder.Entity<LectureNotesRow>(b =>
+        {
+            var states = string.Join(",", NotesStates.All.Select(s => $"'{s}'"));
+            b.ToTable("lecture_notes", t =>
+            {
+                t.HasCheckConstraint("ck_lecture_notes_revision", "revision > 0");
+                t.HasCheckConstraint("ck_lecture_notes_state", $"state IN ({states})");
+                t.HasCheckConstraint("ck_lecture_notes_key", "length(idempotency_key) BETWEEN 1 AND 64");
+                t.HasCheckConstraint("ck_lecture_notes_range", "(covered_from_ms IS NULL AND covered_to_ms IS NULL) OR (covered_from_ms >= 0 AND covered_from_ms <= covered_to_ms)");
+                // Only Ready carries content; Pending has no completion time (the wire contract mirrors this).
+                t.HasCheckConstraint("ck_lecture_notes_content", "(state = 'Ready' AND completed_at IS NOT NULL AND covered_from_ms IS NOT NULL) OR (state <> 'Ready' AND sections = '[]'::jsonb AND final_summary_revision IS NULL AND covered_from_ms IS NULL AND NOT truncated)");
+                t.HasCheckConstraint("ck_lecture_notes_pending", "state <> 'Pending' OR completed_at IS NULL");
+            });
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            b.Property(x => x.SessionId).HasColumnName("session_id");
+            b.Property(x => x.UserId).HasColumnName("user_id").IsRequired();
+            b.Property(x => x.Revision).HasColumnName("revision");
+            b.Property(x => x.State).HasColumnName("state").HasMaxLength(16).IsRequired();
+            b.Property(x => x.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(64).IsRequired();
+            b.Property(x => x.RequestedAt).HasColumnName("requested_at");
+            b.Property(x => x.CompletedAt).HasColumnName("completed_at");
+            b.Property(x => x.SectionsJson).HasColumnName("sections").HasColumnType("jsonb").IsRequired();
+            b.Property(x => x.CoveredFromMs).HasColumnName("covered_from_ms");
+            b.Property(x => x.CoveredToMs).HasColumnName("covered_to_ms");
+            b.Property(x => x.SourceFromSeq).HasColumnName("source_from_seq");
+            b.Property(x => x.SourceToSeq).HasColumnName("source_to_seq");
+            b.Property(x => x.Truncated).HasColumnName("truncated");
+            b.Property(x => x.FinalSummaryRevision).HasColumnName("final_summary_revision");
+            b.Property(x => x.Model).HasColumnName("model").HasMaxLength(64);
+            b.Property(x => x.PromptVersion).HasColumnName("prompt_version").HasMaxLength(64);
+            b.HasIndex(x => new { x.SessionId, x.Revision }).IsUnique().HasDatabaseName("ux_lecture_notes_session_revision");
+            b.HasIndex(x => new { x.UserId, x.SessionId, x.IdempotencyKey }).IsUnique().HasDatabaseName("ux_lecture_notes_idempotency");
+            // One press in flight per session: concurrent presses cannot start two generations (the loser is handed the winner's row).
+            b.HasIndex(x => x.SessionId).IsUnique().HasFilter("state = 'Pending'").HasDatabaseName("ux_lecture_notes_pending");
             b.HasQueryFilter(x => x.UserId == CurrentUserId);
         });
     }
