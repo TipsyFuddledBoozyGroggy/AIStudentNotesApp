@@ -66,11 +66,14 @@ async function openConsent(page: Page, _label: string) {
   await expect(page.getByRole("heading", { level: 1, name: `Start lecture: ${course.name}` })).toBeVisible();
 }
 
-/** Ticks the consent box, presses Start, returns the new session id from the create response. */
+const consentDialog = (page: Page) => page.getByRole("dialog", { name: "Did your teacher say you can record?" });
+
+/** Opens the teacher-permission dialog (PO-16), ticks its box, confirms; returns the new session id from the create response. */
 async function checkAndStart(page: Page): Promise<string> {
-  await page.getByLabel(/I checked that recording and transcribing is allowed/).check();
+  await page.getByRole("button", { name: "Start recording", exact: true }).click();
+  await consentDialog(page).getByRole("checkbox", { name: "My teacher said I can record this class." }).check();
   const created = page.waitForResponse((r) => /\/sessions$/.test(r.url()) && r.request().method() === "POST");
-  await page.getByRole("button", { name: "Start recording" }).click();
+  await consentDialog(page).getByRole("button", { name: "Confirm and start recording" }).click();
   const res = await created;
   expect(res.status()).toBe(201);
   const body = (await res.json()) as { id: string; demoSource?: boolean };
@@ -89,8 +92,20 @@ test("start needs consent; no mic prompt before Start; demo transcript arrives o
   await spyMic(page);
   await openConsent(page, `Bio ${uid()}`);
   await expect(page.getByText("Draft", { exact: true }).first()).toBeVisible();
-  await page.getByRole("button", { name: "Start recording" }).click({ force: true }); // aria-disabled, unchecked: does nothing
+  // The dialog's Cancel and Escape create no session and never touch the microphone.
+  let posted = 0;
+  page.on("request", (r) => {
+    if (/\/sessions$/.test(r.url()) && r.method() === "POST") posted++;
+  });
+  await page.getByRole("button", { name: "Start recording", exact: true }).click();
+  await consentDialog(page).getByRole("button", { name: "Confirm and start recording" }).click({ force: true }); // aria-disabled, unticked: does nothing
+  await consentDialog(page).getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Start recording", exact: true }).click();
+  await consentDialog(page).getByRole("checkbox").check();
+  await page.keyboard.press("Escape");
+  await expect(consentDialog(page)).toHaveCount(0);
   expect(await gumCalls(page)).toBe(0);
+  expect(posted).toBe(0);
   await expect(page.getByTestId("state-label")).toHaveCount(0);
 
   await checkAndStart(page);

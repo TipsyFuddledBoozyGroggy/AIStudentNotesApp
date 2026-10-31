@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "@/test/axe";
@@ -24,9 +24,12 @@ function setup(micOutcome: "ok" | "denied" | "no_device" = "ok", startError?: St
   return { ...ui, startSession, mic, stop, onBack };
 }
 
+/** Opens the teacher-permission dialog, ticks the box and confirms. */
 const checkAndStart = async () => {
-  await userEvent.click(screen.getByRole("checkbox"));
   await userEvent.click(screen.getByRole("button", { name: "Start recording" }));
+  const d = screen.getByRole("dialog");
+  await userEvent.click(within(d).getByRole("checkbox"));
+  await userEvent.click(within(d).getByRole("button", { name: "Confirm and start recording" }));
 };
 
 describe("StartFlow", () => {
@@ -34,9 +37,12 @@ describe("StartFlow", () => {
     const t = setup();
     expect(t.startSession).not.toHaveBeenCalled();
     expect(t.mic.requestCount).toBe(0);
-    await userEvent.click(screen.getByRole("checkbox"));
-    expect(t.mic.requestCount).toBe(0);
     await userEvent.click(screen.getByRole("button", { name: "Start recording" }));
+    expect(t.startSession).not.toHaveBeenCalled();
+    expect(t.mic.requestCount).toBe(0);
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("checkbox"));
+    expect(t.mic.requestCount).toBe(0);
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Confirm and start recording" }));
     await waitFor(() => expect(screen.getByTestId("state-label")).toBeInTheDocument());
     expect(t.startSession).toHaveBeenCalledWith({ courseId: "c1", consent: { acknowledged: true, textVersion: CONSENT_TEXT_VERSION } });
     expect(t.mic.requestCount).toBe(1);
@@ -74,19 +80,36 @@ describe("StartFlow", () => {
     expect(screen.getByText(/could not confirm/)).toBeInTheDocument();
   });
 
-  it("UX 1: 403 consent_required returns to the form with the message and focus on the checkbox; no mic was asked", async () => {
+  it("UX 1: 403 consent_required returns to the page with the message and focus on Start recording; no mic was asked", async () => {
     const t = setup("ok", "consent_required");
     await checkAndStart();
-    await waitFor(() => expect(screen.getByRole("checkbox")).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Start recording" })).toHaveFocus());
     expect(screen.getAllByText("We need your confirmation before starting.").length).toBeGreaterThan(0);
     expect(t.mic.requestCount).toBe(0);
   });
 
-  it("UX 1: network error keeps the form state (box still checked) and offers retry", async () => {
-    setup("ok", "network");
+  it("UX 1: network error offers retry; a retry asks for the attestation again (box unchecked)", async () => {
+    const t = setup("ok", "network");
     await checkAndStart();
     await screen.findAllByText(/could not reach the server/);
-    expect(screen.getByRole("checkbox")).toBeChecked();
+    expect(t.mic.requestCount).toBe(0);
+    await userEvent.click(screen.getByRole("button", { name: "Start recording" }));
+    expect(within(screen.getByRole("dialog")).getByRole("checkbox")).not.toBeChecked();
+  });
+
+  it("dialog Cancel and Escape keep the microphone off and create no session", async () => {
+    const t = setup();
+    await userEvent.click(screen.getByRole("button", { name: "Start recording" }));
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("checkbox"));
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Start recording" }));
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("checkbox"));
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(t.startSession).not.toHaveBeenCalled();
+    expect(t.mic.requestCount).toBe(0);
+    expect(t.onBack).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("state-label")).toBeNull();
   });
 
   it("Not now calls back without starting anything", async () => {

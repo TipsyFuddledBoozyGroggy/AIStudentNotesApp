@@ -99,6 +99,6 @@ describe("copy lint", () => {
     expect(all).not.toContain("we will fill it in");
   });
   it("consent version matches the server draft registry", () => {
-    expect(copy.CONSENT_TEXT_VERSION).toBe("draft-1");
+    expect(copy.CONSENT_TEXT_VERSION).toBe("draft-2");
   });
 });
