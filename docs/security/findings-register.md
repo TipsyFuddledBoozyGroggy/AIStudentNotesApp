@@ -14,6 +14,7 @@ How to read it:
 
 - Updated 2026-10-29 (batch 1 verification, commit 096ba8e): M1R-N01, M1R-N02, P2B1-02, P2B1-10, P2B1-11, P2B1-14 are FIXED-VERIFIED (evidence in `docs/security/batch1-verification.md`). New rows B1V-01 (MEDIUM) and B1V-02..B1V-08 (LOW) were added. Expected greps and counts below are updated.
 - Updated 2026-10-31 (notes after Stop, PO-18d): rows NAS-01..NAS-09 from `docs/security/notes-after-stop-review.md` (commit 0a60d51) and NAS-R01..NAS-R09 from the re-review of the fixes in commit afde659 (`docs/security/notes-after-stop-rereview.md`) were added. ID prefix NAS (original review), NAS-R (re-review). FIXED-VERIFIED on these rows means I READ the code AND a test that would fail without the fix; **I did not run any test on 2026-10-31** (the dev API and DB were in use), so none of these rows is RAN. 0 CRITICAL, 0 HIGH. Counts below are updated. PO-18a..d are recorded where they touch findings (Part II, notes-after-Stop section).
+- Updated 2026-10-31 (syllabus feature as built, HEAD d65ffaa): rows SB-01 (MEDIUM) and SB-02..SB-10 (LOW) from `docs/security/syllabus-built-review.md` were added, all OPEN. Evidence is READ only: I ran no test, build or probe (dev API and dev server in use by another agent). 0 CRITICAL, 0 HIGH. Counts below are updated.
 
 # Part I. Gate summary
 
@@ -39,7 +40,7 @@ What this means for the current working tree:
 
 Everything else rated HIGH in any review is FIXED-VERIFIED (M1-F01, F02, F03; M2C-01, 02, 06, 07, 13, 14, 21, 23, 25; P2C-01, 02, 05, 06, 08, 16, 20, 24; CV-01, CV-02).
 
-## 3. Open MEDIUM (blocks production): 31 (plus GR-1 in section 2 = 32 rows)
+## 3. Open MEDIUM (blocks production): 32 (plus GR-1 in section 2 = 33 rows)
 
 | Area | Open MEDIUM | Count |
 |---|---|---|
@@ -48,11 +49,11 @@ Everything else rated HIGH in any review is FIXED-VERIFIED (M1-F01, F02, F03; M2
 | Edge: proxy, headers, CSRF, rate limits | M1-F04 | 1 |
 | Logging | B1V-01 | 1 |
 | Web app | M2C-16, M2C-29 | 2 |
-| Syllabus | P2C-23 | 1 |
+| Syllabus | P2C-23, SB-01 | 2 |
 | calendar.v1 contract (unbuilt; FIXED-CONTRACT-ONLY) | CV-03, CV-04, CV-05, CV-06, CV-07, CV-08, CV-09, CV-10, CV-11, CV-12, CV-13 | 11 |
 | Google tokens and residency (unbuilt) | GR-2, GR-3, GR-5, GR-6, GR-7 | 5 |
 | Governance, deletion, scanning | NEW-01, NEW-03 | 2 |
-| **Total** | | **31** |
+| **Total** | | **32** |
 
 **AI notes after Stop (4)** (mock provider only; the provider guard refuses any real vendor, so these block a real provider as well as production)
 
@@ -81,9 +82,10 @@ Everything else rated HIGH in any review is FIXED-VERIFIED (M1-F01, F02, F03; M2
 - M2C-16 [FIXED-UNVERIFIED]: Recording indicator must reflect server state AND the local mic track.
 - M2C-29 [OPEN]: Web app must send CSP connect-src and Permissions-Policy (microphone=(self)); test that no provider key is in the bundle.
 
-**Syllabus (1)**
+**Syllabus (2)**
 
 - P2C-23 [FIXED-UNVERIFIED]: Syllabus load could starve live-lecture AI budget (per-pool floor).
+- SB-01 [OPEN]: A CHECK violation on a text-bearing syllabus row puts 'Failing row contains (...)' (snippets, titles, possibly the whole canonical text) in the PostgreSQL server log, outside the app log filters and outside delete. Fix: log_error_verbosity=terse in every environment plus a DB-log canary.
 
 **calendar.v1 contract (unbuilt) (11)**
 
@@ -114,10 +116,11 @@ Everything else rated HIGH in any review is FIXED-VERIFIED (M1-F01, F02, F03; M2
 
 Note: M1R-N01, M1R-N02 and P2B1-02 left this list on 2026-10-29 (FIXED-VERIFIED, batch 1). Note: the 11 calendar.v1 MEDIUM rows were re-reviewed on 2026-10-29 and are FIXED-CONTRACT-ONLY: the contract defect is closed, but nothing is built, so they stay production blockers until their implementation tests exist and pass (contract section 16 'Required'; per-row tests are in Part II and in the re-review). Numbers in CV-06 and CV-13 are PROPOSAL pending PO/devops (PO-10q).
 
-## 4. LOW (noted, no gate): 59 not resolved, 52 resolved
+## 4. LOW (noted, no gate): 68 not resolved, 52 resolved
 
 Not resolved (noted; no deadline):
 
+- Syllabus as built (added 2026-10-31, READ only): SB-02 [OPEN] long line with a mid-line date overflows context_text and fails the whole extraction; SB-03 [OPEN] web always sends acknowledgeCheck=true on approve of a please_check item; SB-04 [OPEN] multipart metadata fingerprint '|'-joined, null=empty, attestation.accepted omitted; SB-05 [OPEN] course purge cascades syllabi with no Syllabus lifecycle handler (no job/AI cutoff, no delete audit, Google events would orphan); SB-06 [OPEN] pasted text and item edit drafts persist in localStorage (not per user, not cleared on sign-out or delete); SB-07 [OPEN] export is a state-changing GET reachable by cross-site top-level navigation; SB-08 [OPEN] no UTF-16 lone-surrogate/odd-length/BE/CESU-8 file tests, syllabus log canary drives paste only; SB-09 [OPEN] paste path bypasses UploadGate; SB-10 [OPEN] debris purge does not re-check 'still debris' under the lock
 - AI notes after Stop (added 2026-10-31): NAS-09 [FIXED-UNVERIFIED] backend push of the Final summary documented and tested by reading; web strict-parser test not written; NAS-R03 [OPEN] per-press cap above the notes daily sub-cap, no remaining-allowance check before the first call; NAS-R04 [OPEN] a session created in the purge gap gets no post-commit notice and no deletion audit row; NAS-R05 [OPEN] Final summary revision append not conditional on the press being Pending; NAS-R06 [OPEN] A006/M008 Down drop evidence columns unguarded; NAS-R07 [OPEN] notice id not required by the DB, client-asserted, retired ids may stay allowed; NAS-R08 [OPEN] instruction rules reject lectures that name Claude, GPT or LLMs; NAS-R09 [OPEN] integration host pool of 6 connections lowers race-test contention
 
 - Authentication, sessions, cookies: M1R-N06 [OPEN] Expired/revoked identity.sessions rows are never deleted
@@ -133,15 +136,15 @@ Not resolved (noted; no deadline):
 
 ## 5. Counts
 
-By severity and status (all 229 findings; Observations are not counted). FIXED-CONTRACT-ONLY counts as unresolved: it is verified in the contract, not at runtime. Updated 2026-10-31 with 18 notes-after-Stop rows (7 MEDIUM, 11 LOW); the 6 NAS rows marked FIXED-VERIFIED rest on reading code and tests, not on a run.
+By severity and status (all 239 findings; Observations are not counted). FIXED-CONTRACT-ONLY counts as unresolved: it is verified in the contract, not at runtime. Updated 2026-10-31 with 18 notes-after-Stop rows (7 MEDIUM, 11 LOW); the 6 NAS rows marked FIXED-VERIFIED rest on reading code and tests, not on a run. Updated again 2026-10-31 with 10 syllabus-as-built rows (SB-01 MEDIUM, SB-02..SB-10 LOW, all OPEN, READ only).
 
 | Severity | FIXED-VERIFIED | FIXED-CONTRACT-ONLY | FIXED-UNVERIFIED | OPEN | DEFERRED-WITH-REASON | SUPERSEDED | Total | Unresolved |
 |---|---|---|---|---|---|---|---|---|
 | CRITICAL | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | HIGH | 22 | 0 | 0 | 0 | 0 | 0 | 22 | 0 |
-| MEDIUM | 61 | 11 | 3 | 12 | 6 | 3 | 96 | 32 |
-| LOW | 51 | 10 | 6 | 34 | 9 | 1 | 111 | 59 |
-| **Total** | **134** | **21** | **9** | **46** | **15** | **4** | **229** | **91** |
+| MEDIUM | 61 | 11 | 3 | 13 | 6 | 3 | 97 | 33 |
+| LOW | 51 | 10 | 6 | 43 | 9 | 1 | 120 | 68 |
+| **Total** | **134** | **21** | **9** | **56** | **15** | **4** | **239** | **101** |
 
 Observations (Info, not findings): 41 entries listed at the end.
 
@@ -179,7 +182,7 @@ Run from `/Users/jamie/Dev/AIStudentNotesApp`. Every step must pass; then say th
    ```
    grep -E '^\| [^|]+ \| [^|]+ \| (CRITICAL|HIGH|MEDIUM) \| (OPEN|FIXED-CONTRACT-ONLY|FIXED-UNVERIFIED|DEFERRED-WITH-REASON) \|' docs/security/findings-register.md
    ```
-   Today it prints 32 rows (0 HIGH + 32 MEDIUM, of which 11 are calendar.v1 rows FIXED-CONTRACT-ONLY, 4 are notes-after-Stop rows NAS-04, NAS-05, NAS-R01, NAS-R02, and GR-1 is one of the 32). Expected MEDIUM-only count: `grep -cE '^\| [^|]+ \| [^|]+ \| MEDIUM \| (OPEN|FIXED-CONTRACT-ONLY|FIXED-UNVERIFIED|DEFERRED-WITH-REASON) \|' docs/security/findings-register.md` prints 32.
+   Today it prints 33 rows (0 HIGH + 33 MEDIUM, of which 11 are calendar.v1 rows FIXED-CONTRACT-ONLY, 4 are notes-after-Stop rows NAS-04, NAS-05, NAS-R01, NAS-R02, 1 is the syllabus-as-built row SB-01, and GR-1 is one of the 33). Expected MEDIUM-only count: `grep -cE '^\| [^|]+ \| [^|]+ \| MEDIUM \| (OPEN|FIXED-CONTRACT-ONLY|FIXED-UNVERIFIED|DEFERRED-WITH-REASON) \|' docs/security/findings-register.md` prints 33.
 2. For every FIXED-VERIFIED row you rely on, re-open the evidence (test name still exists and passes in CI, not only locally). `grep -c 'RAN 2026-10-29' docs/security/findings-register.md` shows how many rest on my local run; none rests on a GitHub CI run because CI has never run (NEW-03).
 3. Controls that exist only as contract text or design and have no implementation yet. They are not open rows today because the code does not exist, but each becomes a production blocker the moment its feature ships. Confirm none of these features is in the release, or implement and test them first:
    - Syllabus parser sandbox, ingest worker, tmpfs volume, hostile-file fixtures (P2C-01, P2C-02, P2D-R3-03..06; contract 5.1).
@@ -540,6 +543,23 @@ Decisions that touch these findings: **PO-18c** (Demo-source notice shown as a o
 | NAS-R08 | notes-after-stop-rereview | LOW | OPEN | NONE | Instruction rules treat any mention of Claude, GPT-N, OpenAI, Anthropic or LLM as an instruction, so lectures about Claude Shannon, Monet or ML lose notes (fails closed, no reason shown). | READ Validators.cs:395. |
 | NAS-R09 | notes-after-stop-rereview | LOW | OPEN | NONE | Integration host and helpers now share a 6-connection pool; race tests with 6-20 parallel operations overlap less in the DB, so check-then-insert races are exercised less. Pooling itself is safe (only transaction-local set_config, xact advisory locks). | READ ApiFactory.cs:42, Jobs.cs:303-305, AiBudgetTests.cs:58,86. Owner devops-engineer. |
 
+## Syllabus feature as built (syllabus-built-review.md, HEAD d65ffaa)
+
+Independent read-only review of the built mock-only Syllabus module and web client (upload, delete, export, authorization, injection, logging). Evidence tag READ = code, migration and test read on 2026-10-31, NOT RUN. Paths under `src/api/` unless they start with `src/web/`. Requirements for P2-B3, a real AI extractor and real Google Calendar are listed in the review, not as rows. Observations SB-I1..I4 are in the review only.
+
+| ID | Source | Sev | Status | Gate | Summary | Evidence |
+|---|---|---|---|---|---|---|
+| SB-01 | syllabus-built-review | MEDIUM | OPEN | PRODUCTION | A CHECK violation (23514) on a text-bearing syllabus row (items, unclaimed_dates, canonical_texts, calendar_events) makes PostgreSQL log 'DETAIL: Failing row contains (...)' at the default log_error_verbosity, so snippets, titles or the whole canonical text reach the DB server log, outside the app filters, the log canary and delete. Applies to lecture tables too. Rated MEDIUM over LOW because of impact and a cheap fix. | READ S001_Syllabus.cs:230-233,281-283; docker-compose.yml:4-14 (no logging settings); Program.cs:38-46 (app-only filters). Postgres behaviour from documentation, UNVERIFIED (no probe). Fix: log_error_verbosity=terse, log_parameter_max_length_on_error=0, log_statement=none in every environment; CI canary that forces a CHECK violation and scans the container log. Owners devops-engineer, database-architect. |
+| SB-02 | syllabus-built-review | LOW | OPEN | NONE | A line over 1,500 code points with a date far from both ends gets a context window of up to about 1,980 code points; varchar(1500) overflows and the whole syllabus fails with invalid_output (fails closed, self only; common for PDF-copied text with no line breaks). | READ Extraction/MockRuleExtractor.cs:421,433; Jobs.cs:91-95. No long-line test (grep 1500 in Tether.SyllabusTests). Fix: bound context in code points; re-check field lengths in PersistAsync; 3,000-character single-line fixture. |
+| SB-03 | syllabus-built-review | LOW | OPEN | NONE | The web always sends acknowledgeCheck=true when a please_check item is approved, so the server's acknowledgement_required gate cannot tell a deliberate acknowledgement from a normal click; injection_suspect items are one click from approval (batch is refused server-side; mock calendar only). Documented UX decision. | READ src/web/src/components/syllabus/ItemRow.tsx:83-84, OneAtATime.tsx:84,196; ItemService.cs:228. Requirement before any real calendar write: a separate explicit action or the CV-11 confirm record. |
+| SB-04 | syllabus-built-review | LOW | OPEN | NONE | Multipart metadata canonical string is '|'-joined with null equal to empty, and attestation.accepted is left out of both create fingerprints, so a same-user request with different metadata can replay instead of getting 400 (B1-07 fixed the outer material only). | READ Application/UploadIntake.cs:122-126; SyllabusService.cs:93,103. Fix: build it with Material(), add accepted, extend the B1-07 test to multipart. |
+| SB-05 | syllabus-built-review | LOW | OPEN | NONE | Course purge removes syllabi only by FK cascade: Syllabus implements no ICourseLifecycleHandler, so no job cancel / IAiScopeCutoff and no syllabus_deleted audit; with a real extractor an in-flight call would continue, and with real Google events would orphan. | READ S002_SyllabusIntegrity.cs:22-28; Courses CourseEndpoints.cs:134,162; only Lectures registers a handler (LecturesModule.cs:30; grep). Required before P2-B3, a real extractor or Google. |
+| SB-06 | syllabus-built-review | LOW | OPEN | NONE | Pasted syllabus text (up to 50,000 characters) and item edit drafts persist in localStorage keyed by course or item, not by user; not cleared on sign-out, course delete or syllabus delete (shared computers). | READ src/web/src/components/syllabus/CreateForm.tsx:107,132-148; ItemEditForm.tsx:23,106; storage.ts. Owner frontend-engineer. |
+| SB-07 | syllabus-built-review | LOW | OPEN | NONE | Export is a GET that writes an audit row and uses the export budget; a cross-site top-level navigation sends the Lax cookie, so another site can trigger it (download to the victim, unreadable by the attacker, needs the 128-bit id). | READ SyllabusEndpoints.cs:33,277-293; Identity IdentityModule.cs:64 (SameSite=Lax). Fix: Sec-Fetch-Site check (with M1-F04) or written acceptance. |
+| SB-08 | syllabus-built-review | LOW | OPEN | NONE | No upload tests for a text file with a UTF-16 lone surrogate, odd length, UTF-16BE or UTF-32 BOM, or CESU-8 bytes (a passing lone surrogate would hit B1V-07 and give 500); the log canary drives paste only (no multipart filename, PATCH title/notes, sync, export or failed persist); the filename canary scans the DB, not logs. | READ tests/Tether.IntegrationTests/Syllabus/SyllabusUploadTests.cs:65-68,106,176-184; LogPipelineCanaryTests.cs:107-116. Related B1V-02, B1V-07. |
+| SB-09 | syllabus-built-review | LOW | OPEN | NONE | JSON paste creates (1 MB) bypass UploadGate: no per-user concurrency or bytes-in-flight budget, only the 20/min write bucket. | READ SyllabusService.cs:69; SyllabusEndpoints.cs:111-115. Related P2B1-12. |
+| SB-10 | syllabus-built-review | LOW | OPEN | NONE | Debris purge selects candidates (no student items, purge_after due) in one transaction and deletes in another without re-checking under the row lock; not reachable today (hand entry needs ready/partial), but a future retry or needs_text hand entry would delete student work. | READ Jobs.cs:250-254,265; SyllabusService.cs:332-347; ItemService.cs:104. Fix: debris-mode re-check after LockSyllabusAsync plus a race test. |
+
 ## Findings added by this register
 
 Gaps implied by the reviews and decisions that no review gave an ID. Rated by the policy; where unsure, the higher level.
@@ -601,7 +621,7 @@ RN-07 (register): `docs/DECISIONS.md` PO-9k and `docs/vendors/google-verificatio
 # Summary (5 lines)
 
 1. Open CRITICAL: 0. Open HIGH: 0 (GR-1 was downgraded to MEDIUM by the Product Owner on 2026-10-29, PO-14a), so the security register no longer blocks a git push. CV-01 and CV-02 are FIXED-VERIFIED at contract level.
-2. Open MEDIUM: 32 (blocks production; includes GR-1), of which 11 are calendar.v1 items FIXED-CONTRACT-ONLY (need implementation tests) and 4 are notes-after-Stop rows (NAS-04, NAS-05, NAS-R01, NAS-R02); LOW not resolved: 59 (noted, includes CVR-N01..N08, B1V-02..B1V-08, NAS-09 and NAS-R03..R09).
-3. 229 findings (16 review documents, 3 added by this register, 8 from batch 1 verification); 138 resolved (FIXED-VERIFIED or SUPERSEDED), 91 unresolved; 41 observations (S1-S13 added as one row). The 6 notes-after-Stop FIXED-VERIFIED rows rest on reading only (2026-10-31, nothing run).
+2. Open MEDIUM: 33 (blocks production; includes GR-1), of which 11 are calendar.v1 items FIXED-CONTRACT-ONLY (need implementation tests), 4 are notes-after-Stop rows (NAS-04, NAS-05, NAS-R01, NAS-R02) and 1 is syllabus-as-built SB-01 (Postgres server log); LOW not resolved: 68 (noted, includes CVR-N01..N08, B1V-02..B1V-08, NAS-09, NAS-R03..R09 and SB-02..SB-10).
+3. 239 findings (17 review documents, 3 added by this register, 8 from batch 1 verification); 138 resolved (FIXED-VERIFIED or SUPERSEDED), 101 unresolved; 41 observations (S1-S13 added as one row; syllabus-built SB-I1..I4 are in that review only). The 6 notes-after-Stop FIXED-VERIFIED rows rest on reading only (2026-10-31, nothing run).
 4. Full .NET suite passed on 2026-10-29 (830 contract, 241 AI, 99 syllabus, 534 integration, 22 architecture; rerun after commit 096ba8e); web tests, CI, scanners, Google behaviour (T1-T12) and all human gates were not verified.
 5. The rename, A004 migration, renamed route and LanguageGuard introduced no new CRITICAL, HIGH or MEDIUM finding; this register clears no release gate. RN-07 (PO's personal address in committed history) stays.
