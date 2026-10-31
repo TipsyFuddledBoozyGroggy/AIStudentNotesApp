@@ -32,7 +32,7 @@ public abstract class LectureTestBase(ApiFactory factory)
         return (await res.BodyAsync()).GetProperty("id").GetString()!;
     }
 
-    protected static object Consent(string version = ConsentTextRegistry.DraftV1) => new { acknowledged = true, textVersion = version };
+    protected static object Consent(string version = ConsentTextRegistry.DraftV2) => new { acknowledged = true, textVersion = version };
 
     protected static Task<HttpResponseMessage> StartAsync(HttpClient c, string courseId, string? key = null, string? title = "Cell division", object? consent = null)
     {
@@ -77,7 +77,7 @@ public class LectureSessionTests(ApiFactory factory) : LectureTestBase(factory),
         Assert.Equal(courseId, b.GetProperty("courseId").GetString());
         Assert.Equal("Cell division", b.GetProperty("title").GetString());
         Assert.Equal("1", b.GetProperty("lastSeq").GetString());
-        Assert.Equal(ConsentTextRegistry.DraftV1, b.GetProperty("consent").GetProperty("textVersion").GetString());
+        Assert.Equal(ConsentTextRegistry.DraftV2, b.GetProperty("consent").GetProperty("textVersion").GetString());
         Assert.False(b.TryGetProperty("stoppedAt", out _));
         Assert.False(b.TryGetProperty("userId", out _), "owner id must not leak");
 
@@ -640,11 +640,14 @@ public class LectureSessionTests(ApiFactory factory) : LectureTestBase(factory),
     {
         var r = new ConsentTextRegistry();
         Assert.True(r.IsAccepted("draft-1"));
-        Assert.False(r.IsAccepted("draft-2"));
+        Assert.True(r.IsAccepted("draft-2"));
+        Assert.False(r.IsAccepted("draft-3"));
         Assert.False(r.IsAccepted(null));
         Assert.False(r.IsAccepted(""));
         Assert.False(r.IsAccepted("DRAFT-1")); // ordinal
-        Assert.StartsWith("DRAFT", r.TextFor(r.Current));
+        Assert.Equal("draft-2", r.Current);
+        Assert.Equal("My teacher said I can record this class.", r.TextFor("draft-2"));
+        Assert.StartsWith("DRAFT", r.TextFor("draft-1")); // old evidence text unchanged
     }
 
     [Fact]

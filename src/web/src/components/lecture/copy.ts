@@ -3,8 +3,8 @@
 // the mock-backed build, not legal wording, and must not be shown to real students.
 // copy.test.ts lints this file for forbidden phrases.
 
-/** Must equal ConsentTextRegistry.DraftV1 on the server (src/api/.../ConsentTextRegistry.cs). */
-export const CONSENT_TEXT_VERSION = "draft-1";
+/** Must equal ConsentTextRegistry.DraftV2 on the server (src/api/.../ConsentTextRegistry.cs); its text is the dialog checkbox sentence. */
+export const CONSENT_TEXT_VERSION = "draft-2";
 
 export const DEMO_SOURCE_TAG = "Demo source: replayed test audio";
 
@@ -39,20 +39,34 @@ export const CONSENT_COPY = {
     "Draft: text is processed by a speech service and an AI service.",
     "Deleting a lecture here does not remove copies already held by those services or by Google.",
   ],
-  checkbox: "I checked that recording and transcribing is allowed in this class.",
   whatDoesThisMean: "What does this mean?",
   whatDoesThisMeanBody: "Tether is not a legal advisor. Ask your instructor if you are unsure.",
   attested: (courseName: string, dateLabel: string) => `You confirmed this for ${courseName} on ${dateLabel}.`,
-  attestedChange: "Change",
+  /** Opens the teacher-permission dialog; nothing starts until the dialog is confirmed. */
   start: "Start recording",
   starting: "Starting...",
   notNow: "Not now",
-  startHint: "Check the box above to continue",
   errors: {
     consent_required: "We need your confirmation before starting.",
     invalid_state: "You already have a lecture running. Open it or stop it first.",
-    network: "We could not reach the server. Your choices are kept. Try again.",
+    network: "We could not reach the server. Try again.",
   },
+} as const;
+
+/**
+ * DRAFT wording, not legal text. Teacher-permission pop-up from PO-16 (personal use; gate G1 stays BLOCKED).
+ * Plain, warm and blame-free per docs/ux/language-guide.md. It makes no legal claim and does not say recording
+ * is allowed, only that the student confirms their teacher said yes. Fuller consent wording stays DEFERRED.
+ * The server stores this as textVersion CONSENT_TEXT_VERSION; see the note on that constant.
+ */
+export const CONSENT_DIALOG_COPY = {
+  heading: "Did your teacher say you can record?",
+  body: (courseName: string) => `Tether turns on the microphone only after you confirm this for ${courseName}.`,
+  checkbox: "My teacher said I can record this class.",
+  notSure: "Not sure? Choose Cancel. The microphone stays off, and you can ask your teacher first.",
+  checkHint: "Check the box above to continue.",
+  confirm: "Confirm and start recording",
+  cancel: "Cancel",
 } as const;
 
 export const STATUS_COPY = {

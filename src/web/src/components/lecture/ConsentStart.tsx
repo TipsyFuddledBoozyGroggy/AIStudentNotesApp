@@ -1,17 +1,21 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PlainText } from "@/lib/lecture";
 import { useAnnouncer } from "./Announcer";
+import { ConsentDialog } from "./ConsentDialog";
 import { CONSENT_COPY as C, DEMO_NOTICE_COPY } from "./copy";
 import type { StartError } from "./ports";
 
 export interface ConsentStartProps {
   courseName: string;
-  /** Called only when the box is checked and Start is pressed. */
+  /** Called only after the teacher-permission dialog is confirmed (box ticked, confirm pressed). */
   onStart: () => void;
   onCancel: () => void;
-  /** Course-level attestation from an earlier start (SEC-008); the box starts checked. */
+  /**
+   * Course-level attestation from an earlier start (SEC-008). Shown as information only: the dialog box always starts
+   * unchecked, so every start needs a fresh, explicit confirmation (PO-16).
+   */
   attestation?: { dateLabel: string };
   error?: StartError | null;
   /** Link target for the invalid_state error. */
@@ -21,15 +25,16 @@ export interface ConsentStartProps {
   demoExpected?: boolean;
 }
 
+/**
+ * "Before you start" page. Start recording opens ConsentDialog (teacher-permission attestation, DRAFT wording); only
+ * confirming there calls onStart. Cancel or Escape closes the dialog, returns focus to Start recording, and starts
+ * nothing: no session, no microphone.
+ */
 export function ConsentStart({ courseName, onStart, onCancel, attestation, error, runningLectureHref, busy, demoExpected }: ConsentStartProps) {
   const announcer = useAnnouncer();
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const checkRef = useRef<HTMLInputElement>(null);
-  const hintRef = useRef<HTMLParagraphElement>(null);
-  const [checked, setChecked] = useState(attestation !== undefined);
-  const [attested, setAttested] = useState(attestation !== undefined);
-  const hintId = useId();
-  const errId = useId();
+  const startRef = useRef<HTMLButtonElement>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -38,17 +43,24 @@ export function ConsentStart({ courseName, onStart, onCancel, attestation, error
   useEffect(() => {
     if (!error) return;
     announcer.alert(`start-${error}`, C.errors[error]);
-    if (error === "consent_required") checkRef.current?.focus();
+    startRef.current?.focus();
     return () => announcer.clearEpisode(`start-${error}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [error]);
 
   const press = () => {
     if (busy) return;
-    if (!checked) {
-      hintRef.current?.focus();
-      return;
-    }
+    setDialogOpen(true);
+  };
+
+  const cancelDialog = () => {
+    setDialogOpen(false);
+    queueMicrotask(() => startRef.current?.focus());
+  };
+
+  const confirmDialog = () => {
+    setDialogOpen(false);
+    queueMicrotask(() => startRef.current?.focus());
     onStart();
   };
 
@@ -77,38 +89,14 @@ export function ConsentStart({ courseName, onStart, onCancel, attestation, error
         <p className="mt-1 text-muted">{C.whatDoesThisMeanBody}</p>
       </details>
 
-      {attested ? (
+      {attestation ? (
         <p className="mt-4">
-          <PlainText value={C.attested(courseName, attestation?.dateLabel ?? "")} />{" "}
-          <button
-            type="button"
-            className="btn-quiet btn-sm"
-            onClick={() => {
-              setAttested(false);
-              setChecked(false);
-            }}
-          >
-            {C.attestedChange}
-          </button>
+          <PlainText value={C.attested(courseName, attestation.dateLabel)} />
         </p>
       ) : null}
 
-      <div className="mt-5 flex items-start gap-3 rounded-control border-2 border-line bg-surface p-4">
-        <input
-          ref={checkRef}
-          id="consent-check"
-          type="checkbox"
-          className="mt-0.5 h-6 w-6 shrink-0 accent-[var(--c-accent)]"
-          checked={checked}
-          onChange={(e) => setChecked(e.target.checked)}
-        />
-        <label htmlFor="consent-check" className="font-semibold">
-          {C.checkbox}
-        </label>
-      </div>
-
       {error ? (
-        <p id={errId} className="panel panel-notice mt-3">
+        <p className="panel panel-notice mt-4">
           {C.errors[error]}{" "}
           {error === "invalid_state" && runningLectureHref ? (
             <a className="link" href={runningLectureHref}>
@@ -118,18 +106,13 @@ export function ConsentStart({ courseName, onStart, onCancel, attestation, error
         </p>
       ) : null}
 
-      {!checked ? (
-        <p id={hintId} ref={hintRef} tabIndex={-1} className="mt-3 text-sm text-muted">
-          {C.startHint}
-        </p>
-      ) : null}
-
       <div className="mt-5 flex flex-wrap gap-3">
         <button
+          ref={startRef}
           type="button"
           className="btn-primary min-h-[48px] min-w-[48px] px-6"
-          aria-disabled={!checked || busy ? true : undefined}
-          aria-describedby={!checked ? hintId : undefined}
+          aria-haspopup="dialog"
+          aria-disabled={busy ? true : undefined}
           onClick={press}
         >
           {busy ? C.starting : C.start}
@@ -138,6 +121,8 @@ export function ConsentStart({ courseName, onStart, onCancel, attestation, error
           {C.notNow}
         </button>
       </div>
+
+      {dialogOpen ? <ConsentDialog courseName={courseName} onConfirm={confirmDialog} onCancel={cancelDialog} /> : null}
     </section>
   );
 }
