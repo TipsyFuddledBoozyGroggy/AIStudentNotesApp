@@ -54,12 +54,13 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
-          PUSH_BEFORE: ${{ github.event.before }}
         run: |
           set -eu
           base=""
           if [ "$EVENT" = "pull_request" ]; then base="$PR_BASE"; fi
-          if [ "$EVENT" = "push" ] && [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then base="$PUSH_BEFORE"; fi
+          # Pushes to main always run everything (no diff filter): GitHub keeps only one queued run per branch, so a
+          # newer docs-only push can replace the queued run of the previous code push, and a diff against the previous
+          # commit would then skip the code that never ran. The diff filter is for pull requests only.
           emit() {
             echo "backend=$1" >> "$GITHUB_OUTPUT"; echo "web=$2" >> "$GITHUB_OUTPUT"
             if [ "$1" = true ] || [ "$2" = true ]; then
