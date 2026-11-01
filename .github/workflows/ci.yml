@@ -368,6 +368,9 @@ jobs:
           RateLimiting__AudioTicketPermitPerMinute: "600"
           RateLimiting__WritePermitPerMinute: "300"
           RateLimiting__ApiPermitPerMinute: "1200"
+          # CI only (PO-20ah): relaxed join limits; production defaults (10 and 30 per minute) stay in code.
+          Realtime__JoinPermitPerMinute: "300"
+          Realtime__JoinPermitPerUserPerMinute: "600"
         run: |
           dotnet build src/api/src/Tether.Host -c Release
           nohup dotnet run --project src/api/src/Tether.Host -c Release --no-build --no-launch-profile --urls http://127.0.0.1:5080 > "$RUNNER_TEMP/api.log" 2>&1 &

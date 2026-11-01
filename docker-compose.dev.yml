@@ -36,6 +36,9 @@ services:
       RateLimiting__AudioTicketPermitPerMinute: "600"
       RateLimiting__WritePermitPerMinute: "300"
       RateLimiting__ApiPermitPerMinute: "1200"
+      # Dev only (PO-20ah): the live-session join limits keep their production defaults (10 and 30 per minute) in code.
+      Realtime__JoinPermitPerMinute: "300"
+      Realtime__JoinPermitPerUserPerMinute: "600"
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-college_companion_dev};Username=${POSTGRES_USER:-cc_dev};Password=${POSTGRES_PASSWORD:-cc_dev_only_password}"
     depends_on:
       postgres:
