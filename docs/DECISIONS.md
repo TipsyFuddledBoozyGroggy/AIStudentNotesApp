@@ -180,7 +180,7 @@ Source: the Product Owner's answers in the local Review Desk (23 items; the desk
 | PO-20n | SBR-08: fix calendar removal on course delete when the real calendar work starts; recorded as a prerequisite. | PO decided |
 | PO-20o | SBR-01: replace the container-scan action with a checksum-pinned binary later; low urgency. | PO decided |
 | PO-20p | SB-01: repeat the database log hardening as a deployment checklist item with the hosting decision. | PO decided |
-| PO-20q | SEC-BRANCH: enable branch protection on `main` after the first fully green CI run, requiring the aggregate `ci result (all required jobs)` check, with admin bypass. The first green run exists (41336514945). | PO decided; **not yet applied** (the change to repository settings was blocked by the permission guard and needs the PO's go-ahead in the session) |
+| PO-20q | SEC-BRANCH: enable branch protection on `main` after the first fully green CI run, requiring the aggregate `ci result (all required jobs)` check, with admin bypass. The first green run exists (41336514945). | PO decided; **APPLIED 2026-11-01** after the PO's explicit go-ahead in the session ("feel free to apply branch protection"): `main` requires the aggregate check `ci result (all required jobs)`, no force-push, no deletion, admin bypass kept (`enforce_admins` false), no required pull-request review. |
 | PO-20r | D4: discard the original uploaded file after reading (current behaviour). | PO decided |
 | PO-20s | D5: keep the draft upload notice and attestation for personal use; revisit before any other user. | PO decided |
 | PO-20t | G2-CAP: leave the per-session AI cap placeholder until a priced pilot. | PO decided |
