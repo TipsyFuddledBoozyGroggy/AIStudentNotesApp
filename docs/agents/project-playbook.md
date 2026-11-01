@@ -44,7 +44,7 @@ Spec: `docs/ux/redesign-round2.md` (+ per-feature specs in `docs/ux/`).
 - Use existing primitives and tokens: `.sheet`, `.ledger`, `.note`, `.stamp`, `.label`, `.btn-tertiary`, `.link`, `.dialog`; tokens in `tokens.ts` / `globals.css`. No raw hex, no new tokens or CSS without a spec. Serif = synthesis, sans = verbatim and controls.
 - **Exactly three live regions**; `aria-live` only in allow-listed files. Never add one.
 - Five themes (Paper, Course portal, Gamer, Calm, Glass) x light/dark; the 12-landmark geometry gate must stay equal across looks. Do not loosen a geometry bound to make a test pass.
-- Copy: calm, no alarm, no false certainty, never imply the AI is certain; the copy lint (`copyLint.ts`) must pass; new wording is DRAFT until `adhd-ux-specialist` reviews it. 44px targets, WCAG 2.2 AA.
+- Copy: calm, no alarm, no false certainty, never imply the AI is certain; the copy lint (`copyLint.ts`) must pass; new wording is DRAFT until `neurodivergent-ux-specialist` reviews it. 44px targets, WCAG 2.2 AA.
 - Quiet mode and low-stimulation must still work for anything you add.
 - Before reporting: `npx.cmd tsc --noEmit -p .`, `npx.cmd eslint .` (1 known pre-existing warning `e2e/lecture.spec.ts` `_label`), `npx.cmd vitest run`.
 

@@ -1,6 +1,6 @@
 # Tether redesign round 2: design review of slices 0 to 5 and verdicts on the open questions
 
-Status: AI SPECIALIST DESIGN, 2026-10-31. Author: adhd-ux-specialist (design lead for round 2). Audience: Lead Architect, Product Owner, frontend-engineer, qa-engineer.
+Status: AI SPECIALIST DESIGN, 2026-10-31. Author: neurodivergent-ux-specialist (design lead for round 2). Audience: Lead Architect, Product Owner, frontend-engineer, qa-engineer.
 **Nothing here is human-validated (gate G4 NOT_RUN).** No student, clinician, screen-reader or real-device evidence exists for any verdict below; every call is design judgement [J] unless tagged [C] (project constraint) or [E] (standard knowledge, not re-fetched).
 **Gate G1 (BLOCKED, PO-17b):** consent, recording and Demo-source wording *and presentation* are unchanged by this review. Where the fix for a finding lives on the G1 side I say "recommend only" and the item waits for the Product Owner and counsel. I touched no source file; the only file written is this one.
 
@@ -23,7 +23,7 @@ Priority marks: **must** = truth, accessibility, lint or consistency failure, or
 | 3.1 | Theme descriptions (all five) | **Replace all five** with strings that name paint only (section 3.1); add one panel sentence that says what a theme does and does not change. Sync `themes-spec.md` 3.2 and `ThemePicker.test.tsx` in the same change. | must |
 | 3.2 | Low-stimulation hint | **Replace**: the current string contains "just" (fails `FORBIDDEN` if it were in the registry; it is a prop literal, so it is not linted) and "softer colours" is true on Paper only. Move it into `PREFS_COPY`. | must |
 | 3.3 | Preferences side panel: reflow (built) or overlay | **Reflow, as built.** Verify the reflow is instant (no width/padding transition). Accept two header rows at 1024 to 1279 while open. | should (keep) / must (verify) |
-| 4 | Separate acknowledgement step for "Please check" approvals | **No separate step.** The automatic `acknowledgeCheck` with the hint as the button's description is the right ADHD/low-pressure design. Two tightenings: source quote before the hint and the actions (slice 6 row order); no *filled* Approve for a "Please check" item in one-at-a-time. | must (no step) / should (tightenings) |
+| 4 | Separate acknowledgement step for "Please check" approvals | **No separate step.** The automatic `acknowledgeCheck` with the hint as the button's description is the right neurodivergent-friendly, low-pressure design. Two tightenings: source quote before the hint and the actions (slice 6 row order); no *filled* Approve for a "Please check" item in one-at-a-time. | must (no step) / should (tightenings) |
 | 5 | Overall match and the three biggest gaps | Built result matches the direction closely where it was allowed to (section 5). Gaps: syllabus review (slice 6, unbuilt); the Demo-source presentation on lecture screens (G1, PO Q2); the safety-state screens as a set. | see 5 |
 
 ---
@@ -36,7 +36,7 @@ Seen in `lecture-focus--1280--paper.png` (the note "TL;DR / Derivatives and the 
 
 **Verdict: keep the reserve. Mark: should.**
 
-Why, in ADHD cognitive-load terms [J]:
+Why, in neurodivergent cognitive-load terms [J]:
 - A summary revision that grows from one line to two would move the transcript sheet down 32px mid-lecture. That is a change the student did not make, directly above the text they are reading. It costs a re-fixation and a "what changed?" check every time it happens, and it happens on exactly the surfaces (Focus, phone) a student chose because they wanted fewer things to happen. Principle 3 (nothing moves unless the student moved it) outranks whitespace.
 - An empty line under a short sentence is read as space, not as missing content; it is only visible while the note is in view and the summary is short, and on Paper the fixture summary is unusually short. Most real one-line summaries at 24px wrap in a 322px column anyway (the agent's record says the same).
 - Switching the collapsed preview to the sans would remove face variance and the reserve, but it would also remove the one place in Focus mode where the serif marks "this is the app's synthesis, not the lecturer's words". PO-17's rule earns its keep precisely there. Do not do this.

@@ -1,6 +1,6 @@
 # Dropped-dates notice on the syllabus Review screen (`counts.droppedInvalid`)
 
-Owner: adhd-ux-specialist. Status: SPEC, 2026-11-01, not built, not human-validated (gate G4 NOT_RUN). Implements the web half of security finding SBR-06 (`docs/security/syllabus-fixes-rereview.md`, `docs/security/findings-register.md`). Backend half landed in commit 033b79d. Depends on: `docs/ux/redesign-round2.md` (Note primitive 2.7, invariants 3.3), `docs/ux/language-guide.md` (binding), `src/web/src/lib/copyLint.ts` (lint), `docs/API_CONTRACTS_P2.md` (syllabus.v1, FROZEN).
+Owner: neurodivergent-ux-specialist. Status: SPEC, 2026-11-01, not built, not human-validated (gate G4 NOT_RUN). Implements the web half of security finding SBR-06 (`docs/security/syllabus-fixes-rereview.md`, `docs/security/findings-register.md`). Backend half landed in commit 033b79d. Depends on: `docs/ux/redesign-round2.md` (Note primitive 2.7, invariants 3.3), `docs/ux/language-guide.md` (binding), `src/web/src/lib/copyLint.ts` (lint), `docs/API_CONTRACTS_P2.md` (syllabus.v1, FROZEN).
 
 Gate G1 (recording consent and Demo wording): **not touched**. The notice carries no consent, recording or Demo wording, and it is inserted after both `DemoLine`s, never between or before them. `copy.test.ts`'s Demo pins are unaffected.
 

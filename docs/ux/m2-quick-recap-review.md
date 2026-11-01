@@ -1,6 +1,6 @@
 # M2 Review: Quick recap and TL;DR UI
 
-**This is an AI specialist review (adhd-ux-specialist), 2026-10-28. It is NOT human ADHD-student, clinician or screen-reader-user validation.** Findings are design hypotheses from reading code and docs. Nothing was run, rendered or tested with a screen reader or device. Gate "ADHD suitability and learning-science effectiveness" stays NOT HUMAN-VALIDATED. All copy below is draft wording and still needs the plain-language review in `copy.test.ts` plus human review.
+**This is an AI specialist review (neurodivergent-ux-specialist), 2026-10-28. It is NOT human neurodivergent-student, clinician or screen-reader-user validation.** Findings are design hypotheses from reading code and docs. Nothing was run, rendered or tested with a screen reader or device. Gate "neurodivergent suitability and learning-science effectiveness" stays NOT HUMAN-VALIDATED. All copy below is draft wording and still needs the plain-language review in `copy.test.ts` plus human review.
 
 ## Scope and sources
 
@@ -79,7 +79,7 @@ Replacement copy:
 Refs: `LectureScreen.tsx:172-180`; `QuickRecapPanel.tsx:257-270`; UX 5.5 ("always on screen in focus mode"). The inline result expands above TL;DR in the same column; with detail open TL;DR is pushed well below the fold. Fix with M1 (bounded scroll region or sheet). On phone, per UX 5.1 only one of transcript or recap fully expanded at once.
 
 ### S2. AI result swaps content under a reading student
-Refs: `useQuickRecap.ts:68-75` (`accept`), `QuickRecapPanel.tsx:96-109`, `QuickRecapPanel.tsx:195-204`. While the student reads the extractive text, the AI version replaces it in place, changing line breaks beneath their eyes and announcing "Recap ready." (UX rule 5, PRD M2-S4 AC2 spirit). Hypothesis: reflow during reading is costly for many ADHD readers.
+Refs: `useQuickRecap.ts:68-75` (`accept`), `QuickRecapPanel.tsx:96-109`, `QuickRecapPanel.tsx:195-204`. While the student reads the extractive text, the AI version replaces it in place, changing line breaks beneath their eyes and announcing "Recap ready." (UX rule 5, PRD M2-S4 AC2 spirit). Hypothesis: reflow during reading is costly for many neurodivergent readers.
 Fix: keep the extractive view and show a small button "Recap is ready. Show it." that swaps on request (no focus move). Auto-swap only if the student has not scrolled or interacted (optional).
 Copy: `recapReady`: "A short recap is ready." Button: "Show the recap". Pending notice: "A short recap is on its way. Here is what was said in the meantime." (replace `pending`). Slow: "The recap is taking a while. Here is what was said. You can keep reading or try again." Note `slow` currently has no retry action; the student can press a window button again, so say so.
 

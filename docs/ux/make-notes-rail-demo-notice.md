@@ -1,6 +1,6 @@
 # Make notes after Stop, the syllabus Calendar-step rail, and the Demo-source notice as a Note
 
-Status: AI SPECIALIST DESIGN, 2026-10-31. Author: adhd-ux-specialist (design lead, round 2). Audience: Lead Architect, Product Owner, frontend-engineer, qa-engineer, security-engineer, legal-compliance-reviewer.
+Status: AI SPECIALIST DESIGN, 2026-10-31. Author: neurodivergent-ux-specialist (design lead, round 2). Audience: Lead Architect, Product Owner, frontend-engineer, qa-engineer, security-engineer, legal-compliance-reviewer.
 
 **Nothing here is human-validated (gate G4 NOT_RUN).** No student, clinician, screen-reader or real-device evidence exists for any choice below. Tags: [J] design judgement, [C] project constraint (CLAUDE.md invariants 2, 3, 7, 9; frozen names; the three-live-region rule), [E] standard knowledge recalled, not re-fetched.
 

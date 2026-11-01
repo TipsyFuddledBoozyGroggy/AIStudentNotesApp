@@ -1,6 +1,6 @@
 # Tether
 
-An ADHD-friendly college academic assistant: consented live lecture transcription, a continuously updated TL;DR, one-click **Quick recap** catch-up, contextual tutoring, editable study guides, and student-approved Google Docs/Calendar workflows.
+A neurodivergent-friendly college academic assistant: consented live lecture transcription, a continuously updated TL;DR, one-click **Quick recap** catch-up, contextual tutoring, editable study guides, and student-approved Google Docs/Calendar workflows.
 
 Status: pre-implementation. This repository currently contains project instructions and Claude Code specialist agents only. There is no application code yet.
 
@@ -18,7 +18,7 @@ Agents are limited by the `tools` field in their frontmatter:
 
 | Agent | Tools |
 |---|---|
-| `product-manager`, `adhd-ux-specialist`, `learning-science` | Read, Grep, Glob, Write, Edit (docs and specs) |
+| `product-manager`, `neurodivergent-ux-specialist`, `learning-science` | Read, Grep, Glob, Write, Edit (docs and specs) |
 | `security-engineer`, `qa-engineer` | Read, Grep, Glob, Write, Edit, Bash (reviews, tests, scans) |
 | All other agents | Inherit all tools |
 

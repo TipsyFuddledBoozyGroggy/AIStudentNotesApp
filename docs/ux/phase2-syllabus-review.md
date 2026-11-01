@@ -1,6 +1,6 @@
 # Phase 2 UX: Syllabus Import, Student Review, Mock Calendar Sync
 
-**This is an AI specialist design (adhd-ux-specialist), 2026-10-28. It is NOT human ADHD-student, clinician or screen-reader-user validation.** Layouts, thresholds, defaults and copy are design hypotheses. Nothing here is prototyped, built, rendered or tested. Gate "ADHD suitability and learning-science effectiveness" stays NOT HUMAN-VALIDATED. All copy is draft and needs the plain-language check plus human review. Privacy and retention wording is draft pending Security.
+**This is an AI specialist design (neurodivergent-ux-specialist), 2026-10-28. It is NOT human neurodivergent-student, clinician or screen-reader-user validation.** Layouts, thresholds, defaults and copy are design hypotheses. Nothing here is prototyped, built, rendered or tested. Gate "neurodivergent suitability and learning-science effectiveness" stays NOT HUMAN-VALIDATED. All copy is draft and needs the plain-language check plus human review. Privacy and retention wording is draft pending Security.
 
 ## 0. Scope, assumptions, dependencies
 
@@ -415,7 +415,7 @@ Accessibility
 Cognitive and tone
 35. Copy review: no shaming language, sentences under about 20 words, reading level around grade 8 or below, matched against the strings in section 14.
 36. Quiet mode check: with default settings across a full session, zero unsolicited prompts, sounds, badges, counts on the dashboard or notifications.
-37. Moderated test with students who identify as ADHD (recruiting needs Product Owner approval; handled by `human-research-coordinator`): can say what they decided and what is left after being interrupted for 5 minutes, and can find a "needs a date" item without help. Results are design evidence only.
+37. Moderated test with students who identify as neurodivergent (recruiting needs Product Owner approval; handled by `human-research-coordinator`): can say what they decided and what is left after being interrupted for 5 minutes, and can find a "needs a date" item without help. Results are design evidence only.
 
 ## 13. Open questions for the Lead Architect / Product Owner
 

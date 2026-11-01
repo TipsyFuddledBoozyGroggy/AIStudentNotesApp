@@ -1,7 +1,7 @@
 # Phase 2, Slice 1 - Syllabus import with student review, then mock Calendar sync
 
 Status: DRAFT proposal for Product Owner and Lead Architect review. Nothing here is implemented or verified. Date: 2026-10-28.
-Owner: Product Manager. Reviewers needed: Lead Architect, security-engineer, adhd-ux-specialist, backend-engineer, database-architect, ai-agent-engineer, qa-engineer, legal-compliance-reviewer (FERPA/privacy of uploaded documents).
+Owner: Product Manager. Reviewers needed: Lead Architect, security-engineer, neurodivergent-ux-specialist, backend-engineer, database-architect, ai-agent-engineer, qa-engineer, legal-compliance-reviewer (FERPA/privacy of uploaded documents).
 
 Source basis: `CLAUDE.md` invariants 3, 4, 5, 8, 10; `docs/PRODUCT_REQUIREMENTS.md` section 6 ("Syllabus intelligence"); `docs/DECISIONS.md` (ADR-002, ADR-009, ADR-012, ADR-020d, PO-4, PO-5, PO-6); `docs/API_CONTRACTS.md` (style: `/api/v1` REST, user-scoped 404 for foreign ids, `Idempotency-Key`, ETag/`If-Match`, ProblemDetails codes, strict schemas under `src/shared/contracts/`); `docs/RELEASE_GATES.md` (0 of 5 gates passed).
 
@@ -17,7 +17,7 @@ Smallest verifiable deliverable: with `MockAi` and `MockCalendarProvider` only, 
 - Assumption A2: All AI runs behind `IAiClient` with the mock as default (ADR-009). A real Claude call needs PO-4 and is not part of the verifiable deliverable here. Extraction quality on real syllabi is therefore **unmeasured** until a PO-authorized evaluation on real or licensed sample documents.
 - Assumption A3: The calendar is behind an `ICalendarProvider` seam with a mock implementation that writes only to our database (same pattern as the mock Docs exporter, ADR-012, C-22). Real Google Calendar needs PO-6 and the incremental scope flow; out of scope.
 - Assumption A4: Mock Calendar is visibly labeled "Demo calendar (not your Google Calendar)" everywhere, mirroring the M2 "Demo source" rule (API_CONTRACTS section 12.2), so it can never be mistaken for real sync.
-- Assumption A5 (learning-science / ADHD review): showing a deadline list reduces planning load without raising anxiety; this is unvalidated (gate G4) and no effectiveness claim is made.
+- Assumption A5 (learning-science / neurodivergent review): showing a deadline list reduces planning load without raising anxiety; this is unvalidated (gate G4) and no effectiveness claim is made.
 - In scope: upload (PDF, DOCX, pasted text), text extraction, AI proposal, review/edit/approve, mock sync with idempotency, edit and undo, delete and export of the syllabus and derived items.
 - Out of scope: see section 11.
 
@@ -102,7 +102,7 @@ Value: a 20-item list is reviewable in minutes without panic. Triggers: items re
 - AC8: Works at 320 px width, keyboard-only, screen reader, 200% zoom, reduced motion, forced colors; no axe critical/serious issues. Row actions have accessible names that include the item title.
 - AC9: Empty result ("I didn't find any dates") is a first-class state with plain explanation and the options to paste a different section, add items by hand, or finish with nothing; it must not read as a student failure.
 - AC10: Long lists remain usable: lists over 20 items paginate or collapse by section; focus and scroll position are preserved after approving or skipping an item.
-- Dependencies: adhd-ux-specialist review is mandatory before build starts; frontend-engineer.
+- Dependencies: neurodivergent-ux-specialist review is mandatory before build starts; frontend-engineer.
 
 ### P2-S5 Edit or add an item
 Value: fix the AI's mistakes quickly and capture items the AI missed. Triggers: Edit on a row, "Add an item". States: editing, saved, invalid, conflict.
@@ -121,7 +121,7 @@ Value: explicit consent to write; the single gate between AI proposals and the c
 - AC3: Approval is reversible before sync: "Take back approval" returns the item to its prior state.
 - AC4: Approving does **not** itself write to the calendar. A separate final step (S7) shows the destination and the list and requires a confirm. (This separation is deliberate: approval is review; sync is a write.)
 - AC5: Batch approve accepts an explicit list of item ids with a precondition on each item's revision; if any item changed since the student saw it, that item is skipped and reported, and the rest proceed. Batch is not "approve everything" server-side without ids.
-- AC6: Approval of an item whose `sourceSnippet` verification failed or whose date is flagged "check this date" requires the student to open Edit or tick an explicit acknowledgement. (Exact UX is an adhd-ux-specialist call.)
+- AC6: Approval of an item whose `sourceSnippet` verification failed or whose date is flagged "check this date" requires the student to open Edit or tick an explicit acknowledgement. (Exact UX is an neurodivergent-ux-specialist call.)
 
 ### P2-S7 Sync approved items to the mock calendar
 Value: see the plan in a calendar view without touching real accounts. Triggers: "Add N items to demo calendar" confirm. States: ready, syncing, synced, partially_failed, failed.
@@ -180,7 +180,7 @@ Value: the feature degrades safely and never traps or misleads the student.
 - AC4: All lists and exports have max `limit`; all IDs scoped by `(userId, resource)`; two-user overlap tests cover syllabus, items and sync records.
 - AC5: Every stage has loading, empty, error, and success states with plain-language copy, no raw error codes, and no technical stack in UI.
 
-## 6. Common ADHD-friendly and accessibility requirements (apply to all stories)
+## 6. Common neurodivergent-friendly and accessibility requirements (apply to all stories)
 
 1. One primary action per screen; secondary actions visually quieter.
 2. No streaks, no overdue red styling, no count-of-missed anything, no "you still have N things" reminders, no push or email nudges from this feature in this slice.
@@ -244,7 +244,7 @@ Value: the feature degrades safely and never traps or misleads the student.
 3. Third-party processing: when real, the syllabus text goes to the Claude API. Data-processing terms, no-training settings, retention and region are unverified (G2, `vendor-verification-researcher`). Mock-only in this slice.
 4. Retention of original files and extracted text (PO-5) is undecided; the DB must support delete without orphaned copies (S10).
 5. Minors and dual enrollment (PO-7): upload of a syllabus by under-18 users is unaddressed.
-6. Learning science / ADHD: whether a prepared deadline list reduces anxiety or increases avoidance is unvalidated (G4). Review the "Good to know" policy section and "no urgency" design with `adhd-ux-specialist` and `learning-science`. Include a potential harm check: lists that surface many past-due items may increase shame.
+6. Learning science / neurodivergent: whether a prepared deadline list reduces anxiety or increases avoidance is unvalidated (G4). Review the "Good to know" policy section and "no urgency" design with `neurodivergent-ux-specialist` and `learning-science`. Include a potential harm check: lists that surface many past-due items may increase shame.
 7. AI accuracy risk: a wrong date silently trusted is a real student harm (missed exam). Mitigations are verbatim snippets, needs-date discipline, mandatory approval and neutral "check anything that matters" copy; effectiveness unmeasured.
 8. Accessibility: review table/list patterns with real screen-reader testing (G3, not run).
 
@@ -275,7 +275,7 @@ Value: the feature degrades safely and never traps or misleads the student.
 | `ICalendarProvider` + `MockCalendarProvider` | S7, S8 | new |
 | Phase 2 API contract and schemas | all | to author (increment C1) |
 | Log canary extended to Syllabus module | S2, S3 | new test |
-| adhd-ux-specialist review of review screen | S4 | required before build |
+| neurodivergent-ux-specialist review of review screen | S4 | required before build |
 | security-engineer review of upload/parse hardening and prompt injection | S1, S2, S3 | required before build |
 | PO-4 (Claude), PO-5 (retention), PO-6 (Google OAuth) | real AI, retention policy, real calendar | all unresolved; none block mock-backed build, PO-5 blocks production |
 | Gates G1-G5 | real use | all open; this slice authorizes no real-student use |
@@ -286,7 +286,7 @@ Numbering is provisional (P2-D#); Lead Architect may fold these into `DECISIONS.
 
 - P2-D1: Are PDF, DOCX and pasted text all required for slice 1, or may DOCX or PDF be deferred? (Proposal only: paste + text PDF first.)
 - P2-D2: OCR for scanned syllabi: confirm it is out of scope for Phase 2 slice 1 and decide whether a later increment may add it (adds vendor/cost and PO-4/PO-3-like review).
-- P2-D3: Confidence display: show `high/medium/low` text labels to the student, or show a simpler "check this" flag only? (adhd-ux input needed.)
+- P2-D3: Confidence display: show `high/medium/low` text labels to the student, or show a simpler "check this" flag only? (neurodivergent-ux input needed.)
 - P2-D4: Retention of the original uploaded file versus keeping only extracted text and items; default retention period (links to PO-5).
 - P2-D5: Upload notice wording and whether the student must attest they are allowed to upload the document (copyright/institution rules); counsel review needed.
 - P2-D6: Recurring events in the mock calendar: single recurring event versus individual occurrences.
@@ -322,7 +322,7 @@ Principle: contract first, then file-disjoint parallel work. Each increment prod
 | P2-B1 | Backend: upload endpoints, extraction job, `ITextExtractor`, status polling, hardened parsing, ownership scoping, limits, log canary | backend-engineer | `src/api/**/Syllabus/**` (new module), `tests/api/**/Syllabus*` | P2-C1, P2-D1, security input | API tests incl. two-user overlap, hostile-file fixtures, scanned-PDF fixture, limits, log canary |
 | P2-AI1 | AI: extraction prompt/schema, `MockAi` deterministic syllabus fixtures, verbatim-snippet verifier, needs-date discipline, injection hardening, eval harness | ai-agent-engineer | `docs/ai/syllabus-extraction.md`, `src/api/**/Ai/Syllabus*`, `tests/ai-evals/syllabus/**` | P2-C1 | Eval run reported with actual numbers on fixtures; red-team fixtures inert; no snippet-not-found item leaves AI stage |
 | P2-B2 | Backend: review/edit/approve endpoints, ETag conflicts, batch approve rules, term/timezone/recurrence logic, `ICalendarProvider` + `MockCalendarProvider`, idempotent sync, undo/update, export/delete cascade | backend-engineer | `src/api/**/Syllabus/**` (continuation; sequential after P2-B1, not parallel with it) and `src/api/**/Calendar/**` | P2-B1, P2-AI1 | Tests: sync x3 yields one event per item; needs_date never synced; undo and update idempotent; fault injection partial failure |
-| P2-UX1 | UX flow and copy for review/term/confirm/undo screens (DRAFT copy) | adhd-ux-specialist | `docs/ux/p2-syllabus-review.md` | this doc | Review notes against section 6; blocks P2-F1 start |
+| P2-UX1 | UX flow and copy for review/term/confirm/undo screens (DRAFT copy) | neurodivergent-ux-specialist | `docs/ux/p2-syllabus-review.md` | this doc | Review notes against section 6; blocks P2-F1 start |
 | P2-F1 | Frontend: add syllabus, progress, review (sectioned), edit dialog, approve, confirm, demo calendar view, undo, delete/export; all states | frontend-engineer | `src/web/**/syllabus/**`, `src/web/e2e/syllabus*` | P2-C1, P2-UX1; may build against contract fixtures before B1/B2 | Playwright + axe at 320 px and keyboard-only; states for denied, offline, empty, scan, failure |
 | P2-SEC1 | Threat model and review: upload hardening, injection, data handling, deletion | security-engineer | `docs/security/p2-syllabus-review.md` | P2-C1; re-review after B1/B2/AI1 | Findings with IDs; high/critical fixed before merge |
 | P2-QA1 | Test plan and independent validation; E2E journey; traceability to ACs | qa-engineer | `tests/e2e/**/syllabus*`, `docs/qa/p2-syllabus-test-plan.md` | all | AC-to-test traceability matrix; recorded run of full suite |
@@ -335,7 +335,7 @@ Suggested order: P2-C1 -> (P2-D1 | P2-UX1 | P2-AI1 | P2-SEC1 | P2-LEG1 in parall
 
 1. A wrong date is trusted and a student misses an exam (high impact). Mitigation: verbatim snippets, needs-date discipline, mandatory approval, neutral "check anything that matters" copy, eval with measured numbers.
 2. Prompt injection or hostile files via an untrusted document (high). Mitigation: sandboxed extraction, inert rendering, schema validation, no tool access, red-team fixtures, security review.
-3. Overwhelm from a long, alarming list undermines the ADHD purpose (medium-high). Mitigation: sectioned review, neutral styling, ADHD review before build; unvalidated until G4.
+3. Overwhelm from a long, alarming list undermines the neurodivergent purpose (medium-high). Mitigation: sectioned review, neutral styling, neurodivergent review before build; unvalidated until G4.
 4. Privacy/copyright of uploaded course documents and third-party AI processing (medium-high). Mitigation: mock-only now, legal review, delete/export, no logging of content.
 5. Mock sync is mistaken for real sync (medium). Mitigation: "Demo calendar" labeling, startup guard, documentation says mocked.
 6. Cost overrun from large documents (medium). Mitigation: size/chunk caps, per-student AI budget (PO-4).

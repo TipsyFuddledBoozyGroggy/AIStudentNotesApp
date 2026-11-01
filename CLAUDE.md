@@ -1,7 +1,7 @@
 # Tether — Project Instructions for Claude Code
 
 ## Mission
-Build an ADHD-friendly college academic assistant. Prioritize the real student experience: explicit-consent live lecture transcription, a continuously updated TL;DR, one-click **Quick recap** catch-up, contextual tutoring, editable study guides, and student-approved Google Docs/Calendar workflows. Support practice-test remediation, syllabus-based planning, knowledge tracking, and low-pressure executive-function coaching in later increments.
+Build a neurodivergent-friendly college academic assistant. Prioritize the real student experience: explicit-consent live lecture transcription, a continuously updated TL;DR, one-click **Quick recap** catch-up, contextual tutoring, editable study guides, and student-approved Google Docs/Calendar workflows. Support practice-test remediation, syllabus-based planning, knowledge tracking, and low-pressure executive-function coaching in later increments.
 
 ## Who is in charge
 - Human Product Owner approves product tradeoffs, spending, external system permissions, production deployment and any high-risk actions.
@@ -13,7 +13,7 @@ Build an ADHD-friendly college academic assistant. Prioritize the real student e
 | Task | Delegate to |
 |---|---|
 | Scope, journeys, stories | `product-manager` |
-| ADHD cognitive load, accessibility | `adhd-ux-specialist` |
+| Neurodivergent cognitive load, accessibility | `neurodivergent-ux-specialist` |
 | React/Next.js UI | `frontend-engineer` |
 | ASP.NET Core services | `backend-engineer` |
 | PostgreSQL / EF Core | `database-architect` |
@@ -27,7 +27,7 @@ Build an ADHD-friendly college academic assistant. Prioritize the real student e
 | Recording consent, FERPA applicability, campus rules, contractual/legal review preparation | `legal-compliance-reviewer` |
 | Source-verified STT/Claude vendor facts, prices, limits, terms | `vendor-verification-researcher` |
 | Physical-device, screen reader, browser and real-audio test plans/evidence | `device-accessibility-validation` |
-| Human ADHD student, clinician and learning-science validation planning | `human-research-coordinator` |
+| Human neurodivergent student, clinician and learning-science validation planning | `human-research-coordinator` |
 | CI/security scanning, monitoring, spending and backup/restore readiness audit | `production-readiness-auditor` |
 | Audit agent definitions after an incident; propose project-specific refinements (never edits agents itself) | `agent-refiner` |
 
@@ -59,7 +59,7 @@ Build an ADHD-friendly college academic assistant. Prioritize the real student e
 3. Define or update a minimal versioned contract **before** parallel frontend/backend/speech implementation.
 4. Delegate independent, file-disjoint tasks; use worktrees/branches only when configured and safe. Never let two agents concurrently edit the same files.
 5. Merge/integrate yourself after reviewing diffs; resolve design conflicts against documented contracts.
-6. Ask `qa-engineer` for independent validation, `security-engineer` for auth/recording/data/integration changes, and `adhd-ux-specialist` for student-facing changes.
+6. Ask `qa-engineer` for independent validation, `security-engineer` for auth/recording/data/integration changes, and `neurodivergent-ux-specialist` for student-facing changes.
 7. Run relevant build/tests, record actual outputs, and communicate incomplete/mocked paths honestly.
 8. Present decisions requiring human approval; never deploy, spend money, record others, or modify external calendars without authorization.
 
@@ -98,7 +98,7 @@ These five new subagents **organize evidence and coordinate human verification**
 | Classroom recording/consent/university policy | **BLOCKED / unverified** | `legal-compliance-reviewer`, `security-engineer`, Product Owner, qualified counsel/campus authority | Applicable local law and school policy review, approved notices/consent workflow, explicit permissions and vendor terms assessment |
 | Vendor and Claude cost/limits selection | **UNVERIFIED** | `vendor-verification-researcher`, `speech-engineer`, `ai-agent-engineer` | Current official docs linked/dated, account tier confirmation, measured authorized pilot |
 | Screen-reader, real-device and classroom audio QA | **NOT RUN / BLOCKED for actual lecture until consent** | `device-accessibility-validation`, `qa-engineer`, human testers | Device/browser/AT matrix with signed or attributable manual results and reproducible defects; consented acoustic test |
-| ADHD suitability and learning-science effectiveness | **NOT HUMAN-VALIDATED** | `human-research-coordinator`, `adhd-ux-specialist`, `learning-science`, human specialists/students | Documented voluntary study and expert review of assessment criteria and potential harm |
+| Neurodivergent suitability and learning-science effectiveness | **NOT HUMAN-VALIDATED** | `human-research-coordinator`, `neurodivergent-ux-specialist`, `learning-science`, human specialists/students | Documented voluntary study and expert review of assessment criteria and potential harm |
 | Production CI, scanning, observability, backups | **NOT VERIFIED / NO DEPLOYMENT CLAIM** | `production-readiness-auditor`, `devops-engineer`, `security-engineer`, `qa-engineer` | Actual CI run records, CodeQL/dependency/container scan results, deployed telemetry, cost guardrails, and observed restore drill |
 
 ### Immediate orchestration sequence

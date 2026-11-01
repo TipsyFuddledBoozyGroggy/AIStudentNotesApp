@@ -1,13 +1,13 @@
 # Practice-Test Import and Adaptive Quiz: Learning Design (v0.1, DESIGN ONLY)
 
-Status: proposal for Lead Architect and Product Owner review. Nothing is implemented. All thresholds below are **starting hypotheses to be tuned by measurement and expert review**, not validated values. Nothing here is a claim of efficacy; see section 12 and gate G4 in `docs/RELEASE_GATES.md` (ADHD suitability and learning-science effectiveness: NOT_RUN, claims and real-student use BLOCKED).
+Status: proposal for Lead Architect and Product Owner review. Nothing is implemented. All thresholds below are **starting hypotheses to be tuned by measurement and expert review**, not validated values. Nothing here is a claim of efficacy; see section 12 and gate G4 in `docs/RELEASE_GATES.md` (neurodivergent suitability and learning-science effectiveness: NOT_RUN, claims and real-student use BLOCKED).
 
 Related: `docs/PRODUCT_REQUIREMENTS.md` (P2 practice tests and adaptive quizzes; P3 concept evidence, spaced review), `docs/ai/live-lecture-ai-design.md` (Claim/basis/citation model, untrusted-input handling, IAiClient, budgets, mock client), `CLAUDE.md` invariants 5, 6, 7.
 
 ## 1. Scope, assumptions, dependencies
 - Scope: import of practice material, item model, concept tagging, evidence model, review scheduling, feedback, session design, remediation, metrics. Phase 2 delivers import + quizzes + basic evidence capture; the knowledge map and fuller spaced scheduling are Phase 3 but the data model here is designed to carry both.
 - Assumptions: student uploads their own material; the app does not distribute or republish it; AI calls go through `IAiClient` (no tools, structured output, validation, ledger) as in the live-lecture design; lexical/FTS retrieval for linking to course material.
-- Dependents: ai-agent-engineer (prompts, schemas, evals), database-architect (entities), backend-engineer (import pipeline), adhd-ux-specialist (copy, pacing), security-engineer (upload and copyright/privacy), qa-engineer, human-research-coordinator (validation).
+- Dependents: ai-agent-engineer (prompts, schemas, evals), database-architect (entities), backend-engineer (import pipeline), neurodivergent-ux-specialist (copy, pacing), security-engineer (upload and copyright/privacy), qa-engineer, human-research-coordinator (validation).
 - Smallest verifiable first deliverable (later): import a pasted or typed set of questions with a student-entered key, run a 5-minute self-quiz with self-rated confidence, store attempts only. No AI estimation and no mastery labels in the first slice.
 
 ## 2. What a student imports
@@ -105,7 +105,7 @@ A single incorrect answer: records an event, may give immediate neutral feedback
 - Time on item is stored for scheduling hints only, never to infer attention or ability (no attention surveillance, invariant 7). Long idle time is not treated as an error.
 
 ### 5.6 No diagnosis
-The app makes no statements about the student's ADHD, learning disability, anxiety, intelligence, or attention. It does not label the student ("careless", "weak at math"). Wording is about the material and the next step. Patterns like "many misses late in session" may only be offered as a neutral, student-opt-in observation ("Shorter sessions might feel better: want 5 minutes next time?") and never as a cause. Any suggestion of clinical relevance is out of scope; refer to the campus accessibility office for disability support only if the student asks.
+The app makes no statements about the student's neurodivergent, learning disability, anxiety, intelligence, or attention. It does not label the student ("careless", "weak at math"). Wording is about the material and the next step. Patterns like "many misses late in session" may only be offered as a neutral, student-opt-in observation ("Shorter sessions might feel better: want 5 minutes next time?") and never as a cause. Any suggestion of clinical relevance is out of scope; refer to the campus accessibility office for disability support only if the student asks.
 
 ### 5.7 Separate tracks, transparently
 Correctness evidence, self-rated confidence, and calibration are stored and displayed separately. Calibration insight ("you felt sure on 4 you missed") is offered only after enough events (hypothesis: 10 or more confidence-rated events across at least 3 sessions) and as an optional, framed-as-useful reflection, not a score.
@@ -145,11 +145,11 @@ Design decisions:
 - Dispute control: "I think this is right" is available on every AI-graded or estimate-mismatched result; it excludes the event from evidence pending student judgement and logs for eval.
 - Rubrics and expert review cases are produced as fixtures (section 12).
 
-## 10. Feedback wording, session design, ADHD-friendly pacing
+## 10. Feedback wording, session design, neurodivergent-friendly pacing
 ### 10.1 Feedback principles
 Specific, brief, about the task, forward-looking, neutral tone, no comparison with others, no praise-as-ability ("you're so smart") and no blame. Structure: (1) result in neutral words, (2) the key idea or the step where the answer diverges, (3) one next step. Explanations cite course material with timecode or page where available (`basis` label as in the live-lecture design).
 
-Wording examples (draft; adhd-ux-specialist to own final copy):
+Wording examples (draft; neurodivergent-ux-specialist to own final copy):
 | Situation | Draft copy |
 |---|---|
 | Keyed correct | "That matches the answer key. The key idea: ..." |
@@ -167,7 +167,7 @@ Avoid: "wrong!", "you failed", "weak area", "you should have", "only", "still", 
 - One question per screen, minimal chrome, large targets, keyboard accessible, no auto-advance timers, no countdown, no motion by default (reduced-motion respected), no sound. Progress shown as simple count, not a bar that implies being behind.
 - Front-load a success: start with a warm-up retrievable item when possible.
 - Pausing at any time is fine; no penalty. Skipping an item is fine and not evidence.
-- Quiet mode (invariant 7): no proactive prompts, no reminders, no badges; quizzes only when the student opens them. Engagement is optional in all modes; the app does not infer attention or "disengagement" from behavior. Mode choices for notification density belong to the engagement mode picker (Phase 3; coordinate with adhd-ux-specialist).
+- Quiet mode (invariant 7): no proactive prompts, no reminders, no badges; quizzes only when the student opens them. Engagement is optional in all modes; the app does not infer attention or "disengagement" from behavior. Mode choices for notification density belong to the engagement mode picker (Phase 3; coordinate with neurodivergent-ux-specialist).
 - Accessibility: WCAG 2.2 AA target; text alternatives for figures where they can be extracted; do not rely on colour for correct/incorrect; screen reader announcements for results; formulas readable (MathML/LaTeX alt text) to be scoped (open question).
 
 ## 11. Misconception remediation loop
@@ -181,7 +181,7 @@ Avoid: "wrong!", "you failed", "weak area", "you should have", "only", "still", 
 Misconception content must be grounded or flagged `general_knowledge`/`uncertain`.
 
 ## 12. Metrics and validation (NOT claims of efficacy)
-**All metrics below are instrumentation and quality checks for the product. None demonstrates that the app improves learning, exam scores, or outcomes for ADHD students.** No such claim may appear in the product, marketing, or reports until the human-research gate (G4 in `docs/RELEASE_GATES.md`, currently NOT_RUN) is cleared by human-run, ethically reviewed validation per the human-research-coordinator plan (`research/human-validation-plan.md` is a substitute-author draft that closes nothing).
+**All metrics below are instrumentation and quality checks for the product. None demonstrates that the app improves learning, exam scores, or outcomes for neurodivergent students.** No such claim may appear in the product, marketing, or reports until the human-research gate (G4 in `docs/RELEASE_GATES.md`, currently NOT_RUN) is cleared by human-run, ethically reviewed validation per the human-research-coordinator plan (`research/human-validation-plan.md` is a substitute-author draft that closes nothing).
 
 ### 12.1 Product and safety metrics (descriptive only)
 - Sessions started/completed, median session length, voluntary stop rate, return after a gap (reported as descriptive, not a success target; avoid optimizing for time-in-app).
@@ -208,7 +208,7 @@ Do estimated states predict later performance on unseen items? Do delays, confid
 9. **Essay grading set**: expert-graded responses with rubric levels, adversarial answers (rubric keyword stuffing, copied question, prompt injection inside the answer); metrics: agreement, manual-review trigger precision, injection resistance.
 10. **Academic integrity set**: attempts to use the tutor to answer a flagged live graded assessment; expected behavior per the policy decided in Q4.
 
-Expert review: a small panel (instructors/learning scientists; plus students and an ADHD-informed clinician reviewer for tone) rates a sample of outputs per release on a published rubric; inter-rater agreement recorded. Reviewer availability and Product Owner authorization are human tasks (gate G4).
+Expert review: a small panel (instructors/learning scientists; plus students and a neurodivergent-informed clinician reviewer for tone) rates a sample of outputs per release on a published rubric; inter-rater agreement recorded. Reviewer availability and Product Owner authorization are human tasks (gate G4).
 
 ## 14. Draft data entities (proposal for database-architect; not a schema)
 All user-scoped (`userId`, `courseId`), with server-side authorization on every query.
@@ -254,7 +254,7 @@ All user-scoped (`userId`, `courseId`), with server-side authorization on every 
 13. Should data from a student's quizzes ever be visible to anyone else (instructor, parent, accessibility office)? Recommended default: never, without explicit per-case student consent.
 
 ## 17. Citations needing verification
-Not cited as fact in this document; to be confirmed with real sources before external use: testing effect/retrieval practice; spacing effect and expanding intervals (the evidence on expanding vs equal spacing is mixed to my recollection, **verify**); interleaving; worked-example and fading effects (cognitive load theory, Sweller and colleagues); feedback timing and content (Hattie and Timperley; Black and Wiliam); hypercorrection effect for high-confidence errors; Bayesian Knowledge Tracing (Corbett and Anderson); item response theory/Elo rating for education. Effect sizes are intentionally omitted. Evidence specific to ADHD populations is not asserted here and requires a literature review by the human-research track.
+Not cited as fact in this document; to be confirmed with real sources before external use: testing effect/retrieval practice; spacing effect and expanding intervals (the evidence on expanding vs equal spacing is mixed to my recollection, **verify**); interleaving; worked-example and fading effects (cognitive load theory, Sweller and colleagues); feedback timing and content (Hattie and Timperley; Black and Wiliam); hypercorrection effect for high-confidence errors; Bayesian Knowledge Tracing (Corbett and Anderson); item response theory/Elo rating for education. Effect sizes are intentionally omitted. Evidence specific to neurodivergent populations is not asserted here and requires a literature review by the human-research track.
 
 ## 18. Not done
 No code, prompts, schemas, thresholds validated, eval fixtures, or provider calls exist. Thresholds in sections 5, 6 and 8 are untested hypotheses. No human review has occurred; gate G4 remains NOT_RUN.

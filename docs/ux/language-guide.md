@@ -1,6 +1,6 @@
 # Tether Language Guide
 
-Status: DESIGN DECISION v1, 2026-10-29. Author: adhd-ux-specialist. Audience: every agent that writes, generates or reviews student-facing text.
+Status: DESIGN DECISION v1, 2026-10-29. Author: neurodivergent-ux-specialist. Audience: every agent that writes, generates or reviews student-facing text.
 Trigger: the Product Owner decided that language about attention and recall is sensitive for neurodivergent students, and renamed "I lost track" to **Quick recap**.
 **Gate G4 stays NOT_RUN: nothing here is validated with students or clinicians.** Items marked [J] are design judgement, [C] are project constraints. Consent, recording and Demo-source wording is under gate G1 (BLOCKED): this guide only flags it. Nothing here was run or built; the audit is a read-only review of files as of today (working tree has uncommitted edits by others, so line numbers can drift).
 Inputs read: CLAUDE.md, docs/ux/design-direction.md (section 1), docs/ux/calendar-reminders.md (sections 0-8 copy rules), docs/ux/phase2-syllabus-review.md (rules and error table), `src/web/src` components and `lecture/copy.ts`, mock handlers and harness fixtures, `PromptLibrary.cs`, `MockAiClient.cs`, `CatchUpWire.cs`, `MockRuleExtractor.cs`.

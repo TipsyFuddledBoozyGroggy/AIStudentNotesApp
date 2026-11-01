@@ -159,7 +159,7 @@ Total: Medium 3 (R3-01, R3-03, R3-04); Low 11 (R3-02, 05, 06, 07, 08, 09, 10, 11
 | Shared parser sandbox and output channel (R3-03, R3-04) | Medium until text and design are corrected; re-rate with the implementation | Lead, devops, security | Open |
 | Schema patterns only reliable in UTF-16 regex engines (R3-07) | Low | frontend, qa | Open |
 | Invisible-data channels not flagged (R3-08, R3-09) | Low | security, backend | Open, before real documents |
-| Plain false-but-clean date approved via batch (R2-09) | Accepted for mock; re-rate before real documents | Product Owner, adhd-ux | Open (unchanged) |
+| Plain false-but-clean date approved via batch (R2-09) | Accepted for mock; re-rate before real documents | Product Owner, neurodivergent-ux | Open (unchanged) |
 | Snippet and item text outliving the purge; retention periods | PO decision needed | Product Owner, counsel | Open (unchanged, P2-24, D4/D11) |
 | Config-only real-model guard (R2-21) | Low for mock | Lead, devops | Open (unchanged) |
 | Restore resurrects deleted or purged data (data doc 12) | Known limitation | devops, security | Open |

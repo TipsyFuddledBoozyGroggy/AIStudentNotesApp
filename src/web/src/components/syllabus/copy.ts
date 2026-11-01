@@ -71,7 +71,7 @@ export const CREATE_COPY = {
     rateLimited: "One moment. Try again in about a minute. Nothing was changed.",
     network: "We could not reach the server. Your text is kept. Try again.",
     invalid: "One thing to check: the text or a date could not be used. Your text is kept.",
-    // DRAFT wording (frontend-engineer, 2026-11-01), not yet reviewed by adhd-ux-specialist. Shown only when the API
+    // DRAFT wording (frontend-engineer, 2026-11-01), not yet reviewed by neurodivergent-ux-specialist. Shown only when the API
     // names defaultTimezone as the problem, so the student is not told their text was at fault.
     zone: (tz: string) => `Tether cannot use your time zone, ${tz}, yet. Your text is kept. Nothing was changed.`,
     generic: "That did not work. Nothing was changed. Your text is kept.",

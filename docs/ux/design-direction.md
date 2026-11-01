@@ -1,6 +1,6 @@
 # Tether Visual and Interaction Design Direction (UI/UX refactor)
 
-Status: DESIGN DECISION v1, 2026-10-29. Author: adhd-ux-specialist. Audience: frontend-engineer. Nothing here is built, rendered or tested by me.
+Status: DESIGN DECISION v1, 2026-10-29. Author: neurodivergent-ux-specialist. Audience: frontend-engineer. Nothing here is built, rendered or tested by me.
 **Gate G4 stays NOT_RUN: nothing below is human-validated.** Items marked [J] are design judgement, [E] are published findings recalled from memory (not re-fetched; verify before quoting externally), [C] are project constraints. Consent and recording wording stays DRAFT under G1 (BLOCKED); this refactor must not change its meaning.
 Inputs read: CLAUDE.md (invariants 2, 7, 9), student-experience.md, m2-live-lecture-screens.md, m2-quick-recap-review.md headers, phase2-syllabus-review.md section 5, calendar-reminders.md sections 0-2, all of `src/web/src/app` and `components/` shell, status bar, transcript, quick-recap code, `settings.ts`, `copy.ts`, and e2e specs.
 Method note: I had no shell in this session. Every contrast ratio below was computed by hand with the WCAG 2.x formula (below), to two decimals. Slice 0 must add a unit test that recomputes them (hand arithmetic can be wrong); a failing recomputation overrides this table.
@@ -364,7 +364,7 @@ Risks: (1) Hand-computed contrast may contain an arithmetic error; Slice 0's tes
 
 Evidence status: Judgement [J]: paper/ink concept, one-primary rule, Focus mode design, Quiet palettes, Comfortable density default, no toasts, serif headings. Weak or recalled [E]: dyslexia fonts show no consistent benefit; default effects from calendar-reminders.md. Project constraints [C]: recording visibility, three live regions, quiet engagement, no surveillance, frozen e2e names. Nothing is human-validated; G4 NOT_RUN.
 
-Questions for real ADHD students (via human-research-coordinator; include varied attention patterns and students who do not want any of this):
+Questions for real neurodivergent students (via human-research-coordinator; include varied attention patterns and students who do not want any of this):
 1. Which palette (Paper, Night desk, Fog, Dusk) lets you read the transcript longest without strain, and why?
 2. Does Focus mode feel calmer, or does hiding the TL;DR make you worry you will miss something?
 3. Is the Quick recap dock easy to find and press mid-lecture without looking away for long? Do three windows help or add a decision?

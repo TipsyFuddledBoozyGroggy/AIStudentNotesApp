@@ -1,12 +1,12 @@
 # Student Experience: Dashboard, Course Creation, Live Lecture Workspace
 
-Status: DESIGN PROPOSAL (no code executed or verified). Owner: adhd-ux-specialist. Version 0.1.
+Status: DESIGN PROPOSAL (no code executed or verified). Owner: neurodivergent-ux-specialist. Version 0.1.
 
 ## 0. Assumptions, dependencies, open questions
 
 Assumptions
 - Web, responsive (phone, tablet, laptop). Phase 1 scope; planner and study mode only appear as placeholders.
-- ADHD presents differently per person. Defaults are calm, and every prompt, reminder and density setting is student-adjustable.
+- Neurodivergent presents differently per person. Defaults are calm, and every prompt, reminder and density setting is student-adjustable.
 - Research claims here are design hypotheses, not findings. Validate in usability testing.
 
 Dependent teams
@@ -286,7 +286,7 @@ Accessibility
 
 Cognitive and tone
 23. Copy review: no shaming language, sentences under about 20 words, reading level around grade 8 or below.
-24. Moderated test with at least 5 students who identify as ADHD (varied attention patterns; recruiting approved by Product Owner): participants can state "what to do next" on the dashboard and recover context after an interruption without help. Treat results as design evidence, and iterate.
+24. Moderated test with at least 5 students who identify as neurodivergent (varied attention patterns; recruiting approved by Product Owner): participants can state "what to do next" on the dashboard and recover context after an interruption without help. Treat results as design evidence, and iterate.
 
 ## 10. Deferred and handoffs
 

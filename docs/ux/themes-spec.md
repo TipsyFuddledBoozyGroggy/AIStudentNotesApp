@@ -1,6 +1,6 @@
 # Tether Themes Spec (BL-001): Canvas, Gamer, Calm, Glass, each light and dark
 
-Status: DESIGN DECISION v1, 2026-10-29. Author: adhd-ux-specialist. Audience: frontend-engineer, qa-engineer, device-accessibility-validation.
+Status: DESIGN DECISION v1, 2026-10-29. Author: neurodivergent-ux-specialist. Audience: frontend-engineer, qa-engineer, device-accessibility-validation.
 **Gate G4 stays NOT_RUN: nothing here is human-validated.** G1 stays BLOCKED: no consent, recording or Demo-source wording is touched.
 Labels: [E] published or standard knowledge, recalled from memory and NOT re-fetched in this session (verify before quoting outside the team; I cite no URLs I could not check); [J] design judgement or untested hypothesis; [C] project constraint.
 Method note: I had no shell. Every ratio below is hand-computed with the WCAG 2.x formula and may contain an arithmetic slip. The implementation adds a unit test that recomputes every pair (section 2.3); **the test wins over this table**. No code, screenshot run or browser was executed by me; the audit (section 5) is from viewing 12 existing screenshots in `src/web/test-results/redesign-screens/` plus reading source.
@@ -17,7 +17,7 @@ Inputs read: design-direction.md, redesign-progress.md, redesign-review.md, lang
 
 ## 1. Research-backed principles (state of practice as I know it, 2026)
 
-Honest ground rule [J]: I know of no study I can verify showing that any colour theme reduces ADHD symptoms or raises learning. ADHD is a diverse set of experiences [C]. Themes are offered as **personal preference and comfort**, never as treatment or recommendation. No string says otherwise.
+Honest ground rule [J]: I know of no study I can verify showing that any colour theme reduces symptoms or raises learning. Neurodivergence is a diverse set of experiences [C]. Themes are offered as **personal preference and comfort**, never as treatment or recommendation. No string says otherwise.
 
 ### 1.1 Cross-cutting practice
 | # | Claim | Tag |

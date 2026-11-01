@@ -1,8 +1,8 @@
 # Calendar reminders for syllabus-derived events: UX decision
 
-Author: adhd-ux-specialist, 2026-10-28. Delegated decision from the Product Owner. Status: **DECISION (design), not built, not prototyped, not tested.**
+Author: neurodivergent-ux-specialist, 2026-10-28. Delegated decision from the Product Owner. Status: **DECISION (design), not built, not prototyped, not tested.**
 
-**Nothing here is human-validated.** Gate G4 (ADHD suitability and learning-science effectiveness) stays **NOT_RUN**. Every number below is a design default to be tested, not a finding. Real Google behavior is [VERIFY] until the fake-server and smoke tests in `docs/architecture/google-calendar-integration.md` run.
+**Nothing here is human-validated.** Gate G4 (neurodivergent suitability and learning-science effectiveness) stays **NOT_RUN**. Every number below is a design default to be tested, not a finding. Real Google behavior is [VERIFY] until the fake-server and smoke tests in `docs/architecture/google-calendar-integration.md` run.
 
 Inputs read: `CLAUDE.md` (invariants 4, 7), `docs/ux/student-experience.md` (rule 9, quiet mode), `docs/ux/phase2-syllabus-review.md` (sections 6, 11, 12), `docs/architecture/google-calendar-integration.md` (sections 4, 5, 7, 11).
 
@@ -211,7 +211,7 @@ Acceptance criteria for qa-engineer (automated unless noted; fixtures use the mo
 
 Recruitment, consent and any compensation need Product Owner approval. Results are design evidence only and must not be presented as clinical claims.
 
-Students with ADHD (varied presentations, include some who say they dislike reminders):
+Neurodivergent students (varied presentations, include some who say they dislike reminders):
 1. Would you want reminders on your syllabus events turned on before you've seen them, or would you rather choose? What would make you turn them off in the first week?
 2. Which lead times help you start (3 days? a week? two weeks?) and which feel like pressure? Does it differ for exams and assignments?
 3. Is a morning-of cue helpful, neutral, or stressful? Is it worse if it is the first cue you see?
@@ -225,7 +225,7 @@ Students with ADHD (varied presentations, include some who say they dislike remi
 11. Does any phrase feel judging, nagging or too cheery?
 
 Clinicians and learning-science reviewers:
-12. Is Gentle (no sub-24-hour alert) appropriate, or do some presentations need a last-hour cue? Is there risk from an ADHD-and-anxiety combination?
+12. Is Gentle (no sub-24-hour alert) appropriate, or do some presentations need a last-hour cue? Is there risk from an neurodivergent-and-anxiety combination?
 13. Is the default-on choice defensible, or does it risk reminder resistance? What evidence exists for default-on reminders in this population?
 14. Are the time-blindness aids sufficient (relative text in-app, fixed titles in Google)? Is there harm from dropping reminders silently when the daily cap applies, given the preview note?
 15. Are there populations (for example students with anxiety, trauma around deadlines, or sensory sensitivity to notifications) for whom Gentle should not be the default?

@@ -6,7 +6,7 @@
 | Agent | Output |
 |---|---|
 | product-manager | `PRODUCT_REQUIREMENTS.md` |
-| adhd-ux-specialist | `ux/student-experience.md` |
+| neurodivergent-ux-specialist | `ux/student-experience.md` |
 | backend-engineer | `architecture/backend-foundation.md` |
 | database-architect | `data/schema-m1-m2.md` |
 | ai-agent-engineer | `ai/live-lecture-ai-design.md` |
@@ -110,6 +110,6 @@ Security re-review `docs/security/m2-b3-rereview.md`: 0 Critical/High, 1 Medium 
 **Built (mock-only, "Demo calendar"):** typed client + strict parsers, ajv `u`-flag validators (R3-07; 5 astral red-team fixtures pass the schema under `u`, so a schema pass is never a TextPolicy pass), MSW mock faithful to the contract, course card + `/courses/{id}/syllabus`, paste and `.txt` upload, polled processing, review with approve/skip/undo/edit/needs-date, batch approve, one-at-a-time, Demo-calendar sync/remove/undo, delete, JSON export, several syllabi per course. Commits 89c009c (F1), af453e9 (F2).
 **Found by the real-stack run and decided (Lead):** term dates are sent as a pair (contract amended, row 61, narrowing stated); item PATCH is `application/json` only (row 62); non-upload 415s get a neutral message; `If-Match: *` and lists are rejected (row 63); recurrence line shows the weekday once ("Repeats every Tuesday, Aug 25 to Dec 11.").
 **Verified by Lead re-run:** backend 99 syllabus + 241 AI + 835 contract + 22 architecture + 538 integration pass (with the dev API stopped; see DEVELOPMENT.md); web 1726 unit tests, tsc clean, eslint 0 errors, npm audit 0; Playwright `e2e/syllabus.spec.ts` 3/3 against the real API (run by the agent and by the Lead before the final amendments; not re-run after them).
-**Not verified:** screen reader, real device/phone, other browsers, human copy review (G4); security review of the upload/delete/export paths; the full Playwright suite was not re-run after Phase 2 UI work. Upload notice is a DRAFT placeholder pending counsel (P2-D5). Please-check approvals always send `acknowledgeCheck` (needs adhd-ux review). Recurrence wording uses full day names (judgement call). Mock checks term fields in a different order than the server (multi-error bodies could differ).
+**Not verified:** screen reader, real device/phone, other browsers, human copy review (G4); security review of the upload/delete/export paths; the full Playwright suite was not re-run after Phase 2 UI work. Upload notice is a DRAFT placeholder pending counsel (P2-D5). Please-check approvals always send `acknowledgeCheck` (needs neurodivergent-ux review). Recurrence wording uses full day names (judgement call). Mock checks term fields in a different order than the server (multi-error bodies could differ).
 **Gates:** unchanged.
 **Full real-stack Playwright after the amendments (API recreated on final code, `--workers=1`, dev-only raised rate limits):** run 1 = 20 passed, 1 failed (a syllabus spec; test name not captured), 2 did not run; runs 2 and 3 = 23/23 passed; the lecture + syllabus specs also passed 12/12 together. Treat run 1 as an unexplained first-run-after-recreate failure (suspect cold start); not reproduced in two reruns.

@@ -30,7 +30,7 @@ Proposed fixes (route to backend-engineer, then qa):
 - `src/api/src/Modules/Syllabus/Tether.Syllabus/Application/Support.cs`: add `"Etc/UTC"` (and decide on `"UTC"`) to `ZoneAllowList.Zones`; `EnsureHostSupportsAll` already requires tzdata on the host, and `Etc/UTC` exists in tzdata. Check the DST-gap logic and the contract doc/enum for the zone list (`src/shared/contracts`, contract text should state the allow-list). Contract owner is the Lead Architect: this is a contract-visible allow-list change.
 - Alternative or addition (frontend-engineer): `format.ts` `browserTimezone()` should map `UTC`, `Etc/UTC`, `GMT` explicitly rather than rely on the Area/Location regexp, and the form should offer a zone picker when the zone is unknown. Add unit tests in the web suite for `browserTimezone()` with `UTC` and in the Syllabus .NET tests for an `Etc/UTC` create returning 201.
 - Test hygiene (qa-engineer): make the real-stack config hermetic, e.g. `timezoneId: "America/New_York"` in `playwright.reuse.config.ts`/`playwright.config.ts`, and add one explicit UTC-browser test so this regression stays covered rather than depending on the host zone.
-- UX (adhd-ux-specialist, lower priority): the 400 message says the text or a date was unusable; for a not_allowed zone it misleads the student. A zone error should name the time zone.
+- UX (neurodivergent-ux-specialist, lower priority): the 400 message says the text or a date was unusable; for a not_allowed zone it misleads the student. A zone error should name the time zone.
 
 ## 1 and 3. Lecture bar wraps to 3 rows at 390 on Linux
 

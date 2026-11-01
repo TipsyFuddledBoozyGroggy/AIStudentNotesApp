@@ -100,7 +100,7 @@ Deviations:
    (the brief said not to change routes). Not linkable as a result.
 2. Preference changes are **not announced** through a status region. The switch/radio state change is already exposed by the
    control itself, and adding a status region to the shell would break the lecture's "exactly three live regions" rule
-   (the shell is mounted on lecture routes too). Flag for adhd-ux-specialist.
+   (the shell is mounted on lecture routes too). Flag for neurodivergent-ux-specialist.
 3. On the live lecture screen the site header, rail and Preferences panel are hidden by CSS (`:has([data-lecture-root])`); the
    consent, loading and not-found states on the same route keep the site header (so Sign out and the wordmark stay there).
 
@@ -440,7 +440,7 @@ backend (contracts) to decide whether that test should filter fixtures by regist
   ("recap"). Shortcuts are off by default and untested with screen readers.
 - `QUICK_RECAP_COPY.windowLabel` "catch up on the last N minutes" and `invalid_state` "nothing new to catch up on": kept (listed below).
 
-### Other language to review (NOT changed; for the adhd-ux-specialist language guide)
+### Other language to review (NOT changed; for the neurodivergent-ux-specialist language guide)
 Recording/consent/Demo-source text is excluded (gate G1). No exclamation marks and no "you should" found in student-facing strings.
 | Where | String | Why it may need review |
 |---|---|---|

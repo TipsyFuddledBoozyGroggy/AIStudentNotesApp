@@ -67,7 +67,7 @@ Answer schema: `{answerParts: Claim[], followUps[], limitations}`. Prompt rules:
 - Lecture-stated claims cite segment timecodes (rendered `[12:34]`); document claims cite `docId + chunk/page`.
 - Anything not in sources is `general_knowledge` and shown with a distinct label ("Not from your lecture"). Unknown/ambiguous → `uncertain` and say so.
 - Do not present AI-estimated answers as answer-key certainty.
-UI mapping owned by frontend/adhd-ux; this doc defines the data only.
+UI mapping owned by frontend/neurodivergent-ux; this doc defines the data only.
 
 ## 8. Prompt-injection and tool defenses
 - Transcript text, uploaded docs, and retrieved chunks are **untrusted data**. They are placed in delimited, per-request randomly-tagged blocks (`<untrusted_source id=...>`) in the user turn; system prompt states these never contain instructions and must not alter output format, tools, or behavior.
@@ -111,7 +111,7 @@ Fixtures (synthetic or consented/redacted only; never real student recordings): 
 - Execution: deterministic mock runs in CI (schema, validator, degradation, fault injection); real-provider evals run manually/scheduled behind explicit budget flag, results archived with model id, prompt version, cost. Prompt or model changes require eval comparison before merge.
 
 ## 13. Dependencies and handoffs
-backend-engineer (IAiClient, queueing, events), database-architect (ledger, revisions), speech-engineer (final-segment contract), security-engineer (injection/redaction/log review), qa-engineer (eval CI gate), adhd-ux-specialist (copy, labels), devops-engineer (secrets, cost alerts), learning-science (clarification quality).
+backend-engineer (IAiClient, queueing, events), database-architect (ledger, revisions), speech-engineer (final-segment contract), security-engineer (injection/redaction/log review), qa-engineer (eval CI gate), neurodivergent-ux-specialist (copy, labels), devops-engineer (secrets, cost alerts), learning-science (clarification quality).
 
 ## 14. Not done
 No prompts, schemas, code, measurements or provider calls exist yet; all figures are untested estimates.

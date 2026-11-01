@@ -103,7 +103,7 @@ Normative for implementation. IDs refer to that review. Medium/low items (C-03..
 - **Ingest limits (C-25):** max frame size, byte-rate cap (~1.1x real time), per-user socket cap, per-user STT minutes budget and a global kill switch. Defaults are configuration, values pending PO budget (PO-2/3/4).
 
 ## 9. Pause UX (PO direction 2026-10-27)
-When a session is Paused the UI shows a clear paused state stating that recording is paused, with a Resume button (and Stop). The recording indicator is driven by `session.state` and the local mic track, never by the button alone. Wording is DRAFT; final text, including any note about audio sent just before the pause, remains a G1 item for the Product Owner and counsel. Detailed layout (persistent panel vs dialog, focus handling, screen-reader announcement) is delegated to `adhd-ux-specialist`.
+When a session is Paused the UI shows a clear paused state stating that recording is paused, with a Resume button (and Stop). The recording indicator is driven by `session.state` and the local mic track, never by the button alone. Wording is DRAFT; final text, including any note about audio sent just before the pause, remains a G1 item for the Product Owner and counsel. Detailed layout (persistent panel vs dialog, focus handling, screen-reader announcement) is delegated to `neurodivergent-ux-specialist`.
 
 ## 10. Remaining review findings accepted (PO: "go with the defaults", 2026-10-27)
 Numeric values are the reviewer's **proposals**, configurable, not measured. Maximums are fixed here; devops owns the configuration.

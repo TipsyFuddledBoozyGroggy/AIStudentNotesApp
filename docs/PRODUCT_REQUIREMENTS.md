@@ -1,10 +1,10 @@
 # Tether - Product Requirements (v0.1, DRAFT)
 
 Status: proposal for Product Owner review. Nothing here is implemented or verified. Date: 2026-10-27.
-Owner: Product Manager. Reviewers needed: Lead Architect, security-engineer, adhd-ux-specialist, learning-science, qa-engineer.
+Owner: Product Manager. Reviewers needed: Lead Architect, security-engineer, neurodivergent-ux-specialist, learning-science, qa-engineer.
 
 ## 1. Personas
-- **Student (primary):** college student, often ADHD or attention-challenged; attends lectures, loses the thread, needs low-friction recovery and low-pressure structure.
+- **Student (primary):** college student, often neurodivergent or attention-challenged; attends lectures, loses the thread, needs low-friction recovery and low-pressure structure.
 - **Authorized supporter (optional, later):** tutor/coach/parent the student explicitly invites with scoped, revocable access. Not in Milestones 1-2.
 - **Administrator:** operates the service: user support, cost/usage visibility, deletion requests. No access to lecture content by default.
 
@@ -26,7 +26,7 @@ Core vs delight: core = consent, transcript, TL;DR, Quick recap, saved notes. De
 ## 3. Cross-cutting requirements
 - Per-user ownership enforced server-side on every resource (cross-user access returns 404/403, tested).
 - WCAG 2.2 AA target: keyboard operable, visible focus, screen-reader live-region announcements for recording state, reduced motion, color not sole signal.
-- ADHD principles: one primary action per screen, no streaks/guilt/shaming copy, no unrequested diagnosis, no attention surveillance, interruptions opt-in.
+- Neurodivergent principles: one primary action per screen, no streaks/guilt/shaming copy, no unrequested diagnosis, no attention surveillance, interruptions opt-in.
 - Privacy: raw transcripts not logged by default; source transcript stored separately from derived summaries with timestamps; delete and export available.
 - AI never receives OAuth tokens; outputs schema-validated.
 - Never claim completion without observable verification; mocked providers labeled as mocked in UI-free docs and test reports.

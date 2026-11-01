@@ -308,12 +308,12 @@ Events (if SignalR is used for job progress): `syllabus.job.progress { jobId, st
 8. **Section handling**: ask the student for their section at upload, or leave `section_ambiguous` for review?
 9. **Which item kinds are in v1** (e.g. grading-weight tables are excluded here) and whether `class_meeting` recurrence belongs to this feature or to the course setup flow (product-manager, google-integration).
 10. **Item identity** for idempotent Calendar sync: is `itemKey` as proposed acceptable to `google-integration`, including behaviour when a re-extraction produces a changed item?
-11. **UX** (`adhd-ux-specialist`): review-table design for 40+ items, batch approve rules (never default-select unknown/low), wording for `needs_text`, injection notice and flags.
+11. **UX** (`neurodivergent-ux-specialist`): review-table design for 40+ items, batch approve rules (never default-select unknown/low), wording for `needs_text`, injection notice and flags.
 12. **Eval data**: obtaining licensed or permissioned real syllabi for a second-tier eval beyond synthetic fixtures (`human-research-coordinator`).
 
 ## 15. Dependencies and handoffs
 
-backend-engineer (upload, jobs, gateway scope, renderer variant, extractor worker), database-architect (source vs derived tables, ledger scope), google-integration (consumes approved items; owns Calendar mapping), security-engineer (hostile-document, parser sandbox, SSRF, logging review), legal-compliance-reviewer (open question 3), vendor-verification-researcher (G2), qa-engineer (eval CI gate, fixtures), adhd-ux-specialist (review UX), product-manager (kinds, sections), devops-engineer (limits/cost alerts).
+backend-engineer (upload, jobs, gateway scope, renderer variant, extractor worker), database-architect (source vs derived tables, ledger scope), google-integration (consumes approved items; owns Calendar mapping), security-engineer (hostile-document, parser sandbox, SSRF, logging review), legal-compliance-reviewer (open question 3), vendor-verification-researcher (G2), qa-engineer (eval CI gate, fixtures), neurodivergent-ux-specialist (review UX), product-manager (kinds, sections), devops-engineer (limits/cost alerts).
 
 ## 16. Not done
 

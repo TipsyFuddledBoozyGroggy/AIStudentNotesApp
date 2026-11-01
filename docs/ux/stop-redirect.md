@@ -1,6 +1,6 @@
 # After Stop: move to the lecture's own page (PO-19)
 
-Status: AI SPECIALIST DESIGN, 2026-11-01. Author: adhd-ux-specialist. Audience: Lead Architect, Product Owner, frontend-engineer, qa-engineer.
+Status: AI SPECIALIST DESIGN, 2026-11-01. Author: neurodivergent-ux-specialist. Audience: Lead Architect, Product Owner, frontend-engineer, qa-engineer.
 
 **Nothing here is human-validated (gate G4 NOT_RUN).** No student, screen-reader or real-device evidence exists for any choice below. Tags: [J] design judgement, [C] project constraint (CLAUDE.md invariant 7; the three-live-region rule; focus rules in `LectureScreen.tsx`; `docs/ux/language-guide.md`, binding for every string). **Gate G1 is not touched:** no string below discloses recording, consent, retention or the Demo source; the Stop confirm wording, `STOPPED_COPY`, `ConsentStart.tsx`, `ConsentDialog.tsx` and the Demo note are byte-identical after this work. The new strings are normal copy, not DRAFT.
 

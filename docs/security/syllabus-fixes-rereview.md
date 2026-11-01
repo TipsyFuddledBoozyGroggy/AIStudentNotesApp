@@ -101,7 +101,7 @@ Reviewer: security-engineer. Date: 2026-10-31. HEAD `a0e9f0b`, working tree clea
 - **Observation, Info SBR-I1:** the selection query (`Jobs.cs:259-263`) has no status filter, unlike the re-check.
 
 ### SB-03 (LOW): not fixed
-Unchanged and deferred to adhd-ux-specialist and product-manager. It is still required before any real calendar write.
+Unchanged and deferred to neurodivergent-ux-specialist and product-manager. It is still required before any real calendar write.
 
 ## New findings
 
@@ -171,7 +171,7 @@ Unchanged and deferred to adhd-ux-specialist and product-manager. It is still re
   - Clear the course's paste draft on course archive or purge.
   - Show "Kept on this device until you add it or sign out".
   - Add an app-level sign-out test, including logout failure.
-  - Owner: frontend-engineer, with adhd-ux-specialist for the copy.
+  - Owner: frontend-engineer, with neurodivergent-ux-specialist for the copy.
 
 ### SBR-10 LOW: the same-key Quick recap race returns the winner without `Idempotency-Replayed`; this is the "4 vs 5" flake and it is a real product race
 - **Where:** `src/api/src/Modules/Ai/Tether.Ai/CatchUp/CatchUpService.cs:115-126` (also `:131-136` and `:167-169`).

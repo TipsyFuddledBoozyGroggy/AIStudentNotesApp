@@ -67,7 +67,7 @@ Deferred: row-level security (ADR-013), revisited at M003 start with security-en
 |---|---|---|
 | PO-9 | Tether uses the Google suite (Calendar now; Docs/Drive for notes and study guides). | PO decided; design in progress |
 | PO-9a | If a student deletes a Tether-created event in Google, Tether leaves it alone (never recreates it) and may tell the student. | PO decided |
-| PO-9b | Reminder defaults are delegated to `adhd-ux-specialist` (audience: neurodivergent students). Output: `docs/ux/calendar-reminders.md`. Not human-validated (G4). | Delegated, pending |
+| PO-9b | Reminder defaults are delegated to `neurodivergent-ux-specialist` (audience: neurodivergent students). Output: `docs/ux/calendar-reminders.md`. Not human-validated (G4). | Delegated, pending |
 | PO-9c | Token key management is delegated to `security-engineer`. Output: `docs/security/google-tokens-and-data-residency.md`. | Delegated, pending |
 | PO-9d | One Google account per user, and it must be the same account the student signs in with (Google sign-in is the identity). Students get access to all pertinent content Tether creates, in their own Google account. Implication: the dev-login identity gets replaced by Google OIDC sign-in (PO-6). | PO decided |
 | PO-9e | All content Tether creates should live in one or more Google apps so it survives a Tether outage. This amends the Postgres-centred model (invariant 5 and deletion/export controls) and needs an ADR plus CLAUDE.md wording once security and legal input is in. | PO intent; amendment pending |
@@ -136,10 +136,10 @@ These are Lead Architect choices under delegation. Reversible. They approve no s
 
 | ID | Decision | Status |
 |---|---|---|
-| PO-17 | UX refactor round 2 (`docs/ux/redesign-round2.md`, written by adhd-ux-specialist on the fable model): header tabs ("Today / Courses") replace the left rail. | PO decided |
+| PO-17 | UX refactor round 2 (`docs/ux/redesign-round2.md`, written by neurodivergent-ux-specialist on the fable model): header tabs ("Today / Courses") replace the left rail. | PO decided |
 | PO-17a | Serif type is the voice of synthesis (summary lines, "Most recent", headings); transcript and interactive text stay sans. Reversible by a token. | PO decided |
 | PO-17b | Recording-consent screens and Demo-source presentation are unchanged for now (gate G1); the spec's two consent recommendations are DEFERRED, not closed, and stay for the PO and counsel. | PO decided |
-| PO-17c | `adhd-ux-specialist` and `frontend-engineer` run on the `fable` model. | PO decided |
+| PO-17c | `neurodivergent-ux-specialist` and `frontend-engineer` run on the `fable` model. | PO decided |
 
 ## Decisions on the redesign open items (2026-10-31)
 
@@ -147,7 +147,7 @@ These are Lead Architect choices under delegation. Reversible. They approve no s
 |---|---|---|
 | PO-18 | Push the redesign slices 0-6 to origin/main. | Done (4cacf5d..7dd222e) |
 | PO-18a | Non-Paper themes give the consent screen no page decoration (no Gamer grid, no Glass gradient) and an opaque header. Consent card, wording and pop-up unchanged. | PO accepted |
-| PO-18b | Syllabus review: implement a reserved-space rail so "one fill always in view" works without a sticky bar over targets (SC 2.5.8). Design by `adhd-ux-specialist` (fable) first. | PO decided; not built |
+| PO-18b | Syllabus review: implement a reserved-space rail so "one fill always in view" works without a sticky bar over targets (SC 2.5.8). Design by `neurodivergent-ux-specialist` (fable) first. | PO decided; not built |
 | PO-18c | Follow the `fable` design review's recommendation for the Demo-source notice on lecture screens (`docs/ux/redesign-round2-review.md` section 6; also redesign-round2.md): render it as a one-line Note with the body behind "Details", and the Demo tag leaves the bar on desktop as it already does on phones. Wording is unchanged word for word; the recording status stays always visible. Supersedes the PO-17b deferral for this item only. Counsel not consulted; gate G1 is not cleared by this (PO risk acceptance for the personal-use scope, PO-16). | PO decided; not built |
 | PO-18d | Final summary and notes after Stop: **option B**. A deliberate student press ("Make notes") after Stop is the only thing that sends the already-recorded transcript to the AI once a lecture has stopped; nothing is sent automatically on Stop (B3-06 stands). One press covers both the final summary and the notes. Built on the mock provider first; wording stays a draft; consent/disclosure wording is G1. | PO decided; not built |
 | PO-18e | Acknowledged: NAS-03 moved the notes permission window from press time to job start plus a queue-age limit. With NAS-R02 fixed, the longest time from a press to a finished job is about 44 minutes at the defaults. | PO acknowledged |

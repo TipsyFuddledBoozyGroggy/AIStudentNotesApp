@@ -4,7 +4,7 @@
 Status: design only. No code written or executed. Vendor facts below come from general knowledge and are NOT verified; re-check pricing, retention and DPA terms before any decision. Claude does not transcribe audio; it only consumes finalized transcript text downstream.
 
 ## 1. Scope and dependencies
-- Owner: speech-engineer. Contract co-owners: backend-engineer (hub/socket, persistence), frontend-engineer (capture UI), security-engineer (consent/retention), adhd-ux-specialist (status UI), qa-engineer.
+- Owner: speech-engineer. Contract co-owners: backend-engineer (hub/socket, persistence), frontend-engineer (capture UI), security-engineer (consent/retention), neurodivergent-ux-specialist (status UI), qa-engineer.
 - Smallest deliverable: mock provider + event contract + replay tests, then one real-provider smoke test after PO approval.
 
 ## 2. Data flow
@@ -116,5 +116,5 @@ Recommendation (pending PO approval, not a decision): prototype with **Deepgram*
 2. PO/security: recording-consent policy wording; instructor-permission requirement; institution rules.
 3. Lead Architect: transcript events on the audio socket vs SignalR; ticket auth approach.
 4. Security: vendor DPA, FERPA, data-region requirements.
-5. Product: diarization (labels only, optional) in MVP or later; partial-display policy for screen readers (adhd-ux-specialist).
+5. Product: diarization (labels only, optional) in MVP or later; partial-display policy for screen readers (neurodivergent-ux-specialist).
 6. Lead Architect: session length and daily minute caps.
