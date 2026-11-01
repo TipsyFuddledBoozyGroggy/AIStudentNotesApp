@@ -1,3 +1,5 @@
+> **Status 2026-11-01 (PO-20ar): PARKED, NOT BUILT.** The PO chose to keep the existing wording until real recording is planned. Revisit then, with legal, UX and PO review. This is not legal clearance.
+
 # Audio stopped after repeated refused connections: message DRAFT
 
 Status: **DRAFT, NOT SHIPPED.** This is G1 / consent-sensitive wording. It must go through `neurodivergent-ux-specialist`, `legal-compliance-reviewer` / `security-engineer` and the Product Owner before any of it reaches `copy.ts`. Nothing here changes the app. Author: frontend-engineer, 2026-11-01, for PO-20af (Review Desk T-4401).
