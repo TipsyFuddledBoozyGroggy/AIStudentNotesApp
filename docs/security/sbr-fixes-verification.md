@@ -241,3 +241,87 @@ Every path where a proposal can be lost to a cap now increments a counter:
 - **Ran (read-only):** `git show --stat` and full diffs of `f789acb` and `b6a51bc`; one `node -e` NFC probe.
 - **Not run:** any .NET or web test, typecheck, build, the app, the dev stack, the harness e2e or the axe runs at width.
 - **Not verified:** the authors' test counts; that the new tests fail on the old code (judged by reading); the .NET `Canonicalize` output for the SBV-04 input (inferred from the code and the JS probe); Npgsql round-trip byte identity (from the DB-09 design test, not re-run).
+
+# Third pass: the 'Dates we noticed' build (commit 400f1cc, PO-20b / SBV-05)
+
+Reviewer: security-engineer. Date: 2026-11-01. HEAD `400f1cc`, working tree clean at start; `400f1cc` and four earlier commits are not on `origin/main` yet. Spec: `docs/ux/unclaimed-dates-list.md` section 12 (and checklist section 10). Scope calibrated to the personal, non-commercial tool (PO-15/16); every issue is reported anyway.
+
+**Method.** I read the full diff of `400f1cc` for `UnclaimedDates.tsx`, `UnclaimedAddForm.tsx`, `Review.tsx`, `ItemEditForm.tsx`, `storage.ts`, `copy.ts`, `lib/syllabus/{client,parse,requests,types}.ts`, `mocks/{syllabusHandlers,syllabusDb,unclaimedFixtures}.ts`, `.github/workflows/ci.yml`, the new e2e `e2e/syllabus-unclaimed.spec.ts`, and the test names and key assertions in `UnclaimedDates.test.tsx`, `Review.test.tsx`, `drafts.test.tsx`, `schemas.test.ts`, `unclaimed.test.ts`, `syllabusUnclaimedHandlers.test.ts`. I also read `PlainTextSpan.tsx`, `plainText.ts`, `Announcer.tsx`, `MockProvider.tsx`, `next.config.mjs`, `AuthProvider.tsx` (sign-out), `ItemService.cs` (create), `SyllabusEndpoints.cs` (unclaimed route), `Jobs.cs:179-183`, the unclaimed-date and problem schemas, and `API_CONTRACTS_P2.md` rows 38, 42 and 133. I ran **no** test, typecheck, lint, build, app or dev stack. Nothing in `src/`, `tests/` or `.github/` was changed.
+
+## Result
+
+**New findings: 0 CRITICAL, 0 HIGH, 0 MEDIUM, 3 LOW (SBV-07, SBV-08, SBV-09). Nothing blocks a push.**
+
+| ID | Verdict | Register status |
+|---|---|---|
+| SBV-05 MEDIUM | **Fixed.** Review fetches and renders the unclaimed dates whenever `counts.unclaimedDates > 0` and the text is not purged, including `droppedInvalid == 0`. Tests that would fail on the old code exist at unit and real-stack level | OPEN to FIXED-VERIFIED (READ, NOT RUN) |
+| SBR-06 LOW | **Fixed with SBV-05.** A demoted item's date is now visible; the dropped Note gets "See dates we noticed" | OPEN to FIXED-VERIFIED (READ, NOT RUN) |
+
+**Why FIXED-VERIFIED and not "OPEN pending a run".** The register's FIXED-VERIFIED means I read the fix and a test that would fail without it; SBV-01 and SBV-02 were closed the same way. That holds here: `Review.test.tsx` 'no items but noticed dates' and `UnclaimedDates.test.tsx` need the section to exist, and `e2e/syllabus-unclaimed.spec.ts` pastes keyword-free dated lines through the real API and expects 200 rows. **Condition:** the flows-a shard that now runs this spec has never run on GitHub. After the push, read that run (`gh run list`, `gh run view <id> --log-failed`). If the spec fails for a product reason (not L-RATE or environment), reopen SBV-05 and SBR-06.
+
+## Checks against spec section 12
+
+| Check | Result (READ) |
+|---|---|
+| Untrusted snippet and context render as text only | **Pass.** Every piece goes through `<PlainText>` (a React text node after stripping C0/C1 controls and bidi characters). No `dangerouslySetInnerHTML`, `innerHTML`, markdown, link detection or data-built `href` in any changed file (grep). The text also goes into `aria-label`s and the shared announcer as React-escaped strings. Bidi characters are not stripped there, but the server already strips them from the canonical text (`DocumentText.Canonicalize`, `TextPolicy.IsBidiControl`), as for `ItemRow` titles |
+| Date in bold by offsets | **Pass.** `a = start - ctx.start`, `b = end - ctx.start`; bold only if `0 <= a < b <= ctx.text.length` and `ctx.text.slice(a, b) === snippet.text`. Offsets are UTF-16 code units (contract row 38), the unit `String.prototype.slice` uses. The bold text equals `snippet.text` by construction, so even a coincidental match cannot bold the wrong words. No regex runs over the text |
+| Offset mismatch fallback | **Pass.** On a mismatch the page shows the snippet blockquote, then "The line around it:" and the context blockquote, with no `strong`. When `context.text === snippet.text` it shows one quote. Tests: 'offsets that disagree with the line', 'context equal to the date' |
+| Very long lines | **Pass.** `whitespace-pre-line break-words`; a 1,500-character fixture (`rowLongLine`); the e2e checks no horizontal scroll at 390px. Parser caps: snippet 600, context 1,500 (`parseSnippet`) |
+| No HTML sink | **Pass**, by grep and by reading. Gap: no test feeds HTML-, formula- or bidi-looking text into this section (SBV-08 a) |
+| Prefilled title, edited by the student | **Pass.** `prefillTitle` applies `plainText`, collapses whitespace, trims, and cuts at 200 code points at the last space (hard cut when there is none). The field is an ordinary editable input. Nothing is sent until the student presses Add item |
+| What POST /syllabi/{id}/items sends | **Pass.** `itemCreateBody` returns exactly `{kind, title, date, allDay, time}`, with `time: null` when all day. It sends no `timezone`, no `notes` and no link to the unclaimed id. `kind` comes from the editable kinds select. The title length is checked in code points on the trimmed value, then whitespace is collapsed, which can only shorten it. Tests: `schemas.test.ts` (ajv against `syllabus-item-create-request`, exact keys), `unclaimed.test.ts`, `UnclaimedDates.test.tsx` (`toEqual` on the body), e2e (`postDataJSON` toEqual) |
+| Idempotency-Key | **Pass.** A fresh `newIdempotencyKey()` per press. It is reused only when the last attempt with the identical body fingerprint failed on the network, and is discarded after any answered response. A malformed key is refused before any request. The server decides the key under the syllabus lock (`ItemService.cs:93-102`). Test: 'network: values and the Idempotency-Key are kept for the retry; an answered error discards the key'. See SBV-I7 |
+| Length cap, 200 code points | **Pass.** Client `validate` counts code points; the server re-validates through TextPolicy; the mock rejects more than 200 |
+| Body is exactly the contract fields | **Pass** (above). The request schema is `additionalProperties: false`, and the mock rejects unknown members |
+| localStorage keys user-scoped, ids only | **Pass.** `tether.syllabus.u.<user>.unclaimed.<syl>.<unc>` holds `{"s":"hidden"}` or `{"s":"added","itemId":...}`. `isState` accepts exactly those shapes, and `readDraftsUnder` reads only the signed-in owner's prefix. A test asserts that no snippet text appears anywhere in `localStorage`. The add-form draft (`unclaimed-add.`) holds title, date and time, including the prefilled syllabus line, which the spec allows (SBV-07) |
+| Cleared on sign-out and delete | **Pass.** Sign-out calls `clearAllDrafts()`, which removes all `u.` keys (`AuthProvider.tsx:45`). Syllabus delete calls `clearSyllabusDrafts`, which now names `edit.`, `unclaimed.` and `unclaimed-add.` separately; the test covers the `s1` vs `s10` prefix trap. Not cleared on canonical-text purge (SBV-07) or course delete (existing SBR-09) |
+| Parser strictness | **Pass with a residual.** `parseUnclaimed` refuses any row member other than `id` and `snippet`, a null snippet and a bad id. `parseUnclaimedPage` refuses any page member other than `items` and `nextCursor`. One bad row refuses the whole page, and more than 200 rows in total is refused. Inside `snippet` and `context`, unknown members are ignored rather than refused (SBV-08 b) |
+| MSW handlers never ship | **Pass; the mechanism is unchanged.** The new handlers join the existing set, which loads only through `import("@/mocks/browser")` behind `NEXT_PUBLIC_API_MOCKING === "enabled"` (`MockProvider.tsx:5`). That flag is set only in `.env.development` and `.env.example`. No production module imports `@/mocks` (grep). A production build may still emit the lazy chunk, but it is never loaded; not new |
+| No request to a Google host | **Pass.** No Google host in any changed source file (grep). The e2e records every request whose hostname matches `/google/i` and asserts the list is empty. `copy.test.ts` keeps 'google' out of the copy |
+| No model text in the path (SBV-01) | **Pass.** Unclaimed `SnippetText` and `ContextText` are server slices of the canonical text (`Jobs.cs:179-183`, via `SyllabusLimits.Apply` / `TryCanonical`, verified in the second pass). Demoted items keep no model title. The client derives the prefilled title from those slices. The created item's title is what the student sends, and the row shows the server's 201 body. No server change in this commit |
+| No new aria-live | **Pass.** No `aria-live`, `role=status` or `role=alert` in the new components (grep). Announcements use `useAnnouncer()`, and `aria-busy` is only on the Add item button. Tests: `liveInside()` is empty in every state, and the Review tests assert no live ancestor |
+| 409 invalid_state ambiguity | **LOW (SBV-09)**, below |
+
+## New findings
+
+### SBV-07 LOW: the add-form draft keeps a syllabus line on the device after the server purges the text
+- **Where:** `UnclaimedAddForm.tsx:57-77`. On the first change to any field, `update()` writes the whole value set to `unclaimed-add.<syl>.<unc>`, including the prefilled Title, which is a syllabus line. `Review.tsx` stops rendering the section once `retention.canonicalTextPurged` is true, and nothing clears `unclaimed-add.` then.
+- **Scenario:** the student opens Add as item, types a date and leaves. Later the server purges the canonical text and nulls the unclaimed snippets (`Jobs.cs:341`). The line stays in this browser's `localStorage`, unreachable from the UI, until sign-out or syllabus delete.
+- **Why LOW:** it is the same user on their own device, it is the same class of data as the existing edit and paste drafts, and spec 12 accepts it. It does extend SBR-09 (no TTL; an expired session and course delete keep drafts) and slightly undercuts the retention promise.
+- **Fix:** on a purged syllabus, remove the `unclaimed-add.<syl>.` drafts (optionally the `unclaimed.<syl>.` states too) and add a test. Owner: frontend-engineer.
+
+### SBV-08 LOW: client residuals on the new path
+- (a) No test renders hostile-looking text in the section: the `hostile` Review fixture has `unclaimedDates: 0`. The rendering is safe by construction (PlainText), but a section-level test would catch a regression such as added link detection. Use snippets like `<img src=x onerror=alert(1)>Oct 5` and `=HYPERLINK("https://x.invalid","Oct 5")`, and assert `textContent` and no element children besides `strong` and its `span`s.
+- (b) `parseSnippet` (shared with items) ignores unknown members inside `snippet` or `context` instead of refusing them. Only named fields are copied, so nothing extra reaches the UI, but the parser is looser than the schema and the spec's "reject unknown members".
+- (c) `listUnclaimedDates` stops after two pages and returns what it has, even if page 2 still carries a `nextCursor`, which is a silent cut (L-DROP). Unreachable with today's server: the client asks for `limit=200`, the cap is 200, and `SyllabusEndpoints.cs:279-283` sets a cursor only when more than `limit` rows exist. Fix: throw `SyllabusParseError` if a cursor remains after page 2.
+- Owner: frontend-engineer.
+
+### SBV-09 LOW: one 409 code for "not ready" and "item cap reached"
+- **Where:** `ItemService.cs:104` (status not ready/partial) and `:107` (`total >= MaxItems || students >= MaxStudentItems`) both return `SyllabusProblem.InvalidState()`. The contract table (`API_CONTRACTS_P2.md:133`) documents 409 `invalid_state` only "while not ready/partial". The mock mirrors the server. The client shows `ACTION_COPY.generic` for both and leaves `UNCLAIMED_COPY.form.limit` unused (as `copy.ts` states).
+- **Rating, LOW:** no security or integrity effect. The caps are enforced server-side under the syllabus lock, nothing is written, and the student is told nothing changed. What remains is an undocumented server behaviour and a message that does not say why, which can cost the student a retry loop. The 100-student-item cap is unlikely to be reached on one syllabus.
+- **Proposal (additive; the Lead owns contract text):** keep status 409 and add a distinct code `item_limit_reached`, parallel to the existing per-item `event_limit_reached`. That needs:
+  - the `errorCode` enum in `syllabus-common.schema.json`;
+  - contract row 133 and section 9;
+  - `ItemService.cs:107`;
+  - a contract test and a problem fixture;
+  - the web mapping of the new code to `form.limit`.
+
+  This client already copes: `ApiError.code` is a plain string, and unknown codes fall to the generic message. The change alters the response for an existing condition, so the Lead must confirm it is allowed under "syllabus.v1 frozen for mock-only". The minimum alternative is to document in row 133 that the caps also return `invalid_state`. Owners: Lead Architect, backend-engineer, frontend-engineer.
+
+## Observations (Info, not findings)
+
+- **SBV-I7:** a new key is sent after a network failure if the student edits the form, or closes and reopens it (the pending key lives in a ref that dies with the component). If the first attempt did reach the server, the student gets two items. Both are visible, undecided and deletable, and nothing goes to the Calendar without approval, so this is acceptable for v1. Persisting the key with the draft would remove the risk.
+- **SBV-I8:** Hide and "added" are per device (a spec residual, Lead question 1). Hide is the student's choice and deletes nothing on the server, and the export still includes every unclaimed date.
+- **SBV-I9:** SBV-06 (the extractor chooses the context window) is now on screen: the quote and the prefilled title both use `context.text`. The mock uses the full line, so it stays LOW. The fix is unchanged and must land before a real extractor.
+- **SBV-I10:** `.github/workflows/ci.yml` changes only the flows-a spec list and a comment. No new action, permission, secret or trigger.
+- **SBV-I11 (public repo):** the new fixtures and the e2e text are synthetic ("Art 210 syllabus (synthetic test text)", "Bring a calculator ..."). The diff contains no personal data, keys or real syllabus content (read).
+
+## What I ran and what I did not verify (third pass)
+
+- **Ran (read-only):** `git show --stat` and diffs of `400f1cc`; `git log origin/main..HEAD`; `git status --short`; grep/sed over tracked files; the register's section 6 per-status count recipe, before and after editing the register.
+- **Not run:** vitest, tsc, eslint, any .NET test, the e2e specs, axe, screens or geometry, a production `next build`, or the app.
+- **Not verified:**
+  - the author's "vitest 3072" and "real-stack e2e pass locally";
+  - that the flows-a shard passes on GitHub (it has never run);
+  - that the tests fail on the old code (judged by reading);
+  - whether a production build emits the MSW chunk (not built).

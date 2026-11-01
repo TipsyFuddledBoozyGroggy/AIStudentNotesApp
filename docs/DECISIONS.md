@@ -172,7 +172,7 @@ Source: the Product Owner's answers in the local Review Desk (23 items; the desk
 | PO-20f | L-05: PO is most familiar with **AWS Bedrock** and wants to plan on it. Bedrock hosts language models, not streaming speech-to-text (AWS's speech service is Amazon Transcribe). Needs clarification; a vendor verification of both is running. This is planning only; G2 stays UNVERIFIED and nothing real is called. | PO direction; follow-up open |
 | PO-20g | G1-NOTES: keep the draft "Make notes" disclosure for mock use only; counsel review before any real AI. | PO decided |
 | PO-20h | L-02: personal, mock-only until the PO has the instructor and campus recording rule in writing. No real recording before then. | PO confirmed |
-| PO-20i | L-01: add a warning when the connected Google account looks institutional (does not block export). | PO decided; not built |
+| PO-20i | L-01: add a warning when the connected Google account looks institutional (does not block export). | Superseded by PO-20w |
 | PO-20j | L-13: choose a **US region** for now and record it; specific AWS region to be chosen with the hosting decision. | PO decided |
 | PO-20k | L-09: no age gate now; add one if other users appear. Scope boundary: the only user is the PO's son (an adult). | PO decided |
 | PO-20l | L-10 and D13: synthetic or own documents only until a policy exists. | PO decided |
@@ -186,3 +186,7 @@ Source: the Product Owner's answers in the local Review Desk (23 items; the desk
 | PO-20t | G2-CAP: leave the per-session AI cap placeholder until a priced pilot. | PO decided |
 | PO-20u | L-03, L-06 to L-08, L-14 to L-16, L-20, L-21: the deferral stands (personal tool only); revisit if anyone else gets access. | PO confirmed |
 | PO-20v | L-17 and L-18: do the licence inventory and the third-party-names check before any release. | PO decided |
+| PO-20w | L-01 / GR-1: **refuse** institution-managed Google accounts for export (replaces the warn-only PO-20i). Matches PO-14a; the MEDIUM rating stays. The `hd` claim check is unverified and counsel has not confirmed the personal-account position. Not built; any warning task becomes a refusal task, with tests, before the real Google connection. | PO decided (Review Desk, handed off by the auto-review run 2026-11-01) |
+| PO-20x | UNCLAIMED-UX: accept all five defaults for the unclaimed-dates list (device-local Hide, prefilled title, type Other, collapsed by default, no count elsewhere). Matches the build in 400f1cc. | PO decided |
+| PO-20y | AUTHOR-EMAIL: use GitHub's no-reply address for new commits in this repo. Applied as this repository's local git config on 2026-11-01. Old commits keep the personal address; no history rewrite. | PO decided; applied |
+| PO-20z | L-05 follow-up: the PO's second answer prefers Azure AI Speech (US) as the first speech candidate (the AWS Bedrock-for-Claude question is separate and still open). Review of this answer is in progress on the desk. Nothing real is called; G2 stays UNVERIFIED. | PO direction; review in progress |
