@@ -69,3 +69,9 @@ Entry format:
 - **L-CHECKOUT:** a `git checkout` of a file that held another agent's uncommitted work was blocked by the permission guard before it ran.
 - **L-DROP:** SBR-06 (a backstop silently dropped data, hiding deadlines); SBV-02 (cap drops uncounted).
 - **L-FORGE:** SBV-01 (extractor-written snippet text could be stored as a quote).
+
+### 2026-11-01 Lead committed an agent's unfinished files with `git add -A`
+- **Symptom:** commit 569bb6b contained the SBV-04 tests and a partly finished `DocumentText.cs` while the backend agent was still working; HEAD briefly had failing tests. The Lead's check (`git show --stat | grep src/`) missed it because `--stat` abbreviates long paths.
+- **Root cause:** Lead process: `git add -A` with agents running, and a check that could not see the problem.
+- **Prevention:** delegation checklist item 7: while any agent is running, add files by explicit path; verify a commit with `git show --name-only`. Not an agent-definition change.
+- **Status:** APPLIED (checklist). Fixed forward in 7cff155; nothing was pushed in between.

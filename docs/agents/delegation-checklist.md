@@ -7,3 +7,4 @@ Every delegation prompt:
 4. Do NOT restate playbook facts (ports, Docker command, Playwright configs, rate limits, no-commit). Write "playbook sections 2 and 5 apply" and give only what differs for this task.
 5. Open decisions the agent must not decide (point at DECISIONS.md numbers).
 6. After a push that touches CI, read the GitHub run and report the conclusion (playbook section 2).
+7. While any agent is running, stage by explicit path, never `git add -A`; verify what a commit contains with `git show --name-only` (not `--stat`, which abbreviates paths).
