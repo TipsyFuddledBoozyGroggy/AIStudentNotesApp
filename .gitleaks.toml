@@ -1,0 +1,51 @@
+# gitleaks configuration (authored 2026-11-01 after the first full-history CI run reported 3666 generic-api-key
+# findings, all reviewed as test/fixture values, none a real credential).
+#
+# Policy: keep every default rule ON. Each allowlist below is scoped to ONE rule (generic-api-key) and requires BOTH
+# a path match AND a match on the full source line (condition = "AND"), so the same string pasted anywhere else, or a
+# different rule firing in these files, still fails the scan. Allowlisting by path+line regex also covers history
+# findings, because gitleaks applies these to every commit it walks, not only the current tree.
+# Do not widen a path to a whole directory without the line regex. Add a new block for a new fixture family instead.
+
+title = "Tether gitleaks config"
+
+[extend]
+useDefault = true
+
+# Rule override (gitleaks 8.21.2 has no top-level targetRules): the allowlists attach to generic-api-key only.
+[[rules]]
+id = "generic-api-key"
+
+# 1. Contract fixtures: idempotency item keys are random "ik_" + 32 url-safe chars. Contract identifiers
+#    (src/shared/contracts/{fixtures,calendar.v1/fixtures}/{valid,invalid}/*.json), not credentials.
+[[rules.allowlists]]
+description = "Contract fixture itemKey identifiers (ik_ prefix)"
+condition = "AND"
+paths = ['''^src/shared/contracts/(calendar\.v1/)?fixtures/(valid|invalid)/[^/]+\.json$''']
+regexTarget = "line"
+regexes = ['''"itemKey"\s*:\s*"ik_[A-Za-z0-9_-]+"''']
+
+# 2. Integration test: client-supplied Idempotency-Key literals such as "k-race", "k-sbr10-coalesce".
+[[rules.allowlists]]
+description = "Idempotency-Key test literals in CatchUpReplayRaceTests"
+condition = "AND"
+paths = ['''^src/api/tests/Tether\.IntegrationTests/CatchUpReplayRaceTests\.cs$''']
+regexTarget = "line"
+regexes = ['''key:\s*"k-[a-z0-9-]+"''']
+
+# 3. Contract test: one itemKey literal of the same ik_ shape as block 1.
+[[rules.allowlists]]
+description = "itemKey test literal in CalendarContractTests"
+condition = "AND"
+paths = ['''^src/api/tests/Tether\.ContractTests/CalendarContractTests\.cs$''']
+regexTarget = "line"
+regexes = ['''const string key\s*=\s*"ik_[A-Za-z0-9_-]+"''']
+
+# 4. Integration test host: a hand-typed dummy root secret used only by the test ApiFactory (referenced nowhere else in
+#    the repo; production reads Security__RootSecret from the secret store). Allowlisted on the property line only.
+[[rules.allowlists]]
+description = "Dummy RootSecretValue in the integration test ApiFactory"
+condition = "AND"
+paths = ['''^src/api/tests/Tether\.IntegrationTests/Infrastructure/ApiFactory\.cs$''']
+regexTarget = "line"
+regexes = ['''RootSecretValue\s*=>\s*"[A-Za-z0-9]+"''']

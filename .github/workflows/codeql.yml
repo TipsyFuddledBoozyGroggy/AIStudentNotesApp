@@ -1,6 +1,12 @@
 name: CodeQL
-# Authored 2026-11-01, NEVER RUN ON GITHUB. Code scanning results need GitHub code scanning enabled for the repo
-# (free for public repositories; GitHub Advanced Security for private ones). Without it the upload step errors.
+# First run 2026-11-01 (run 41313272589): analysis itself completed, but BOTH jobs failed at the SARIF upload with
+# "Code scanning is not enabled for this repository". The repo is PRIVATE; code scanning on a private repo needs GitHub
+# Code Security / Advanced Security (paid) -- a licensing/settings matter, not fixable in YAML. Product Owner decision
+# needed: (a) make the repo public (free), (b) buy GHAS, or (c) keep CodeQL out of required checks and switch the
+# analyze step to `upload: never` + upload the SARIF as a workflow artifact. Until then this workflow will stay red.
+# Separate real defect fixed here: C# build-mode none printed 16 "dotnet restore --no-dependencies ... failed with
+# exit code 1" errors (CodeQL 2.20.2 bundled with v3.28.3 predates .NET 10; its buildless restore fakes the targeting
+# pack root). C# now uses a real build (manual) with the repo SDK and a newer pinned action. UNVERIFIED until a new run.
 # Docs-only pull requests/pushes are skipped via paths-ignore; the weekly schedule always runs. Because paths-ignore
 # means no check is reported for docs-only changes, do NOT make a CodeQL check "required" in branch protection
 # until this is revisited (a required check that never reports blocks the merge).
@@ -34,18 +40,25 @@ jobs:
       matrix:
         include:
           - language: csharp
-            build-mode: none          # no-build extraction; avoids the SDK/Postgres setup for this job
+            build-mode: manual        # real `dotnet build` under the tracer (buildless restore breaks on net10 with the old bundle)
           - language: javascript-typescript
             build-mode: none
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
           persist-credentials: false
-      - uses: github/codeql-action/init@dd196fa9ce80b6bacc74ca1c32bd5b0ba22efca7  # v3.28.3
+      - uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25  # v4.1.0
+        if: matrix.language == 'csharp'
+        with:
+          global-json-file: src/api/global.json   # 10.0.403, rollForward latestFeature
+      - uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d  # v4.38.3 (commit SHA resolved via gh api 2026-11-01, tag dated 2026-10-08)
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           queries: security-extended
-      - uses: github/codeql-action/analyze@dd196fa9ce80b6bacc74ca1c32bd5b0ba22efca7  # v3.28.3
+      - name: Build C# (traced by CodeQL)
+        if: matrix.language == 'csharp'
+        run: dotnet build src/api/Tether.slnx -c Release -p:UseSharedCompilation=false
+      - uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d  # v4.38.3 (commit SHA resolved via gh api 2026-11-01, tag dated 2026-10-08)
         with:
           category: "/language:${{ matrix.language }}"
