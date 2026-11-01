@@ -95,7 +95,7 @@ All routes are under `/api/v1`.
 ### 5.2 Account rules
 
 - One Google account per user and one Tether user per `sub` (unique index). The data account must equal the signed-in account. A different account is a different Tether identity; accounts are never merged. Email is display only; `email_verified` is not used for linking.
-- Workspace (institution-managed) accounts are **allowed** (PO-10j). `workspaceAccount` comes from the `hd` claim captured at sign-in (an `openid`-only connect token may lack it: CV-22). The UI shows a plain warning at connect that the institution can see and manage Google content. `admin_blocked` is a callback outcome from the consent-time `error=` value only, and is unreachable in practice until test T9 verifies the value; tests must not claim otherwise.
+- Workspace (institution-managed) accounts are **refused at connect** (PO-20w, 2026-11-01; PO-10j, which allowed them with a warning, was superseded by PO-15a and then PO-20w). Detection is best-effort and not built: it uses the `hd` claim (below); the rule is refuse when `hd` is present and allow when absent (PO-20ae). Allowing when absent fails open, so the claim must be tested before anything is built (T-hd/T9). `workspaceAccount` comes from the `hd` claim captured at sign-in (an `openid`-only connect token may lack it: CV-22). (Superseded wording: the earlier warning at connect is replaced by the refusal.) `admin_blocked` is a callback outcome from the consent-time `error=` value only, and is unreachable in practice until test T9 verifies the value; tests must not claim otherwise.
 - `needs_reauth` is resolved by the **connect** flow again, not by sign-in alone (sign-in has no data scope).
 
 ### 5.3 Closed, suspended, revoked and blocked accounts
