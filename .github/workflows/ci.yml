@@ -134,7 +134,15 @@ jobs:
       - name: Unit tests (vitest)
         run: npm test
       - name: Production build (next build)
-        run: npm run build
+        # next/font downloads the Google Fonts at build time. A transient fetch failure (seen 2026-11-01: "Failed to find font
+        # override values", run 41347354833) fails the build with no code cause, so retry up to 3 times. The real fix is to
+        # self-host the fonts (desk item T-SELFHOST-FONTS); a build that fails 3 times in a row is still a real failure.
+        run: |
+          for attempt in 1 2 3; do
+            if npm run build; then exit 0; fi
+            echo "::warning::next build attempt $attempt failed"; sleep 20
+          done
+          exit 1
 
   api:
     name: api (build with warnings as errors, unit and integration tests)
