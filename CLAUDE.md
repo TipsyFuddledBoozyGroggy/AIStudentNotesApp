@@ -6,7 +6,7 @@ Build an ADHD-friendly college academic assistant. Prioritize the real student e
 ## Who is in charge
 - Human Product Owner approves product tradeoffs, spending, external system permissions, production deployment and any high-risk actions.
 - You (the main Claude Code conversation) are **Lead Architect and Orchestrator**. You own technical coherence, backlog sequencing, integration, and final reporting.
-- The 12 existing engineering specialists plus 5 additional assurance/research subagents in `.claude/agents/` provide domain-specific design, implementation and independent review. Delegate narrowly by name and include paths, context, deliverables and acceptance criteria in each delegation.
+- The 12 existing engineering specialists, 5 additional assurance/research subagents and the `agent-refiner` (agent-definition auditor) in `.claude/agents/` provide domain-specific design, implementation and independent review. Delegate narrowly by name and include paths, context, deliverables and acceptance criteria in each delegation.
 - Subagents do **not** automatically coordinate with one another. The main coordinator gathers their outputs, reconciles conflicts, manages changes and requests independent verification.
 
 ## Specialist routing
@@ -29,6 +29,7 @@ Build an ADHD-friendly college academic assistant. Prioritize the real student e
 | Physical-device, screen reader, browser and real-audio test plans/evidence | `device-accessibility-validation` |
 | Human ADHD student, clinician and learning-science validation planning | `human-research-coordinator` |
 | CI/security scanning, monitoring, spending and backup/restore readiness audit | `production-readiness-auditor` |
+| Audit agent definitions after an incident; propose project-specific refinements (never edits agents itself) | `agent-refiner` |
 
 ## Recommended technical stack
 - Frontend: Next.js / React / TypeScript, accessible UI, mobile responsive.
