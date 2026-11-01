@@ -129,14 +129,15 @@ describe("strict parsers over the shared fixtures", () => {
     expect(P[f.schema](f.json)).not.toBeNull();
   });
 
-  // The parser checks what the UI reads. It deliberately accepts: extra members (dropped, see below), TextPolicy-only
+  // The parser checks what the UI reads. It deliberately accepts: extra top-level members (dropped, see below), TextPolicy-only
   // violations (server-authoritative; render strips bidi and controls), and a field the UI never reads (contentSha256).
+  // Inside snippet and context, unknown members are refused (SBV-08 b), so syllabus-item--context-extra-field.json is
+  // rejected.
   const ACCEPTED_BY_DESIGN = [
     "syllabus--extra-field.json",
     "syllabus--redteam-trailing-lf-hash.json",
     "syllabus-item--bidi-confidence-reason.json",
     "syllabus-item--bidi-in-snippet.json",
-    "syllabus-item--context-extra-field.json",
     "syllabus-item--extra-field.json",
     "syllabus-item--numeric-score-extra.json",
     "syllabus-item--zero-width-title.json",

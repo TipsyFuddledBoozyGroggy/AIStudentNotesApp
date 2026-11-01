@@ -30,6 +30,37 @@ export function rowLongLine(): Wire {
   return unclaimedRow("unc_long", line, "Dec 12", 2000, 5);
 }
 
+// SBV-08 (a): hostile-looking lines. The server keeps these as plain text (TextPolicy does not strip markup or formula
+// signs), so they are schema-valid; the section must show them as inert text with only the date span in bold.
+
+/** HTML-looking text around the date: tags, an event handler, a script and a link. */
+export const ROW_HOSTILE_HTML = unclaimedRow(
+  "unc_html",
+  '<img src=x onerror=alert(1)>Oct 5 <script>alert(2)</script> <a href="https://x.invalid">read more</a> <b>bold?</b>',
+  "Oct 5",
+  500,
+  1,
+);
+
+/** A spreadsheet formula wrapping the date (CSV/formula injection shape). */
+export const ROW_HOSTILE_FORMULA = unclaimedRow("unc_formula", '=HYPERLINK("https://x.invalid","Oct 6") +cmd|\' /C calc\'!A0 @SUM(A1:A2)', "Oct 6", 700, 2);
+
+/** One 1,500-character run with no space or break opportunity, the date in the middle. */
+export function rowHostileUnbroken(): Wire {
+  const line = `${"x".repeat(740)}Dec-12${"y".repeat(754)}`;
+  return unclaimedRow("unc_unbroken", line, "Dec-12", 900, 3);
+}
+
+/** The schema-valid hostile rows, in display order. */
+export const hostileRows = (): Wire[] => [ROW_HOSTILE_HTML, ROW_HOSTILE_FORMULA, rowHostileUnbroken()];
+
+/**
+ * Bidi controls (RLO, PDF, LRI, PDI, LRM) inside the line around the date. The schema refuses them (the server strips
+ * them before storage, TextPolicy.IsBidiControl), but the client parser's text check is coarse (controls only), so this
+ * row reaches the section if a server ever sent it; the section strips them on render (PlainText). Not in VALID_PAGES.
+ */
+export const ROW_HOSTILE_BIDI = unclaimedRow("unc_bidi", "Quiz ‮on Oct 7‬ ⁦nwod⁩ then ‎home", "Oct 7", 1100, 4);
+
 export const page = (items: Wire[], nextCursor: string | null = null): Wire => ({ items, nextCursor });
 
 export const VALID_PAGES: Record<string, Wire> = {
@@ -40,6 +71,7 @@ export const VALID_PAGES: Record<string, Wire> = {
   "purged-nulls": page([ROW_PURGED]),
   "long-line": page([rowLongLine()]),
   "with-cursor": page([ROW_LINE], "u1"),
+  "hostile-text (html, formula, unbroken)": page(hostileRows()),
   empty: page([]),
 };
 
@@ -49,6 +81,10 @@ export const INVALID_PAGES: Record<string, Wire> = {
   "null snippet": page([{ id: "unc_x", snippet: null }]),
   "bad id": page([{ ...ROW_LINE, id: "unc 1" }]),
   "context without text (not null together)": page([{ id: "unc_y", snippet: { text: null, start: null, end: null, page: 1, precision: "exact", context: { text: "Oct 5", start: 1, end: 6 } } }]),
+  "extra member in snippet (SBV-08 b)": page([{ ...ROW_LINE, snippet: { ...(ROW_LINE.snippet as Wire), score: 0.9 } }]),
+  "extra member in context (SBV-08 b)": page([
+    { ...ROW_LINE, snippet: { ...(ROW_LINE.snippet as Wire), context: { ...((ROW_LINE.snippet as Wire).context as Wire), html: "<b>x</b>" } } },
+  ]),
   "unknown page member": { items: [], nextCursor: null, total: 0 },
   "missing nextCursor": { items: [] },
 };

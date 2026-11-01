@@ -85,9 +85,24 @@ export function clearSyllabusDrafts(syllabusId: string, courseId?: string): void
   const prefixes = [`edit.${syllabusId}.`, `unclaimed.${syllabusId}.`, `unclaimed-add.${syllabusId}.`];
   const draft = courseId === undefined ? null : `draft.${courseId}`;
   removeWhere((k) => {
-    const rest = k.startsWith(USER_PREFIX) ? k.slice(k.indexOf(".", USER_PREFIX.length) + 1) : k.startsWith(PREFIX) ? k.slice(PREFIX.length) : null;
+    const rest = draftRest(k);
     return rest !== null && (prefixes.some((p) => rest.startsWith(p)) || (draft !== null && rest === draft));
   });
+}
+
+/**
+ * SBV-07: the "Add as item" drafts of one syllabus (any user's), whose Title starts as a syllabus line. Review calls it
+ * once the server has purged the text or counts no noticed date, so a line the page no longer shows does not stay on
+ * the device. The `unclaimed.` Hide/added states hold ids only and are kept.
+ */
+export function clearUnclaimedAddDrafts(syllabusId: string): void {
+  const prefix = `unclaimed-add.${syllabusId}.`;
+  removeWhere((k) => draftRest(k)?.startsWith(prefix) === true);
+}
+
+/** The part of a syllabus key after the user segment (or after the legacy prefix); null for any other key. */
+function draftRest(k: string): string | null {
+  return k.startsWith(USER_PREFIX) ? k.slice(k.indexOf(".", USER_PREFIX.length) + 1) : k.startsWith(PREFIX) ? k.slice(PREFIX.length) : null;
 }
 
 /**

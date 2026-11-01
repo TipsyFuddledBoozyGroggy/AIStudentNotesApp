@@ -5,11 +5,12 @@ import { http, HttpResponse } from "msw";
 import { syllabusApi } from "@/lib/syllabus/client";
 import * as db from "@/mocks/db";
 import { server } from "@/mocks/server";
+import { buildUnclaimed } from "@/mocks/syllabusData";
 import * as sdb from "@/mocks/syllabusDb";
 import { AuthProvider, useAuth } from "../AuthProvider";
 import { Processing } from "./Processing";
 import { Review } from "./Review";
-import { clearAllDrafts, clearSyllabusDrafts, readDraft, readDraftsUnder, removeDraft, setDraftOwner, writeDraft } from "./storage";
+import { clearAllDrafts, clearSyllabusDrafts, clearUnclaimedAddDrafts, readDraft, readDraftsUnder, removeDraft, setDraftOwner, writeDraft } from "./storage";
 import { SyllabusFlow } from "./SyllabusFlow";
 import { COURSE, draftStorageKey, EMAIL, renderWithAnnouncer, signedInWithCourse, TEST_USER_ID } from "./testUtils";
 
@@ -95,6 +96,18 @@ describe("storage: user-scoped drafts", () => {
     expect(keys()).toEqual([draftStorageKey("unclaimed-add.s10.u1"), draftStorageKey("unclaimed.s10.u1"), draftStorageKey("unclaimedx.s1.u1")].sort());
   });
 
+  it("SBV-07: clearUnclaimedAddDrafts removes only that syllabus's add-form drafts (any user); the id-only states stay", () => {
+    setDraftOwner(TEST_USER_ID);
+    writeDraft("unclaimed-add.s1.u1", { title: "Bring a calculator on Oct 5", kind: "other", date: "", time: "", allDay: true });
+    writeDraft("unclaimed-add.s1.u2", { title: "x", kind: "other", date: "", time: "", allDay: true });
+    writeDraft("unclaimed.s1.u1", { s: "hidden" }); // ids only: kept
+    writeDraft("unclaimed-add.s10.u1", {}); // a different syllabus whose id starts the same
+    writeDraft("edit.s1.i1", {});
+    ls().setItem(draftStorageKey("unclaimed-add.s1.u9", OTHER), "{}");
+    clearUnclaimedAddDrafts("s1");
+    expect(keys()).toEqual([draftStorageKey("edit.s1.i1"), draftStorageKey("unclaimed-add.s10.u1"), draftStorageKey("unclaimed.s1.u1")].sort());
+  });
+
   it("PO-20b: readDraftsUnder lists only this user's keys under the prefix (unclaimed. never matches unclaimed-add.)", () => {
     setDraftOwner(TEST_USER_ID);
     writeDraft("unclaimed.s1.u1", { s: "hidden" });
@@ -119,6 +132,7 @@ describe("storage: user-scoped drafts", () => {
     expect(() => removeDraft("draft.c1")).not.toThrow();
     expect(() => clearSyllabusDrafts("s1", "c1")).not.toThrow();
     expect(() => clearAllDrafts()).not.toThrow();
+    expect(() => clearUnclaimedAddDrafts("s1")).not.toThrow();
     expect(() => setDraftOwner("u2")).not.toThrow();
     expect(readDraftsUnder("unclaimed.s1.", isStr)).toEqual([]);
   });
@@ -159,8 +173,10 @@ describe("clearing paths in the app", () => {
     await screen.findByRole("button", { name: "Sign out" });
     writeDraft("draft.c1", "x".repeat(50_000));
     writeDraft("edit.s1.i1", {});
+    writeDraft("unclaimed-add.s1.u1", { title: "Bring a calculator on Oct 5", kind: "other", date: "", time: "", allDay: true }); // SBV-07
+    writeDraft("unclaimed.s1.u2", { s: "hidden" });
     ls().setItem(draftStorageKey("draft.c9", OTHER), '"bob"');
-    expect(keys()).toHaveLength(3);
+    expect(keys()).toHaveLength(5);
     await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
     await screen.findByText("signed out");
     expect(keys()).toEqual([]);
@@ -175,12 +191,53 @@ describe("clearing paths in the app", () => {
     await userEvent.click(screen.getByRole("button", { name: "Edit Office hours" }));
     await userEvent.type(screen.getByLabelText("Title"), " draft");
     writeDraft(`draft.${COURSE}`, "a pasted draft");
+    writeDraft("unclaimed-add.syl_ready.unc_1", { title: "Bring a calculator on Oct 5", kind: "other", date: "", time: "", allDay: true }); // SBV-07
+    writeDraft("unclaimed.syl_ready.unc_2", { s: "hidden" });
     writeDraft("edit.syl_other.itm_1", {}); // another syllabus: kept
     expect(keys().filter((k) => k.includes(".edit.syl_ready."))).toHaveLength(1);
     await userEvent.click(screen.getByRole("button", { name: "Delete this syllabus" }));
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete syllabus" }));
     await waitFor(() => expect(keys()).toEqual([draftStorageKey("edit.syl_other.itm_1")]));
     r.stop();
+  });
+
+  it("SBV-07: a purged syllabus on Review removes its add-form drafts (the prefilled line); its id-only states and other syllabi stay", async () => {
+    signedInWithCourse();
+    sdb.seedSyllabus(EMAIL, COURSE, "purged");
+    sdb.seedUnclaimed(EMAIL, "syl_purged", [{ id: "unc_p1", snippet: { text: null, start: null, end: null, page: 1, precision: "exact", context: null } }]);
+    const syllabus = await syllabusApi.getSyllabus("syl_purged");
+    expect(syllabus.retention.canonicalTextPurged).toBe(true);
+    expect(syllabus.counts.unclaimedDates).toBe(1); // the purge alone hides the section
+    setDraftOwner(TEST_USER_ID);
+    writeDraft("unclaimed-add.syl_purged.unc_p1", { title: "Bring a calculator on Oct 5", kind: "other", date: "2026-10-05", time: "", allDay: true });
+    writeDraft("unclaimed.syl_purged.unc_p2", { s: "hidden" });
+    writeDraft("unclaimed-add.syl_ready.unc_1", { title: "kept", kind: "other", date: "", time: "", allDay: true });
+    renderWithAnnouncer(<Review api={syllabusApi} syllabus={syllabus} courseId={COURSE} />);
+    await screen.findByText(/We found \d+ items/);
+    await waitFor(() => expect(keys()).toEqual([draftStorageKey("unclaimed-add.syl_ready.unc_1"), draftStorageKey("unclaimed.syl_purged.unc_p2")].sort()));
+    expect(JSON.stringify(Object.fromEntries(keys().map((k) => [k, ls().getItem(k)])))).not.toContain("calculator");
+  });
+
+  it("SBV-07: no noticed dates counted (section hidden) removes the add-form drafts too; a syllabus with noticed dates keeps them", async () => {
+    signedInWithCourse();
+    sdb.seedSyllabus(EMAIL, COURSE, "ready");
+    sdb.seedSyllabus(EMAIL, COURSE, "partial");
+    sdb.seedUnclaimed(EMAIL, "syl_partial", buildUnclaimed("syl_partial", 2));
+    const none = await syllabusApi.getSyllabus("syl_ready");
+    const some = await syllabusApi.getSyllabus("syl_partial");
+    expect(none.counts.unclaimedDates).toBe(0);
+    expect(some.counts.unclaimedDates).toBe(2);
+    setDraftOwner(TEST_USER_ID);
+    writeDraft("unclaimed-add.syl_ready.unc_1", { title: "gone", kind: "other", date: "", time: "", allDay: true });
+    writeDraft("unclaimed-add.syl_partial.unc_partial-001", { title: "kept", kind: "other", date: "", time: "", allDay: true });
+    const a = renderWithAnnouncer(<Review api={syllabusApi} syllabus={none} courseId={COURSE} />);
+    await screen.findByText(/We found \d+ items/);
+    await waitFor(() => expect(keys()).toEqual([draftStorageKey("unclaimed-add.syl_partial.unc_partial-001")]));
+    a.unmount();
+    renderWithAnnouncer(<Review api={syllabusApi} syllabus={some} courseId={COURSE} />);
+    await screen.findByText(/We found \d+ items/);
+    await screen.findByRole("button", { name: /^Dates we noticed/ });
+    expect(keys()).toEqual([draftStorageKey("unclaimed-add.syl_partial.unc_partial-001")]);
   });
 
   it("syllabus delete when it was already gone (another tab): the drafts are removed too", async () => {

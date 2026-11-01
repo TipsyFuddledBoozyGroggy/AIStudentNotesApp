@@ -27,7 +27,7 @@ import type {
 
 // Strict parsers for syllabus.v1 response bodies (same philosophy as lib/lecture/aiPayloads.ts): every field the UI
 // reads is checked against the contract's types, enums and cross-field rules; only known fields are copied (unknown
-// members are dropped, never rendered); anything malformed returns null so the caller shows a calm error instead of a
+// top-level members are dropped, never rendered; inside a snippet, an unclaimed date or its page they are refused); anything malformed returns null so the caller shows a calm error instead of a
 // half-rendered page. These checks are a client guard, not TextPolicy: the server is authoritative (contract 2.2,
 // R3-07), and server text is still rendered only as plain text nodes.
 
@@ -297,15 +297,21 @@ function parseRecurrence(v: unknown): Recurrence | null | undefined {
   return { pattern: "weekly", byDay: [...(v.byDay as Weekday[])], startTime: v.startTime, endTime: v.endTime, from: v.from, until: v.until, exceptions: [...(v.exceptions as string[])] };
 }
 
+/** True when every own key of `o` is one of `allowed` (the schema's additionalProperties: false). */
+const onlyKeys = (o: Obj, allowed: readonly string[]) => Object.keys(o).every((k) => allowed.includes(k));
+const SNIPPET_KEYS = ["text", "start", "end", "page", "precision", "context"] as const;
+const CONTEXT_KEYS = ["text", "start", "end"] as const;
+
+/** syllabus-common snippet (items and unclaimed dates). Unknown members in snippet or context refuse it (SBV-08 b). */
 function parseSnippet(v: unknown): Snippet | null | undefined {
   if (v === null) return null;
-  if (!isObj(v)) return undefined;
+  if (!isObj(v) || !onlyKeys(v, SNIPPET_KEYS)) return undefined;
   if (!nullable(v.text, isText(600, true)) || !nullable(v.start, isInt) || !nullable(v.end, (x): x is number => isInt(x, 1)) || !nullable(v.page, (x): x is number => isInt(x, 1, 60))) return undefined;
   if (v.precision !== "exact" && v.precision !== "line") return undefined;
   let context: Snippet["context"] = null;
   if (v.context !== null) {
     const c = v.context;
-    if (!isObj(c) || !isText(1500, true)(c.text) || !isInt(c.start) || !isInt(c.end, 1)) return undefined;
+    if (!isObj(c) || !onlyKeys(c, CONTEXT_KEYS) || !isText(1500, true)(c.text) || !isInt(c.start) || !isInt(c.end, 1)) return undefined;
     context = { text: c.text, start: c.start, end: c.end };
   }
   // R2-04: after the purge text, context and offsets are all null together; none survives alone.

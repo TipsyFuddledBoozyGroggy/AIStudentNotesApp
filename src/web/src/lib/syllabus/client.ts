@@ -263,7 +263,9 @@ export function createSyllabusApi({ baseUrl, fetchImpl }: SyllabusApiOptions): S
         cursor = page.nextCursor;
         if (!cursor) break;
       }
-      if (out.length > 200) throw new SyllabusParseError();
+      // SBV-08 c (L-DROP): a cursor left after the second page means rows we did not fetch. Refuse (the calm error
+      // state) rather than show a list that silently stops; more than 200 rows in total is refused the same way.
+      if (cursor || out.length > 200) throw new SyllabusParseError();
       return out;
     },
     async createItem(id, input, idempotencyKey) {

@@ -5,7 +5,7 @@ import { syllabusApi } from "@/lib/syllabus/client";
 import { server } from "@/mocks/server";
 import { buildUnclaimed } from "@/mocks/syllabusData";
 import * as sdb from "@/mocks/syllabusDb";
-import { ROW_CONTEXT_IS_SNIPPET, ROW_OFFSET_MISMATCH, rowLongLine } from "@/mocks/unclaimedFixtures";
+import { hostileRows, ROW_CONTEXT_IS_SNIPPET, ROW_HOSTILE_BIDI, ROW_OFFSET_MISMATCH, rowLongLine } from "@/mocks/unclaimedFixtures";
 import { axeViolations } from "@/test/axe";
 import { ACTION_COPY, EDIT_COPY, REVIEW_COPY, UNCLAIMED_COPY as U } from "./copy";
 import { Review } from "./Review";
@@ -28,7 +28,7 @@ function countUnclaimedRequests() {
   return { urls, stop: () => server.events.removeListener("request:start", on) };
 }
 
-async function mount(opts: { rows?: Wire[]; n?: number; empty?: boolean; droppedInvalid?: number; scenario?: "ready" | "purged" } = {}) {
+async function mount(opts: { rows?: Wire[]; n?: number; empty?: boolean; droppedInvalid?: number; scenario?: "ready" | "purged" | "hostile" } = {}) {
   const scenario = opts.scenario ?? "ready";
   const id = `syl_${scenario}`;
   signedInWithCourse();
@@ -152,6 +152,53 @@ describe("Dates we noticed: the quote fallbacks (checklist 4)", () => {
   });
 });
 
+describe("Dates we noticed: hostile-looking text is inert (SBV-08 a)", () => {
+  type Snip = { text: string; start: number; end: number; context: { text: string; start: number } };
+  const BIDI = /[؜‎‏‪-‮⁦-⁩]/;
+
+  it("HTML, a formula, bidi controls and a 1,500-character unbroken run: text only, the date bolded by offsets, axe clean", async () => {
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const wire = [...hostileRows(), ROW_HOSTILE_BIDI];
+    const { container } = await mount({ scenario: "hostile", rows: wire });
+    await openList(wire.length);
+    const sec = section()!;
+    // nothing the text spells out became an element, attribute, link or script
+    expect(sec.querySelectorAll("img, script, a, b, iframe, object, embed, [onerror], [href], [src]")).toHaveLength(0);
+    expect(BIDI.test(sec.textContent ?? "")).toBe(false);
+    rows().forEach((li, i) => {
+      const s = wire[i].snippet as Snip;
+      const quotes = li.querySelectorAll("blockquote");
+      expect(quotes).toHaveLength(1);
+      const q = quotes[0];
+      // the line as text (bidi controls stripped), with exactly one strong holding the date at its offsets
+      expect(q.textContent).toBe(s.context.text.replace(new RegExp(BIDI.source, "g"), ""));
+      const a = s.start - s.context.start;
+      expect(s.context.text.slice(a, a + (s.end - s.start))).toBe(s.text);
+      expect(q.textContent!.indexOf(s.text)).toBe(s.context.text.slice(0, a).replace(new RegExp(BIDI.source, "g"), "").length);
+      expect(Array.from(q.children).map((c) => c.tagName)).toEqual(["SPAN", "STRONG", "SPAN"]);
+      expect(q.querySelectorAll("strong")).toHaveLength(1);
+      expect(q.querySelector("strong")!.textContent).toBe(s.text);
+      expect(Array.from(q.querySelectorAll("*")).map((e) => e.tagName).every((t) => t === "SPAN" || t === "STRONG")).toBe(true);
+      expect(Array.from(q.querySelectorAll("span")).every((sp) => sp.children.length === 0)).toBe(true);
+      expect(within(li).getByRole("button", { name: `Add as item: ${s.text}` })).toBeInTheDocument();
+    });
+    expect(liveInside()).toHaveLength(0);
+    expect(await axeViolations(container)).toEqual([]);
+    // the prefilled title is the line as plain text in an ordinary input (markup not interpreted, bidi stripped)
+    await userEvent.click(within(rowById("unc_html")).getByRole("button", { name: "Add as item: Oct 5" }));
+    const title = within(rowById("unc_html")).getByLabelText("Title") as HTMLInputElement;
+    expect(title.value).toBe('<img src=x onerror=alert(1)>Oct 5 <script>alert(2)</script> <a href="https://x.invalid">read more</a> <b>bold?</b>');
+    await userEvent.click(within(rowById("unc_bidi")).getByRole("button", { name: "Add as item: Oct 7" }));
+    expect((within(rowById("unc_bidi")).getByLabelText("Title") as HTMLInputElement).value).toBe("Quiz on Oct 7 nwod then home");
+    await userEvent.click(within(rowById("unc_unbroken")).getByRole("button", { name: "Add as item: Dec-12" }));
+    expect((within(rowById("unc_unbroken")).getByLabelText("Title") as HTMLInputElement).value).toBe("x".repeat(200)); // hard cut, no space
+    expect(sec.querySelectorAll("img, script, a, iframe, [onerror]")).toHaveLength(0);
+    expect(await axeViolations(container)).toEqual([]);
+    expect(alert).not.toHaveBeenCalled();
+    alert.mockRestore();
+  });
+});
+
 describe("Dates we noticed: fetch failure (checklist 5)", () => {
   it("a calm Note with Try again; nothing announced or focused; Try again repeats the request", async () => {
     const req = countUnclaimedRequests();
@@ -170,6 +217,23 @@ describe("Dates we noticed: fetch failure (checklist 5)", () => {
     expect(within(section()!).queryByText(U.loadError)).toBeNull();
     expect(req.urls).toHaveLength(2);
     req.stop();
+  });
+
+  it("SBV-08 c: a cursor left after the second page shows the same calm Note, never a cut list", async () => {
+    const all = buildUnclaimed(SID, 6);
+    server.use(
+      http.get(`${BASE}/syllabi/:id/unclaimed-dates`, ({ request }) =>
+        HttpResponse.json(new URL(request.url).searchParams.get("cursor") ? { items: all.slice(3), nextCursor: "still-more" } : { items: all.slice(0, 3), nextCursor: "u3" }),
+      ),
+    );
+    const r = await mount({ rows: all });
+    await userEvent.click(head());
+    const msg = await within(section()!).findByText(U.loadError);
+    expect(msg.closest(".note")).toHaveClass("note-notice");
+    expect(rows()).toHaveLength(0);
+    expect(liveInside()).toHaveLength(0);
+    expect(r.statusLog).toEqual([]);
+    expect(r.alertLog).toEqual([]);
   });
 });
 

@@ -18,7 +18,7 @@ import { DemoLine } from "./DemoLine";
 import { Chevron } from "./icons";
 import { ItemRow } from "./ItemRow";
 import { OneAtATime } from "./OneAtATime";
-import { clearSyllabusDrafts, readLocal, writeLocal } from "./storage";
+import { clearSyllabusDrafts, clearUnclaimedAddDrafts, readLocal, writeLocal } from "./storage";
 import { SyncConfirm, SyncResultView, type SentRun } from "./Sync";
 import { UnclaimedDates } from "./UnclaimedDates";
 
@@ -106,6 +106,13 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
   const [unclaimedOpen, setUnclaimedOpen] = useState<boolean | null>(null);
   const [focusUnclaimed, setFocusUnclaimed] = useState(false);
   const unclaimedHeadRef = useRef<HTMLButtonElement>(null);
+
+  // SBV-07: once the server purged the text (or counts no noticed date), the section is gone for good, so its add-form
+  // drafts, which start with a syllabus line, are removed from this device. The id-only Hide/added states stay.
+  const unclaimedGone = syllabus.retention.canonicalTextPurged || syllabus.counts.unclaimedDates === 0;
+  useEffect(() => {
+    if (unclaimedGone) clearUnclaimedAddDrafts(syllabus.id);
+  }, [unclaimedGone, syllabus.id]);
 
   // A press that did not go through: focus its message (UX 8, the student caused it).
   useEffect(() => {
