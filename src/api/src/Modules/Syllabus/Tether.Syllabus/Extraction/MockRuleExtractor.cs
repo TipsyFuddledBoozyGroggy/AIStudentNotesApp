@@ -20,6 +20,8 @@ internal sealed record ExtractorOutput(IReadOnlyList<ProposedItem> Items, IReadO
 /// The extraction seam of the Syllabus module (a LOCAL port; the generalised AI gateway seam comes later, docs/ai/syllabus-extraction-design.md).
 /// The only implementation is the deterministic rule-based MOCK. It is extractive: every snippet is a verbatim slice of the canonical text
 /// sliced by the server, and it cannot invent a date. It tests the pipeline, validators, UI states and persistence, not model quality.
+/// The orchestrator does not rely on that (SBV-01): <see cref="SyllabusLimits.Apply"/> checks every snippet's offsets against the canonical
+/// text, rejects (and counts) any whose text or context is not the slice at those offsets, and stores only the slices it cuts itself.
 /// </summary>
 internal interface ISyllabusExtractor
 {
@@ -85,26 +87,31 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
             var dates = FindDates(line);
             var kind = Classify(line, hasDate: dates.Count > 0);
 
+            // SBV-02: every proposal lost to the item or unclaimed cap is counted in droppedInvalid (the orchestrator clamps it to the wire maximum)
             if (kind == "policy" && dates.Count == 0)
             {
-                if (items.Count < 200) items.Add(BuildPolicy(text, lines, li, injection, lowQuality, input));
+                if (items.Count < input.MaxAi()) items.Add(BuildPolicy(text, lines, li, injection, lowQuality, input));
+                else dropped++;
                 continue;
             }
             if (dates.Count == 0)
             {
-                if (kind is not null && Tba.IsMatch(line) && items.Count < 200)
-                    items.Add(BuildNeedsDate(text, lines, li, kind, "tba", injection, lowQuality, input));
+                if (kind is not null && Tba.IsMatch(line))
+                {
+                    if (items.Count < input.MaxAi()) items.Add(BuildNeedsDate(text, lines, li, kind, "tba", injection, lowQuality, input));
+                    else dropped++;
+                }
                 continue;
             }
 
             var first = dates[0];
             if (kind is null)
             {
-                foreach (var d in dates) AddUnclaimed(unclaimed, text, lines, li, d);
+                foreach (var d in dates) AddUnclaimed(unclaimed, text, lines, li, d, ref dropped);
                 continue;
             }
             // extra dates on a claimed line stay visible as "dates we noticed"
-            foreach (var d in dates.Skip(1)) AddUnclaimed(unclaimed, text, lines, li, d);
+            foreach (var d in dates.Skip(1)) AddUnclaimed(unclaimed, text, lines, li, d, ref dropped);
             if (items.Count >= input.MaxAi()) { dropped++; continue; }
             var rec = TryRecurrence(line, kind, first);
             items.Add(rec is not null
@@ -122,11 +129,12 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
             var kind = Classify(line, hasDate: false);
             if (kind is not ("office_hours" or "other")) continue;
             var rec = TryRecurrence(line, kind, null);
-            if (rec is null || items.Count >= input.MaxAi()) continue;
+            if (rec is null) continue;
+            if (items.Count >= input.MaxAi()) { dropped++; continue; }
             items.Add(BuildRecurring(text, lines, li, kind, rec, injection, lowQuality, input));
         }
 
-        return new ExtractorOutput(items, unclaimed.Take(200).ToList(), injection, lowQuality, dropped);
+        return new ExtractorOutput(items, unclaimed, injection, lowQuality, dropped);
     }
 
     // ---- classification and parsing ----
@@ -452,13 +460,15 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
         return (cs, ce);
     }
 
-    private static void AddUnclaimed(List<ProposedSnippet> list, string text, List<(int Start, int End)> lines, int li, DateHit hit)
+    /// <summary>Adds a "date we noticed" while there is room under <see cref="SyllabusLimits.MaxUnclaimed"/>; one beyond the cap is counted (SBV-02), not kept.</summary>
+    private static void AddUnclaimed(List<ProposedSnippet> list, string text, List<(int Start, int End)> lines, int li, DateHit hit, ref int dropped)
     {
         var (ls, le) = lines[li];
         var start = ls + hit.Index; var end = start + hit.Length;
         if (end > le || end <= start) return;
         var s = text.Substring(start, end - start);
         if (s.Length == 0 || s[0] == ' ' || s[^1] == ' ') return;
+        if (list.Count >= SyllabusLimits.MaxUnclaimed) { dropped++; return; }
         var cs = ls; var ce = le;
         if (TextPolicy.CodePoints(text.Substring(cs, ce - cs)) > 1500) { cs = start; ce = end; }
         list.Add(new ProposedSnippet(start, end, s, cs, ce, text.Substring(cs, ce - cs), "exact"));
@@ -499,32 +509,65 @@ internal static class SyllabusLimits
     /// <summary>What the length backstop keeps, and how many proposals it threw away.</summary>
     internal sealed record Kept(IReadOnlyList<ProposedItem> Items, IReadOnlyList<ProposedSnippet> Unclaimed, int DroppedInvalid);
 
+    /// <summary>True when <paramref name="i"/> is a valid cut point of <paramref name="text"/>: inside [0, Length] and not between the two halves of a surrogate pair.</summary>
+    private static bool IsBoundary(string text, int i) =>
+        i >= 0 && i <= text.Length && !(i > 0 && i < text.Length && char.IsHighSurrogate(text[i - 1]) && char.IsLowSurrogate(text[i]));
+
     /// <summary>
-    /// SB-02 / SBR-06: the orchestrator's backstop. Items and unclaimed dates that do not fit their columns are dropped, and EVERY drop is
-    /// counted in <c>droppedInvalid</c> (items and unclaimed dates alike, plus what the extractor itself dropped). An item that is dropped
-    /// for a field the model wrote (for example an oversize title steered by hostile syllabus text) but whose snippet fits is kept as an
-    /// unclaimed date instead, so the student still sees that the syllabus mentions a date there: the snippet is a verbatim, server-sliced
-    /// span of the canonical text, never model text. A policy item (no date by definition) is not kept that way. The demoted item still
-    /// counts as dropped (it is not an item). Unclaimed dates stay within <see cref="MaxUnclaimed"/> (the extractor's own list first).
+    /// SBV-01: the snippet as the server cuts it from the canonical text. The extractor's offsets must fit the columns and spans
+    /// (<see cref="Fits(ProposedSnippet)"/>), lie within the text, and fall on code-point boundaries; its <c>Text</c> and <c>ContextText</c>
+    /// must equal (ordinal) the canonical slices at those offsets. A proposal that disagrees is rejected (the caller counts it): text that is
+    /// not at its offsets is model text, never a quote of the student's syllabus. On success the returned record carries the slices cut here,
+    /// so what is stored comes from the canonical text, not from the extractor.
     /// </summary>
-    public static Kept Apply(ExtractorOutput output, int maxItems)
+    internal static bool TryCanonical(ProposedSnippet s, string canonical, out ProposedSnippet sliced)
+    {
+        sliced = s;
+        if (!Fits(s)) return false;
+        if (s.End > canonical.Length || s.ContextEnd > canonical.Length) return false;
+        if (!IsBoundary(canonical, s.Start) || !IsBoundary(canonical, s.End) || !IsBoundary(canonical, s.ContextStart) || !IsBoundary(canonical, s.ContextEnd)) return false;
+        var text = canonical.Substring(s.Start, s.End - s.Start);
+        var context = canonical.Substring(s.ContextStart, s.ContextEnd - s.ContextStart);
+        if (!string.Equals(text, s.Text, StringComparison.Ordinal) || !string.Equals(context, s.ContextText, StringComparison.Ordinal)) return false;
+        sliced = s with { Text = text, ContextText = context };
+        return true;
+    }
+
+    /// <summary>
+    /// SB-02 / SBR-06 / SBV-01 / SBV-02: the orchestrator's backstop. Items and unclaimed dates that do not fit their columns, or whose snippet
+    /// is not the canonical slice at its offsets (<see cref="TryCanonical"/>), are dropped, and EVERY drop is counted in <c>droppedInvalid</c>:
+    /// items and unclaimed dates alike, the overflow beyond <paramref name="maxItems"/> and <see cref="MaxUnclaimed"/>, plus what the extractor
+    /// itself dropped (clamped to <see cref="MaxDroppedInvalid"/>, the wire maximum). An item that is dropped for a field the model wrote (for
+    /// example an oversize title steered by hostile syllabus text) but whose snippet is canonical is kept as an unclaimed date instead, so the
+    /// student still sees that the syllabus mentions a date there: every kept snippet is re-cut here from <paramref name="canonical"/>, never
+    /// model text. A policy item (no date by definition) is not kept that way. The demoted item still counts as dropped (it is not an item).
+    /// Unclaimed dates stay within <see cref="MaxUnclaimed"/> (the extractor's own list first).
+    /// </summary>
+    public static Kept Apply(ExtractorOutput output, int maxItems, string canonical)
     {
         var proposed = output.Items.Take(maxItems).ToList();
         var items = new List<ProposedItem>(proposed.Count);
-        var droppedItems = new List<ProposedItem>();
-        foreach (var p in proposed) (Fits(p) ? items : droppedItems).Add(p);
+        var droppedItems = new List<(ProposedItem Item, ProposedSnippet? Trace)>();
+        foreach (var p in proposed)
+        {
+            var canonicalSnippet = TryCanonical(p.Snippet, canonical, out var sn);
+            if (canonicalSnippet && Fits(p)) items.Add(p with { Snippet = sn });
+            else droppedItems.Add((p, canonicalSnippet ? sn : null));             // a forged or out-of-range snippet leaves no trace
+        }
 
         var candidates = output.Unclaimed.Take(MaxUnclaimed).ToList();
-        var unclaimed = candidates.Where(Fits).ToList();
-        var dropped = (long)output.DroppedInvalid + droppedItems.Count + (candidates.Count - unclaimed.Count);
+        var unclaimed = new List<ProposedSnippet>(candidates.Count);
+        foreach (var u in candidates) if (TryCanonical(u, canonical, out var su)) unclaimed.Add(su);
+        var overflow = (long)Math.Max(0, output.Items.Count - proposed.Count) + Math.Max(0, output.Unclaimed.Count - candidates.Count);
+        var dropped = (long)Math.Max(0, output.DroppedInvalid) + overflow + droppedItems.Count + (candidates.Count - unclaimed.Count);
 
         var taken = new HashSet<(int, int)>(unclaimed.Select(u => (u.Start, u.End)));
         foreach (var p in items) taken.Add((p.Snippet.Start, p.Snippet.End));      // the same span is already visible as an item
-        foreach (var p in droppedItems)
+        foreach (var (p, trace) in droppedItems)
         {
             if (unclaimed.Count >= MaxUnclaimed) break;                            // no room: the item is lost, and it is already counted
-            if (p.WhenStatus == "not_applicable" || !Fits(p.Snippet) || !taken.Add((p.Snippet.Start, p.Snippet.End))) continue;
-            unclaimed.Add(p.Snippet);
+            if (p.WhenStatus == "not_applicable" || trace is null || !taken.Add((trace.Start, trace.End))) continue;
+            unclaimed.Add(trace);
         }
         return new Kept(items, unclaimed, (int)Math.Clamp(dropped, 0, MaxDroppedInvalid));
     }

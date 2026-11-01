@@ -85,7 +85,7 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
             if (!await SetStageAsync(core, lease, syllabusId, "proposing", ct)) return;
             await Task.Delay(opt.MockStageDelayMilliseconds, ct);
             var output = extractor.Extract(new ExtractorInput(text.Text, syl.TermStart, syl.TermEnd, syl.DefaultTimezone, syl.HiddenContentDropped, syl.InjectionSuspect));
-            await PersistAsync(core, lease, syl, output, ct);
+            await PersistAsync(core, lease, syl, text.Text, output, ct);
         }
         catch (OperationCanceledException) { /* deleted while running, or shutting down: the lease expiry re-queues a shutdown case */ }
         catch (Exception ex)
@@ -126,7 +126,7 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
         await tx.CommitAsync(ct);
     }
 
-    private async Task PersistAsync(SyllabusCore core, Lease lease, SyllabusDoc syl, ExtractorOutput output, CancellationToken ct)
+    private async Task PersistAsync(SyllabusCore core, Lease lease, SyllabusDoc syl, string canonical, ExtractorOutput output, CancellationToken ct)
     {
         var db = core.Db; var uid = core.Uid; var now = Now();
         await using var tx = await db.Database.BeginTransactionAsync(ct);
@@ -143,7 +143,10 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
             // SB-02 / SBR-06: the orchestrator does not trust the extractor's field lengths. An item or unclaimed date that would overflow a
             // column is dropped and counted (droppedInvalid, items and unclaimed dates alike) instead of failing the whole syllabus with
             // invalid_output; a dropped item whose verbatim snippet fits is kept as an unclaimed date so its date stays visible.
-            var kept = SyllabusLimits.Apply(output, opt.MaxAiItems);
+            // SBV-01: the extractor's snippet and context text are never stored as given. Apply verifies them against the canonical text at
+            // their offsets (within the text, on code-point boundaries, ordinal equal) and returns the slices it cut; a mismatch is a counted drop.
+            // SBV-02: the overflow beyond the item and unclaimed caps is counted as well.
+            var kept = SyllabusLimits.Apply(output, opt.MaxAiItems, canonical);
             var fitting = kept.Items;
             var unclaimedFitting = kept.Unclaimed;
             var droppedInvalid = kept.DroppedInvalid;
