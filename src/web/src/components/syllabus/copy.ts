@@ -7,6 +7,17 @@
 
 import type { ExtractionStatus, ItemKind, StatusReason, UnknownReason } from "@/lib/syllabus/types";
 
+/**
+ * Wording rule (unclaimed-dates-list.md 14.2 R1): a template never appends a period directly after inserted document or
+ * student text. This closes the sentence: it drops any closing marks the text already ends with and adds exactly one
+ * period, so "Read chapter 3." and "Why cells divide?" both read with a single mark. Accessible names are not sentences
+ * and keep the title verbatim.
+ */
+const sentence = (t: string) => {
+  const body = t.replace(/[.?!…]+$/u, "");
+  return body ? `${body}.` : t;
+};
+
 /** DRAFT, placeholder only (P2-D5). Must not imply Tether checked that the student may add the document. */
 export const NOTICE_DRAFT = {
   tag: "Draft",
@@ -174,15 +185,15 @@ export const REVIEW_COPY = {
  * not yet reviewed by neurodivergent-ux-specialist; mock only; G4 NOT_RUN.
  *
  * `form.notReady` and `form.limit` are kept verbatim from the spec but are NOT shown in v1: the server answers both "not
- * ready" and the 100-student-item cap with the same 409 `invalid_state` (ItemService.CreateAsync), so the client cannot
- * tell them apart and shows ACTION_COPY.generic instead.
+ * ready" and the item caps with the same 409 `invalid_state` (ItemService.CreateAsync), so the client cannot tell them
+ * apart and shows `form.conflict` (true for both causes) for any 409 (14.2 R2a).
  */
 export const UNCLAIMED_COPY = {
   label: "Dates we noticed",
-  lines: (n: number) => (n === 1 ? "1 line" : `${n} lines`),
+  lines: (n: number) => (n === 1 ? "1 date" : `${n} dates`),
   allHandled: "all hidden or added",
   help: "These lines from your syllabus have a date, but Tether did not turn them into items.",
-  help2: "Each line is shown word for word. You can add one as an item, or hide it.",
+  help2: "Each line is shown word for word. You can add one as an item, hide it, or leave it.",
   help3: "Hiding a line keeps it out of this list on this device. You can undo it at any time.",
   add: "Add as item",
   addName: (t: string) => `Add as item: ${t}`,
@@ -191,12 +202,12 @@ export const UNCLAIMED_COPY = {
   hidden: "Hidden:",
   undo: "Undo",
   undoName: (t: string) => `Undo hiding ${t}`,
-  hiddenMsg: (t: string) => `Hidden: ${t}.`,
-  shownMsg: (t: string) => `Shown again: ${t}.`,
+  hiddenMsg: (t: string) => `Hidden: ${sentence(t)}`,
+  shownMsg: (t: string) => `Shown again: ${sentence(t)}`,
   added: "Added as an item:",
   goToItem: "Go to the item",
-  goToItemName: (t: string) => `Go to the item ${t}`,
-  addedMsg: (t: string) => `Added as an item: ${t}. It is not decided yet.`,
+  goToItemName: (t: string) => `Go to the item: ${t}`,
+  addedMsg: (t: string) => `Added as an item: ${sentence(t)} It is not decided yet.`,
   showMore: (n: number) => `Show ${n} more`,
   showHandled: (n: number) => `Show hidden and added dates (${n})`,
   loading: "Getting the dates we noticed.",
@@ -205,12 +216,13 @@ export const UNCLAIMED_COPY = {
   form: {
     legend: (t: string) => `Add an item from: ${t}`,
     titleHelp: "This starts as the line from your syllabus. You can change it.",
-    dateHelp: "Read the date from the line above and enter it here.",
+    dateHelp: "Read the date from the line above and enter it here. Add the year if the line leaves it out.",
     save: "Add item",
     busy: "Adding...",
     cancel: "Cancel",
+    conflict: "No more items can be added to this syllabus. Nothing was changed. Your changes are kept.",
     notReady: "Items can't be added while this syllabus is being read. Nothing was changed.",
-    limit: "This syllabus holds as many added items as it can. Nothing was changed.",
+    limit: "This syllabus holds as many added items as it can. Nothing was changed. Your changes are kept.",
   },
 } as const;
 
@@ -238,10 +250,10 @@ export const ITEM_COPY = {
   addDateName: (t: string) => `Add date for ${t}`,
   undoApproveName: (t: string) => `Undo approval of ${t}`,
   undoSkipName: (t: string) => `Undo skip of ${t}`,
-  approvedMsg: (t: string) => `Approved: ${t}.`,
-  skippedMsg: (t: string) => `Skipped: ${t}.`,
-  undoneMsg: (t: string) => `Undone: ${t}.`,
-  savedMsg: (t: string) => `Saved: ${t}.`,
+  approvedMsg: (t: string) => `Approved: ${sentence(t)}`,
+  skippedMsg: (t: string) => `Skipped: ${sentence(t)}`,
+  undoneMsg: (t: string) => `Undone: ${sentence(t)}`,
+  savedMsg: (t: string) => `Saved: ${sentence(t)}`,
   saveFailed: "Couldn't save this one. Nothing was changed. Try again.",
   retry: "Try again",
   changedElsewhere: "This item changed in another tab or window. This is the latest version. You can try again.",
@@ -430,10 +442,10 @@ export const SYNC_COPY = {
   withdrawNote: "Undo or Skip also removes it from the demo calendar.",
   remove: "Remove from the demo calendar",
   removeName: (t: string) => `Remove from the demo calendar: ${t}`,
-  removedMsg: (t: string) => `Removed from the demo calendar: ${t}.`,
+  removedMsg: (t: string) => `Removed from the demo calendar: ${sentence(t)}`,
   removedNote: "Removed from the demo calendar. It is still approved.",
   undoRemoveName: (t: string) => `Undo removal of ${t}`,
-  addedBackMsg: (t: string) => `Added back to the demo calendar: ${t}.`,
+  addedBackMsg: (t: string) => `Added back to the demo calendar: ${sentence(t)}`,
 } as const;
 
 export const DELETE_COPY = {

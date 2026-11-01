@@ -59,6 +59,13 @@ export function UnclaimedAddForm({ api, syllabusId, row, onCreated, onCancel }: 
   const [errors, setErrors] = useState<Errors>({});
   const [problem, setProblem] = useState<Problem | null>(null);
   const [busy, setBusy] = useState(false);
+  // A non-400 failure moves focus to its message (the student's own press caused it; 14.2 R2b, the Review.tsx
+  // dataProblemRef pattern). A counter, so the same failure twice still moves focus.
+  const [focusProblem, setFocusProblem] = useState(0);
+  const problemRef = useRef<HTMLElement | null>(null);
+  const setProblemEl = (el: HTMLElement | null) => {
+    problemRef.current = el;
+  };
   const pendingKey = useRef<{ key: string; body: string } | null>(null);
   const refs = { title: useRef<HTMLInputElement>(null), date: useRef<HTMLInputElement>(null), time: useRef<HTMLInputElement>(null) };
   const name = row.snippet.text ?? "";
@@ -67,6 +74,10 @@ export function UnclaimedAddForm({ api, syllabusId, row, onCreated, onCancel }: 
     refs.title.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- focus once, on open
   }, []);
+
+  useEffect(() => {
+    if (focusProblem) problemRef.current?.focus();
+  }, [focusProblem]);
 
   const update = (patch: Partial<EditValues>) => {
     setV((prev) => {
@@ -106,25 +117,30 @@ export function UnclaimedAddForm({ api, syllabusId, row, onCreated, onCancel }: 
     } catch (err) {
       const network = err instanceof ApiError && err.isNetwork;
       if (!network) pendingKey.current = null;
+      const invalid = err instanceof ApiError && err.status === 400;
       if (err instanceof ApiError && err.isUnauthenticated) {
         setProblem({ session: true });
         announcer.alert("syllabus-session", ACTION_COPY.sessionHeading);
       } else {
-        // 409 invalid_state is both "not ready" and the 100-student-item cap on the server (one code), so it gets the
-        // generic sentence rather than a guess at which one it was.
-        const text =
-          err instanceof ApiError && err.status === 400
-            ? E.errors.server
-            : network
-              ? ACTION_COPY.network
-              : err instanceof ApiError && err.status === 429
-                ? ACTION_COPY.rateLimited
-                : err instanceof ApiError && err.isNotFound
-                  ? ACTION_COPY.gone
+        // 409 invalid_state is both "not ready" and the item caps on the server (one code), so any 409 gets
+        // form.conflict, which is true for both, rather than a guess at which one it was (14.2 R2a).
+        const text = invalid
+          ? E.errors.server
+          : network
+            ? ACTION_COPY.network
+            : err instanceof ApiError && err.status === 429
+              ? ACTION_COPY.rateLimited
+              : err instanceof ApiError && err.isNotFound
+                ? ACTION_COPY.gone
+                : err instanceof ApiError && err.status === 409
+                  ? U.form.conflict
                   : ACTION_COPY.generic;
         setProblem({ text });
+        if (!invalid) announcer.status(text);
       }
-      refs.title.current?.focus();
+      // A 400 is about what was typed, so Title takes focus; anything else is not, so its message does (14.2 R2b).
+      if (invalid) refs.title.current?.focus();
+      else setFocusProblem((n) => n + 1);
     } finally {
       setBusy(false);
     }
@@ -249,7 +265,14 @@ export function UnclaimedAddForm({ api, syllabusId, row, onCreated, onCancel }: 
           {errors.time}
         </p>
       )}
-      {problem && ("session" in problem ? <ActionProblem kind="session" /> : <p className="font-semibold">{problem.text}</p>)}
+      {problem &&
+        ("session" in problem ? (
+          <ActionProblem ref={setProblemEl} kind="session" />
+        ) : (
+          <p ref={setProblemEl} tabIndex={-1} className="font-semibold" data-form-problem="">
+            {problem.text}
+          </p>
+        ))}
       <div className="flex flex-wrap gap-3">
         <button type="submit" className="btn-primary btn-sm" aria-disabled={busy ? true : undefined} aria-busy={busy || undefined}>
           {/* The width stays that of the longer label, so the button does not jump while busy. */}

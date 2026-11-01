@@ -169,6 +169,33 @@ describe("Review list (F1)", () => {
     await waitFor(() => expect(r.statusLog).toContain("Saved: Office hours, room 2."));
   });
 
+  it.each([
+    [400, "validation_failed", "title"],
+    [500, "http_error", "problem"],
+  ] as const)("inline edit, save answered %i: a 400 focuses Title; anything else focuses its sentence and says it once (14.2 R2b)", async (status, code, focus) => {
+    const r = await mount();
+    server.use(http.patch("*/api/v1/syllabi/:id/items/:itemId", () => HttpResponse.json({ status, code, title: "x", type: "x", traceId: "t", detail: "SERVER DETAIL" }, { status })));
+    await userEvent.click(screen.getByRole("button", { name: "Edit Office hours" }));
+    await userEvent.type(screen.getByLabelText("Title"), " (room 2){Enter}");
+    const form = screen.getByLabelText("Title").closest("form")!;
+    const msg = await waitFor(() => {
+      const p = form.querySelector<HTMLElement>("[data-form-problem]");
+      expect(p).not.toBeNull();
+      return p!;
+    });
+    expect(msg).toHaveAttribute("tabindex", "-1");
+    if (focus === "title") {
+      expect(screen.getByLabelText("Title")).toHaveFocus();
+      expect(r.statusLog).not.toContain(msg.textContent);
+    } else {
+      expect(msg).toHaveTextContent("Couldn't save this one. Nothing was changed. Try again.");
+      await waitFor(() => expect(msg).toHaveFocus());
+      await waitFor(() => expect(r.statusLog).toContain("Couldn't save this one. Nothing was changed. Try again."));
+    }
+    expect(screen.getByLabelText("Title")).toHaveValue("Office hours (room 2)");
+    expect(screen.queryByText(/SERVER DETAIL/)).toBeNull();
+  });
+
   it("editing an approved, unsynced item returns it to Not decided (contract 6.2) and says so first", async () => {
     await mount();
     await userEvent.click(screen.getByRole("button", { name: "Approve Office hours" }));
@@ -646,7 +673,7 @@ describe("Review: Dates we noticed around the rest of the screen (PO-20b)", () =
     expect(see).toHaveAccessibleName("See dates we noticed");
     expect(see).toHaveClass("btn-tertiary");
     expect(el.closest("[aria-live], [role=status], [role=alert]")).toBeNull();
-    const head = within(section()!).getByRole("button", { name: "Dates we noticed, 4 lines" });
+    const head = within(section()!).getByRole("button", { name: "Dates we noticed, 4 dates" });
     expect(head).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(see);
     await waitFor(() => expect(head).toHaveFocus());
@@ -660,7 +687,7 @@ describe("Review: Dates we noticed around the rest of the screen (PO-20b)", () =
     expect(screen.getByText(REVIEW_COPY.emptyNoticed)).toBeInTheDocument();
     expect(screen.getByText(REVIEW_COPY.emptyNoticedBody)).toBeInTheDocument();
     expect(screen.queryByText(REVIEW_COPY.empty)).toBeNull();
-    expect(within(section()!).getByRole("button", { name: "Dates we noticed, 3 lines" })).toHaveAttribute("aria-expanded", "true");
+    expect(within(section()!).getByRole("button", { name: "Dates we noticed, 3 dates" })).toHaveAttribute("aria-expanded", "true");
     expect(document.querySelector("[data-calendar-step]")).toBeNull();
     expect(document.querySelector(".review-rail")).toBeNull();
     expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
@@ -674,11 +701,11 @@ describe("Review: Dates we noticed around the rest of the screen (PO-20b)", () =
     await userEvent.click(within(li).getByRole("button", { name: "Add as item: Nov 2" }));
     fireEvent.change(within(li).getByLabelText("Date"), { target: { value: "2026-11-02" } });
     await userEvent.click(within(li).getByRole("button", { name: "Add item" }));
-    const goTo = await within(li).findByRole("button", { name: /^Go to the item Field trip permission slips/ });
+    const goTo = await within(li).findByRole("button", { name: /^Go to the item: Field trip permission slips/ });
     await waitFor(() => expect(goTo).toHaveFocus());
     expect(screen.getByText("We found 1 item. 0 approved, 0 skipped, 1 not decided.")).toBeInTheDocument();
     expect(document.querySelector("[data-calendar-step]")).not.toBeNull();
-    expect(within(section()!).getByRole("button", { name: "Dates we noticed, 2 lines" })).toHaveAttribute("aria-expanded", "true");
+    expect(within(section()!).getByRole("button", { name: "Dates we noticed, 2 dates" })).toHaveAttribute("aria-expanded", "true");
     expect(noticedRows()).toHaveLength(3);
     await waitFor(() => expect(r.statusLog).toEqual(["Added as an item: Field trip permission slips due Nov 2; see the course site for the form. It is not decided yet."]));
   });

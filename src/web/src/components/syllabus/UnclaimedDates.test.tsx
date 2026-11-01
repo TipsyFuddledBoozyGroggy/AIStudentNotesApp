@@ -68,7 +68,7 @@ describe("Dates we noticed: placement, head and fetch (checklist 2, 3)", () => {
     expect(h).toHaveClass("group-head");
     expect(h).toHaveAttribute("aria-expanded", "false");
     expect(h).toHaveAttribute("aria-controls", "unclaimed-list");
-    expect(h).toHaveAccessibleName("Dates we noticed, 12 lines");
+    expect(h).toHaveAccessibleName("Dates we noticed, 12 dates");
     expect(document.getElementById("unclaimed-list")).not.toBeNull();
     expect(screen.getByRole("heading", { level: 1 })).toHaveFocus(); // never focused on mount
     expect(req.urls).toEqual([]);
@@ -187,7 +187,7 @@ describe("Dates we noticed: Hide and Undo (checklist 6)", () => {
     expect(first.querySelector(".item-main strong")?.textContent).toBe("Oct 5");
     expect(first.querySelector("blockquote")).toBeNull();
     expect(within(first).queryByRole("button", { name: /^Add as item/ })).toBeNull();
-    expect(head()).toHaveAccessibleName("Dates we noticed, 11 lines");
+    expect(head()).toHaveAccessibleName("Dates we noticed, 11 dates");
     await waitFor(() => expect(r.statusLog).toEqual(["Hidden: Oct 5."]));
     const key = draftStorageKey(`unclaimed.${SID}.unc_ready-001`);
     expect(window.localStorage.getItem(key)).toBe('{"s":"hidden"}');
@@ -199,7 +199,7 @@ describe("Dates we noticed: Hide and Undo (checklist 6)", () => {
     expect(hide).toHaveAccessibleName("Hide: Oct 5");
     expect(hide).toHaveFocus();
     expect(first.querySelector("blockquote")).not.toBeNull();
-    expect(head()).toHaveAccessibleName("Dates we noticed, 12 lines");
+    expect(head()).toHaveAccessibleName("Dates we noticed, 12 dates");
     // The shared queue spaces status messages by 2 s (announcerQueue MIN_SPACING_MS).
     await waitFor(() => expect(r.statusLog).toEqual(["Hidden: Oct 5.", "Shown again: Oct 5."]), { timeout: 3500 });
     expect(window.localStorage.getItem(key)).toBeNull();
@@ -211,7 +211,7 @@ describe("Dates we noticed: Hide and Undo (checklist 6)", () => {
     const syllabus = await syllabusApi.getSyllabus(SID);
     renderWithAnnouncer(<Review api={syllabusApi} syllabus={syllabus} courseId={COURSE} />);
     await screen.findByText(/We found \d+ items/);
-    expect(head()).toHaveAccessibleName("Dates we noticed, 11 lines"); // known before the fetch
+    expect(head()).toHaveAccessibleName("Dates we noticed, 11 dates"); // known before the fetch
     await openList(11);
     expect(rowById("unc_ready-001")).toBeNull();
     const show = within(section()!).getByRole("button", { name: "Show hidden and added dates (1)" });
@@ -262,7 +262,7 @@ describe("Dates we noticed: Add as item (checklist 7)", () => {
 
     fireEvent.change(date, { target: { value: "2026-10-05" } });
     await userEvent.click(within(form).getByRole("button", { name: U.form.save }));
-    const goTo = await within(li).findByRole("button", { name: "Go to the item Bring a calculator on Oct 5 for the in-class exercise." });
+    const goTo = await within(li).findByRole("button", { name: "Go to the item: Bring a calculator on Oct 5 for the in-class exercise." });
     await waitFor(() => expect(goTo).toHaveFocus());
     expect(within(li).getByText(/^Added as an item:/)).toHaveTextContent("Added as an item: Bring a calculator on Oct 5 for the in-class exercise.");
     expect(li.querySelector("blockquote")).toBeNull();
@@ -276,7 +276,7 @@ describe("Dates we noticed: Add as item (checklist 7)", () => {
     const item = screen.getByRole("listitem", { name: "Bring a calculator on Oct 5 for the in-class exercise." });
     expect(within(item).getByText("Not decided")).toBeInTheDocument();
     expect(within(item).queryByRole("button", { name: "See where this came from" })).toBeNull();
-    expect(head()).toHaveAccessibleName("Dates we noticed, 11 lines");
+    expect(head()).toHaveAccessibleName("Dates we noticed, 11 dates");
     expect(window.localStorage.getItem(draftStorageKey(`unclaimed.${SID}.unc_ready-001`))).toMatch(/^\{"s":"added","itemId":"itm_[a-z0-9-]+"\}$/);
 
     await userEvent.click(goTo);
@@ -347,16 +347,29 @@ describe("Dates we noticed: create errors (checklist 8)", () => {
   const itemsCount = () => screen.getByText(/^We found \d+ items/).textContent;
 
   it.each([
-    [400, "validation_failed", EDIT_COPY.errors.server],
-    [409, "invalid_state", ACTION_COPY.generic], // not-ready and the 100-student-item cap share this code on the server
-    [429, "rate_limited", ACTION_COPY.rateLimited],
-  ])("%i %s: a sentence inside the form, focus on Title, values kept, nothing inserted", async (status, code, text) => {
+    [400, "validation_failed", EDIT_COPY.errors.server, "title"],
+    // Not-ready and the item caps share this code on the server, so any 409 gets form.conflict (14.2 R2a).
+    [409, "invalid_state", U.form.conflict, "problem"],
+    [409, "some_other_conflict", U.form.conflict, "problem"],
+    [429, "rate_limited", ACTION_COPY.rateLimited, "problem"],
+    [500, "http_error", ACTION_COPY.generic, "problem"],
+  ] as const)("%i %s: a sentence inside the form, focus on %s (14.2 R2b), values kept, nothing inserted", async (status, code, text, focus) => {
     server.use(http.post(`${BASE}/syllabi/:id/items`, () => HttpResponse.json({ status, code, title: "x", type: "x", traceId: "t", detail: "SERVER DETAIL" }, { status })));
-    const { li, save } = await openForm();
+    const { r, li, save } = await openForm();
     const count = itemsCount();
     await save();
-    expect(await within(li).findByText(text)).toHaveClass("font-semibold");
-    expect(within(li).getByLabelText("Title")).toHaveFocus();
+    const msg = await within(li).findByText(text);
+    expect(msg).toHaveClass("font-semibold");
+    if (focus === "title") {
+      expect(within(li).getByLabelText("Title")).toHaveFocus();
+      expect(r.statusLog).not.toContain(text);
+    } else {
+      // A non-400 failure is not about what was typed: focus moves to the sentence (tabIndex -1) and it is said once
+      // through the shared announcer, not a new live region.
+      await waitFor(() => expect(msg).toHaveFocus());
+      expect(msg).toHaveAttribute("tabindex", "-1");
+      await waitFor(() => expect(r.statusLog).toContain(text));
+    }
     expect(within(li).getByLabelText("Date")).toHaveValue("2026-10-05");
     expect(within(li).queryByText(/SERVER DETAIL/)).toBeNull();
     expect(itemsCount()).toBe(count);
@@ -410,7 +423,7 @@ describe("Dates we noticed: reconciliation and paging (checklist 9, 10)", () => 
     signedInWithCourse();
     window.localStorage.setItem(draftStorageKey(`unclaimed.${SID}.unc_ready-002`), JSON.stringify({ s: "added", itemId: "itm_gone" }));
     await mount();
-    expect(head()).toHaveAccessibleName("Dates we noticed, 12 lines");
+    expect(head()).toHaveAccessibleName("Dates we noticed, 12 dates");
     expect(window.localStorage.getItem(draftStorageKey(`unclaimed.${SID}.unc_ready-002`))).toBeNull();
     await openList();
     expect(within(rowById("unc_ready-002")).getByRole("button", { name: "Add as item: Nov 2" })).toBeInTheDocument();
@@ -420,7 +433,7 @@ describe("Dates we noticed: reconciliation and paging (checklist 9, 10)", () => 
   it("200 rows: 25 at a time; seven presses show all; then focus is on row 176's Add as item; Expand/Collapse all leave the section alone", async () => {
     const all = buildUnclaimed(SID, 200);
     await mount({ rows: all });
-    expect(head()).toHaveAccessibleName("Dates we noticed, 200 lines");
+    expect(head()).toHaveAccessibleName("Dates we noticed, 200 dates");
     await userEvent.click(screen.getByRole("button", { name: "Expand all" }));
     expect(head()).toHaveAttribute("aria-expanded", "false");
     await openList(200);

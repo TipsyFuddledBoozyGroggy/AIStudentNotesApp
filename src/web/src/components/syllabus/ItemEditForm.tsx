@@ -6,6 +6,7 @@ import type { SyllabusApi } from "@/lib/syllabus/client";
 import { isRealDate } from "@/lib/syllabus/format";
 import { isLocalDate, isLocalTime } from "@/lib/syllabus/parse";
 import type { EditableKind, ItemPatch, SyllabusItem } from "@/lib/syllabus/types";
+import { useAnnouncer } from "../lecture/Announcer";
 import { EDIT_COPY as C, ITEM_COPY } from "./copy";
 import { isRecord, readDraft, removeDraft, writeDraft } from "./storage";
 
@@ -85,6 +86,7 @@ export interface ItemEditFormProps {
  * invalid field. The values are kept locally as a draft until saved or cancelled ("We kept your changes.").
  */
 export function ItemEditForm({ api, item, initialFocus, onSaved, onCancel, onConflict }: ItemEditFormProps) {
+  const announcer = useAnnouncer();
   const uid = useId();
   const id = (f: string) => `${uid}-${f}`;
   const draftKey = draftKeyFor(item);
@@ -93,6 +95,10 @@ export function ItemEditForm({ api, item, initialFocus, onSaved, onCancel, onCon
   const [errors, setErrors] = useState<Errors>({});
   const [serverErr, setServerErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // A non-400 failure moves focus to its message (unclaimed-dates-list.md 14.2 R2b, the Review.tsx dataProblemRef
+  // pattern), the same as the "Dates we noticed" add form. A counter, so the same failure twice still moves focus.
+  const [focusProblem, setFocusProblem] = useState(0);
+  const problemRef = useRef<HTMLParagraphElement>(null);
   const refs = { title: useRef<HTMLInputElement>(null), date: useRef<HTMLInputElement>(null), time: useRef<HTMLInputElement>(null) };
   const needsDate = item.when.status === "needs_date";
 
@@ -100,6 +106,10 @@ export function ItemEditForm({ api, item, initialFocus, onSaved, onCancel, onCon
     (initialFocus === "date" ? refs.date : refs.title).current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- focus once, on open
   }, []);
+
+  useEffect(() => {
+    if (focusProblem) problemRef.current?.focus();
+  }, [focusProblem]);
 
   const update = (patch: Partial<EditValues>) => {
     setV((prev) => {
@@ -136,15 +146,24 @@ export function ItemEditForm({ api, item, initialFocus, onSaved, onCancel, onCon
       removeDraft(draftKey);
       onSaved(saved);
     } catch (err) {
+      const invalid = err instanceof ApiError && err.status === 400;
+      let text: string;
       if (err instanceof ApiError && err.status === 412) {
         try {
           onConflict(await api.getItem(item.syllabusId, item.id));
         } catch {
           /* keep the form; the message below still applies */
         }
-        setServerErr(ITEM_COPY.changedElsewhere);
-      } else setServerErr(err instanceof ApiError && err.status === 400 ? C.errors.server : ITEM_COPY.saveFailed);
-      refs.title.current?.focus();
+        text = ITEM_COPY.changedElsewhere;
+      } else text = invalid ? C.errors.server : ITEM_COPY.saveFailed;
+      setServerErr(text);
+      // A 400 is about what was typed, so Title takes focus; anything else is not, so its message does, and is said once
+      // through the shared announcer (no new live region).
+      if (invalid) refs.title.current?.focus();
+      else {
+        announcer.status(text);
+        setFocusProblem((n) => n + 1);
+      }
     } finally {
       setBusy(false);
     }
@@ -263,7 +282,11 @@ export function ItemEditForm({ api, item, initialFocus, onSaved, onCancel, onCon
           {errors.time}
         </p>
       )}
-      {serverErr && <p className="font-semibold">{serverErr}</p>}
+      {serverErr && (
+        <p ref={problemRef} tabIndex={-1} className="font-semibold" data-form-problem="">
+          {serverErr}
+        </p>
+      )}
       <div className="flex flex-wrap gap-3">
         <button type="submit" className="btn-primary btn-sm" aria-disabled={busy ? true : undefined}>
           {C.save}

@@ -99,8 +99,42 @@ it("PO-20b: no string in UNCLAIMED_COPY carries a digit except through a templat
   };
   walk(copy.UNCLAIMED_COPY);
   expect(out.filter((s) => /\d/.test(s))).toEqual([]);
-  expect(copy.UNCLAIMED_COPY.lines(1)).toBe("1 line");
-  expect(copy.UNCLAIMED_COPY.lines(12)).toBe("12 lines");
+  expect(copy.UNCLAIMED_COPY.lines(1)).toBe("1 date");
+  expect(copy.UNCLAIMED_COPY.lines(12)).toBe("12 dates");
+});
+
+it("14.2 R1: every *Msg(t) closes the sentence with exactly one period, whatever the inserted text ends with", () => {
+  const I = copy.ITEM_COPY;
+  const U = copy.UNCLAIMED_COPY;
+  const S = copy.SYNC_COPY;
+  const msgs: [string, (t: string) => string][] = [
+    ["ITEM_COPY.approvedMsg", I.approvedMsg],
+    ["ITEM_COPY.skippedMsg", I.skippedMsg],
+    ["ITEM_COPY.undoneMsg", I.undoneMsg],
+    ["ITEM_COPY.savedMsg", I.savedMsg],
+    ["UNCLAIMED_COPY.hiddenMsg", U.hiddenMsg],
+    ["UNCLAIMED_COPY.shownMsg", U.shownMsg],
+    ["SYNC_COPY.removedMsg", S.removedMsg],
+    ["SYNC_COPY.addedBackMsg", S.addedBackMsg],
+  ];
+  for (const title of ["Read chapter 3", "Read chapter 3.", "Why do cells divide?", "Lab report...", "Essay due!"]) {
+    const core = title.replace(/[.?!]+$/, "");
+    for (const [name, fn] of msgs) {
+      const out = fn(title);
+      expect(out, `${name}(${title})`).toMatch(/[^.?!]\.$/);
+      expect(out.endsWith(`${core}.`), `${name}(${title})`).toBe(true);
+    }
+    expect(U.addedMsg(title), title).toBe(`Added as an item: ${core}. It is not decided yet.`);
+  }
+  // Accessible names are not sentences: the title is kept verbatim, closing mark and all.
+  expect(I.approveName("Why do cells divide?")).toBe("Approve Why do cells divide?");
+  expect(U.goToItemName("Read chapter 3.")).toBe("Go to the item: Read chapter 3.");
+  expect(U.addName("Oct 5.")).toBe("Add as item: Oct 5.");
+});
+
+it("14.2 R2a: the add form's 409 sentence says nothing changed and the values are kept", () => {
+  expect(copy.UNCLAIMED_COPY.form.conflict).toBe("No more items can be added to this syllabus. Nothing was changed. Your changes are kept.");
+  expect(copy.UNCLAIMED_COPY.form.limit).toMatch(/Your changes are kept\.$/);
 });
 
 it("PO-20b: accessible names start with the visible text, and no G1 wording (consent, recording, Demo, Google) appears", () => {

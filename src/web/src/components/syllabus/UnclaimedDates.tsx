@@ -278,8 +278,7 @@ export function UnclaimedDates({ api, syllabus, items, open, onToggle, headRef, 
           setState(r.id, { s: "added", itemId: item.id });
           onAdded(item);
           setFocusReq({ id: r.id, target: "goto" });
-          // A prefilled title is usually a whole sentence; drop its final period so the message does not read "..".
-          announcer.status(U.addedMsg(item.title.replace(/\.+$/, "")));
+          announcer.status(U.addedMsg(item.title));
         }}
         onGoTo={() => {
           const st2 = states[r.id];

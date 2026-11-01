@@ -233,10 +233,10 @@ Checked by hand against `copyLint.ts` `FORBIDDEN` and `FORBIDDEN_SYLLABUS`: no e
 /** PO-20b (docs/ux/unclaimed-dates-list.md): the "Dates we noticed" section on the Review list. Mock only; G4 NOT_RUN. */
 export const UNCLAIMED_COPY = {
   label: "Dates we noticed",
-  lines: (n: number) => (n === 1 ? "1 line" : `${n} lines`),
+  lines: (n: number) => (n === 1 ? "1 date" : `${n} dates`),
   allHandled: "all hidden or added",
   help: "These lines from your syllabus have a date, but Tether did not turn them into items.",
-  help2: "Each line is shown word for word. You can add one as an item, or hide it.",
+  help2: "Each line is shown word for word. You can add one as an item, hide it, or leave it.",
   help3: "Hiding a line keeps it out of this list on this device. You can undo it at any time.",
   add: "Add as item",
   addName: (t: string) => `Add as item: ${t}`,
@@ -245,12 +245,12 @@ export const UNCLAIMED_COPY = {
   hidden: "Hidden:",
   undo: "Undo",
   undoName: (t: string) => `Undo hiding ${t}`,
-  hiddenMsg: (t: string) => `Hidden: ${t}.`,
-  shownMsg: (t: string) => `Shown again: ${t}.`,
+  hiddenMsg: (t: string) => `Hidden: ${sentence(t)}`,
+  shownMsg: (t: string) => `Shown again: ${sentence(t)}`,
   added: "Added as an item:",
   goToItem: "Go to the item",
-  goToItemName: (t: string) => `Go to the item ${t}`,
-  addedMsg: (t: string) => `Added as an item: ${t}. It is not decided yet.`,
+  goToItemName: (t: string) => `Go to the item: ${t}`,
+  addedMsg: (t: string) => `Added as an item: ${sentence(t)} It is not decided yet.`,
   showMore: (n: number) => `Show ${n} more`,
   showHandled: (n: number) => `Show hidden and added dates (${n})`,
   loading: "Getting the dates we noticed.",
@@ -259,15 +259,18 @@ export const UNCLAIMED_COPY = {
   form: {
     legend: (t: string) => `Add an item from: ${t}`,
     titleHelp: "This starts as the line from your syllabus. You can change it.",
-    dateHelp: "Read the date from the line above and enter it here.",
+    dateHelp: "Read the date from the line above and enter it here. Add the year if the line leaves it out.",
     save: "Add item",
     busy: "Adding...",
     cancel: "Cancel",
+    conflict: "No more items can be added to this syllabus. Nothing was changed. Your changes are kept.",
     notReady: "Items can't be added while this syllabus is being read. Nothing was changed.",
-    limit: "This syllabus holds as many added items as it can. Nothing was changed.",
+    limit: "This syllabus holds as many added items as it can. Nothing was changed. Your changes are kept.",
   },
 } as const;
 ```
+
+Applied from section 14.2 by the Lead's decision (R1, R2a, R4a to R4d; 2026-11-01): `sentence(t)` is the copy.ts helper that closes a sentence after inserted text with exactly one period; `form.conflict` is shown for any 409 until the server names distinct codes.
 
 Additions to `REVIEW_COPY`:
 

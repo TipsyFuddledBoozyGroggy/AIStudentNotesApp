@@ -72,7 +72,7 @@ test("dates we noticed: 200 at the cap through the real API; see, page, hide, ad
   // Collapsed by default, count in the head, nothing fetched until opened (spec 4.2, 4.3).
   const section = page.locator("[data-unclaimed-section]");
   const head = section.getByRole("button", { name: /^Dates we noticed, / });
-  await expect(head).toHaveAccessibleName("Dates we noticed, 200 lines");
+  await expect(head).toHaveAccessibleName("Dates we noticed, 200 dates");
   await expect(head).toHaveAttribute("aria-expanded", "false");
   expect(find("GET", /\/unclaimed-dates$/)).toHaveLength(0);
   expect(await page.evaluate(() => document.querySelector(".review-groups")?.lastElementChild?.hasAttribute("data-unclaimed-section"))).toBe(true);
@@ -124,7 +124,7 @@ test("dates we noticed: 200 at the cap through the real API; see, page, hide, ad
   const undo = second.getByRole("button", { name: /^Undo hiding / });
   await expect(undo).toBeFocused();
   await expect(second.getByText("Hidden:")).toBeVisible();
-  await expect(head).toHaveAccessibleName("Dates we noticed, 199 lines");
+  await expect(head).toHaveAccessibleName("Dates we noticed, 199 dates");
 
   // Add row 1 as an item: prefilled title, Other, a typed date; one POST with exactly the create members (spec 4.10).
   await first.getByRole("button", { name: "Add as item: Oct 5" }).click();
@@ -136,7 +136,7 @@ test("dates we noticed: 200 at the cap through the real API; see, page, hide, ad
   await form.getByLabel("Date", { exact: true }).fill("2026-10-05");
   await both(page, "u4-add-form-open");
   await form.getByRole("button", { name: "Add item" }).click();
-  const goTo = first.getByRole("button", { name: "Go to the item Bring a calculator to the studio on Oct 5." });
+  const goTo = first.getByRole("button", { name: "Go to the item: Bring a calculator to the studio on Oct 5." });
   await expect(goTo).toBeFocused();
   const post = find("POST", /\/syllabi\/[^/]+\/items$/);
   expect(post).toHaveLength(1);
@@ -144,7 +144,7 @@ test("dates we noticed: 200 at the cap through the real API; see, page, hide, ad
   expect(post[0].postDataJSON()).toEqual({ kind: "other", title: "Bring a calculator to the studio on Oct 5.", date: "2026-10-05", allDay: true, time: null });
   expect((await post[0].response())?.status()).toBe(201);
   await expect(page.getByText(/^We found 3 items\. 0 approved, 0 skipped, 3 not decided\.$/)).toBeVisible();
-  await expect(head).toHaveAccessibleName("Dates we noticed, 198 lines");
+  await expect(head).toHaveAccessibleName("Dates we noticed, 198 dates");
 
   // Go to the item, then approve it like any other (a student item is approved one by one).
   await goTo.click();
@@ -159,7 +159,7 @@ test("dates we noticed: 200 at the cap through the real API; see, page, hide, ad
   // Reload: hidden and added lines stay out of the list on this device; one press brings them back (spec 4.7).
   await page.reload();
   await expect(page.getByRole("heading", { level: 1, name: "Review your syllabus items" })).toBeVisible();
-  await expect(head).toHaveAccessibleName("Dates we noticed, 198 lines");
+  await expect(head).toHaveAccessibleName("Dates we noticed, 198 dates");
   await expect(head).toHaveAttribute("aria-expanded", "false");
   await head.click();
   await expect(rows).toHaveCount(25);
@@ -168,7 +168,7 @@ test("dates we noticed: 200 at the cap through the real API; see, page, hide, ad
   await showHandled.click();
   await expect(showHandled).toHaveCount(0);
   await expect(rows).toHaveCount(27);
-  await expect(rows.nth(25).getByRole("button", { name: /^Go to the item Bring a calculator/ })).toBeFocused();
+  await expect(rows.nth(25).getByRole("button", { name: /^Go to the item: Bring a calculator/ })).toBeFocused();
   await expect(rows.nth(26).getByRole("button", { name: /^Undo hiding / })).toBeVisible();
   await both(page, "u6-reload-show-hidden");
 
