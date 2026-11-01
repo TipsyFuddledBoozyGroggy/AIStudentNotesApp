@@ -55,7 +55,10 @@ jobs:
           changed="$(git diff --name-only "$base" HEAD)"
           echo "Changed files:"; echo "$changed"
           # Anything that is not documentation counts as code (workflows, compose, src, tests, configs).
-          if echo "$changed" | grep -qvE '^(docs/|\.claude/)|\.md$'; then
+          # SBR-04: executable gates are never documentation, wherever they live. docs/ops/ holds the DB log canary
+          # script that the api and e2e-real jobs run, and any shell/PowerShell/batch script counts as code.
+          if echo "$changed" | grep -qvE '^(docs/|\.claude/)|\.md$' \
+             || echo "$changed" | grep -qE '^docs/ops/|\.(sh|bash|ps1|cmd|bat)$'; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "Docs-only change: heavy jobs skipped."; echo "code=false" >> "$GITHUB_OUTPUT"
@@ -329,9 +332,16 @@ jobs:
           persist-credentials: false
       - name: gitleaks
         run: |
-          # Release tarball is not checksum-verified here (no verified hash available offline); see docs/ops/ci-matrix.md.
-          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar -xz gitleaks
-          ./gitleaks detect --source . --redact --verbose
+          # SBR-03: the tarball must match the SHA-256 pinned here. The hash was copied from the release's own
+          # gitleaks_8.21.2_checksums.txt on 2026-10-31 (trust on first use: same origin as the asset, so it catches a
+          # later replaced asset, not a release that was bad when pinned). Bumping the version means bumping both.
+          set -euo pipefail
+          VER=8.21.2
+          SHA256=5bc41815076e6ed6ef8fbecc9d9b75bcae31f39029ceb55da08086315316e3ba   # gitleaks_8.21.2_linux_x64.tar.gz
+          curl -sSfL -o "$RUNNER_TEMP/gitleaks.tar.gz" "https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz"
+          echo "${SHA256}  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" detect --source . --redact --verbose
 
   dependency-audit:
     name: dependency audit (.NET vulnerable packages)
@@ -350,10 +360,27 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - name: dotnet list package --vulnerable (High or Critical fails)
         working-directory: src/api
+        # SBR-02: explicit bash (-eo pipefail) and explicit exit handling. The gate must fail when the check itself
+        # cannot run, not only when it finds a High/Critical row.
+        shell: bash
         run: |
+          set -euo pipefail
           dotnet restore
-          dotnet list package --vulnerable --include-transitive 2>&1 | tee audit.txt
-          ! grep -qE "High|Critical" audit.txt
+          rc=0
+          dotnet list package --vulnerable --include-transitive > audit.txt 2>&1 || rc=$?
+          cat audit.txt
+          if [ "$rc" -ne 0 ]; then echo "::error::dotnet list package exited $rc: the vulnerability check did not complete"; exit 1; fi
+          # NU1900 = the vulnerability feed could not be read; "Unable to load" = a feed was unreachable.
+          if grep -qE "NU1900|Unable to load the service index|error (NU|MSB)[0-9]+" audit.txt; then
+            echo "::error::the vulnerability data could not be retrieved or a project could not be evaluated"; exit 1
+          fi
+          # Positive marker: at least one project must have been reported on (clean line or a findings table).
+          if ! grep -qE "has no vulnerable packages|Severity" audit.txt; then
+            echo "::error::no per-project result in the output: the check did not run"; exit 1
+          fi
+          if grep -qE "\b(High|Critical)\b" audit.txt; then
+            echo "::error::High or Critical vulnerable package found"; exit 1
+          fi
 
   dependency-review:
     name: dependency review (pull requests)
@@ -377,10 +404,21 @@ jobs:
   # There is no API Dockerfile yet (no deployable image exists). This scans what the repo does ship or run:
   # the Postgres image used by compose (fails on fixable HIGH/CRITICAL), the dotnet SDK dev-tooling image
   # (report only: it is never deployed) and the repo's config files (compose, workflows) for misconfiguration.
+  #
+  # SBR-01 (cache half). A third-party action always receives the runtime cache token and could write ANY cache key.
+  # Caches written on `main` are readable by every PR and by the nuget/playwright restores in api, e2e-harness and
+  # e2e-real; caches written by a pull_request run are visible only to that PR. So this job:
+  #   - runs on pull_request only (never on push to main, and it has no schedule), so a compromised scan action can
+  #     only write PR-scoped caches that no main-branch job restores;
+  #   - restores no cache itself and turns the action's own Trivy DB cache off (`cache: false`);
+  #   - has no checkout credentials and only `contents: read`.
+  # Cost: no automatic scan of main after merge; the base images are only scanned when a code PR runs. Residual: the
+  # token exposure itself is unchanged until the action is replaced by a checksum-pinned binary (run: steps do not
+  # receive the runtime token); that is a follow-up, not done here.
   image-scan:
     name: container and config scan (Trivy)
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -392,6 +430,7 @@ jobs:
       - name: Trivy image scan, postgres:16-alpine (gate)
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5  # v0.30.0
         with:
+          cache: false
           scan-type: image
           image-ref: postgres:16-alpine
           severity: HIGH,CRITICAL
@@ -400,6 +439,7 @@ jobs:
       - name: Trivy image scan, dotnet SDK dev image (report only)
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5  # v0.30.0
         with:
+          cache: false
           scan-type: image
           image-ref: mcr.microsoft.com/dotnet/sdk:10.0
           severity: HIGH,CRITICAL
@@ -408,6 +448,7 @@ jobs:
       - name: Trivy config scan (compose and workflows)
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5  # v0.30.0
         with:
+          cache: false
           scan-type: config
           scan-ref: .
           severity: HIGH,CRITICAL
