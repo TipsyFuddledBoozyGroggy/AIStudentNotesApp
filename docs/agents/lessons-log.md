@@ -78,3 +78,11 @@ Entry format:
 
 ### 2026-11-01 Update on L-HELLO open question
 - The question 'does the web client treat 4401 on the first hello as session not available?' was answered by reading the code and adding six unit tests (commit 126bea0): yes. The related hardening (cap on repeated 4401) is PO-20af.
+
+### 2026-11-01 Deleting a streaming session sometimes closed the socket 1011 instead of 4409 (found by CI)
+- **Symptom:** `RealtimeAudioTests.Deleting_a_streaming_session_...` failed once in CI (Expected 4409, Actual 1011); passed many times locally.
+- **Root cause (real product bug):** a transcript write and a session delete take the same two Postgres locks in opposite order (counter row then session row, versus session row then counter row). Postgres aborts one side with a deadlock error; when the writer was aborted, the relay closed 1011 instead of 4409. Which side loses is timing.
+- **Fix:** the transcript writer retries on 40P01/40001 (up to 3 attempts); the retry sees the committed delete and the relay closes 4409. Real errors still close 1011.
+- **Agents:** backend-engineer / database-architect (lock order across modules), qa-engineer (a rare flake was the only signal).
+- **Prevention:** playbook L-LOCKORDER: a child-table writer that also touches a parent-adjacent counter row must treat deadlock (40P01) as retryable, like the cascade delete does. Follow-up: audit the other cascaded writers (AI summary revisions, catch-ups, notes).
+- **Status:** APPLIED (deterministic reproduction `RelayDeleteDeadlockTests`).

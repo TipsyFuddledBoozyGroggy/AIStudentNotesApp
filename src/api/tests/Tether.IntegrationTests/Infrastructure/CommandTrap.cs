@@ -11,9 +11,12 @@ namespace Tether.IntegrationTests.Infrastructure;
 public sealed class CommandTrap : DbCommandInterceptor
 {
     private Func<string, bool>? _match;
-    private Func<Task>? _competing;
+    private Func<DbCommand, Task>? _competing;
 
-    public void Arm(Func<string, bool> match, Func<Task> competing) { _competing = competing; _match = match; }
+    public void Arm(Func<string, bool> match, Func<Task> competing) => Arm(match, _ => competing());
+
+    /// <summary>As above; the competing action also sees the trapped command (for example its connection's backend process id).</summary>
+    public void Arm(Func<string, bool> match, Func<DbCommand, Task> competing) { _competing = competing; _match = match; }
 
     public bool Fired { get; private set; }
 
@@ -23,7 +26,7 @@ public sealed class CommandTrap : DbCommandInterceptor
         if (match is null || !match(command.CommandText)) return;
         _match = null;
         Fired = true;
-        await _competing!();
+        await _competing!(command);
     }
 
     public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
@@ -35,6 +38,13 @@ public sealed class CommandTrap : DbCommandInterceptor
 
     public override async ValueTask<InterceptionResult<object>> ScalarExecutingAsync(
         DbCommand command, CommandEventData eventData, InterceptionResult<object> result, CancellationToken ct = default)
+    {
+        await FireAsync(command);
+        return result;
+    }
+
+    public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<int> result, CancellationToken ct = default)
     {
         await FireAsync(command);
         return result;

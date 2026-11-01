@@ -13,7 +13,30 @@ namespace Tether.Transcript.Application;
 /// </summary>
 internal sealed class TranscriptWriter(TranscriptDbContext db, ISessionSequencer sequencer, TimeProvider clock)
 {
+    internal const int MaxAttempts = 3;
+
+    /// <remarks>
+    /// A session delete takes the session row and then (cascade) the counter row; this write takes the counter row (seq allocation)
+    /// and then KEY SHARE on the session row (FK check of the new row). PostgreSQL aborts one side with 40P01. When the delete is
+    /// the victim it retries (SessionService.DeleteAsync); when this write is, the transaction rolled back and nothing was kept, so
+    /// the write is retried: the retry's allocation sees the committed delete and returns null (the relay closes 4409), or, if the
+    /// session is still there, the event is written rather than lost. Any other failure, or a deadlock that persists past
+    /// <see cref="MaxAttempts"/>, still throws (the relay closes 1011).
+    /// </remarks>
     public async Task<Envelope?> AppendAsync(Guid userId, Guid sessionId, Action<TranscriptEvent> fill, CancellationToken ct)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try { return await TryAppendAsync(userId, sessionId, fill, ct); }
+            catch (Exception ex) when (attempt < MaxAttempts && IsDeadlockOrSerialization(ex))
+            {
+                db.ChangeTracker.Clear(); // the failed insert is still tracked as Added
+                await Task.Delay(Random.Shared.Next(5, 40), ct); // jitter; the other side holds the locks only briefly
+            }
+        }
+    }
+
+    private async Task<Envelope?> TryAppendAsync(Guid userId, Guid sessionId, Action<TranscriptEvent> fill, CancellationToken ct)
     {
         var now = clock.GetUtcNow();
         var e = new TranscriptEvent { SessionId = sessionId, UserId = userId, OccurredAt = new DateTimeOffset(now.Ticks - now.Ticks % 10, TimeSpan.Zero) };
@@ -30,6 +53,14 @@ internal sealed class TranscriptWriter(TranscriptDbContext db, ISessionSequencer
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return EventMapper.ToEnvelope(e);
+    }
+
+    /// <summary>True when any exception in the chain is PostgreSQL deadlock_detected (40P01) or serialization_failure (40001).</summary>
+    private static bool IsDeadlockOrSerialization(Exception ex)
+    {
+        for (var e = ex; e is not null; e = e.InnerException)
+            if (e is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.DeadlockDetected or Npgsql.PostgresErrorCodes.SerializationFailure }) return true;
+        return false;
     }
 
     public async Task<int> MaxSegmentNoAsync(Guid sessionId, CancellationToken ct) =>
