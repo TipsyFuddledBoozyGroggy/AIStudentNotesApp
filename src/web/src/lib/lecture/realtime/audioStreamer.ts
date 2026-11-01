@@ -10,7 +10,8 @@ export type AudioLinkState = "idle" | "connecting" | "streaming" | "reconnecting
  * - "stopped": we closed it (pause, stop or teardown).
  * - "auth": signed out (ticket request was 401).
  * - "conflict": server cut it off (close 4409) or refused a ticket because the session is not Active / not ours.
- * - "rejected": the server closed for a policy or format reason that retrying will not fix, or capture failed.
+ * - "rejected": the server closed for a policy or format reason that retrying will not fix, the socket refused
+ *   MAX_UNACKED_4401 hellos in a row without an ack (PO-20af), or capture failed.
  */
 export type AudioEndReason = "stopped" | "auth" | "conflict" | "rejected";
 
@@ -65,6 +66,12 @@ export const BURST_MS = 4000;
 export const MAX_BUFFERED_BYTES = 128 * 1024;
 const DRAIN_INTERVAL_MS = 50;
 const MAX_POLICY_RETRIES = 3;
+/**
+ * PO-20af: 4401 closes since the last ack that end the stream as "rejected". Each 4401 still gets a fresh ticket
+ * (REST decides 401/409 first, L-HELLO); this only stops an endless loop where REST keeps issuing tickets the socket
+ * keeps refusing. With the backoff (0 s, then about 2 s) it ends within seconds, well before the 60 s watchdog.
+ */
+export const MAX_UNACKED_4401 = 3;
 
 /**
  * Upstream audio over the ticketed WebSocket (speech.v1). Capture feeds a bounded ring buffer; a paced drain
@@ -93,6 +100,7 @@ export class AudioStreamer implements AudioLink {
   private openedAt = 0;
   private holdUntil = 0;
   private policyRetries = 0;
+  private unacked4401 = 0;
   private hadAck = false;
 
   constructor(private readonly deps: AudioStreamerDeps) {}
@@ -216,6 +224,7 @@ export class AudioStreamer implements AudioLink {
         this.hadAck = true;
         this.attempt = 0;
         this.policyRetries = 0;
+        this.unacked4401 = 0;
         this.offlineFired = false;
         this.setState("streaming");
       }
@@ -234,6 +243,7 @@ export class AudioStreamer implements AudioLink {
     if (code === 4409) return this.finish("conflict");
     if (code === 1007 || code === 1009) return this.finish("rejected");
     if (code === 1008 && ++this.policyRetries > MAX_POLICY_RETRIES) return this.finish("rejected");
+    if (code === 4401 && ++this.unacked4401 >= MAX_UNACKED_4401) return this.finish("rejected"); // PO-20af
     // 4401 (ticket or login lost), 1006, 1011, a close we did not ask for, hello timeout: reconnect with a new ticket.
     // The new ticket request reveals the truth over REST (401 = signed out, 409 = not Active).
     this.scheduleRetry(0);

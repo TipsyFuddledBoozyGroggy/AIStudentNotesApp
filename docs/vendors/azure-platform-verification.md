@@ -306,7 +306,7 @@ These are **recommended wording and evidence changes** for the Lead and `legal-c
 1. Portal deployment screen for `claude-haiku-5-5` and `claude-sonnet-5-5`: which hosting versions and region scopes (Global, Data Zone US) are offered, and the Model version dropdown. This resolves T-1.
 2. Foundry Quota page for the subscription: actual RPM / ITPM / OTPM for both models.
 3. Foundry portal Pricing tab for each Claude model and Azure Cost Management view; Azure pricing calculator for Speech real-time and diarization (the amounts were masked in my fetch).
-4. The Marketplace terms screen shown at "Agree and Proceed" (save with date), and the full text behind `aka.ms/anthropic_tandc`.
+4. The Marketplace terms screen shown at "Agree and Proceed" (save with date), and the full text behind `aka.ms/anthropic_tandc`. **Clarification (PO-20an, 2026-11-01):** viewing the deploy options and accepting terms are separate steps. The PO's agreement covers opening the account and taking screenshots only. Do NOT click "Agree and Proceed" or accept any Marketplace or Anthropic terms for this evidence; capture the screen and stop. Whether the model options and terms text are visible without accepting is UNVERIFIED; if they are not, record that instead of accepting.
 5. The subscription type (must be pay-as-you-go) and billing country; whether the subscription has ZDR or data-retention enabled (A1 troubleshooting row).
 6. Speech resource: region, tier (F0 vs S0), quota (support request shows the current concurrency).
 7. A Postgres flexible server in a scratch resource group (no real data): parameter set applied, then a canary run reading the diagnostic log (`PostgreSQLLogs`, `Detail` column), plus a PITR drill and a note whether parameters survived the restore.

@@ -135,6 +135,54 @@ describe("AudioStreamer close codes (L-HELLO)", () => {
     expect(h.ended()).toEqual([]);
   });
 
+  it("PO-20af: 3 consecutive 4401 closes that never reached an ack end the stream as rejected (well before the 60 s watchdog)", async () => {
+    // REST keeps issuing tickets (session Active), but every hello is refused with 4401: without a cap this loops forever.
+    const h = await openWithHello([{ ok: true }]);
+    h.sockets[0].serverClose(4401);
+    expect(h.ended()).toEqual([]);
+    h.fireRetry();
+    await flush();
+    h.sockets[1].serverOpen();
+    h.sockets[1].serverClose(4401);
+    expect(h.ended()).toEqual([]);
+    expect(h.streamer.state()).toBe("reconnecting");
+    h.fireRetry();
+    await flush();
+    h.sockets[2].serverOpen();
+    h.sockets[2].serverClose(4401);
+    expect(h.ended()).toEqual(["rejected"]);
+    expect(h.streamer.state()).toBe("ended");
+    expect(h.tickets()).toBe(3);
+    expect(h.timers).toHaveLength(0); // no retry and no watchdog left behind
+    expect(h.events.some((e) => e.kind === "offline_timeout")).toBe(false);
+  });
+
+  it("PO-20af: an ack resets the 4401 count, so 4401s separated by working connections keep reconnecting", async () => {
+    const h = await openWithHello([{ ok: true }]);
+    h.sockets[0].serverClose(4401);
+    h.fireRetry();
+    await flush();
+    h.sockets[1].serverOpen();
+    h.sockets[1].serverClose(4401); // two without an ack
+    h.fireRetry();
+    await flush();
+    h.sockets[2].serverOpen();
+    h.sockets[2].onmessage?.({ data: JSON.stringify({ type: "ack" }) }); // reached an ack: count back to zero
+    expect(h.streamer.state()).toBe("streaming");
+    h.sockets[2].serverClose(4401);
+    h.fireRetry();
+    await flush();
+    h.sockets[3].serverOpen();
+    h.sockets[3].serverClose(4401); // two again since the ack: still under the cap
+    expect(h.ended()).toEqual([]);
+    expect(h.streamer.state()).toBe("reconnecting");
+    h.fireRetry();
+    await flush();
+    h.sockets[4].serverOpen();
+    h.sockets[4].serverClose(4401); // third since the ack
+    expect(h.ended()).toEqual(["rejected"]);
+  });
+
   it("4409 (cut off after the ticket was accepted) ends at once as session not available, without a new ticket", async () => {
     const h = await openWithHello([{ ok: true }]);
     h.sockets[0].onmessage?.({ data: JSON.stringify({ type: "ack" }) });

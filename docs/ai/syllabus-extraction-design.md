@@ -318,3 +318,12 @@ backend-engineer (upload, jobs, gateway scope, renderer variant, extractor worke
 ## 16. Not done
 
 No code, prompts, schemas files, fixtures, parser grammar, measurements or provider calls exist. No docs other than this file were changed (`docs/API_CONTRACTS.md` not edited; section 13 is a proposal for it).
+
+## 17. Conditions before any real extractor (PO-20aj, 2026-11-01)
+
+These two conditions are recorded as required before a real model-based extractor is connected. The mock extractor meets them by construction and is tested.
+
+1. **The server chooses the quote context (SBV-06).** The extractor must not choose the context window of a quote. A model that picks it could narrow a verbatim quote to hide a word (example: "The final is NOT on Dec 9" cut to "on Dec 9"). The server computes the context from the canonical text.
+2. **Offsets are UTF-16 positions into the exact stored text (SBV-01).** The server re-cuts every snippet and context from the canonical text and drops and counts a proposal whose text or offsets do not match. An extractor that normalises text differently loses items, so its offsets must refer to the stored canonical text.
+
+See `docs/security/findings-register.md` (SBV-01, SBV-06) and `docs/security/sbr-fixes-verification.md`.
