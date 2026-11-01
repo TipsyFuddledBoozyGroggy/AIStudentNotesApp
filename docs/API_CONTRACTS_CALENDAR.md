@@ -60,7 +60,7 @@ Dependent teams: backend-engineer (Calendar module, plan/execute/record), databa
 
 | Request | Scope string(s) | Purpose | Notes |
 |---|---|---|---|
-| Sign-in | `openid email profile` | Identity. Key is `iss` + `sub`, never the email. `hd` is captured here for the Workspace warning. | No data scope at sign-in. `prompt=select_account`. |
+| Sign-in | `openid email profile` (design; the school-account `hd` TEST uses `openid` only first, PO-20ap, and the design scopes stay until its result) | Identity. Key is `iss` + `sub`, never the email. `hd` is captured here for the Workspace warning. | No data scope at sign-in. `prompt=select_account`. |
 | Connect calendar | `openid https://www.googleapis.com/auth/calendar.app.created` | Create the one Tether calendar and manage events on it. | `openid` is included so the ID token's `sub` can be compared with the signed-in `sub`. **`include_granted_scopes` is not sent** (CV-10): the returned `scope` is then exactly the requested set and the allowlist check is exact. `access_type=offline`; `prompt=select_account consent` (a refresh token is returned only on first grant, and the account must be chosen, not auto-picked: CV-04); `login_hint` is the stored `sub`, not the email (CV-27). |
 | Anything else | not allowed | | `calendar`, `calendar.events*`, `*.readonly`, `drive*`, `documents`: rejected by an allowlist test and by the callback (`scope_unexpected`). Docs/Drive get their own contract. |
 

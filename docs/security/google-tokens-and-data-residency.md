@@ -82,7 +82,7 @@ Token columns are excluded from export, backups of exports, ProblemDetails, logs
 
 | Product | Request | Rationale | Reject |
 |---|---|---|---|
-| Sign-in | `openid email profile` only | PO-6, backend-foundation | any Drive/Calendar scope at sign-in |
+| Sign-in | `openid email profile` only (design; the `hd` TEST uses `openid` only first, PO-20ap) | PO-6, backend-foundation | any Drive/Calendar scope at sign-in |
 | Calendar | `calendar.app.created` | Tether can only touch calendars it created; supports decision (c) because we never see the student's other events | `calendar`, `calendar.events`, any `*.readonly` |
 | Docs/Drive | `drive.file` | Access only to files the app created (or the user explicitly opens with it); enough to create a Tether folder and Docs and to edit/delete only those files | `drive`, `drive.readonly`, `documents` (full Docs scope reaches all Docs), `drive.metadata*` |
 
