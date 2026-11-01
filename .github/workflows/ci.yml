@@ -28,13 +28,23 @@ env:
   CI_DB_CONN: "Host=127.0.0.1;Port=5432;Database=college_companion_dev;Username=cc_dev;Password=cc_dev_only_password"
 
 jobs:
-  # Docs-only changes (docs/**, *.md, .claude/**) skip the heavy jobs. Skipped jobs report as successful, so they
-  # still satisfy a required status check. gitleaks always runs. No third-party action: plain git diff.
+  # Area filters. Docs-only changes (docs/**, *.md, .claude/**) skip the heavy jobs. Skipped jobs report as successful,
+  # so they still satisfy a required status check. gitleaks and the dependency audit always run. No third-party
+  # action: plain git diff and a shell `case`.
+  #   backend: src/api/**, src/shared/contracts/**, docker-compose*.yml, global.json, Directory.* files
+  #   web:     src/web/**, src/shared/contracts/**
+  #   e2e:     backend OR web (a contract/API change can break the UI and vice versa)
+  #   code:    backend OR web (used by the PR-only supply-chain jobs)
+  # Anything that could change CI itself (ci.yml, .gitleaks.toml, any other .github/ file), any executable script
+  # (SBR-04) and any path this list does not know runs EVERYTHING. When unsure, run it.
   changes:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       code: ${{ steps.f.outputs.code }}
+      backend: ${{ steps.f.outputs.backend }}
+      web: ${{ steps.f.outputs.web }}
+      e2e: ${{ steps.f.outputs.e2e }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
@@ -50,25 +60,44 @@ jobs:
           base=""
           if [ "$EVENT" = "pull_request" ]; then base="$PR_BASE"; fi
           if [ "$EVENT" = "push" ] && [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then base="$PUSH_BEFORE"; fi
+          emit() {
+            echo "backend=$1" >> "$GITHUB_OUTPUT"; echo "web=$2" >> "$GITHUB_OUTPUT"
+            if [ "$1" = true ] || [ "$2" = true ]; then
+              echo "code=true" >> "$GITHUB_OUTPUT"; echo "e2e=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "code=false" >> "$GITHUB_OUTPUT"; echo "e2e=false" >> "$GITHUB_OUTPUT"
+            fi
+            echo "Result: backend=$1 web=$2"
+          }
           if [ -z "$base" ] || ! git fetch --no-tags --depth=1 origin "$base" 2>/dev/null; then
-            echo "No usable base commit: running everything."; echo "code=true" >> "$GITHUB_OUTPUT"; exit 0
+            echo "No usable base commit: running everything."; emit true true; exit 0
           fi
           changed="$(git diff --name-only "$base" HEAD)"
           echo "Changed files:"; echo "$changed"
-          # Anything that is not documentation counts as code (workflows, compose, src, tests, configs).
-          # SBR-04: executable gates are never documentation, wherever they live. docs/ops/ holds the DB log canary
-          # script that the api and e2e-real jobs run, and any shell/PowerShell/batch script counts as code.
-          if echo "$changed" | grep -qvE '^(docs/|\.claude/)|\.md$' \
-             || echo "$changed" | grep -qE '^docs/ops/|\.(sh|bash|ps1|cmd|bat)$'; then
-            echo "code=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Docs-only change: heavy jobs skipped."; echo "code=false" >> "$GITHUB_OUTPUT"
-          fi
+          backend=false; web=false
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            case "$f" in
+              # CI configuration itself, and SBR-04: executable gates are never documentation, wherever they live.
+              # docs/ops/ holds the DB log canary script that the api and e2e jobs run.
+              .github/*|.gitleaks.toml|docs/ops/*|*.sh|*.bash|*.ps1|*.cmd|*.bat) backend=true; web=true ;;
+              # Documentation only.
+              docs/*|.claude/*|*.md) ;;
+              # Shared contracts feed both sides.
+              src/shared/contracts/*) backend=true; web=true ;;
+              src/api/*|docker-compose*.yml|global.json|Directory.*|*/global.json|*/Directory.*) backend=true ;;
+              src/web/*) web=true ;;
+              # Unknown path: be conservative.
+              *) echo "Unclassified path ($f): running everything."; backend=true; web=true ;;
+            esac
+          done <<< "$changed"
+          if [ "$backend" = false ] && [ "$web" = false ]; then echo "Docs-only change: heavy jobs skipped."; fi
+          emit "$backend" "$web"
 
   web:
-    name: web (tsc, eslint, copy and skin lint, vitest, audit, build)
+    name: web (tsc, eslint, copy and skin lint, vitest, build)
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -103,28 +132,13 @@ jobs:
           src/components/ThemePicker.test.tsx
       - name: Unit tests (vitest)
         run: npm test
-      - name: npm audit, production dependencies (any severity fails)
-        run: npm audit --omit=dev --audit-level=low
-      - name: npm audit, all dependencies (high and critical fail; moderate dev-only findings allowed explicitly)
-        run: |
-          # KNOWN AND ACCEPTED (2026-10-31): 14 moderate findings, all dev-only, all via the `minimatch` chain under
-          # eslint / typescript-eslint plugins. They are not in the shipped bundle (the production audit above is
-          # clean). This step still FAILS on any high or critical finding, and on any moderate count above 14, so a
-          # new moderate finding is a deliberate decision, not silence. Lower the number when the chain is fixed.
-          npm audit --audit-level=high
-          npm audit --json > "$RUNNER_TEMP/audit.json" || true
-          node -e '
-            const m = require(process.argv[1]).metadata.vulnerabilities;
-            console.log("audit counts", JSON.stringify(m));
-            if (m.moderate > 14 || m.low > 0) { console.error("New low/moderate findings beyond the 14 accepted dev-only minimatch ones"); process.exit(1); }
-          ' "$RUNNER_TEMP/audit.json"
       - name: Production build (next build)
         run: npm run build
 
   api:
     name: api (build with warnings as errors, unit and integration tests)
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -141,7 +155,11 @@ jobs:
       - uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25  # v4.1.0
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      - uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+      # Cache policy (SBR-01): every run RESTORES; only a push to main SAVES, so a pull request (untrusted code) can
+      # never write a cache that main or another run restores. No NuGet lock file exists in the repo
+      # (RestorePackagesWithLockFile is off), so the key hashes the files that pin versions: csproj, props, global.json.
+      - id: nuget
+        uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('src/api/**/*.csproj', 'src/api/Directory.Build.props', 'src/api/global.json') }}
@@ -153,6 +171,12 @@ jobs:
         run: docker compose up -d --wait postgres
       - name: Restore
         run: dotnet restore
+      - name: Save NuGet cache (push to main only)
+        if: ${{ github.event_name == 'push' && steps.nuget.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('src/api/**/*.csproj', 'src/api/Directory.Build.props', 'src/api/global.json') }}
       # Directory.Build.props already sets TreatWarningsAsErrors=true (0 warnings today); repeated here so the gate
       # survives someone editing the props file.
       - name: Build (Release, warnings as errors)
@@ -181,7 +205,7 @@ jobs:
   e2e-harness:
     name: e2e harness (Playwright, no API)
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -201,12 +225,20 @@ jobs:
       - run: npm ci
       - id: pw
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+      - id: pwcache
+        uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-${{ hashFiles('src/web/package-lock.json') }}
+          restore-keys: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-
       - name: Install Chromium (browser cached; OS libraries always installed)
         run: npx playwright install --with-deps chromium
+      - name: Save Playwright browser cache (push to main only)
+        if: ${{ github.event_name == 'push' && steps.pwcache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-${{ hashFiles('src/web/package-lock.json') }}
       - name: Harness e2e (serial)
         run: npx playwright test -c playwright.harness.config.ts --workers=1
       - name: Upload Playwright output (on failure)
@@ -220,17 +252,44 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  # Real stack: hardened Postgres (compose) + the API (Development env, dev login) + `npm run dev:real` + Playwright.
-  # Everything is SERIAL (--workers=1, one spec per step): the dev login is limited to 10 per minute per IP and the
-  # lecture specs start many sessions. The API gets the same relaxed dev-only limits docker-compose.dev.yml uses.
+  # Real stack, sharded. Each matrix entry is its own runner (own IP, own Docker network, own hardened Postgres, own
+  # API on :5080, own `npm run dev:real` on :3000), so the dev-login limit and the shared dev users are per shard and
+  # no spec can see another shard's data. Inside a shard everything is still SERIAL (--workers=1, one process per
+  # screens spec). The API gets the same relaxed dev-only limits docker-compose.dev.yml uses.
+  #   flows-a:   e2e/courses, syllabus, syllabus-utc          (reuse config; global setup creates only its users)
+  #   flows-b:   e2e/lecture, notes, reopen, stop-move        (reuse config)
+  #   screens-a: e2e-screens/screens, skins                   (screens config; each spec logs in its own user)
+  #   screens-b: e2e-screens/geometry, gamer-glass, lecture-looks
+  # Every spec file under e2e/ and e2e-screens/ must be named in exactly one shard (checked by the first step).
+  # `users` lists the e2e/users.ts keys a shard's specs call stateFor() with; global-setup logs in only those.
   e2e-real:
-    name: e2e real stack (Playwright, axe, screens)
+    name: e2e real stack (${{ matrix.shard }})
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 40
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: flows-a
+            reuse_specs: "e2e/courses.spec.ts e2e/syllabus.spec.ts e2e/syllabus-utc.spec.ts"
+            users: "alice,bob,empty,signout,lostSession,keyboard,reload,axe,axeEmpty,sylMain,sylOther,sylHostile,sylUpload,sylUtc"
+            screens_specs: ""
+          - shard: flows-b
+            reuse_specs: "e2e/lecture.spec.ts e2e/notes.spec.ts e2e/reopen.spec.ts e2e/stop-move.spec.ts"
+            users: "alice,bob,notes,reopen,stopmove"
+            screens_specs: ""
+          - shard: screens-a
+            reuse_specs: ""
+            users: ""
+            screens_specs: "screens.spec.ts skins.spec.ts"
+          - shard: screens-b
+            reuse_specs: ""
+            users: ""
+            screens_specs: "geometry.spec.ts gamer-glass.spec.ts lecture-looks.spec.ts"
     defaults:
       run:
         working-directory: src/web
@@ -240,6 +299,25 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
           persist-credentials: false
+      # Coverage guard: a spec added later but not listed in any shard would silently never run in CI.
+      - name: Every spec file belongs to exactly one shard
+        working-directory: .
+        run: |
+          set -eu
+          # Spec lists of ALL shards, read from this workflow file (not just this matrix entry).
+          listed="$(grep -oE '(reuse_specs|screens_specs): "[^"]+"' .github/workflows/ci.yml | sed -E 's/^[a-z_]+: "//; s/"$//' | tr ' ' '\n' | sed '/^$/d')"
+          bad=0
+          for f in src/web/e2e/*.spec.ts; do
+            b="e2e/$(basename "$f")"
+            n="$(echo "$listed" | grep -cxF "$b" || true)"
+            if [ "$n" -ne 1 ]; then echo "::error::$b is listed in $n shards (must be exactly 1)"; bad=1; fi
+          done
+          for f in src/web/e2e-screens/*.spec.ts; do
+            b="$(basename "$f")"
+            n="$(echo "$listed" | grep -cxF "$b" || true)"
+            if [ "$n" -ne 1 ]; then echo "::error::e2e-screens/$b is listed in $n shards (must be exactly 1)"; bad=1; fi
+          done
+          exit "$bad"
       - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -248,7 +326,9 @@ jobs:
       - uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25  # v4.1.0
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      - uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+      # Cache policy (SBR-01): restore on every run, save only on a push to main (see the api job).
+      - id: nuget
+        uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('src/api/**/*.csproj', 'src/api/Directory.Build.props', 'src/api/global.json') }}
@@ -256,15 +336,27 @@ jobs:
       - run: npm ci
       - id: pw
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+      - id: pwcache
+        uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-${{ hashFiles('src/web/package-lock.json') }}
+          restore-keys: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-
       - name: Install Chromium (browser cached; OS libraries always installed)
         run: npx playwright install --with-deps chromium
+      - name: Save Playwright browser cache (push to main only)
+        if: ${{ github.event_name == 'push' && steps.pwcache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-${{ hashFiles('src/web/package-lock.json') }}
       - name: Start Postgres (docker compose, hardened logging)
         working-directory: .
         run: docker compose up -d --wait postgres
+      # The web server only proxies to the API (no startup dependency), so start it first and let it boot while the
+      # API compiles. Readiness of both is checked before any test runs.
+      - name: Start the web app against the real API (npm run dev:real, port 3000)
+        run: nohup npm run dev:real > "$RUNNER_TEMP/web.log" 2>&1 &
       - name: Build and start the API (Development env, port 5080)
         working-directory: .
         env:
@@ -279,28 +371,37 @@ jobs:
           dotnet build src/api/src/Tether.Host -c Release
           nohup dotnet run --project src/api/src/Tether.Host -c Release --no-build --no-launch-profile --urls http://127.0.0.1:5080 > "$RUNNER_TEMP/api.log" 2>&1 &
           curl -fsS --retry 60 --retry-delay 2 --retry-connrefused http://127.0.0.1:5080/health/live
-      - name: Start the web app against the real API (npm run dev:real, port 3000)
-        run: |
-          nohup npm run dev:real > "$RUNNER_TEMP/web.log" 2>&1 &
-          curl -fsS --retry 60 --retry-delay 3 --retry-connrefused --max-time 120 http://localhost:3000/signin > /dev/null
+      - name: Save NuGet cache (push to main only)
+        if: ${{ github.event_name == 'push' && steps.nuget.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('src/api/**/*.csproj', 'src/api/Directory.Build.props', 'src/api/global.json') }}
+      - name: Wait for the web app
+        run: curl -fsS --retry 60 --retry-delay 3 --retry-connrefused --max-time 120 http://localhost:3000/signin > /dev/null
       # Reuse configs: they attach to the servers started above instead of starting second ones.
-      - name: Real-stack e2e (courses, lecture, notes, syllabus; serial)
-        run: npx playwright test -c playwright.reuse.config.ts --workers=1
-      - name: Geometry
-        if: ${{ !cancelled() }}
-        run: npx playwright test -c playwright.screens.config.ts e2e-screens/geometry.spec.ts --workers=1
-      - name: Screens and axe
-        if: ${{ !cancelled() }}
-        run: npx playwright test -c playwright.screens.config.ts e2e-screens/screens.spec.ts --workers=1
-      - name: Skins
-        if: ${{ !cancelled() }}
-        run: npx playwright test -c playwright.screens.config.ts e2e-screens/skins.spec.ts --workers=1
-      - name: Gamer and Glass
-        if: ${{ !cancelled() }}
-        run: npx playwright test -c playwright.screens.config.ts e2e-screens/gamer-glass.spec.ts --workers=1
-      - name: Lecture looks
-        if: ${{ !cancelled() }}
-        run: npx playwright test -c playwright.screens.config.ts e2e-screens/lecture-looks.spec.ts --workers=1
+      - name: Real-stack e2e (${{ matrix.shard }}; serial)
+        if: ${{ matrix.reuse_specs != '' }}
+        env:
+          E2E_USERS: ${{ matrix.users }}
+          REUSE_SPECS: ${{ matrix.reuse_specs }}
+        run: |
+          read -r -a specs <<< "$REUSE_SPECS"
+          npx playwright test -c playwright.reuse.config.ts --workers=1 "${specs[@]}"
+      # One Playwright process per screens spec, as before; a failure in one does not stop the next.
+      - name: Screens specs (${{ matrix.shard }}; serial, one process per spec)
+        if: ${{ !cancelled() && matrix.screens_specs != '' }}
+        env:
+          SCREENS_SPECS: ${{ matrix.screens_specs }}
+        run: |
+          rc=0
+          read -r -a specs <<< "$SCREENS_SPECS"
+          for spec in "${specs[@]}"; do
+            echo "::group::e2e-screens/$spec"
+            npx playwright test -c playwright.screens.config.ts "e2e-screens/$spec" --workers=1 || rc=1
+            echo "::endgroup::"
+          done
+          exit "$rc"
       - name: DB log canary (SB-01)
         if: ${{ !cancelled() }}
         working-directory: .
@@ -311,7 +412,7 @@ jobs:
         if: ${{ failure() }}
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08  # v4.6.0
         with:
-          name: e2e-real-output
+          name: e2e-real-output-${{ matrix.shard }}
           path: |
             src/web/test-results
             src/web/playwright-report
@@ -345,10 +446,11 @@ jobs:
           # .gitleaks.toml holds narrowly scoped test/fixture allowlists (generic-api-key only); all default rules stay on.
           "$RUNNER_TEMP/gitleaks" detect --source . --config .gitleaks.toml --redact --verbose
 
+  # Always runs (no path filter): a new advisory can appear without any code change, and a backend-only or web-only
+  # change must not skip the other ecosystem's audit. The npm audit steps moved here from the web job; they need only
+  # package-lock.json, not node_modules.
   dependency-audit:
-    name: dependency audit (.NET vulnerable packages)
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
+    name: dependency audit (.NET and npm)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -360,6 +462,26 @@ jobs:
       - uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25  # v4.1.0
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: npm audit, production dependencies (any severity fails)
+        working-directory: src/web
+        run: npm audit --omit=dev --audit-level=low
+      - name: npm audit, all dependencies (high and critical fail; moderate dev-only findings allowed explicitly)
+        working-directory: src/web
+        run: |
+          # KNOWN AND ACCEPTED (2026-10-31): 14 moderate findings, all dev-only, all via the `minimatch` chain under
+          # eslint / typescript-eslint plugins. They are not in the shipped bundle (the production audit above is
+          # clean). This step still FAILS on any high or critical finding, and on any moderate count above 14, so a
+          # new moderate finding is a deliberate decision, not silence. Lower the number when the chain is fixed.
+          npm audit --audit-level=high
+          npm audit --json > "$RUNNER_TEMP/audit.json" || true
+          node -e '
+            const m = require(process.argv[1]).metadata.vulnerabilities;
+            console.log("audit counts", JSON.stringify(m));
+            if (m.moderate > 14 || m.low > 0) { console.error("New low/moderate findings beyond the 14 accepted dev-only minimatch ones"); process.exit(1); }
+          ' "$RUNNER_TEMP/audit.json"
       - name: dotnet list package --vulnerable (High or Critical fails)
         working-directory: src/api
         # SBR-02: explicit bash (-eo pipefail) and explicit exit handling. The gate must fail when the check itself
@@ -455,3 +577,20 @@ jobs:
           scan-ref: .
           severity: HIGH,CRITICAL
           exit-code: "1"
+
+  # One stable check name for branch protection (SEC-040, not configured yet). Matrix shard names and skipped jobs
+  # change with the diff; this job always runs and fails if any needed job failed or was cancelled. Skipped counts as
+  # success, same as for a required check on a docs-only change.
+  ci-result:
+    name: ci result (all required jobs)
+    if: ${{ always() }}
+    needs: [changes, web, api, e2e-harness, e2e-real, secret-scan, dependency-audit, dependency-review, image-scan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$NEEDS" | jq -e 'all(.[]; .result == "success" or .result == "skipped")' > /dev/null

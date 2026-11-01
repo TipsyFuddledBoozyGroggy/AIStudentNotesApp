@@ -13,7 +13,14 @@ export default async function globalSetup(config: FullConfig) {
   for (const p of ["/signin", "/", "/courses/new"]) await warm.get(p).catch(() => undefined);
   await warm.dispose();
 
-  for (const email of Object.values(USERS)) {
+  // E2E_USERS (comma-separated keys of USERS) limits sign-in to the users a CI shard's specs need, so each shard's
+  // own API only sees its own users. Unset = every user, as before. An unknown key is a typo: fail loudly.
+  const wanted = process.env.E2E_USERS?.split(",").map((k) => k.trim()).filter(Boolean);
+  const unknown = wanted?.filter((k) => !(k in USERS));
+  if (unknown?.length) throw new Error(`E2E_USERS has unknown user keys: ${unknown.join(", ")}`);
+  const emails = wanted ? wanted.map((k) => USERS[k as keyof typeof USERS]) : Object.values(USERS);
+
+  for (const email of emails) {
     let done = false;
     for (let attempt = 0; attempt < 3 && !done; attempt++) {
       const ctx = await request.newContext({ baseURL, extraHTTPHeaders: { Origin: baseURL } });
