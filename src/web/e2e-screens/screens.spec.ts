@@ -208,6 +208,11 @@ async function shoot(browser: Browser, s: Screen, look: AnyLook, width: number) 
   }, { ...ALL_LOOKS[look], ...(s.prefs ?? {}) });
   await page.goto(s.url(ctx));
   await s.ready(page, ctx);
+  // Hydrate first: a click on server-rendered markup before React attaches its handlers does nothing.
+  await page.waitForFunction(() => {
+    const el = document.querySelector("main") ?? document.body.firstElementChild;
+    return !!el && Object.keys(el).some((k) => k.startsWith("__reactFiber") || k.startsWith("__reactProps"));
+  }, undefined, { timeout: 15_000 });
   if (s.act) await s.act(page);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(400);

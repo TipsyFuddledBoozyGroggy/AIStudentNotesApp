@@ -171,6 +171,9 @@ async function open(width: number, s: Screen, prefs: Record<string, unknown>) {
   await page.addInitScript((v) => window.localStorage.setItem("tether.prefs.v1", JSON.stringify(v)), { ...prefs, ...(s.prefs ?? {}) });
   await page.goto(`${ORIGIN}${s.url()}`);
   await s.ready(page);
+  // Hydrate first: a click on server-rendered markup before React attaches its handlers does nothing (CI: the Quick recap
+  // 'Here is what was said' heading never appeared, in screens.spec and lecture-looks.spec).
+  await settle(page, { focusMode: false, ...prefs, ...(s.prefs ?? {}) });
   if (s.act) await s.act(page);
   // Hydrated, prefs applied, every used face loaded, boxes stable (settle.ts; the failing look varied between CI runs).
   await settle(page, { focusMode: false, ...prefs, ...(s.prefs ?? {}) });
