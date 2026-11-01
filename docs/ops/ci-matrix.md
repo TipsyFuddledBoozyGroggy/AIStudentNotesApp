@@ -18,7 +18,7 @@ Runtime figures are **estimates** from local runs of the same commands (marked L
 | `secret-scan` (ci) | **always**, full history | gitleaks v8.21.2, tarball verified against a pinned SHA-256 (SBR-03) | 1 min G | `gitleaks detect --source . --redact` |
 | `dependency-audit` (ci) | **always** | `npm audit` (prod: any severity fails; all: high/critical fail, moderate allowed up to the known 14), then `dotnet list package --vulnerable --include-transitive`, fails on High/Critical, and also fails if the check cannot run (nonzero exit, NU1900/feed errors, or no per-project result) (SBR-02) | 2 to 3 min G | same commands in `src/web` / `src/api` |
 | `dependency-review` (ci) | PRs with code changes | GitHub dependency review, fails on high | 1 min G | none |
-| `image-scan` (ci) | PRs with code changes only, never push to main; Trivy DB cache off (SBR-01) | Trivy: `postgres:16-alpine` (gates on fixable HIGH/CRITICAL), `dotnet/sdk:10.0` (report only, dev tooling), repo config scan (compose, workflows) | 3 to 6 min G | `docker run --rm aquasec/trivy image postgres:16-alpine` |
+| `image-scan` (ci) | PRs with code changes only, never push to main; Trivy DB cache off (SBR-01) | Trivy: `postgres:16.15-alpine` (gates on fixable HIGH/CRITICAL; 26 gosu findings ignored by `.trivyignore.yaml` until 2026-12-01), `dotnet/sdk:10.0` (report only, dev tooling), repo config scan (compose, workflows) | 3 to 6 min G | `docker run --rm aquasec/trivy:0.69.3 image --ignorefile .trivyignore.yaml --ignore-unfixed --severity HIGH,CRITICAL postgres:16.15-alpine` |
 | `ci-result` (ci) | always | One stable check for branch protection: fails if any needed job failed or was cancelled; skipped counts as success | < 1 min G | none |
 | `analyze` x2 (codeql) | code PRs, pushes to main, weekly | CodeQL `security-extended` for `csharp` and `javascript-typescript`, no-build mode | 10 to 25 min G | none |
 
@@ -74,7 +74,7 @@ All jobs run in parallel after `changes`. Wall time is the slowest job, now one 
 | Playwright browsers (`~/.cache/ms-playwright`) | Playwright version + hash of `src/web/package-lock.json` | restore on every run, save only on push to main; OS libraries are still installed each run |
 | npm (`setup-node` `cache: npm`) | hash of `package-lock.json` (action default) | action default (also saves on PRs, scoped to the PR ref) |
 | Trivy DB | none | off by design (SBR-01), unchanged |
-| Docker images / buildx layers | none | not added: no image is built (no API Dockerfile) and only `postgres:16-alpine` is pulled (small); a layer cache would add a poisoning surface for little gain. Revisit when an API image exists |
+| Docker images / buildx layers | none | not added: no image is built (no API Dockerfile) and only `postgres:16.15-alpine` is pulled (small); a layer cache would add a poisoning surface for little gain. Revisit when an API image exists |
 | `.next/cache` of the dev server | none | deliberately not cached (L-DEVSERVER: a stale or poisoned `.next` corrupts the dev server) |
 
 The restore/save split uses the `actions/cache/restore` and `actions/cache/save` sub-actions at the same pinned SHA as `actions/cache` (v4.2.0; both sub-actions exist at that commit, checked with `gh api`). Because PRs never save NuGet or Playwright caches, a PR's first run after a lock or csproj change is cold until a push to main has populated the cache (restore-keys fall back to the newest older cache with the same prefix).
@@ -137,3 +137,17 @@ A deployed database needs the same settings in its parameter group; that is a de
 | 41336514945 | sharded, after the layout fix | **green, all jobs** | **19 min** |
 
 The first green run is the measured baseline: the sharded pipeline ran about three times faster than the serial one. Trivy and dependency review are skipped on pushes by design and have not yet run on a pull request. The estimates earlier in this file are superseded by these measurements.
+
+## Trivy and the postgres image (2026-11-01)
+
+Dependabot PR run 41331403769: the `postgres:16-alpine` gate failed with 26 findings (25 HIGH, 1 CRITICAL, e.g. CVE-2025-68121 crypto/tls), all in the Go 1.24.6 stdlib of `/usr/local/bin/gosu` (gosu 1.19). The OS packages are clean. The gate was working.
+
+Local check, Trivy 0.69.3 (the default of trivy-action v0.35.0), `--severity HIGH,CRITICAL --ignore-unfixed --scanners vuln`, images pulled 2026-11-01: `postgres:16`, `16.15`, `16-alpine`, `16.15-alpine`, `16.15-alpine3.23`, `16.15-alpine3.24`, `16-bookworm`, `16.15-bookworm` all show the same 26 gosu findings and nothing else. **No postgres 16 tag is clean today**; the cause is upstream (the official image's gosu build), not the tag. `postgres:18` and others were not checked.
+
+What was done (smallest honest option): compose and the CI scan now pin `postgres:16.15-alpine` (a minor pin, so Dependabot proposes bumps), and `.trivyignore.yaml` ignores those 26 IDs for the path `usr/local/bin/gosu` only, with `expired_at: 2026-12-01`. Reasoning: gosu runs once to drop root and then exec()s postgres; it opens no listeners, so the stdlib net/http, tls, url and xml issues are not reachable; the DB is a localhost dev container or throwaway runner database. Checked locally: with the file the scan exits 0; with the expiry set in the past it exits 1 (26 findings); with a wrong path it exits 1. So a new finding elsewhere, or the expiry date, re-fails the gate. Used by the `image-scan` postgres step only (not the SDK or config steps).
+
+On or before 2026-12-01: re-scan the newest `postgres:16.x-alpine`; if gosu is rebuilt with Go >= 1.25.13, delete `.trivyignore.yaml`; otherwise renew with a fresh justification or switch to a different base. Alternatives not taken: building our own image that drops gosu (adds an image to maintain), or a broader `--skip-files` (hides more). Never carry this to a deployed database: that uses a managed Postgres.
+
+Other steps checked the same day: the repo config scan on a `git archive HEAD` copy is clean (exit 0). The `dotnet/sdk:10.0` report-only step shows 1 HIGH (libbrotli1 CVE-2026-111497, fixed in 1.1.0-2ubuntu0.1); it does not gate, and is dev tooling, so it is only reported.
+
+**Unproven until a PR run:** that trivy-action v0.35.0 honours `trivyignores: .trivyignore.yaml` on the runner (its entrypoint code supports a single YAML file, read from the pinned SHA), that the runner pulls the same gosu, . The running `cc-postgres-dev` image id (sha256:0cefaabd...) equals the `postgres:16.15-alpine` digest pulled today, so recreating it on the pinned tag should change nothing (read from `docker inspect`; recreate not done).

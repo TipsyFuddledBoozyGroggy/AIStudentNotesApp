@@ -1,0 +1,144 @@
+# Trivy ignore list, time-boxed. Created 2026-11-01 by devops-engineer. Read docs/ops/ci-matrix.md ("Trivy and the postgres image").
+#
+# What: 26 fixable HIGH/CRITICAL findings, all in the Go stdlib (go1.24.6) of /usr/local/bin/gosu (gosu 1.19),
+# which the official postgres image ships. Verified 2026-11-01 with Trivy 0.69.3: every postgres 16 tag
+# (16, 16.15, 16-alpine, 16.15-alpine, 16.15-alpine3.23/3.24, 16-bookworm, 16.15-bookworm) has the same 26; the OS
+# packages are clean. There is no clean tag to move to.
+# Why accepted: gosu runs once at container start to drop root to the postgres user, then exec()s postgres. It is not a
+# server and opens no network listeners, so the net/http, crypto/tls, net/url, html/template, mime and xml DoS and
+# parsing issues are not reachable from outside. Our use is a dev/CI database on localhost or a throwaway runner.
+# Scope: only the gosu binary path, so any new finding elsewhere in the image still fails the gate.
+# Expiry: 2026-12-01. After that the entries stop applying and the gate fails again, on purpose. Before then re-run
+# the scan against the newest postgres:16 tag; if upstream rebuilt gosu with Go >= 1.25.13, delete this file.
+# NOT acceptable for a deployed database: a production database uses the cloud provider's managed Postgres, not this image.
+vulnerabilities:
+  - id: CVE-2025-61726
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2025-61729
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2025-68121
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-111943
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-25679
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-27145
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-32280
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-32281
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-32283
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-33811
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-33814
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-33818
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-39820
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-39821
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-39822
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-39836
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-42499
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-42504
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-56853
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-56858
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-56859
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-56860
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-56862
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-78667
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-78669
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01
+  - id: CVE-2026-97031
+    paths:
+      - "usr/local/bin/gosu"
+    statement: "gosu go1.24.6 stdlib; not network-facing; see header"
+    expired_at: 2026-12-01

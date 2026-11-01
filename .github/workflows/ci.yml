@@ -552,12 +552,13 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
           persist-credentials: false
-      - name: Trivy image scan, postgres:16-alpine (gate)
+      - name: Trivy image scan, postgres:16.15-alpine (gate; gosu ignores in .trivyignore.yaml expire 2026-12-01)
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0
         with:
           cache: false
           scan-type: image
-          image-ref: postgres:16-alpine
+          image-ref: postgres:16.15-alpine
+          trivyignores: .trivyignore.yaml
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
