@@ -116,18 +116,6 @@ internal sealed class SyllabusKeys(byte[] etag, byte[][] idempotencyRing, byte[]
     }
 }
 
-/// <summary>PostgreSQL error classification shared by the retry loops.</summary>
-internal static class Pg
-{
-    /// <summary>True when any exception in the chain is deadlock_detected (40P01) or serialization_failure (40001): the transaction rolled back, so a retry is safe.</summary>
-    public static bool IsDeadlockOrSerialization(Exception ex)
-    {
-        for (var e = ex; e is not null; e = e.InnerException)
-            if (e is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.DeadlockDetected or Npgsql.PostgresErrorCodes.SerializationFailure }) return true;
-        return false;
-    }
-}
-
 internal static class Hashing
 {
     public static string Sha256Hex(ReadOnlySpan<byte> data) => Convert.ToHexStringLower(SHA256.HashData(data));

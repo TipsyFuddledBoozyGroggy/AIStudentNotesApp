@@ -1,4 +1,5 @@
 using Tether.Lectures.Contracts;
+using Tether.SharedKernel.Persistence;
 using Tether.Transcript.Domain;
 using Tether.Transcript.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -28,7 +29,7 @@ internal sealed class TranscriptWriter(TranscriptDbContext db, ISessionSequencer
         for (var attempt = 1; ; attempt++)
         {
             try { return await TryAppendAsync(userId, sessionId, fill, ct); }
-            catch (Exception ex) when (attempt < MaxAttempts && IsDeadlockOrSerialization(ex))
+            catch (Exception ex) when (attempt < MaxAttempts && PgErrors.IsDeadlockOrSerialization(ex))
             {
                 db.ChangeTracker.Clear(); // the failed insert is still tracked as Added
                 await Task.Delay(Random.Shared.Next(5, 40), ct); // jitter; the other side holds the locks only briefly
@@ -53,14 +54,6 @@ internal sealed class TranscriptWriter(TranscriptDbContext db, ISessionSequencer
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return EventMapper.ToEnvelope(e);
-    }
-
-    /// <summary>True when any exception in the chain is PostgreSQL deadlock_detected (40P01) or serialization_failure (40001).</summary>
-    private static bool IsDeadlockOrSerialization(Exception ex)
-    {
-        for (var e = ex; e is not null; e = e.InnerException)
-            if (e is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.DeadlockDetected or Npgsql.PostgresErrorCodes.SerializationFailure }) return true;
-        return false;
     }
 
     public async Task<int> MaxSegmentNoAsync(Guid sessionId, CancellationToken ct) =>

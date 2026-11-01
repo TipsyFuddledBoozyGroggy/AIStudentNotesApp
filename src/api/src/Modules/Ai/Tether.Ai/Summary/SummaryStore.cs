@@ -5,6 +5,7 @@ using Tether.Ai.Domain;
 using Tether.Ai.Persistence;
 using Tether.Ai.Provider;
 using Tether.Ai.Validation;
+using Tether.SharedKernel.Persistence;
 using Tether.Transcript.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -52,7 +53,29 @@ internal sealed class SummaryStore(AiDbContext db)
     /// <param name="pressId">NAS-R05: for a Final revision, the "Make notes" press it belongs to. The row is appended (and so pushed) only if that
     /// press is still Pending, checked under a row lock in the same transaction: an expiry or Delete that committed first wins, and one that comes
     /// later waits for this commit.</param>
+    /// <remarks>
+    /// Lock-order audit F-2: with a press, this holds the press row (<c>FOR UPDATE</c>) and the insert's FK check then needs KEY SHARE on the session
+    /// row; a session delete or course purge takes the session row and then (cascade) the press row. PostgreSQL aborts one side with 40P01. When this
+    /// append is the victim its transaction rolled back (nothing kept), so the whole append is re-run: the retry re-takes the press lock after the
+    /// delete committed and answers <see cref="AppendResult.PressGone"/> or <see cref="AppendResult.SessionGone"/>, or, if the session is still
+    /// there, appends. A deadlock that persists past <see cref="MaxAttempts"/>, or any other failure, still throws.
+    /// </remarks>
     public async Task<AppendResult> AppendAsync(SummaryRevisionRow row, int expectedBase, CancellationToken ct, Guid? pressId = null)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try { return await TryAppendAsync(row, expectedBase, ct, pressId); }
+            catch (Exception ex) when (attempt < MaxAttempts && PgErrors.IsDeadlockOrSerialization(ex))
+            {
+                db.Entry(row).State = EntityState.Detached; // the failed insert is still tracked as Added; nothing else in the scope is touched
+                await Task.Delay(Random.Shared.Next(5, 40), ct); // jitter; the other side holds its locks only briefly
+            }
+        }
+    }
+
+    internal const int MaxAttempts = 3;
+
+    private async Task<AppendResult> TryAppendAsync(SummaryRevisionRow row, int expectedBase, CancellationToken ct, Guid? pressId)
     {
         var current = await db.Summaries.AsNoTracking().Where(s => s.SessionId == row.SessionId).MaxAsync(s => (int?)s.Revision, ct) ?? 0;
         if (current != expectedBase || row.Revision != expectedBase + 1) return AppendResult.Stale;

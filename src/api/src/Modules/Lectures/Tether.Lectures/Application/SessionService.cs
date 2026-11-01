@@ -5,6 +5,7 @@ using Tether.Lectures.Domain;
 using Tether.Lectures.Persistence;
 using Tether.SharedKernel;
 using Tether.SharedKernel.Http;
+using Tether.SharedKernel.Persistence;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -138,6 +139,12 @@ internal sealed class SessionService(
             if (keyHash is not null && await TryReplayAsync(keyHash, fingerprint!, ct) is { } won) return won;
             return SessionOutcome.Fail(Problems.InvalidState());
         }
+        catch (DbUpdateException ex) when (PgErrors.IsForeignKeyViolation(ex))
+        {
+            // Lock-order audit F-7: the course was purged between the ownership check and this insert. Same answer as a missing course.
+            db.ChangeTracker.Clear();
+            return SessionOutcome.Fail(Problems.NotFound("Course not found."));
+        }
 
         return SessionOutcome.Ok((await GetAsync(sessionId, ct))!);
     }
@@ -204,9 +211,14 @@ internal sealed class SessionService(
                 await db.SaveChangesAsync(ct);
             }
             catch (Exception ex) when (ex is DbUpdateConcurrencyException
-                                       || ex is DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } })
+                                       || ex is DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } }
+                                       || PgErrors.IsDeadlockOrSerialization(ex))
             {
                 db.ChangeTracker.Clear(); // another writer got there first; re-read and re-evaluate (idempotent)
+                // Lock-order audit F-4: EF emits this batch as DELETE audio_tickets ... UPDATE lecture_sessions, so with an outstanding ticket it
+                // locks ticket then session, the reverse of a session delete (session, then its cascade to the ticket). A lost deadlock rolled
+                // the whole batch back; Pause and Stop must not be refused for it (ADR-019b), so re-read and retry. A delete that won shows as 404.
+                if (PgErrors.IsDeadlockOrSerialization(ex)) await Task.Delay(Random.Shared.Next(20, 120), ct);
                 continue;
             }
             var result = (await GetAsync(id, ct))!;
@@ -255,7 +267,12 @@ internal sealed class SessionService(
 
         var now = Now();
         var all = await db.Sessions.AsNoTracking().Where(s => s.CourseId == courseId).Select(s => s.Id).ToListAsync(ct);
-        foreach (var id in all) AddAudit(AuditActions.SessionDelete, id, now);
+        // Lock-order audit F-1: this audit commits BEFORE the course delete, so a purge that rolls back (409 after lost deadlocks or a
+        // concurrent edit) leaves these rows behind. One session.delete row per session: a client retry of the purge does not add a second.
+        var audited = await db.AuditEvents.AsNoTracking()
+            .Where(e => e.Action == AuditActions.SessionDelete && e.SessionId != null && all.Contains(e.SessionId.Value))
+            .Select(e => e.SessionId!.Value).ToListAsync(ct);
+        foreach (var id in all.Except(audited)) AddAudit(AuditActions.SessionDelete, id, now);
         await db.SaveChangesAsync(ct);
         // Every purged session, not only the live ones: a STOPPED session can still have an in-flight "Make notes" provider call (PO-18d)
         // that the AI module cancels (and tombstones, NAS-01) on this notification. This one is sent BEFORE the course delete commits so
@@ -340,7 +357,7 @@ internal sealed class SessionService(
                 db.ChangeTracker.Clear();
                 if (!await ExistsAsync(id, ct)) return Problems.NotFound("Session not found."); // lost a race to another delete
             }
-            catch (Exception ex) when (IsDeadlockOrSerialization(ex))
+            catch (Exception ex) when (PgErrors.IsDeadlockOrSerialization(ex))
             {
                 // The delete cascade races in-flight transcript/audio-progress writers (their FK checks take KEY SHARE on this row
                 // while the cascade waits on their rows); PostgreSQL aborts one side. The transaction rolled back, so retry is safe.
@@ -350,14 +367,6 @@ internal sealed class SessionService(
             }
         }
         return Problems.ConcurrencyConflict();
-    }
-
-    /// <summary>True when any exception in the chain is PostgreSQL deadlock_detected (40P01) or serialization_failure (40001).</summary>
-    private static bool IsDeadlockOrSerialization(Exception ex)
-    {
-        for (var e = ex; e is not null; e = e.InnerException)
-            if (e is PostgresException { SqlState: PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.SerializationFailure }) return true;
-        return false;
     }
 
     // ---------- audio ticket ----------
@@ -400,6 +409,12 @@ internal sealed class SessionService(
                                        || ex is DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } })
             {
                 db.ChangeTracker.Clear(); // concurrent issue or pause/stop/delete; re-evaluate from the top
+            }
+            catch (DbUpdateException ex) when (PgErrors.IsForeignKeyViolation(ex))
+            {
+                // Lock-order audit F-7: the session was deleted between the read and this insert. Same answer as a missing session.
+                db.ChangeTracker.Clear();
+                return (null, Problems.NotFound("Session not found."));
             }
         }
         return (null, Problems.ConcurrencyConflict());

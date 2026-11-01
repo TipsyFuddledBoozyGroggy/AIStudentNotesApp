@@ -86,3 +86,6 @@ Entry format:
 - **Agents:** backend-engineer / database-architect (lock order across modules), qa-engineer (a rare flake was the only signal).
 - **Prevention:** playbook L-LOCKORDER: a child-table writer that also touches a parent-adjacent counter row must treat deadlock (40P01) as retryable, like the cascade delete does. Follow-up: audit the other cascaded writers (AI summary revisions, catch-ups, notes).
 - **Status:** APPLIED (deterministic reproduction `RelayDeleteDeadlockTests`).
+
+### 2026-11-01 Lock-order audit (follow-up to the 1011/4409 deadlock)
+- An audit that cannot verify an ordering must say so and leave the finding open; here it guessed F-4 was safe and the engineer's CommandTrap showed it was a real cycle. Prefer recording the actual statement order (CommandTrap) over inference. Status: APPLIED (docs/data/lock-order-audit.md Resolution section).

@@ -5,6 +5,7 @@ using Tether.Ai.Prompts;
 using Tether.Ai.Validation;
 using Tether.Lectures.Contracts;
 using Tether.SharedKernel.Ai;
+using Tether.SharedKernel.Persistence;
 using Microsoft.Extensions.Logging;
 
 namespace Tether.Ai.Provider;
@@ -133,8 +134,18 @@ internal sealed class AiGateway(
             if (!await IsActiveAsync(req, ct)) return new(null, AiFailure.SessionClosed, model, repaired);
 
             // Hold the estimated cost against every cap BEFORE the call (B3-02). A ledger that cannot be written fails closed.
+            // Lock-order audit F-5: a single transient 40P01/40001 is retried once (the reservation's transaction rolled back, nothing is held)
+            // before it counts as a ledger fault, which opens both breaker lanes for every user.
             ReserveOutcome held;
-            try { held = await budget.ReserveAsync(req.UserId, req.EffectiveScope, req.Workflow, req.PromptVersion, options.Price(req.Tier).Model, EstimateMicro(req), ct, req.PressId); }
+            try
+            {
+                try { held = await budget.ReserveAsync(req.UserId, req.EffectiveScope, req.Workflow, req.PromptVersion, options.Price(req.Tier).Model, EstimateMicro(req), ct, req.PressId); }
+                catch (Exception ex) when (PgErrors.IsDeadlockOrSerialization(ex))
+                {
+                    await Task.Delay(Random.Shared.Next(5, 40), ct);
+                    held = await budget.ReserveAsync(req.UserId, req.EffectiveScope, req.Workflow, req.PromptVersion, options.Price(req.Tier).Model, EstimateMicro(req), ct, req.PressId);
+                }
+            }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 log.LogWarning("AI budget reservation failed: {ExceptionType}", ex.GetType().Name);

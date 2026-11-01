@@ -332,7 +332,7 @@ internal sealed class SyllabusService(SyllabusCore core, ICourseOwnership course
         for (var attempt = 0; ; attempt++)
         {
             try { return await DeleteOnceAsync(core, syllabusId, debrisDueBy, ct); }
-            catch (Exception ex) when (Pg.IsDeadlockOrSerialization(ex) && attempt < 4)
+            catch (Exception ex) when (Tether.SharedKernel.Persistence.PgErrors.IsDeadlockOrSerialization(ex) && attempt < 4)
             {
                 core.Db.ChangeTracker.Clear();
                 await Task.Delay(Random.Shared.Next(20, 120) * (attempt + 1), ct);

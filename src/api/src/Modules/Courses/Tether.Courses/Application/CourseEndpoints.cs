@@ -3,6 +3,7 @@ using Tether.Courses.Domain;
 using Tether.Courses.Persistence;
 using Tether.SharedKernel;
 using Tether.SharedKernel.Http;
+using Tether.SharedKernel.Persistence;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -137,21 +138,24 @@ internal static class CourseEndpoints
 
         if (purge == true)
         {
-            db.Courses.Remove(course); // sessions, transcripts and tickets cascade by FK (ADR-019/020)
+            if (await PurgeAsync(db, course, ct) is { } failed) return failed;
         }
-        else if (course.ArchivedAt is null)
+        else
         {
-            course.ArchivedAt = Now(clock);
-            course.UpdatedAt = course.ArchivedAt.Value;
-        }
-        try
-        {
-            await db.SaveChangesAsync(ct);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            // Raced with another update (409) or delete (404). Never a 500.
-            return await ConflictOrGoneAsync(db, id, ct);
+            if (course.ArchivedAt is null)
+            {
+                course.ArchivedAt = Now(clock);
+                course.UpdatedAt = course.ArchivedAt.Value;
+            }
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // Raced with another update (409) or delete (404). Never a 500.
+                return await ConflictOrGoneAsync(db, id, ct);
+            }
         }
         if (purge == true)
         {
@@ -169,6 +173,43 @@ internal static class CourseEndpoints
             }
         }
         return Results.NoContent();
+    }
+
+    private const int PurgeAttempts = 3;
+
+    /// <summary>
+    /// Deletes the course row; sessions, transcripts, tickets, syllabi and their children cascade by FK (ADR-019/020). Returns null on success,
+    /// otherwise the problem to answer. Lock-order audit F-1: the cascade takes the course row and then child rows, while a concurrent writer can
+    /// hold a child row and need KEY SHARE on the course (an insert referencing it), so PostgreSQL may abort the purge with 40P01. The transaction
+    /// rolled back, so the delete is retried (as <c>SessionService.DeleteAsync</c> does) and, if it keeps losing, answered 409, never 500. The
+    /// pre-commit lifecycle handlers are not re-run: what they did (Stop, content-free audit, AI cut-off and tombstones) is idempotent and still holds.
+    /// </summary>
+    private static async Task<IResult?> PurgeAsync(CoursesDbContext db, Course course, CancellationToken ct)
+    {
+        var id = course.Id;
+        for (var attempt = 1; ; attempt++)
+        {
+            db.Courses.Remove(course);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+                return null;
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // Raced with another update (409) or delete (404). Never a 500.
+                return await ConflictOrGoneAsync(db, id, ct);
+            }
+            catch (Exception ex) when (PgErrors.IsDeadlockOrSerialization(ex))
+            {
+                db.ChangeTracker.Clear();
+                if (attempt >= PurgeAttempts) return await ConflictOrGoneAsync(db, id, ct);
+                await Task.Delay(Random.Shared.Next(20, 120), ct); // jitter; the other side holds its locks only briefly
+                var again = await db.Courses.FirstOrDefaultAsync(c => c.Id == id, ct);
+                if (again is null) return Problems.NotFound("Course not found."); // another purge won
+                course = again;
+            }
+        }
     }
 
     /// <summary>After a lost optimistic-concurrency race: 404 if the row is gone, otherwise 409.</summary>
