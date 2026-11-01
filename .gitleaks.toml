@@ -49,3 +49,11 @@ condition = "AND"
 paths = ['''^src/api/tests/Tether\.IntegrationTests/Infrastructure/ApiFactory\.cs$''']
 regexTarget = "line"
 regexes = ['''RootSecretValue\s*=>\s*"[A-Za-z0-9]+"''']
+
+# 5. Web unit test: a made-up Idempotency-Key literal ("key-12345678") in a request-shape assertion.
+[[rules.allowlists]]
+description = "Idempotency-Key test literal in the unclaimed-dates unit test"
+condition = "AND"
+paths = ['''^src/web/src/lib/syllabus/unclaimed\.test\.ts$''']
+regexTarget = "line"
+regexes = ['''key:\s*"key-[0-9]+"''']
