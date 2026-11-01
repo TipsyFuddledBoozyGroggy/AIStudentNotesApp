@@ -62,15 +62,29 @@ export function todayYmd(now = new Date()): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
-/** The browser's IANA zone if it matches the contract's Area/Location form, else a safe default. */
+/** The zone sent for a UTC browser. The API allow-list accepts it (docs/ops/ci-first-run-e2e-diagnosis.md 2). */
+export const UTC_ZONE = "Etc/UTC";
+
+// Zero-offset, no-DST IANA names a browser can report (Chromium in a TZ=UTC host reports "UTC", which is not in the
+// Area/Location form). All of them mean the same wall clock, so they are sent as the one name the API accepts.
+const UTC_ALIASES = new Set(
+  ["UTC", "Etc/UTC", "UCT", "Etc/UCT", "GMT", "Etc/GMT", "GMT0", "Etc/GMT0", "GMT+0", "GMT-0", "Etc/GMT+0", "Etc/GMT-0", "Greenwich", "Etc/Greenwich", "Universal", "Etc/Universal", "Zulu", "Etc/Zulu"].map((z) => z.toLowerCase()),
+);
+
+/** Map a reported zone name to the one sent: UTC aliases to Etc/UTC, an Area/Location name as is, anything else to Etc/UTC. */
+export function normalizeZone(z: unknown): string {
+  if (typeof z !== "string") return UTC_ZONE;
+  if (UTC_ALIASES.has(z.trim().toLowerCase())) return UTC_ZONE;
+  return isZone(z) ? z : UTC_ZONE;
+}
+
+/** The browser's IANA zone if it matches the contract's Area/Location form; a UTC browser maps explicitly to Etc/UTC. */
 export function browserTimezone(): string {
   try {
-    const z = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (isZone(z)) return z;
+    return normalizeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
   } catch {
-    /* fall through */
+    return UTC_ZONE;
   }
-  return "Etc/UTC";
 }
 
 const WEEKDAY_NAMES: Record<Weekday, string> = { MO: "Monday", TU: "Tuesday", WE: "Wednesday", TH: "Thursday", FR: "Friday", SA: "Saturday", SU: "Sunday" };

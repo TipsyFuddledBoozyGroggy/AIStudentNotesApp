@@ -296,7 +296,15 @@ public class TextAndIdTests
     public void Zone_allow_list_rejects_abbreviations_offsets_and_unknown_zones()
     {
         Assert.True(ZoneAllowList.Contains("America/New_York"));
-        foreach (var z in new[] { "EST", "UTC", "-05:00", "America/Nowhere", "america/new_york", "America/New_York\n", "" }) Assert.False(ZoneAllowList.Contains(z), z);
+        Assert.True(ZoneAllowList.Contains("Etc/UTC")); // what the web client sends for a browser that reports UTC
+        foreach (var z in new[] { "EST", "UTC", "GMT", "Etc/GMT", "etc/utc", "Etc/UTC\n", "Etc/UTC ", "Etc/GMT+5", "-05:00", "America/Nowhere", "america/new_york", "America/New_York\n", "" }) Assert.False(ZoneAllowList.Contains(z), z);
+    }
+
+    [Fact]
+    public void Etc_UTC_resolves_on_this_host_and_has_no_dst_gap()
+    {
+        ZoneAllowList.EnsureHostSupportsAll();
+        Assert.False(Local.IsInDstGap(new DateOnly(2026, 3, 8), new TimeOnly(2, 30), "Etc/UTC"));
     }
 
     [Fact]

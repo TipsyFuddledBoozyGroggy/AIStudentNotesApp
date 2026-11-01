@@ -102,6 +102,15 @@ const RESUME_ICON = icon("M4.5 2.5v11l9-5.5z");
 const STOP_ICON = icon("M3.5 3.5h9v9h-9z");
 
 /**
+ * Pause/Resume and Stop. Below 640px: 8px side padding (was 12px) and a 4px icon gap (was 8px; the icons' own inset
+ * keeps about 7px of visible space). At 390px of layout width the row Pause, Stop, Lecture settings had about 8px of
+ * slack and Linux text metrics wrapped it to a third row in CI (bar 157px instead of <= 112px,
+ * docs/ops/ci-first-run-e2e-diagnosis.md 1 and 3). Measured on Windows Chromium after the change: 33px of slack with
+ * Pause, 17px with the wider Resume. Still on the 4px grid and 44px tall; sm and up unchanged.
+ */
+const BAR_BTN = "btn-secondary min-w-target gap-1 px-2 sm:gap-2 sm:px-5";
+
+/**
  * The lecture bar. On the live screen it replaces the site header (one sticky bar). Always shows the true state as shape +
  * word, elapsed active time and connection, with Pause/Resume and Stop in fixed places (SC 3.2.6). The Demo-source tag
  * left the bar at every width (PO-18c, slice 8b): the one-line Demo note under the bar carries the Demo fact.
@@ -144,7 +153,7 @@ export function StatusBar(p: StatusBarProps) {
               <button
                 ref={p.pauseRef}
                 type="button"
-                className="btn-secondary min-w-target px-3 sm:px-5"
+                className={BAR_BTN}
                 aria-disabled={enabled ? undefined : true}
                 aria-describedby={enabled ? undefined : "bar-unavailable"}
                 onClick={() => {
@@ -156,7 +165,7 @@ export function StatusBar(p: StatusBarProps) {
                 {showResume ? RESUME_ICON : PAUSE_ICON}
                 {showResume ? S.resume : S.pause}
               </button>
-              <button ref={p.stopRef} type="button" className="btn-secondary min-w-target px-3 sm:px-5" onClick={p.onStop}>
+              <button ref={p.stopRef} type="button" className={BAR_BTN} onClick={p.onStop}>
                 {STOP_ICON}
                 {S.stop}
               </button>

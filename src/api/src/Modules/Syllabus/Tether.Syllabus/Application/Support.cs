@@ -251,6 +251,9 @@ internal static class ZoneAllowList
         "Africa/Cairo", "Africa/Lagos", "Africa/Nairobi", "Africa/Johannesburg", "Africa/Casablanca", "Africa/Accra",
         "Australia/Sydney", "Australia/Melbourne", "Australia/Brisbane", "Australia/Perth", "Australia/Adelaide",
         "Atlantic/Reykjavik",
+        // UTC for a browser that reports UTC (web sends the Area/Location form). Bare "UTC"/"GMT" and Etc/GMT* stay out: the contract
+        // (ianaZone) is Area/Location, and a fixed-offset or legacy alias is not a place a student studies in.
+        "Etc/UTC",
     };
 
     public static bool Contains(string? zone) => zone is not null && Zones.Contains(zone);

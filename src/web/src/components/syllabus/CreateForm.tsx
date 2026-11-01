@@ -33,9 +33,9 @@ export interface CreateFormProps {
   onCancel?: () => void;
 }
 
-type ErrorKey = keyof typeof C.errors;
+type ErrorKey = Exclude<keyof typeof C.errors, "zone">;
 type FileErrorKey = keyof typeof F.errors;
-type SubmitError = { key: ErrorKey; existingId?: string } | { file: FileErrorKey } | { session: true };
+type SubmitError = { key: ErrorKey; existingId?: string } | { file: FileErrorKey } | { zone: string } | { session: true };
 type Draft = { text: string; firstDay: string; lastDay?: string };
 const isDraft = (v: unknown): v is Draft =>
   isRecord(v) && typeof v.text === "string" && typeof v.firstDay === "string" && (v.lastDay === undefined || typeof v.lastDay === "string");
@@ -211,7 +211,7 @@ export function CreateForm({ api, courseId, courseName, demoExpected, initialMet
       removeDraft(draftKey);
       onCreated(syllabus);
     } catch (err) {
-      setSubmitErr(mapError(err, method));
+      setSubmitErr(mapError(err, method, tz));
       if (!(err instanceof ApiError && err.isNetwork)) keyRef.current = null; // the server answered: a retry is a new request
     } finally {
       busyRef.current = false;
@@ -406,7 +406,7 @@ export function CreateForm({ api, courseId, courseName, demoExpected, initialMet
         {submitErr && "session" in submitErr && <ActionProblem ref={errorRef} kind="session" />}
         {submitErr && !("session" in submitErr) && (
           <div ref={errorRef} tabIndex={-1} className="note note-notice">
-            <p className="font-semibold">{"file" in submitErr ? F.errors[submitErr.file] : C.errors[submitErr.key]}</p>
+            <p className="font-semibold">{"file" in submitErr ? F.errors[submitErr.file] : "zone" in submitErr ? C.errors.zone(submitErr.zone) : C.errors[submitErr.key]}</p>
             {"key" in submitErr && submitErr.existingId && (
               <button type="button" className="btn-secondary mt-3" onClick={() => onOpenExisting(submitErr.existingId as string)}>
                 {C.errors.openExisting}
@@ -444,7 +444,8 @@ export function CreateForm({ api, courseId, courseName, demoExpected, initialMet
   );
 }
 
-function mapError(err: unknown, method: Method): SubmitError {
+/** Exported for unit tests. `tz` is the zone that was sent, named in the message when the API rejects it. */
+export function mapError(err: unknown, method: Method, tz: string): SubmitError {
   if (err instanceof ApiError && err.isUnauthenticated) return { session: true };
   if (err instanceof ApiError && err.isNetwork) return method === "file" ? { file: "network" } : { key: "network" };
   if (err instanceof SyllabusApiError) {
@@ -454,6 +455,8 @@ function mapError(err: unknown, method: Method): SubmitError {
     if (err.status === 429) return { key: "rateLimited" };
     if (err.status === 415) return { file: "type" };
     if (err.status === 413) return method === "file" ? { file: "size" } : { key: "textLong" };
+    // Only when the server names the zone field (errors.defaultTimezone, e.g. "not_allowed"); otherwise the general 400.
+    if (err.status === 400 && Object.prototype.hasOwnProperty.call(err.fieldErrors, "defaultTimezone")) return { zone: tz };
     if (err.status === 400) return { key: "invalid" };
   }
   return { key: "generic" };

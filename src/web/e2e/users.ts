@@ -20,6 +20,8 @@ export const USERS = {
   sylOther: `e2e-syl-other-${id}@dev.local`,
   sylHostile: `e2e-syl-hostile-${id}@dev.local`,
   sylUpload: `e2e-syl-upload-${id}@dev.local`,
+  // A browser reporting UTC (syllabus-utc.spec.ts): its own user so it never shares the syllabus write bucket.
+  sylUtc: `e2e-syl-utc-${id}@dev.local`,
   // Notes after Stop (slice 8a): its own user, because a user may have only one pending notes press across all lectures.
   notes: `e2e-notes-${id}@dev.local`,
   // Reopen-route hub lifecycle (slice 8x): its own user, because the hub caps concurrent connections per user (C-26: 3).

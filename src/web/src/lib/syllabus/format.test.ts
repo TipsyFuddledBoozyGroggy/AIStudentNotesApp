@@ -1,5 +1,5 @@
 import { ITEM_COPY } from "@/components/syllabus/copy";
-import { dateRange, formatDate, formatTime, isRealDate, weekdayList, weekRangeLabel, weekStart } from "./format";
+import { browserTimezone, dateRange, formatDate, formatTime, isRealDate, normalizeZone, weekdayList, weekRangeLabel, weekStart } from "./format";
 import { groupItems, firstOpenGroup } from "./grouping";
 import { loadFixtures } from "@/lib/lecture/schemas.node";
 import { parseItem } from "./parse";
@@ -21,6 +21,46 @@ it("formats wall-clock dates and times without shifting by the browser zone", ()
   expect(weekStart("2026-10-18")).toBe("2026-10-12");
   expect(weekStart("2026-10-12")).toBe("2026-10-12");
   expect(weekRangeLabel("2026-10-26")).toBe("Oct 26 to Nov 1");
+});
+
+describe("browser time zone (docs/ops/ci-first-run-e2e-diagnosis.md 2)", () => {
+  const withZone = (timeZone: string | undefined) => {
+    const real = Intl.DateTimeFormat;
+    vi.spyOn(Intl, "DateTimeFormat").mockImplementation(((...a: ConstructorParameters<typeof Intl.DateTimeFormat>) => {
+      const f = new real(...a);
+      const ro = f.resolvedOptions();
+      return { ...f, resolvedOptions: () => ({ ...ro, timeZone: timeZone as string }) };
+    }) as unknown as typeof Intl.DateTimeFormat);
+  };
+  afterEach(() => vi.restoreAllMocks());
+
+  it("a browser reporting UTC sends Etc/UTC (Chromium on a TZ=UTC host reports bare UTC)", () => {
+    withZone("UTC");
+    expect(browserTimezone()).toBe("Etc/UTC");
+  });
+
+  it("an Area/Location zone is sent as reported", () => {
+    withZone("America/New_York");
+    expect(browserTimezone()).toBe("America/New_York");
+  });
+
+  it("falls back to Etc/UTC when Intl throws or reports nothing", () => {
+    withZone(undefined);
+    expect(browserTimezone()).toBe("Etc/UTC");
+    vi.restoreAllMocks();
+    vi.spyOn(Intl, "DateTimeFormat").mockImplementation(() => {
+      throw new RangeError("no Intl");
+    });
+    expect(browserTimezone()).toBe("Etc/UTC");
+  });
+
+  it("normalizeZone: every zero-offset alias maps to Etc/UTC; real zones pass; junk falls back", () => {
+    for (const z of ["UTC", "Etc/UTC", "utc", "GMT", "Etc/GMT", "Etc/GMT0", "GMT+0", "Etc/GMT-0", "UCT", "Etc/Universal", "Zulu", "Etc/Greenwich", " UTC "]) expect(normalizeZone(z), z).toBe("Etc/UTC");
+    for (const z of ["America/New_York", "Europe/London", "America/Argentina/Buenos_Aires", "Asia/Kolkata"]) expect(normalizeZone(z), z).toBe(z);
+    // Etc/GMT+5 is a real fixed-offset zone, not UTC: it is not mapped to UTC (the API decides; it is not on the allow-list).
+    expect(normalizeZone("Etc/GMT+5")).toBe("Etc/GMT+5");
+    for (const z of ["EST", "", "-05:00", "America/New_York\n", null, 42]) expect(normalizeZone(z), String(z)).toBe("Etc/UTC");
+  });
 });
 
 describe("recurrence line (weekday named once)", () => {

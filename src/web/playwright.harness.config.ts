@@ -10,7 +10,7 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 15_000 },
   reporter: [["list"]],
-  use: { baseURL: "http://localhost:3100", trace: "retain-on-failure" },
+  use: { baseURL: "http://localhost:3100", trace: "retain-on-failure", timezoneId: "America/New_York" }, // host-zone independent
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     command: "npx next dev -p 3100",

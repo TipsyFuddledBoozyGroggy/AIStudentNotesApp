@@ -165,6 +165,17 @@ public class SyllabusIdempotencyAndQuotaTests(SyllabusIdempotencyAndQuotaTests.F
     }
 
     [Fact]
+    public async Task Create_with_defaultTimezone_Etc_UTC_is_accepted_and_bare_UTC_stays_rejected()
+    {
+        // A browser in a UTC zone reports "UTC"; the web client sends the Area/Location form "Etc/UTC". It must be creatable.
+        var a = await NewActorAsync(); var course = await CourseAsync(a.Client);
+        var bad = await CreateAsync(a.Client, course, Paste(Txt(2), tz: "UTC")); // rejected first: an accepted create leaves one extraction in flight for the course
+        await bad.AssertProblemAsync(HttpStatusCode.BadRequest, "validation_failed");
+        var ok = await CreateAsync(a.Client, course, Paste(Txt(1), tz: "Etc/UTC"));
+        Assert.Equal(HttpStatusCode.Accepted, ok.StatusCode);
+    }
+
+    [Fact]
     public async Task Item_create_idempotency_replays_the_item_and_a_key_reuse_with_another_body_or_syllabus_is_400()
     {
         var a = await NewActorAsync(); var course = await CourseAsync(a.Client);

@@ -92,7 +92,22 @@ async function open(b: Browser, url: string, width: number, opts: { auth?: boole
 
 const header = (p: Page) => p.locator("[data-site-header] > div");
 const column = (p: Page) => p.locator("[data-column-start]");
-const fmt = (r: Rect) => `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)}`;
+/** Lecture bar failure detail: content width, each child/control width ("text":w), row count and document.fonts state. */
+async function barDiagnostic(page: Page): Promise<string> {
+  return page.evaluate(async () => {
+    const bar = document.querySelector<HTMLElement>("[data-lecture-status-bar] > div");
+    if (!bar) return "no bar";
+    const cs = getComputedStyle(bar);
+    const content = bar.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const els = Array.from(bar.querySelectorAll<HTMLElement>(":scope > *, button, summary")).filter((e) => e.offsetParent !== null);
+    const tops = new Set(els.map((e) => Math.round(e.getBoundingClientRect().top)));
+    const w = els.map((e) => `"${(e.innerText || "").trim().replace(/\s+/g, " ").slice(0, 24)}":${e.getBoundingClientRect().width.toFixed(2)}`);
+    const fonts = Array.from(document.fonts).filter((f) => f.status === "loaded").map((f) => `${f.family}/${f.weight}`);
+    return `content ${content.toFixed(2)}; distinct tops ${tops.size}; ${w.join(", ")}; fonts ${document.fonts.status} loaded [${[...new Set(fonts)].join(", ")}]`;
+  });
+}
+
+const fmt = (r: Rect) =>`${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)}`;
 
 /** (7) A heading and its action share a baseline (R7) whenever they sit on one row; a wrapped row (320) is skipped. */
 async function sameBaseline(page: Page, heading: string, action: string, where: string) {
@@ -292,8 +307,9 @@ test("Paper, 7 widths: lecture bar 56px with 44px pill and controls, columns sha
       const barInner = bar.locator("> div");
       const bb = await box(bar);
       // One 56px row (plus the 1px rule) from 1280. Before slice 8b the Demo-source tag (shown from 640) made the bar two
-      // rows between 640 and ~1170 (<= 112 + 1); the tag left the bar in slice 8b (PO-18c), the <= 113 bound stays. Two rows from 390px of layout width on phones; below that Pause / Stop / Lecture settings (350px)
-      // need a third row, and at 320 the pill (211px) and "Connected" (94px) cannot share a row either, so four rows
+      // rows between 640 and ~1170 (<= 112 + 1); the tag left the bar in slice 8b (PO-18c), the <= 113 bound stays. Two rows from 390px of layout width on phones; below that Pause / Stop / Lecture settings (325px on
+      // Windows Chromium since the phone padding fix of 2026-11-01, was 350px; Resume adds 15px) may need a third row
+      // (<= 157), and at 320 the pill (211px) and "Connected" (94px) cannot share a row either, so four rows
       // (189px). All recorded in redesign-round2 "Slice 1 results"; the pill stays in view at 320 (harness e2e).
       const layoutWidth = await page.evaluate(() => document.body.clientWidth);
       if (width >= 1280 && !near(bb.height, 57, 1)) problems.push(`bar height ${bb.height}`);
@@ -301,6 +317,8 @@ test("Paper, 7 widths: lecture bar 56px with 44px pill and controls, columns sha
       if (width < 640 && layoutWidth >= 390 && bb.height > 113) problems.push(`phone bar height ${bb.height} > 112 at ${layoutWidth}`);
       if (width < 640 && layoutWidth >= 360 && layoutWidth < 390 && bb.height > 158) problems.push(`phone bar height ${bb.height} > 157 at ${layoutWidth}`);
       if (layoutWidth < 360 && bb.height > 190) problems.push(`320 bar height ${bb.height} > 189`);
+      // On a bar-height miss, say why (docs/ops/ci-first-run-e2e-diagnosis.md 1/3): each control's width and the font state.
+      if (problems.some((s) => s.includes("bar height"))) problems.push(`bar diag: ${await barDiagnostic(page)}`);
       // Pill and bar controls: 44px, equal heights and centres per row.
       const pill = page.getByTestId("state-label").locator("xpath=ancestor::div[contains(@class,'rounded-full')]");
       const pb = await box(pill);

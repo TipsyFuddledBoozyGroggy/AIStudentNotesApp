@@ -9,7 +9,9 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 30_000 }, // first hit of each route compiles in next dev
   reporter: [["list"], ["html", { open: "never" }]],
-  use: { baseURL: "http://localhost:3000", trace: "retain-on-failure" },
+  // timezoneId pinned so results do not depend on the host zone (a UTC CI runner broke the syllabus flow before the API
+  // accepted Etc/UTC; docs/ops/ci-first-run-e2e-diagnosis.md 2). e2e/syllabus-utc.spec.ts covers a UTC browser explicitly.
+  use: { baseURL: "http://localhost:3000", trace: "retain-on-failure", timezoneId: "America/New_York" },
   projects: [
     {
       name: "chromium",
