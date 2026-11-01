@@ -152,3 +152,92 @@ Reviewer: security-engineer. Date: 2026-11-01. HEAD `033b79d`, working tree clea
   - the deprecation date (from the researcher's source);
   - Kestrel's 408 response behaviour;
   - multi-instance behaviour (the gate is per process, ADR-020d).
+
+# Second pass: SBV-01, SBV-02 and the SBR-06 notice (commits f789acb, b6a51bc)
+
+Reviewer: security-engineer. Date: 2026-11-01. HEAD `f789acb`, working tree clean at start. Commits reviewed: `f789acb` (SBV-01 canonical-snippet enforcement, SBV-02 cap-drop counting) and `b6a51bc` (the dropped-dates notice, spec `docs/ux/dropped-dates-notice.md`). New IDs continue the **SBV-** prefix.
+
+**Method.** I read both diffs, the current `Jobs.cs` (`ProcessAsync`, `PersistAsync`), `MockRuleExtractor.cs` (`Extract`, `FindDates`, `Classify`, `AddUnclaimed`, `SyllabusLimits`), `DocumentText.Canonicalize`, `ItemService.cs` (hand-entered items), the new tests, `Review.tsx`, `copy.ts`, `syllabusDb.ts`, `MockProvider.tsx` and the offset-unit rules in `docs/API_CONTRACTS_P2.md` (row 38) and `docs/data/schema-syllabus-p2.md`. I ran **no** .NET or web test, build, app or dev stack. I ran one read-only `node -e` normalization probe (below). The test counts in both commit messages (145 syllabus, 333 AI, 22 architecture, 870 contract, 608 integration; vitest 2983) are the authors' claims. Nothing in `src/`, `tests/` or `.github/` was changed.
+
+## Result
+
+**New findings: 0 CRITICAL, 0 HIGH, 1 MEDIUM, 2 LOW.** Nothing blocks a push. The new MEDIUM (SBV-05) blocks production.
+
+| ID | Verdict | Register status |
+|---|---|---|
+| SBV-01 LOW | **Verified.** Every stored snippet and context is cut by the server from the canonical text and checked ordinally against what the extractor sent. Offsets are bounded, surrogate pairs are not split, and there is only one write path | FIXED-VERIFIED |
+| SBV-02 LOW | **Verified.** Every cap path in `Apply` and in the mock is counted, and the total is clamped to 1,000 | FIXED-VERIFIED |
+| SBR-06 LOW | **Partial, stays OPEN.** The notice is a real, visible trace of backstop drops, and I agree that it should not show a count. But the student still has no list of unclaimed dates in the web app. So a demoted item's date, which the fix kept "so its date stays visible", is in fact visible nowhere | OPEN |
+
+## SBV-01: verified
+
+- **One write path.** `PersistAsync` (`Jobs.cs:149-183`) now stores only `kept.Items[*].Snippet` and `kept.Unclaimed`. Both come out of `SyllabusLimits.TryCanonical`, which replaces `Text` and `ContextText` with `canonical.Substring(...)` (`MockRuleExtractor.cs:529-532`). Demoted items use the same sliced `trace` (`:553-555,569-570`). grep finds no other `SnippetText =` or `ContextText =` writer in the module. Hand-entered items (`ItemService.cs:113-120`) carry no snippet.
+- **The canonical string is the right one.** `ProcessAsync` reads `canonical_texts.text` once (`Jobs.cs:83`). It passes that same .NET string to the extractor and to `Apply` (`:87-88`). The offsets and the slice are therefore in the same UTF-16 string. The contract says offsets are UTF-16 code units, sliced in .NET and never in SQL (contract row 38), and the code follows it.
+- **Bounds.** `Fits(s)` already requires `0 <= ContextStart <= Start < End <= ContextEnd`, a non-empty snippet and context, the column caps in code points, the span caps (1,200 / 3,000 units), and precision `exact` or `line`. `TryCanonical` adds `End <= canonical.Length` and `ContextEnd <= canonical.Length` (`:527`). Together these bound all four offsets to `[0, Length]` before any `Substring`. So nothing can throw, and the test `SBV01_offsets_beyond_the_canonical_text_are_dropped_and_counted_not_thrown` covers it.
+- **Code-point boundaries.** `IsBoundary` rejects a cut between a high and a low surrogate at all four offsets (`:513-514,528`). The stored canonical text cannot contain a lone surrogate: `Canonicalize` strips the `Surrogate` category and U+FFFD (`DocumentText.cs:42`), and a lone surrogate in the input makes `Normalize` throw first (B1V-07, open and unchanged). So "not inside a pair" is the same as "on a code-point boundary". Test: `SBV01_a_window_that_splits_a_surrogate_pair_is_dropped_even_if_the_texts_agree`.
+- **Ordinal comparison.** `string.Equals(..., StringComparison.Ordinal)` is used for both the snippet and the context (`:531`). Culture, case and normalization-insensitive matches are not possible. A context forged at the same length is caught by `SBV01_a_forged_context_is_dropped_too_even_when_the_snippet_matches`.
+- **A forged snippet leaves no trace.** An item whose snippet is not canonical is dropped and counted, and it is **not** demoted (`trace` is null). That is correct: otherwise the forged words would come back as a "date we noticed".
+- **Integration test** (`SyllabusForgedSnippetTests`, stand-in `ForgingExtractor`). It forges one item's snippet text at the right offsets and adds an unclaimed date that runs past the end of the text. It asserts `droppedInvalid == 2`, that no stored row contains "moved", and that every stored snippet and context equals the SQL `substr` at its offsets. The SQL comparison is valid only because the fixture is ASCII (PostgreSQL `substr` counts code points), and the test says so. The unit tests cover astral text. On the old code both forged rows would have been stored, so the test would fail (judged by reading, not watched).
+- **UTF-16 offsets vs NFC.** The equality check does not depend on normalization: it compares the stored string with itself at its own offsets. Npgsql's UTF-8 round trip is lossless for text with no lone surrogates. But the stored text is **not always NFC**, although the contract and the `Canonicalize` doc comment say it is. `Canonicalize` normalizes **before** it strips format characters, marks and spaces (`DocumentText.cs:24` then `:40-77`), and nothing normalizes again afterwards. Probe (RAN, `node -e`, same Unicode algorithm as .NET ICU): `"e​́"` is NFC; with the U+200B removed, `"é"` is **not** NFC (it composes to U+00E9). For SBV-01 this fails safe: a real extractor that quotes the NFC form gets its snippet rejected and counted, not stored. See SBV-04.
+- **What SBV-01 does not cover** (unchanged requirements before a real extractor, `syllabus-built-review.md` "Requirements"): TextPolicy on the model-written `title`, `written.dateText`, `timeText` and `confidenceReason`. The orchestrator checks only their lengths (`Fits(ProposedItem)`). The mock runs `TextPolicy.TryValidate` on its own titles (`MockRuleExtractor.cs:414`), but a real extractor would not be forced to. This is not a new row: it is already a listed precondition. The extractor also still chooses the context window: see SBV-06.
+
+## SBV-02: verified
+
+Every path where a proposal can be lost to a cap now increments a counter:
+
+| Path | Where | Counted |
+|---|---|---|
+| Items beyond `maxItems` given to the orchestrator | `Apply` `:548,561` | yes (`overflow`) |
+| Unclaimed dates beyond 200 given to the orchestrator | `Apply` `:558,561` | yes (`overflow`) |
+| Demoted item with no room left in the unclaimed list | `Apply` `:568` | yes (already in `droppedItems.Count`) |
+| Mock policy item past the item cap | `Extract` `:93-94` | yes |
+| Mock TBA item past the cap | `:101-102` | yes |
+| Mock dated item past the cap | `:115` | yes (was already) |
+| Mock recurring item without a date, past the cap | `:133` | yes (was silent) |
+| Mock unclaimed date past 200 | `AddUnclaimed` `:471` | yes; the `Take(200)` truncation is gone |
+
+- **No double count.** The mock now hands over at most 200 unclaimed dates and at most `MaxAi()` = 200 items. So the orchestrator's overflow is 0 for them, unless `MaxAiItems` is configured below 200, and in that case only `Apply` counts those items.
+- **Clamp.** The sum is a `long`, a negative extractor count is floored at 0, and `Math.Clamp(dropped, 0, 1000)` uses `MaxDroppedInvalid`. Test: 700 + 700 overflow gives 1,000.
+- **Tests.** 201 identical items and 201 unclaimed dates in `Apply`. The mock with 201 unclaimed dates. The mock with policy, TBA and recurring lines past a full cap, with an under-cap control showing that those three lines are items otherwise. An integration test with 201 unclaimed dates gives `unclaimedDates 200` and `droppedInvalid 1`.
+- **Guards that are not caps.** `AddUnclaimed` still returns silently when a hit is out of its line or has a space at either end (`:467-470`). `FindDates` trims `MonthDay` hits, and the ISO and numeric patterns cannot match spaces. So I believe these guards are unreachable (READ). `p.Alternatives.Take(3)` trims alternatives of a kept item, not proposals. Neither is a drop of a date.
+
+## SBR-06: does the notice without a count satisfy it?
+
+**Partly. I accept the no-count decision, but SBR-06 stays OPEN.**
+
+- **Agreed: no count.** `droppedInvalid` is an upper bound that counts a demoted item twice (as a drop and as an unclaimed date), and it is capped. "N dates could not be read" (my original fix text) would be false in the demotion case, and the student could not act on the number anyway. The constant two-sentence note is accurate. I withdraw the count from the SBR-06 fix. The `data-dropped-invalid` attribute puts the number in the DOM, but it is the student's own data on their own page, so there is no exposure.
+- **Verified for what it does (READ).** The note renders iff `counts.droppedInvalid > 0`, on the Review list only, as two constant strings with no server text. It has no live region, role or focus change. Unit tests cover the spec's checklist items 1-7 and 9, plus axe on the unit render. The MSW marker `mock:dropped-invalid` exists only in the mock DB, which loads only when `NEXT_PUBLIC_API_MOCKING=enabled` (`MockProvider.tsx:5`). The harness e2e and the axe runs at 390/1280 were not done (the commit says so).
+- **Not satisfied: the student still has no list of unclaimed dates.** grep of `src/web/src/components` finds no use of `unclaimed` (it appears only in `types.ts`, `parse.ts` and mocks), and nothing calls `GET /syllabi/{id}/unclaimed-dates`. The SBR-06 fix had two parts: count the drop, and keep a dropped item's date visible as an unclaimed date. The second part is stored in the database but appears nowhere in the app. The note tells the student to check the syllabus, which is the honest fallback, but it gives no help locating the date Tether actually saw.
+- **The broader gap is worse than SBR-06 and is now SBV-05 (MEDIUM).** The note covers only drops. Dates the extractor deliberately classed as unclaimed are not drops: `droppedInvalid` stays 0, so **no note appears and the dates are shown nowhere**. With the mock that is the common case, not an edge: any dated line without a recognised keyword (`Classify` returns null, `:142-152`), for example "Presentations Oct 21, 2026", and every second date on a claimed line ("Quiz 1 due Oct 21, also Nov 3"). With a real extractor, hostile syllabus text could steer a real deadline into `Unclaimed` instead of `Items`. That would hide it with no drop, no count and no notice: exactly the "one deadline vanishes" scenario SBR-06 was about, by a route the notice does not cover.
+- **What closes SBR-06 and SBV-05:** render "Dates we noticed but did not turn into items" on the Review screen (UX spec section 6 already reserves the link). Or, if the PO rules that list out of Phase 2 scope (UX open question 2), show a count-free note whenever `counts.unclaimedDates > 0`, and record that ruling. Either way, add a test with `droppedInvalid == 0` and `unclaimedDates > 0`.
+
+## New findings
+
+### SBV-04 LOW: the canonical text is not guaranteed NFC, although the contract says it is
+- **Where:** `DocumentText.cs:24` (NFC first), then `:40-77` and `:80-97` (strip Cf, variation selectors, fillers, orphan or excess marks; collapse spaces), with no second normalization. Contract section 2.2 (`API_CONTRACTS_P2.md:56`) and the doc comment at `DocumentText.cs:18` say "The result is NFC".
+- **Proof (RAN, `node -e`):** `"e​́".normalize("NFC") === itself` is true. After removing the U+200B, `"é"` is not NFC (it normalizes to U+00E9). By reading, `Canonicalize` removes U+200B (Cf, not ZWJ/ZWNJ) and keeps U+0301 (a mark after a letter). I did not run the .NET path.
+- **Impact:** no security bypass. The SBV-01 check compares the stored text with itself. But (a) a real extractor or any server-side search that works on NFC text will fail to match these spans. Under SBV-01 those snippets are rejected and counted, so a legitimate date can fall into "parts could not be turned into items". (b) The stored text breaks a documented invariant that later code may rely on, for example dedupe or hashing of canonical text. The trigger is a zero-width or format character between a letter and a combining mark, which is common in PDF-copied text.
+- **Fix:** normalize to NFC once more after stripping and collapsing, before the text is stored and before any offset is computed. Add a `Canonicalize` test with `"e​́"`, and assert `IsNormalized(FormC)` on the output for every red-team fixture. Owner: backend-engineer.
+
+### SBV-05 MEDIUM: unclaimed dates are stored but never shown, and no notice covers them
+- **Where:** `Jobs.cs:179-183` stores them. `GET /syllabi/{id}/unclaimed-dates` exists. `src/web/src/components` never fetches or renders them (grep). `Review.tsx:351-357` shows a note only for `droppedInvalid > 0`.
+- **Scenario:** a date that the extractor classes as unclaimed (mock: any dated line with no recognised keyword, and every extra date on a claimed line; real model: anything a hostile line steers there) is shown nowhere, and the Review screen gives no hint that it exists. For a deadline tool, that is silent loss of a date the system actually found. It is reachable today with the mock and ordinary syllabi.
+- **Why MEDIUM:** I was unsure between LOW and MEDIUM. It is reachable now with ordinary input, not only through a hostile edge case, and it breaks the completeness promise the SBR-06 work depends on. The fix is small. It does not block a push. It must be fixed before production or real students.
+- **Fix:** render the unclaimed-dates list on Review, or a count-free note when `counts.unclaimedDates > 0` (PO scope ruling, UX open question 2). Tests: `droppedInvalid 0` with `unclaimedDates > 0` shows the trace; the real-stack e2e pastes "Presentations Oct 21, 2026" and finds it on Review. Owners: frontend-engineer, adhd-ux-specialist, product-manager.
+
+### SBV-06 LOW: the extractor still chooses the context window, so a verbatim quote can be cut to hide a negation
+- **Where:** `TryCanonical` accepts the extractor's `ContextStart` and `ContextEnd` once they are canonical (`MockRuleExtractor.cs:523-534`). `Fits` allows `ContextStart == Start` and `ContextEnd == End`.
+- **Scenario (real extractor only):** from "The final is NOT on Dec 9", a steered model returns the snippet "Dec 9" with the context set to "on Dec 9". Both are verbatim slices, so SBV-01 passes them, and Review shows "on Dec 9" as the student's evidence. The mock always uses the full line (`ContextWindow`), so this cannot happen today.
+- **Fix before a real extractor:** the orchestrator computes the context itself from the snippet offsets: the containing line or lines, bounded as `ContextWindow` does. It ignores the extractor's context offsets, or rejects proposals whose context is narrower than that window. Add a test with a narrowed context. Owners: backend-engineer, ai-agent-engineer.
+
+## Observations (Info, not findings)
+
+- **SBV-I4:** `Precision` (`exact` or `line`) is still the extractor's word. The text is now canonical, so it is only a label, but a real extractor's `line` should be checked against `LineSpans`.
+- **SBV-I5:** the extractor's unclaimed list is not deduplicated by span (`Apply` dedupes only demoted items). A real extractor could fill the 200 slots with copies of one span. That is crowding, not loss, and the overflow is counted.
+- **SBV-I6:** a snippet may still start or end inside a grapheme cluster (between a base and its combining mark, or inside a ZWJ emoji). It is verbatim and rendered as text, and it is cosmetic only.
+
+## What I ran and what I did not verify (second pass)
+
+- **Ran (read-only):** `git show --stat` and full diffs of `f789acb` and `b6a51bc`; one `node -e` NFC probe.
+- **Not run:** any .NET or web test, typecheck, build, the app, the dev stack, the harness e2e or the axe runs at width.
+- **Not verified:** the authors' test counts; that the new tests fail on the old code (judged by reading); the .NET `Canonicalize` output for the SBV-04 input (inferred from the code and the JS probe); Npgsql round-trip byte identity (from the DB-09 design test, not re-run).
