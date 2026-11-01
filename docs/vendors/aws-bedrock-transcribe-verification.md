@@ -1,3 +1,5 @@
+> **SUPERSEDED 2026-11-01 by PO-20aa:** the PO chose Azure (speech, hosting, database, Claude notes model) and no AWS. Kept as a record only. The current research is `docs/vendors/azure-platform-verification.md`.
+
 # AWS path verification: Claude on Amazon Bedrock and Amazon Transcribe Streaming
 
 Retrieval date for every source: **2026-11-01** (today). Prepared by `vendor-verification-researcher` (AI agent) for the Product Owner decision PO-20f ("plan on AWS").
