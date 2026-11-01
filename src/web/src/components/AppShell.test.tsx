@@ -81,6 +81,24 @@ describe("AppShell", () => {
     expect(document.documentElement.getAttribute("data-density")).toBe("compact");
   });
 
+  it("from 1024 the header is fixed (not sticky) over an aria-hidden spacer, and its right edge follows the Preferences panel", async () => {
+    // A sticky header's controls are paired by axe target-size with page targets scrolled under it (CI run 41322171511);
+    // a fixed one is not. The geometry spec (slice 8c straddle check) proves the browser side.
+    const user = userEvent.setup();
+    mount();
+    const header = screen.getByRole("banner");
+    expect(header.className).toMatch(/\blg:fixed\b/);
+    expect(header.className).not.toMatch(/\blg:sticky\b/);
+    expect(header.className).toMatch(/\blg:right-0\b/);
+    const spacer = header.nextElementSibling as HTMLElement;
+    expect(spacer).toHaveAttribute("data-site-header-spacer");
+    expect(spacer).toHaveAttribute("aria-hidden", "true");
+    // It mirrors the header: box-content height of the 56px bar plus the header's 1px bottom border.
+    expect(spacer.className.split(" ")).toEqual(expect.arrayContaining(["box-content", "hidden", "border-b", "lg:block", "lg:h-14"]));
+    await user.click(screen.getByRole("button", { name: "Preferences" }));
+    expect(header.className).toMatch(/\blg:right-96\b/);
+  });
+
   it("adds no live regions of its own (the lecture screen owns exactly three)", () => {
     const { container } = mount();
     expect(container.querySelectorAll('[aria-live],[role="status"],[role="alert"],[role="log"]')).toHaveLength(0);

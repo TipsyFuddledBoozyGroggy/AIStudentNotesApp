@@ -338,7 +338,7 @@ html:has(main[data-route="lecture"]) body::before {
 }
 
 html {
-  /* Sticky top bar (>= 1024) must not hide focused elements (WCAG 2.4.11). */
+  /* The top bar, fixed from 1024 (AppShell), must not hide focused elements (WCAG 2.4.11). */
   scroll-padding-top: 5rem;
   /* R10: classic scrollbars must not shift the container between short and long pages. */
   scrollbar-gutter: stable;
@@ -425,6 +425,7 @@ h1, h2, h3 {
 /* Live-lecture screens: the lecture bar REPLACES the site header (one sticky bar, section 3), and the sticky bar must
    not hide focused elements (SC 2.4.11). The bar wraps to two rows on phones, hence the larger padding there. */
 body:has([data-lecture-root]) [data-site-header],
+body:has([data-lecture-root]) [data-site-header-spacer],
 body:has([data-lecture-root]) [data-site-prefs] {
   display: none;
 }

@@ -82,7 +82,7 @@ Screenshots: `ui-kit`, `signin`, `lecture-live` at 390/1280 x 4 looks (first pas
 
 ## Slice 2: shell, Preferences, preference store (DONE)
 Changed / added:
-- `src/web/src/components/AppShell.tsx` (replaces `SiteHeader.tsx`, deleted): top bar 56px (sticky from 1024px only):
+- `src/web/src/components/AppShell.tsx` (replaces `SiteHeader.tsx`, deleted): top bar 56px (fixed from 1024px with a same-height spacer, not sticky: axe target-size pairs sticky headers with page targets):
   wordmark "Tether" (Newsreader), "Menu" disclosure below 1024px, "Preferences", display name from 768px, "Sign out" (same
   name, always visible when signed in). Left rail 200px from 1024px with Today (`/`) and Courses (`/courses`), `aria-current`.
   No bottom tab bar; no Schedule/Study teasers (routes do not exist). `main#main` kept (skip link target unchanged).

@@ -34,3 +34,9 @@ Entry format:
 - **Agents:** backend-engineer / qa-engineer (tests written without waiting for the first ack).
 - **Prevention:** playbook L-HELLO. Open question: does the frontend treat 4401 on first hello as "session not available"? (not checked)
 - **Status:** APPLIED (4 tests now wait for acks; deterministic reproduction `B2ArchiveHelloRaceTests`).
+
+### 2026-11-01 axe target-size failure only on the Linux runner (slice 8c)
+- **Root cause:** sticky site header paired with page targets by axe; the 200px scroll sampling missed the bad window on Windows. The defect existed on Windows too (found with 2-3px sampling).
+- **Agents:** frontend-engineer (header), qa-engineer (sampling too sparse to prove absence).
+- **Prevention:** playbook L-STICKY; a deterministic "header straddle" geometry check now exists.
+- **Status:** APPLIED.

@@ -573,6 +573,36 @@ test("slice 8c: Calendar step rail from 1280: 20rem sticky track, shared edges, 
         for (const v of axe.violations) problems.push(`scroll ${y}: axe ${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`);
         if (y >= total) break;
       }
+      // Header straddle (CI run 41322171511: "Edit Quiz 1 on in class" at scroll 600 on Linux only). A page target that is
+      // half scrolled under the header, beneath one of the header's own links or buttons, keeps only a sliver below that
+      // control, and axe target-size counts the sliver as the target's size. The 200px scan above only finds that when a
+      // sample happens to land in the ~20px window, which depends on font metrics. So, deterministically: every target in
+      // the page (not the rail) that shares x with a header control is scrolled until its bottom is 4px below the header
+      // (measured with the old sticky header: axe failed "Week" when its bottom was 1-8px below the header bottom, or its
+      // top just above the viewport). The header is fixed from 1024 (AppShell), so axe never pairs it with page targets.
+      if (allOpen) {
+        await page.evaluate(() => window.scrollTo(0, 0));
+        const straddles = await page.evaluate(() => {
+          const hb = document.querySelector("[data-site-header]")!.getBoundingClientRect();
+          const controls = Array.from(document.querySelectorAll<HTMLElement>("[data-site-header] a[href], [data-site-header] button")).map((e) => e.getBoundingClientRect());
+          return Array.from(document.querySelectorAll<HTMLElement>("main a[href], main button"))
+            .filter((el) => !el.closest(".review-rail"))
+            .flatMap((el) => {
+              const b = el.getBoundingClientRect();
+              if (b.width === 0 || b.height === 0 || !controls.some((w) => b.left < w.right && b.right > w.left)) return [];
+              return [{ name: (el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 30), scrollTo: Math.round(b.bottom + window.scrollY - hb.bottom - 4) }];
+            });
+        });
+        if (straddles.length === 0) problems.push("straddle check found no target under a header control");
+        for (const s of straddles) {
+          const y = Math.max(0, Math.min(total, s.scrollTo));
+          await page.evaluate((top) => window.scrollTo(0, top), y);
+          await page.waitForTimeout(30);
+          const axe = await new AxeBuilder({ page }).withRules(["target-size"]).analyze();
+          for (const v of axe.violations) problems.push(`straddle "${s.name}" (scroll ${y}): axe ${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`);
+        }
+        measured.push(`${where}: ${straddles.length} header straddles`);
+      }
       measured.push(`${where}: scanned 0-${total}px`);
       expect(problems, where).toEqual([]);
       await close();

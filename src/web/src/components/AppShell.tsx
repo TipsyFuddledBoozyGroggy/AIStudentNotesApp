@@ -75,6 +75,19 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [courses, setCourses] = useState<Course[] | null>(null);
   const paletteOpener = useRef<HTMLElement | null>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const [barH, setBarH] = useState<number | null>(null);
+
+  // From 1024 the header is fixed, not sticky (see the header below), so an in-flow spacer holds its place. The spacer
+  // mirrors the header (bar + 1px bottom border) and follows the bar's real height, so a bar that wraps (large text, text
+  // spacing, the Preferences panel open at 1024) never covers the page.
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setBarH(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const openPalette = useCallback(() => {
     paletteOpener.current = document.activeElement as HTMLElement | null;
@@ -151,9 +164,13 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <header data-site-header data-chrome className="z-10 border-b border-hair lg:sticky lg:top-0">
+      {/* Fixed from 1024, not sticky: it looks and behaves the same, but a sticky bar is in the page's flow, so axe pairs its
+          links and buttons with every page target scrolled half under it and reports the sliver left below them as an
+          undersized target (target-size, WCAG 2.5.8; CI run 41322171511, "Edit Quiz 1 on in class" at scroll 600). The
+          right edge follows the open Preferences panel, as the body's end padding did for the sticky bar (globals.css). */}
+      <header data-site-header data-chrome className={`z-10 border-b border-hair lg:fixed lg:top-0 lg:left-0 ${prefsOpen ? "lg:right-96" : "lg:right-0"}`}>
         {/* 56px bar: 48px content minimum plus 4px padding above and below. */}
-        <div className={`${container} flex min-h-12 flex-wrap items-center gap-x-2 gap-y-1 py-1`}>
+        <div ref={barRef} className={`${container} flex min-h-12 flex-wrap items-center gap-x-2 gap-y-1 py-1`}>
           <Link href="/" className="wordmark display inline-flex min-h-[44px] min-w-28 items-center text-2xl leading-none">
             Tether
           </Link>
@@ -186,6 +203,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
+      {/* The fixed header's place in the flow from 1024: the bar's height (56px until measured) plus the header's border. */}
+      <div
+        aria-hidden="true"
+        data-site-header-spacer
+        className="box-content hidden border-b border-transparent lg:block lg:h-14"
+        style={barH === null ? undefined : { height: barH }}
+      />
       {prefsOpen ? (
         <div data-site-prefs className={container}>
           <PreferencesPanel onClose={closePrefs} userId={authed ? user.id : null}>
