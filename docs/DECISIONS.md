@@ -75,7 +75,7 @@ Deferred: row-level security (ADR-013), revisited at M003 start with security-en
 | PO-9h | The app only needs to see events it creates (no conflict detection against other events). Supports the `calendar.app.created` scope proposal. | PO decided |
 | PO-9i | The student chooses where their schedule lives: Google Calendar or Tether's own calendar. Tether calendar: per-course view plus one combined view. Google Calendar: used as ordinary Google Calendar Confirmed: no separate per-course Google calendars; one calendar, course shown in event titles (e.g. "BIO 201 · Midterm exam"). | PO decided |
 | PO-9j | Google account belongs to the student. A student without one must create one for now. | PO decided |
-| PO-9k | Designated dev/test Google account: jolsendev@gmail.com (PO's). No credentials are shared or stored. Using it for real calls still needs a Google Cloud project and OAuth client created by the PO, the control list in `docs/security/google-tokens-and-data-residency.md`, and PO go-ahead for the first real call. | PO designated; no external call made |
+| PO-9k | Designated dev/test Google account: [dev Google account, address kept out of the public repo] (PO's). No credentials are shared or stored. Using it for real calls still needs a Google Cloud project and OAuth client created by the PO, the control list in `docs/security/google-tokens-and-data-residency.md`, and PO go-ahead for the first real call. | PO designated; no external call made |
 | PO-9g | Still open (reduced): reminders on/off by default (calendar-reminders.md), disconnect behaviour (events presumed kept), ICS interim, Google Cloud project/OAuth client creation, and security doc questions Q1-Q7 (storage model, transcript opt-in, university accounts, pilot key custody, delete defaults, closed accounts). | Open |
 | PO-9l | Reminders are ON by default (visible pre-selected Gentle preset), per `docs/ux/calendar-reminders.md`. Not human-validated (G4). | PO decided |
 | PO-9m | Storage model accepted: Postgres is the working record, Google is the student's durable copy. | PO decided |
@@ -157,3 +157,32 @@ These are Lead Architect choices under delegation. Reversible. They approve no s
 | ID | Decision | Status |
 |---|---|---|
 | PO-19 | When a lecture is stopped, the browser moves from the live route (`/courses/{id}/lecture`) to that lecture's reopen route (`/lectures/{id}`), replacing the history entry, so a reload or a later return still shows the transcript, summary and notes. A dialog tells the student about the move first and has a "Don't show this again" checkbox; once checked the dialog no longer opens and the move happens directly. Wording is student-facing UX (language guide); it is not consent/recording/Demo wording (G1). | PO decided; not built |
+
+## Review Desk responses (2026-11-01)
+
+Source: the Product Owner's answers in the local Review Desk (23 items; the desk is kept outside the repo). Each row is a PO decision unless marked otherwise. Detail and the reasoning offered at the time are in the findings and legal registers.
+
+| ID | Decision | Status |
+|---|---|---|
+| PO-20a | D-STOP: system-initiated stops (auto-stop, hard cap, abandoned, failed) do **not** move the page; they show a link. Only a student-pressed Stop redirects (PO-19). | PO decided |
+| PO-20b | SBV-05: **build the unclaimed-dates list on the Review screen** (student sees each noticed date with its source line and can turn it into an item). Needs UX design, a frontend build and a security check. | PO decided; work started |
+| PO-20c | L-19: scrub the dev Google address from current files; **no history rewrite**; accept it remains in git history. | PO decided; scrubbed in current files |
+| PO-20d | SEC-PUBLIC: keep the repo public for now; revisit before any real deployment. | PO decided |
+| PO-20e | L-04: stay on mock AI; no real Claude calls until the PO decides to proceed. | PO decided |
+| PO-20f | L-05: PO is most familiar with **AWS Bedrock** and wants to plan on it. Bedrock hosts language models, not streaming speech-to-text (AWS's speech service is Amazon Transcribe). Needs clarification; a vendor verification of both is running. This is planning only; G2 stays UNVERIFIED and nothing real is called. | PO direction; follow-up open |
+| PO-20g | G1-NOTES: keep the draft "Make notes" disclosure for mock use only; counsel review before any real AI. | PO decided |
+| PO-20h | L-02: personal, mock-only until the PO has the instructor and campus recording rule in writing. No real recording before then. | PO confirmed |
+| PO-20i | L-01: add a warning when the connected Google account looks institutional (does not block export). | PO decided; not built |
+| PO-20j | L-13: choose a **US region** for now and record it; specific AWS region to be chosen with the hosting decision. | PO decided |
+| PO-20k | L-09: no age gate now; add one if other users appear. Scope boundary: the only user is the PO's son (an adult). | PO decided |
+| PO-20l | L-10 and D13: synthetic or own documents only until a policy exists. | PO decided |
+| PO-20m | SB-03: require an explicit confirm step that names what will be written, built before any real Google Calendar work. | PO decided; prerequisite recorded |
+| PO-20n | SBR-08: fix calendar removal on course delete when the real calendar work starts; recorded as a prerequisite. | PO decided |
+| PO-20o | SBR-01: replace the container-scan action with a checksum-pinned binary later; low urgency. | PO decided |
+| PO-20p | SB-01: repeat the database log hardening as a deployment checklist item with the hosting decision. | PO decided |
+| PO-20q | SEC-BRANCH: enable branch protection on `main` after the first fully green CI run, requiring the aggregate `ci result (all required jobs)` check, with admin bypass. The first green run exists (41336514945). | PO decided; **not yet applied** (the change to repository settings was blocked by the permission guard and needs the PO's go-ahead in the session) |
+| PO-20r | D4: discard the original uploaded file after reading (current behaviour). | PO decided |
+| PO-20s | D5: keep the draft upload notice and attestation for personal use; revisit before any other user. | PO decided |
+| PO-20t | G2-CAP: leave the per-session AI cap placeholder until a priced pilot. | PO decided |
+| PO-20u | L-03, L-06 to L-08, L-14 to L-16, L-20, L-21: the deferral stands (personal tool only); revisit if anyone else gets access. | PO confirmed |
+| PO-20v | L-17 and L-18: do the licence inventory and the third-party-names check before any release. | PO decided |

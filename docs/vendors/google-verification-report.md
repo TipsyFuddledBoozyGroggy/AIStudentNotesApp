@@ -134,7 +134,7 @@ Evidence key: **P-sum** = official Google page, but the fetch tool returned a mo
 | 10.6 | Exact error code (`admin_policy_enforced`) | NF | not fetched | n/a | Token doc names the code; unconfirmed. Handle generically. |
 | 10.7 | Admin session-length policy / Restricted service kills refresh tokens | VERIFIED | oauth2 overview | "the session length set by the admin could have been exceeded" ; "If an admin set any of the services requested in your app's scopes to Restricted" | University accounts will see more frequent `needs_reauth`. |
 
-## 11. Recommended tests against the real throwaway account (all **NOT RUN**; require PO approval; synthetic data; test user jolsendev@gmail.com is the designated test user)
+## 11. Recommended tests against the real throwaway account (all **NOT RUN**; require PO approval; synthetic data; test user [dev Google account, address kept out of the public repo] is the designated test user)
 
 | ID | Test | Resolves |
 |---|---|---|
@@ -185,7 +185,7 @@ Source: five screenshots taken by the Product Owner on 2026-10-29 (Google Auth P
 | Enabled APIs | **Google Calendar API** enabled; metrics for 30 days show "No data is available for the selected time frame". | Confirms no calls have been made to the Calendar API from this project. |
 
 **Open from the screenshots**
-- RESOLVED 2026-10-29: the PO confirmed the correct test and support address is `jolsendev@gmail.com` (the earlier `jwolsendev` was a typo in chat). Docs corrected.
+- RESOLVED 2026-10-29: the PO confirmed the correct test and support address is `[dev Google account, address kept out of the public repo]` (the earlier `jwolsendev` was a typo in chat). Docs corrected.
 - Not yet captured: redirect URIs on the client, Verification Center, and the Drive scope label.
 
 ### Addendum 2 (2026-10-29, two more Console screenshots from the Product Owner)
