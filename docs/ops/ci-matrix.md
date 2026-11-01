@@ -126,3 +126,14 @@ A deployed database needs the same settings in its parameter group; that is a de
 - Not parallelised yet: the `api` job (5 test projects, serial, 10 to 20 min G) is now the likely critical path for backend changes; splitting it by test project is the next lever.
 - Windows line endings: `docs/ops/db-log-canary.sh` must stay LF (there is no `.gitattributes` rule for it; CI checks out on Linux, a CRLF checkout on Windows would break it under Git Bash).
 - Backups, restore drill, telemetry, cost dashboards and deployment are outside CI and not done.
+
+
+## Measured timings (2026-11-01)
+
+| Run | Pipeline | Result | Wall time |
+|---|---|---|---|
+| 41328040245 | serial real-stack e2e | failed (lecture-looks, font timing) | 55 min |
+| 41331066937 | first sharded run | failed (geometry, font timing) | 42 min |
+| 41336514945 | sharded, after the layout fix | **green, all jobs** | **19 min** |
+
+The first green run is the measured baseline: the sharded pipeline ran about three times faster than the serial one. Trivy and dependency review are skipped on pushes by design and have not yet run on a pull request. The estimates earlier in this file are superseded by these measurements.
