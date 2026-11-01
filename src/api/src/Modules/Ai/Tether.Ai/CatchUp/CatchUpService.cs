@@ -123,7 +123,9 @@ internal sealed class CatchUpService(
         var inFlight = await db.CatchUps.AsNoTracking()
             .Where(c => c.SessionId == sessionId && c.WindowMinutes == windowMinutes && c.AiState == "Pending" && c.CreatedAt > since)
             .OrderByDescending(c => c.CreatedAt).FirstOrDefaultAsync(ct);
-        if (inFlight is not null) return new(StartKind.Ok, inFlight.ResultJson); // double click: one catch-up, one charge
+        // double click: one catch-up, one charge. SBR-10: a same-key request that committed after this request's key lookup above is
+        // found here; it is a replay of this key and says so.
+        if (inFlight is not null) return Shared(inFlight, idempotencyKey);
 
         if (!limiter.TryAcquire(sessionId) || await db.CatchUps.AsNoTracking().CountAsync(c => c.SessionId == sessionId, ct) >= MaxPerSession)
         {
@@ -133,7 +135,7 @@ internal sealed class CatchUpService(
                 return keyed.WindowMinutes == windowMinutes ? new(StartKind.Ok, keyed.ResultJson, Replayed: true) : new(StartKind.KeyConflict);
             var running = await db.CatchUps.AsNoTracking().Where(c => c.SessionId == sessionId && c.WindowMinutes == windowMinutes && c.AiState == "Pending")
                 .OrderByDescending(c => c.CreatedAt).FirstOrDefaultAsync(ct);
-            return running is null ? new(StartKind.RateLimited) : new(StartKind.Ok, running.ResultJson);
+            return running is null ? new(StartKind.RateLimited) : Shared(running, idempotencyKey);
         }
 
         var latestEnd = await reader.LatestEndMsAsync(userId, sessionId, ct) ?? 0;
@@ -166,7 +168,7 @@ internal sealed class CatchUpService(
             // window, enforced by ux_catch_ups_pending, B3-05a): hand back that one instead of creating a second paid call.
             var existing = await db.CatchUps.AsNoTracking().Where(c => c.SessionId == sessionId && c.WindowMinutes == windowMinutes)
                 .OrderByDescending(c => c.AiState == "Pending").ThenByDescending(c => c.CreatedAt).FirstOrDefaultAsync(ct);
-            return existing is null ? new(StartKind.RateLimited) : new(StartKind.Ok, existing.ResultJson);
+            return existing is null ? new(StartKind.RateLimited) : Shared(existing, idempotencyKey);
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.ForeignKeyViolation })
         {
@@ -183,6 +185,15 @@ internal sealed class CatchUpService(
         }
         return new(StartKind.Ok, row.ResultJson);
     }
+
+    /// <summary>
+    /// A catch-up this request shares instead of creating its own. SBR-10: when the shared row carries this request's own key, it was made by a
+    /// concurrent request with the same key that committed after this request's key lookup, so this answer IS a replay of that key
+    /// (Idempotency-Replayed: true), exactly as if the lookup had found it. Every caller's query is session-scoped and filtered to this
+    /// request's window, so a same-key row found here never needs the key_conflict check.
+    /// </summary>
+    private static StartResult Shared(CatchUpRow row, string? idempotencyKey) =>
+        new(StartKind.Ok, row.ResultJson, Replayed: idempotencyKey is not null && string.Equals(row.IdempotencyKey, idempotencyKey, StringComparison.Ordinal));
 
     public async Task<CatchUpRow?> GetAsync(Guid sessionId, Guid catchUpId, CancellationToken ct)
     {

@@ -31,6 +31,13 @@ internal sealed class SyllabusOptions
     public int JsonBodyBytes { get; init; } = 16 * 1024;
     public int MetadataBytes { get; init; } = 4 * 1024;
     public int UploadReadSeconds { get; init; } = 60;
+    /// <summary>
+    /// SBR-07: deadline for reading a paste body (at most <see cref="PasteBodyBytes"/>), which holds the user's create slot and 1 MB of the
+    /// bytes-in-flight budget while it is read. Proposal, not measured: 1 MB in 30 s is about 35 KB/s.
+    /// </summary>
+    public int PasteReadSeconds { get; init; } = 30;
+    /// <summary>SBR-07: Kestrel minimum data rate for a paste body (bytes per second after a 5 s grace). Proposal, not measured.</summary>
+    public int PasteMinBytesPerSecond { get; init; } = 16 * 1024;
     /// <summary>SB-09: how long a same-key retry of a create waits for the user's create slot before it is 429 (proposal, not measured).</summary>
     public int CreateGateWaitMilliseconds { get; init; } = 10_000;
     public int WritePermitPerMinute { get; init; } = 20;
@@ -72,6 +79,7 @@ internal sealed class SyllabusOptions
         WorkerPollMilliseconds = Math.Max(20, c.GetValue("Syllabus:Worker:PollMilliseconds", 300)),
         MaintenanceSeconds = Math.Max(5, c.GetValue("Syllabus:MaintenanceIntervalSeconds", 300)),
         MockStageDelayMilliseconds = c.GetValue("Syllabus:Mock:StageDelayMilliseconds", 0),
+        PasteReadSeconds = Math.Clamp(c.GetValue("Syllabus:PasteReadSeconds", 30), 1, 120),
         CalendarFault = c["Syllabus:Mock:Faults:Calendar"],
         SyncRunsPerSyllabus = Math.Max(1, c.GetValue("Syllabus:SyncRunsPerSyllabus", 20)),
         AuditRetentionDays = Math.Max(1, c.GetValue("Syllabus:AuditRetentionDays", 400)),
@@ -391,7 +399,7 @@ internal static class JsonBody
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Default,
     };
 
-    public enum Failure { None, TooLarge, Unsupported, Invalid }
+    public enum Failure { None, TooLarge, Unsupported, Invalid, TimedOut }
 
     /// <summary>Exactly the media type application/json (parameters such as charset allowed). application/merge-patch+json and application/json-patch+json are NOT accepted.</summary>
     public static bool IsJson(string? contentType)
@@ -401,23 +409,32 @@ internal static class JsonBody
         return string.Equals((semi < 0 ? contentType : contentType[..semi]).Trim(), "application/json", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>Reads at most <paramref name="cap"/> bytes (counted while reading; Content-Length is never trusted).</summary>
-    public static async Task<(byte[]? Bytes, Failure Failure)> ReadBytesAsync(HttpContext http, int cap, CancellationToken ct)
+    /// <summary>
+    /// Reads at most <paramref name="cap"/> bytes (counted while reading; Content-Length is never trusted). With <paramref name="readTimeout"/>,
+    /// a body that is not complete in time is <see cref="Failure.TimedOut"/> (SBR-07); the request's own cancellation still propagates.
+    /// </summary>
+    public static async Task<(byte[]? Bytes, Failure Failure)> ReadBytesAsync(HttpContext http, int cap, CancellationToken ct, TimeSpan? readTimeout = null)
     {
         if (!IsJson(http.Request.ContentType)) return (null, Failure.Unsupported);
         if (http.Request.ContentLength is { } cl && cl > cap) return (null, Failure.TooLarge);
+        using var deadline = readTimeout.HasValue ? CancellationTokenSource.CreateLinkedTokenSource(ct) : null;
+        if (deadline is not null) deadline.CancelAfter(readTimeout!.Value);
+        var token = deadline?.Token ?? ct;
         using var ms = new MemoryStream();
         var buffer = new byte[8192];
         try
         {
             int n;
-            while ((n = await http.Request.Body.ReadAsync(buffer, ct)) > 0)
+            while ((n = await http.Request.Body.ReadAsync(buffer, token)) > 0)
             {
                 if (ms.Length + n > cap) return (null, Failure.TooLarge);
                 ms.Write(buffer, 0, n);
             }
         }
         catch (BadHttpRequestException b) when (b.StatusCode == 413) { return (null, Failure.TooLarge); }
+        catch (OperationCanceledException) when (deadline is not null && !ct.IsCancellationRequested) { return (null, Failure.TimedOut); }
+        // Kestrel's minimum data rate aborts a too-slow body with 408 (BadHttpRequestException); that is the same slow-body outcome
+        catch (BadHttpRequestException b) when (b.StatusCode == 408 && deadline is not null) { return (null, Failure.TimedOut); }
         return (ms.ToArray(), Failure.None);
     }
 

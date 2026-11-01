@@ -97,9 +97,11 @@ internal sealed class SyllabusService(SyllabusCore core, ICourseOwnership course
             }
             else
             {
-                var (bytes, failure) = await JsonBody.ReadBytesAsync(http, core.Options.PasteBodyBytes, ct);
+                // SBR-07: the paste holds the create slot while its body is read, so the read has a deadline (like an upload's UploadReadSeconds)
+                var (bytes, failure) = await JsonBody.ReadBytesAsync(http, core.Options.PasteBodyBytes, ct, TimeSpan.FromSeconds(core.Options.PasteReadSeconds));
                 if (failure == JsonBody.Failure.TooLarge) return SyllabusProblem.TooLarge();
                 if (failure == JsonBody.Failure.Unsupported) return SyllabusProblem.UnsupportedMediaType();
+                if (failure == JsonBody.Failure.TimedOut) return SyllabusProblem.InvalidBare();   // a slow paste: the same answer as a slow upload
                 if (!JsonBody.TryBind<CreateSyllabusRequest>(bytes!, out var r) || r is null) return SyllabusProblem.InvalidBare();
                 if (r.Text is null) return SyllabusProblem.Invalid("text", "required");     // exactly one of file or text
                 req = r; uploadText = r.Text; fileType = null; contentSha = "";

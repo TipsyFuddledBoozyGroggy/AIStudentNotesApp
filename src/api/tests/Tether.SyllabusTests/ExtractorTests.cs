@@ -226,6 +226,76 @@ public class ExtractorTests
         Assert.False(SyllabusLimits.Fits(ok with { TimeText = new string('h', 61) }));
         Assert.False(SyllabusLimits.Fits(ok with { ConfidenceReason = new string('r', 201) }));
         Assert.True(SyllabusLimits.Fits(ok with { Snippet = ok.Snippet with { ContextText = string.Concat(Enumerable.Repeat("\U0001F600", 1500)) } }));   // code points, not UTF-16 units
+        // the span and precision checks the database enforces (ck_items_snippet, ck_items_context, ck_unclaimed_dates_*)
+        Assert.False(SyllabusLimits.Fits(ok.Snippet with { End = ok.Snippet.Start + 1201, ContextEnd = ok.Snippet.Start + 1300 }));
+        Assert.False(SyllabusLimits.Fits(ok.Snippet with { ContextStart = 0, ContextEnd = 3001 }));
+        Assert.False(SyllabusLimits.Fits(ok.Snippet with { ContextStart = -1 }));
+        Assert.False(SyllabusLimits.Fits(ok.Snippet with { Precision = "fuzzy" }));
+    }
+
+    // ---------------------------------------------------------------- SBR-06: the backstop never hides a date silently
+
+    private static (ProposedItem Item, ProposedSnippet Unclaimed) Pair()
+    {
+        var o = RunCanon("Midterm exam: Oct 19, 2026 at 10:00 AM\nQuiz 1 due Oct 21, 2026, also Nov 3, 2026", out _);
+        return (o.Items.First(), Assert.Single(o.Unclaimed));
+    }
+
+    [Fact]
+    public void SBR06_an_item_dropped_for_an_oversize_title_is_kept_as_an_unclaimed_date_and_counted()
+    {
+        var o = RunCanon("Midterm exam: Oct 19, 2026 at 10:00 AM\nQuiz 1 due Oct 21, 2026", out _);
+        Assert.Equal(2, o.Items.Count);
+        // a hostile line steered the model into restating text: one item's title no longer fits its column
+        var hostile = o.Items[0] with { Title = string.Concat(Enumerable.Repeat("restate ", 40)) };
+        var kept = SyllabusLimits.Apply(o with { Items = [hostile, o.Items[1]] }, maxItems: 200);
+        Assert.Equal(o.Items[1], Assert.Single(kept.Items));
+        Assert.Equal(1, kept.DroppedInvalid);
+        var u = Assert.Single(kept.Unclaimed);
+        Assert.Equal(hostile.Snippet, u);                        // the verbatim server-sliced snippet, not the model's title
+        Assert.DoesNotContain("restate", u.Text + u.ContextText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SBR06_an_unclaimed_date_that_does_not_fit_is_counted_not_silently_filtered()
+    {
+        var (item, unclaimed) = Pair();
+        var output = new ExtractorOutput([item], [unclaimed, unclaimed with { Text = new string('s', 601) }], false, false, DroppedInvalid: 2);
+        var kept = SyllabusLimits.Apply(output, maxItems: 200);
+        Assert.Equal(unclaimed, Assert.Single(kept.Unclaimed));
+        Assert.Equal(3, kept.DroppedInvalid);                    // the extractor's own 2 plus the unclaimed date the backstop dropped
+    }
+
+    [Fact]
+    public void SBR06_a_dropped_item_with_a_bad_snippet_or_a_policy_item_or_an_already_visible_span_is_counted_but_not_duplicated()
+    {
+        var (item, unclaimed) = Pair();
+        var badTitle = item with { Title = new string('t', 201) };
+        var output = new ExtractorOutput(
+            [
+                item,
+                badTitle,                                                                              // same span as the kept item: already visible
+                badTitle with { Snippet = badTitle.Snippet with { Text = new string('s', 601) } },     // no trace possible: the snippet itself is invalid
+                badTitle with { WhenStatus = "not_applicable", Snippet = unclaimed with { Start = unclaimed.Start + 1, End = unclaimed.End } },  // policy: no date
+                badTitle with { Snippet = unclaimed },                                                 // the same span as an existing unclaimed date
+            ],
+            [unclaimed], false, false, 0);
+        var kept = SyllabusLimits.Apply(output, maxItems: 200);
+        Assert.Equal(item, Assert.Single(kept.Items));
+        Assert.Equal(unclaimed, Assert.Single(kept.Unclaimed));
+        Assert.Equal(4, kept.DroppedInvalid);
+    }
+
+    [Fact]
+    public void SBR06_demoted_items_respect_the_unclaimed_cap_and_the_count_respects_the_wire_maximum()
+    {
+        var (item, unclaimed) = Pair();
+        var full = Enumerable.Range(0, SyllabusLimits.MaxUnclaimed).Select(i => unclaimed with { Start = i, End = i + 1, ContextStart = 0, ContextEnd = 1000 }).ToList();
+        var dropped = item with { Title = new string('t', 201), Snippet = unclaimed with { Start = 500, End = 501, ContextStart = 0, ContextEnd = 1000 } };
+        var kept = SyllabusLimits.Apply(new ExtractorOutput([dropped], full, false, false, 0), maxItems: 200);
+        Assert.Equal(SyllabusLimits.MaxUnclaimed, kept.Unclaimed.Count);
+        Assert.Equal(1, kept.DroppedInvalid);
+        Assert.Equal(SyllabusLimits.MaxDroppedInvalid, SyllabusLimits.Apply(new ExtractorOutput([], [], false, false, 5000), 200).DroppedInvalid);
     }
 
     [Fact]

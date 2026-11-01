@@ -478,14 +478,54 @@ internal static class ExtractorInputExtensions
 internal static class SyllabusLimits
 {
     public const int Title = 200, DateText = 120, TimeText = 60, ConfidenceReason = 200, SnippetText = 600, ContextText = 1500;
+    /// <summary>The span checks of ck_items_snippet, ck_items_context and ck_unclaimed_dates_* (offsets in the canonical text).</summary>
+    public const int SnippetSpan = 1200, ContextSpan = 3000;
+    /// <summary>The cap on stored unclaimed dates per syllabus (syllabus.v1 counts.unclaimedDates maximum).</summary>
+    public const int MaxUnclaimed = 200;
+    /// <summary>syllabus.v1 counts.droppedInvalid maximum.</summary>
+    public const int MaxDroppedInvalid = 1000;
 
     private static bool Len(string? s, int max, bool required = false) => s is null ? !required : s.Length > 0 && TextPolicy.CodePoints(s) <= max;
 
     public static bool Fits(ProposedSnippet s) =>
         Len(s.Text, SnippetText, required: true) && Len(s.ContextText, ContextText, required: true)
-        && s.Start >= 0 && s.End > s.Start && s.ContextStart <= s.Start && s.End <= s.ContextEnd;
+        && s.Start >= 0 && s.End > s.Start && s.ContextStart >= 0 && s.ContextStart <= s.Start && s.End <= s.ContextEnd
+        && s.End - s.Start <= SnippetSpan && s.ContextEnd - s.ContextStart <= ContextSpan && s.Precision is "exact" or "line";
 
     public static bool Fits(ProposedItem p) =>
         Len(p.Title, Title, required: true) && Len(p.DateText, DateText) && Len(p.TimeText, TimeText) && Len(p.ConfidenceReason, ConfidenceReason, required: true)
         && Fits(p.Snippet);
+
+    /// <summary>What the length backstop keeps, and how many proposals it threw away.</summary>
+    internal sealed record Kept(IReadOnlyList<ProposedItem> Items, IReadOnlyList<ProposedSnippet> Unclaimed, int DroppedInvalid);
+
+    /// <summary>
+    /// SB-02 / SBR-06: the orchestrator's backstop. Items and unclaimed dates that do not fit their columns are dropped, and EVERY drop is
+    /// counted in <c>droppedInvalid</c> (items and unclaimed dates alike, plus what the extractor itself dropped). An item that is dropped
+    /// for a field the model wrote (for example an oversize title steered by hostile syllabus text) but whose snippet fits is kept as an
+    /// unclaimed date instead, so the student still sees that the syllabus mentions a date there: the snippet is a verbatim, server-sliced
+    /// span of the canonical text, never model text. A policy item (no date by definition) is not kept that way. The demoted item still
+    /// counts as dropped (it is not an item). Unclaimed dates stay within <see cref="MaxUnclaimed"/> (the extractor's own list first).
+    /// </summary>
+    public static Kept Apply(ExtractorOutput output, int maxItems)
+    {
+        var proposed = output.Items.Take(maxItems).ToList();
+        var items = new List<ProposedItem>(proposed.Count);
+        var droppedItems = new List<ProposedItem>();
+        foreach (var p in proposed) (Fits(p) ? items : droppedItems).Add(p);
+
+        var candidates = output.Unclaimed.Take(MaxUnclaimed).ToList();
+        var unclaimed = candidates.Where(Fits).ToList();
+        var dropped = (long)output.DroppedInvalid + droppedItems.Count + (candidates.Count - unclaimed.Count);
+
+        var taken = new HashSet<(int, int)>(unclaimed.Select(u => (u.Start, u.End)));
+        foreach (var p in items) taken.Add((p.Snippet.Start, p.Snippet.End));      // the same span is already visible as an item
+        foreach (var p in droppedItems)
+        {
+            if (unclaimed.Count >= MaxUnclaimed) break;                            // no room: the item is lost, and it is already counted
+            if (p.WhenStatus == "not_applicable" || !Fits(p.Snippet) || !taken.Add((p.Snippet.Start, p.Snippet.End))) continue;
+            unclaimed.Add(p.Snippet);
+        }
+        return new Kept(items, unclaimed, (int)Math.Clamp(dropped, 0, MaxDroppedInvalid));
+    }
 }

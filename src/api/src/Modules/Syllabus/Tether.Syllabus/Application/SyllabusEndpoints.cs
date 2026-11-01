@@ -113,7 +113,7 @@ internal static class SyllabusEndpoints
 
     // ---- routes ----
 
-    private static async Task<IResult> Create(HttpContext http, string courseId, SyllabusService svc, CancellationToken ct)
+    private static async Task<IResult> Create(HttpContext http, string courseId, SyllabusService svc, SyllabusOptions opt, CancellationToken ct)
     {
         if (IdemKey(http, required: true, out var key) is { } e1) return e1;
         if (!TryId(null, courseId, out var cid)) return SyllabusProblem.Invalid("courseId", "not_canonical");
@@ -132,6 +132,10 @@ internal static class SyllabusEndpoints
         {
             var f = http.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
             if (f is { IsReadOnly: false }) f.MaxRequestBodySize = 1024 * 1024 + 1024;
+            // SBR-07: a paste holds the user's create slot and 1 MB of the bytes-in-flight budget while its body is read: a data-rate floor
+            // (Kestrel only; the read deadline in SyllabusService covers every server) instead of Kestrel's default of 240 B/s
+            var rate = http.Features.Get<Microsoft.AspNetCore.Server.Kestrel.Core.Features.IHttpMinRequestBodyDataRateFeature>();
+            if (rate is not null) rate.MinDataRate = new Microsoft.AspNetCore.Server.Kestrel.Core.MinDataRate(bytesPerSecond: opt.PasteMinBytesPerSecond, gracePeriod: TimeSpan.FromSeconds(5));
         }
         return await svc.CreateAsync(http, key!, cid, multipart, ct);
     }

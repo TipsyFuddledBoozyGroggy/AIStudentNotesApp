@@ -140,12 +140,13 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
         try
         {
             var items = new List<SyllabusItem>(); var alts = new List<ItemAlternative>(); var proposals = new List<ItemProposal>();
-            // SB-02: the orchestrator does not trust the extractor's field lengths. An item or unclaimed date that would overflow a column is
-            // dropped and counted (droppedInvalid) instead of failing the whole syllabus with invalid_output.
-            var proposed = output.Items.Take(opt.MaxAiItems).ToList();
-            var fitting = proposed.Where(SyllabusLimits.Fits).ToList();
-            var unclaimedFitting = output.Unclaimed.Take(200).Where(SyllabusLimits.Fits).ToList();
-            var droppedInvalid = output.DroppedInvalid + (proposed.Count - fitting.Count);
+            // SB-02 / SBR-06: the orchestrator does not trust the extractor's field lengths. An item or unclaimed date that would overflow a
+            // column is dropped and counted (droppedInvalid, items and unclaimed dates alike) instead of failing the whole syllabus with
+            // invalid_output; a dropped item whose verbatim snippet fits is kept as an unclaimed date so its date stays visible.
+            var kept = SyllabusLimits.Apply(output, opt.MaxAiItems);
+            var fitting = kept.Items;
+            var unclaimedFitting = kept.Unclaimed;
+            var droppedInvalid = kept.DroppedInvalid;
             foreach (var p in fitting)
             {
                 var id = Ids.New();
