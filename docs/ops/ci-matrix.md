@@ -15,10 +15,10 @@ Runtime figures are **estimates** from local runs of the same commands (marked L
 | `api` (ci) | code changes | compose Postgres (hardened), `dotnet restore`, `build -c Release -warnaserror`, `dotnet test` (all 5 test projects, integration tests included, no dev API needed), then the **DB log canary** | 10 to 20 min G | stop the dev API first, then `docker compose up -d postgres` and `dotnet test` (see DEVELOPMENT.md) |
 | `e2e-harness` (ci) | code changes | Playwright harness config, own `next dev` on :3100, no API, `--workers=1` | 5 to 8 min G (1.1 min L for the run itself) | `cd src/web && npx playwright test -c playwright.harness.config.ts --workers=1` (never beside a dev server in the same folder) |
 | `e2e-real` (ci) | code changes | compose Postgres, API on :5080 (Development env), `npm run dev:real` on :3000, then serial: real-stack e2e (reuse config), geometry, screens + axe, skins, gamer-glass, lecture-looks; DB log canary; artifacts on failure | 25 to 40 min G (screens alone 3 to 5 min L) | start the API and `npm run dev:real`, then the same `npx playwright test -c playwright.reuse.config.ts --workers=1` / `-c playwright.screens.config.ts e2e-screens/<spec> --workers=1` |
-| `secret-scan` (ci) | always, full history | gitleaks v8.21.2 | 1 min G | `gitleaks detect --source . --redact` |
-| `dependency-audit` (ci) | code changes | `dotnet list package --vulnerable --include-transitive`, fails on High/Critical | 2 min G | same command in `src/api` |
+| `secret-scan` (ci) | always, full history | gitleaks v8.21.2, tarball verified against a pinned SHA-256 (SBR-03) | 1 min G | `gitleaks detect --source . --redact` |
+| `dependency-audit` (ci) | code changes | `dotnet list package --vulnerable --include-transitive`, fails on High/Critical, and also fails if the check cannot run (nonzero exit, NU1900/feed errors, or no per-project result) (SBR-02) | 2 min G | same command in `src/api` |
 | `dependency-review` (ci) | PRs with code changes | GitHub dependency review, fails on high | 1 min G | none |
-| `image-scan` (ci) | code changes | Trivy: `postgres:16-alpine` (gates on fixable HIGH/CRITICAL), `dotnet/sdk:10.0` (report only, dev tooling), repo config scan (compose, workflows) | 3 to 6 min G | `docker run --rm aquasec/trivy image postgres:16-alpine` |
+| `image-scan` (ci) | code PRs only, never push to main; Trivy DB cache off (SBR-01) | Trivy: `postgres:16-alpine` (gates on fixable HIGH/CRITICAL), `dotnet/sdk:10.0` (report only, dev tooling), repo config scan (compose, workflows) | 3 to 6 min G | `docker run --rm aquasec/trivy image postgres:16-alpine` |
 | `analyze` x2 (codeql) | code PRs, pushes to main, weekly | CodeQL `security-extended` for `csharp` and `javascript-typescript`, no-build mode | 10 to 25 min G | none |
 
 All jobs: `permissions: contents: read` (CodeQL adds `security-events: write` and `actions: read`), a timeout, and a concurrency group (PR runs are cancelled by newer pushes; main runs are not). Every action is pinned to a full commit SHA.
@@ -40,7 +40,10 @@ A deployed database needs the same settings in its parameter group; that is a de
 - CodeQL and dependency review need code scanning / the dependency graph enabled (free on public repos, GitHub Advanced Security on private). Unconfirmed for this repo.
 - No nightly full-matrix run and no PR-subset-of-looks split yet (the slice 9 text asks for both): the screens/skins specs run in full on every code PR. Add a `schedule` and a `SCREENS` subset once real run times are known. No bundle budget step exists.
 - No API Dockerfile exists, so no application image is built or scanned. Trivy covers the images compose pulls and the config files only.
-- gitleaks is downloaded without a checksum check. No custom gitleaks config.
+- gitleaks tarball is checked against a SHA-256 pinned in `ci.yml`. On 2026-10-31 the pin was compared with the release's own `checksums.txt` and with a fresh download, and all three matched. This is trust on first use (same origin as the asset), so it catches a later replaced asset, not a release that was bad when pinned. No custom gitleaks config.
+- SBR-04: the docs-only filter treats `docs/ops/` and any `.sh/.bash/.ps1/.cmd/.bat` file as code, so editing the DB log canary runs the heavy jobs.
+- SBR-01 (cache half): `image-scan` runs on pull requests only, so a compromised scan action can only write PR-scoped caches. Cost: main is not scanned automatically after merge. Residual: the runtime cache token is still exposed to the action until it is replaced by a checksum-pinned binary (follow-up, not done).
+- None of the SBR-01..04 changes has run on GitHub yet.
 - Action SHAs were read from public tag refs with `git ls-remote` on 2026-10-31; they were not exercised. The tags are older than the newest releases; Dependabot will propose bumps.
 - Postgres service in CI is the repo compose file (needs Docker Compose v2 with `--wait`, present on ubuntu-24.04 runners per GitHub's docs; not verified here).
 - Playwright browser cache is keyed by Playwright version; OS libraries are re-installed each run.
