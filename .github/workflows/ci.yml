@@ -428,7 +428,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Trivy image scan, postgres:16-alpine (gate)
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5  # v0.30.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0
         with:
           cache: false
           scan-type: image
@@ -437,7 +437,7 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
       - name: Trivy image scan, dotnet SDK dev image (report only)
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5  # v0.30.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0
         with:
           cache: false
           scan-type: image
@@ -446,7 +446,7 @@ jobs:
           ignore-unfixed: true
           exit-code: "0"
       - name: Trivy config scan (compose and workflows)
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5  # v0.30.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0
         with:
           cache: false
           scan-type: config
