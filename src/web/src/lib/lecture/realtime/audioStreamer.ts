@@ -8,8 +8,9 @@ export type AudioLinkState = "idle" | "connecting" | "streaming" | "reconnecting
 /**
  * Why the link ended for good (no further retries):
  * - "stopped": we closed it (pause, stop or teardown).
- * - "auth": signed out (ticket request was 401).
- * - "conflict": server cut it off (close 4409) or refused a ticket because the session is not Active / not ours.
+ * - "auth": signed out (ticket request was 401, or 403 with problem code `csrf_failed`, PO-20ag).
+ * - "conflict": server cut it off (close 4409) or refused a ticket because the session is not Active / not ours
+ *   (403 `consent_required` or any other 403, 404, 409).
  * - "rejected": the server closed for a policy or format reason that retrying will not fix, the socket refused
  *   MAX_UNACKED_4401 hellos in a row without an ack (PO-20af), or capture failed.
  */
@@ -46,7 +47,7 @@ export interface SocketLike {
 }
 
 export interface AudioStreamerDeps {
-  /** Rejects with an object carrying `status` (HTTP) when the ticket is refused. */
+  /** Rejects with an object carrying `status` (HTTP) and, when the server sent one, the problem `code` (ApiError). */
   getTicket(): Promise<{ ticket: string }>;
   createSocket(): SocketLike;
   /** Starts capture; the callback gets exact 200 ms Int16 frames. Returns a stopper. */
@@ -173,7 +174,11 @@ export class AudioStreamer implements AudioLink {
       .catch((err: unknown) => {
         if (gen !== this.connectionGen || !this.running) return;
         const status = typeof err === "object" && err !== null && "status" in err ? Number((err as { status: unknown }).status) : 0;
+        const code = typeof err === "object" && err !== null && "code" in err ? (err as { code: unknown }).code : undefined;
         if (status === 401) return this.finish("auth");
+        // PO-20ag: read the problem code, as the live-session path does. Only 403 csrf_failed is signed out;
+        // 403 consent_required and any other 403 stay "session not available".
+        if (status === 403 && code === "csrf_failed") return this.finish("auth");
         if (status === 403 || status === 404 || status === 409) return this.finish("conflict");
         this.scheduleRetry(status === 429 ? 10_000 : 0);
       });

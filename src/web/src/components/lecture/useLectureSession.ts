@@ -55,6 +55,19 @@ export interface PauseRecord {
  * The visible indicator comes from deriveRecordingIndicator (server state AND track AND connection),
  * never from a button press (contract C-16). State changes are only believed when they arrive as events.
  */
+/**
+ * Signed out or the session is gone: nothing here can recover by retrying. Both paths decide by problem code
+ * (PO-20ag): the audio ticket path ends "auth" for 401 or 403 `csrf_failed`; the hub reports `unauthenticated` or
+ * `csrf_failed`. Any other fatal hub code (for example `consent_required`) is "unavailable".
+ */
+export function lectureFatal(
+  audioEnd: AudioEndReason | null,
+  hub: { status: string; lastError: string | null },
+): null | "signed_out" | "unavailable" {
+  if (audioEnd === "auth" || hub.lastError === "unauthenticated" || hub.lastError === "csrf_failed") return "signed_out";
+  return hub.status === "failed" ? "unavailable" : null;
+}
+
 export function useLectureSession(opts: UseLectureSessionOptions) {
   const { runtime, mic, settings } = opts;
   const announcer = useAnnouncer();
@@ -180,13 +193,7 @@ export function useLectureSession(opts: UseLectureSessionOptions) {
   }, [runtime]);
 
   const connection = snap.status === "connected" ? "connected" : "disconnected";
-  // Signed out (audio ticket 401 or hub unauthenticated) or the session is gone: nothing here can recover by retrying.
-  const fatal: null | "signed_out" | "unavailable" =
-    audioEnd === "auth" || snap.lastError === "unauthenticated" || snap.lastError === "csrf_failed"
-      ? "signed_out"
-      : snap.status === "failed"
-        ? "unavailable"
-        : null;
+  const fatal = lectureFatal(audioEnd, snap);
   useEffect(() => {
     if (fatal === null) return;
     if (trackRef.current?.readyState === "live") stopTrack();

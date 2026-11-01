@@ -5,7 +5,7 @@ import { AudioStreamer, type AudioLinkEvent, type AudioStreamerDeps, type Socket
  * Close-code handling of the upstream audio socket (L-HELLO). A ticket failure on `hello` always closes with 4401
  * (C-01), including the race where the course is archived or the session stopped between the ticket being issued and
  * the hello being redeemed. 4401 alone must never mean "signed out": the streamer asks for a fresh ticket, and only
- * that REST answer decides (401 = signed out, 403/404/409 = session not available).
+ * that REST answer decides (401 or 403 csrf_failed = signed out, any other 403, 404, 409 = session not available).
  */
 
 class FakeSocket implements SocketLike {
@@ -113,7 +113,7 @@ describe("AudioStreamer close codes (L-HELLO)", () => {
     expect(h.ended()).toEqual(["conflict"]);
   });
 
-  it("4401 because the login was revoked: the fresh ticket request is 401, which is the only path to signed out", async () => {
+  it("4401 because the login was revoked: the fresh ticket request is 401, which ends as signed out (a 403 with problem code csrf_failed is the other path)", async () => {
     const h = await openWithHello([{ ok: true }, { status: 401, code: "unauthenticated" }]);
     h.sockets[0].serverClose(4401);
     expect(h.ended()).toEqual([]);
@@ -203,5 +203,64 @@ describe("AudioStreamer close codes (L-HELLO)", () => {
       expect(h.ended()).toEqual([]);
       expect(h.streamer.state()).toBe("reconnecting");
     }
+  });
+});
+
+/**
+ * PO-20ag (T-CSRF-403): a ticket refusal is read by its problem code, not only its status. Only 403 `csrf_failed`
+ * means signed out (the same outcome the live-session path gives `csrf_failed`); a 403 `consent_required`
+ * (API_CONTRACTS section 2) and any other 403 keep the existing "session not available" outcome.
+ */
+describe("AudioStreamer ticket 403 by problem code (PO-20ag)", () => {
+  async function firstTicketRefused(answer: TicketAnswer) {
+    const h = setup([answer]);
+    h.streamer.start({});
+    await flush();
+    return h;
+  }
+
+  it("ticket 403 csrf_failed ends as auth (signed out), with no socket and no retry", async () => {
+    const h = await firstTicketRefused({ status: 403, code: "csrf_failed" });
+    expect(h.ended()).toEqual(["auth"]);
+    expect(h.sockets).toHaveLength(0);
+    expect(h.tickets()).toBe(1);
+    expect(h.timers).toHaveLength(0);
+  });
+
+  it("ticket 403 csrf_failed on the reconnect after a 4401 also ends as auth", async () => {
+    const h = await openWithHello([{ ok: true }, { status: 403, code: "csrf_failed" }]);
+    h.sockets[0].serverClose(4401);
+    expect(h.ended()).toEqual([]);
+    h.fireRetry();
+    await flush();
+    expect(h.ended()).toEqual(["auth"]);
+  });
+
+  it("ticket 403 consent_required keeps its current handling: session not available (conflict), not signed out", async () => {
+    const h = await firstTicketRefused({ status: 403, code: "consent_required" });
+    expect(h.ended()).toEqual(["conflict"]);
+    expect(h.timers).toHaveLength(0);
+  });
+
+  it.each(["http_error", "", "forbidden", "something_new"])("ticket 403 with no or an unknown code (%j) is unchanged: conflict", async (code) => {
+    const h = await firstTicketRefused({ status: 403, code });
+    expect(h.ended()).toEqual(["conflict"]);
+  });
+
+  it("a refusal object with a 403 status and no code property at all is unchanged: conflict", async () => {
+    const s = new AudioStreamer({
+      getTicket: () => Promise.reject({ status: 403 }),
+      createSocket: () => new FakeSocket(),
+      startCapture: () => Promise.resolve(() => undefined),
+      setTimeout: () => 0,
+      clearTimeout: () => undefined,
+      now: () => 0,
+      random: () => 0.5,
+    });
+    const ended: string[] = [];
+    s.subscribe((e) => e.kind === "ended" && ended.push(e.reason));
+    s.start({});
+    await flush();
+    expect(ended).toEqual(["conflict"]);
   });
 });

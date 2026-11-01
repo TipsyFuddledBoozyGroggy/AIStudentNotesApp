@@ -12,11 +12,29 @@ export class LectureHubError extends Error {
 
 const KNOWN_CODES = ["not_found", "validation_failed", "rate_limited", "unauthenticated", "internal_error", "csrf_failed", "consent_required"];
 
+/**
+ * PO-20ag: a refused negotiate / upgrade is a SignalR HttpError whose message is the response body text, here the
+ * ProblemDetails JSON, followed by `: Status code '403'` (HttpError's constructor appends it). Returns the body's
+ * `code` when it is a contract code, else null. Never surfaces server text.
+ */
+function problemCodeOf(message: string): string | null {
+  const body = message.replace(/: Status code '\d+'$/, "");
+  try {
+    const p: unknown = JSON.parse(body);
+    const code = typeof p === "object" && p !== null ? (p as { code?: unknown }).code : undefined;
+    return typeof code === "string" && KNOWN_CODES.includes(code) ? code : null;
+  } catch {
+    return null;
+  }
+}
+
 /** B2 notes item 8a: a hub error arrives as a message that ENDS with the code. */
 export function hubErrorCode(err: unknown): string {
   if (err instanceof HttpError) {
     if (err.statusCode === 401) return "unauthenticated";
-    if (err.statusCode === 403) return "csrf_failed";
+    // PO-20ag: read the problem code (the server's only 403 here is csrf_failed); no readable contract code keeps the
+    // previous status mapping.
+    if (err.statusCode === 403) return problemCodeOf(err.message) ?? "csrf_failed";
     if (err.statusCode === 404) return "not_found";
     return "connection_failed";
   }
