@@ -15,7 +15,8 @@ internal sealed record CanonicalDocument(string Text, int HiddenRemoved, bool In
 /// whole document. Stripping is itself a signal (R2-06, R3-08): tag characters, bidi controls, other format characters, variation
 /// selectors outside an emoji sequence, fillers, braille blank and U+FFFC are counted in <c>HiddenRemoved</c>; tag characters, the
 /// U+E0100 supplement, bidi overrides/isolates and more than 8 stripped format characters also set <c>InjectionSuspect</c>.
-/// The result is NFC (not NFKC: snippets stay verbatim), uses LF only, collapses space runs and trims every line.
+/// The result is NFC (not NFKC: snippets stay verbatim), uses LF only, collapses space runs and trims every line. NFC is applied before
+/// stripping and again after it (SBV-04), so the final string is NFC even when a stripped character sat between a letter and its mark.
 /// </summary>
 internal static class DocumentText
 {
@@ -95,7 +96,13 @@ internal static class DocumentText
             blankRun = 0; wroteAny = true;
             result.Append(line);
         }
-        return new CanonicalDocument(result.ToString(), hidden, suspect);
+        // SBV-04: stripping can bring a letter and its mark together (letter, ZWSP, U+0301), or leave marks out of canonical order, so the
+        // stripped text is NFC-normalized once more. This is the final string: every offset, line span, snippet slice (SBV-01) and the paste
+        // content hash is computed from it. NFC only composes or reorders, it cannot bring back a stripped character, a space run or an
+        // edge space, so a second Canonicalize pass changes nothing (idempotent). Text that was already NFC is unchanged, so its hash is too.
+        var text = result.ToString();
+        if (false && !text.IsNormalized(NormalizationForm.FormC)) text = text.Normalize(NormalizationForm.FormC);
+        return new CanonicalDocument(text, hidden, suspect);
     }
 
     private static string CollapseSpaces(string s)

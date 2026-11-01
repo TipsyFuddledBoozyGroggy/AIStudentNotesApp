@@ -264,6 +264,24 @@ public class ExtractorTests
     }
 
     [Fact]
+    public void SBV04_offsets_and_canonical_slices_are_into_the_final_nfc_text_after_a_stripped_character()
+    {
+        // "Ve" ZWSP U+0301 "rone": the ZWSP is stripped, so the final NFC pass composes U+00E9 and the text is one UTF-16 unit shorter.
+        // Offsets on the date line after it must point into that final string, and SBV-01's ordinal slice check must keep the item.
+        var o = RunCanon("Room: Salle Ve\u200B\u0301rone\nMidterm exam in Ve\u200B\u0301rone: Oct 19, 2026 at 10:00 AM", out var canon);
+        Assert.True(canon.IsNormalized(System.Text.NormalizationForm.FormC));
+        Assert.Equal("Room: Salle V\u00E9rone\nMidterm exam in V\u00E9rone: Oct 19, 2026 at 10:00 AM", canon);
+        var kept = SyllabusLimits.Apply(o, maxItems: 200, canon);
+        Assert.Equal(0, kept.DroppedInvalid);
+        var item = Assert.Single(kept.Items);
+        Assert.Equal(new DateOnly(2026, 10, 19), item.Date);
+        Assert.Equal(canon[item.Snippet.Start..item.Snippet.End], item.Snippet.Text);
+        Assert.Equal(canon[item.Snippet.ContextStart..item.Snippet.ContextEnd], item.Snippet.ContextText);
+        Assert.Equal("Midterm exam in V\u00E9rone: Oct 19, 2026 at 10:00 AM", item.Snippet.ContextText);
+        Assert.True(item.Snippet.ContextText.IsNormalized(System.Text.NormalizationForm.FormC));
+    }
+
+    [Fact]
     public void SBR06_an_unclaimed_date_that_does_not_fit_is_counted_not_silently_filtered()
     {
         var (item, unclaimed) = Pair(out var canon);

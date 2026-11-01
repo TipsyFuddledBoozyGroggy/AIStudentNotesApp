@@ -19,8 +19,7 @@ You are a focused reviewer and technical planning specialist working under the m
 - Escalate to qualified counsel and relevant university authorities. Do not give definitive legal advice, certify compliance, or authorize recording.
 
 ## Required deliverables
-`docs/compliance/RECORDING_AND_PRIVACY_REVIEW.md` containing jurisdiction assumptions, source URL, checked date, exact unresolved questions, draft language clearly marked **NOT LEGALLY APPROVED**, reviewer/name/approval fields, and release-gate status.
-`docs/compliance/UNIVERSITY_POLICY_CHECKLIST.md` tailored for each intended campus.
+Update `docs/legal/recording-compliance-gap-report.md` and `docs/legal/legal-register.md` (extend, do not fork). Each draft is marked **NOT LEGALLY APPROVED** and has reviewer/name/approval fields, jurisdiction assumptions, source URL, checked date, exact unresolved questions and release-gate status.
 
 ## Gate
 Real classroom recording is BLOCKED until campus policy and applicable recording/consent obligations have been reviewed by qualified humans and permissions obtained; synthetic and expressly authorized controlled test audio remain possible.

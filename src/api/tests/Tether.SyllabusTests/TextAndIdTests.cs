@@ -235,6 +235,53 @@ public class TextAndIdTests
         Assert.Equal([(0, 10), (12, 20), (21, 31)], DocumentText.LineSpans(doc.Text).Select(l => (l.Start, l.End)).ToArray());
     }
 
+    [Fact]
+    public void SBV04_stripping_a_hidden_character_between_a_letter_and_its_mark_still_yields_nfc()
+    {
+        // "e" ZWSP U+0301 is NFC (the ZWSP blocks composition). Stripping the ZWSP leaves "e" U+0301, which is NOT NFC: the contract
+        // (API_CONTRACTS_P2.md section 2.2) says the canonical text is NFC, so it must come out as the precomposed U+00E9.
+        var input = "e\u200B\u0301";
+        Assert.True(input.IsNormalized(NormalizationForm.FormC));          // the probe really is NFC before stripping
+        var doc = DocumentText.Canonicalize(input);
+        Assert.Equal("\u00E9", doc.Text);
+        Assert.True(doc.Text.IsNormalized(NormalizationForm.FormC));
+        Assert.Equal(1, doc.HiddenRemoved);                                // the stripped ZWSP is still counted
+    }
+
+    /// <summary>
+    /// SBV-04 hostile corpus: every input hides a stripped character (format, bidi, tag, variation selector, filler, BOM, line break kind)
+    /// between characters that compose or reorder under NFC once it is gone. The canonical text must be NFC, canonicalization must be
+    /// idempotent (a second pass changes nothing), and the line spans must cover the final string (all offsets are into the final text).
+    /// </summary>
+    [Theory]
+    [InlineData("e\u200B\u0301", "\u00E9")]                                           // ZWSP (Cf)
+    [InlineData("A\u2060\u030A", "\u00C5")]                                           // WORD JOINER (Cf)
+    [InlineData("e\u202E\u0301", "\u00E9")]                                           // RLO (bidi override, suspect)
+    [InlineData("e\U000E0041\u0301", "\u00E9")]                                       // tag character
+    [InlineData("e\uFE01\u0301", "\u00E9")]                                           // variation selector not after an emoji
+    [InlineData("e\U000E0100\u0301", "\u00E9")]                                       // variation selector supplement
+    [InlineData("e\u3164\u0301", "\u00E9")]                                           // Hangul filler
+    [InlineData("xe\uFEFF\u0301", "x\u00E9")]                                         // BOM that is not at the start
+    [InlineData("\u1100\u200B\u1161", "\uAC00")]                                      // Hangul L + V compose to a syllable
+    [InlineData("q\u0301\u200B\u0316", "q\u0316\u0301")]                                    // marks reordered by canonical class (230 after 220)
+    [InlineData("Midterm in Salle Ve\u200B\u0301rone: Oct 19, 2026", "Midterm in Salle V\u00E9rone: Oct 19, 2026")]
+    [InlineData("line one\r\nCafe\u200D\u200B\u0301\nend", "line one\nCaf\u00E9\nend")]  // stray ZWJ + ZWSP, CRLF
+    public void SBV04_canonical_text_is_nfc_idempotent_and_spans_cover_the_final_string(string raw, string expectedSourceOrEmpty)
+    {
+        var doc = DocumentText.Canonicalize(raw);
+        Assert.True(doc.Text.IsNormalized(NormalizationForm.FormC), Escape(doc.Text));
+        Assert.Equal(doc.Text.Normalize(NormalizationForm.FormC), doc.Text);
+        var expected = expectedSourceOrEmpty.Normalize(NormalizationForm.FormC);
+        Assert.Equal(Escape(expected), Escape(doc.Text));
+        Assert.True(doc.HiddenRemoved >= 1);
+        Assert.Equal(doc.Text, DocumentText.Canonicalize(doc.Text).Text);             // idempotent
+        foreach (var (start, end) in DocumentText.LineSpans(doc.Text))
+            Assert.InRange(end, start + 1, doc.Text.Length);
+        Assert.Equal(doc.Utf16Length, doc.Text.Length);
+    }
+
+    private static string Escape(string s) => string.Concat(s.Select(c => c < 0x80 ? c.ToString() : $"\\u{(int)c:X4}"));
+
     // ---------------------------------------------------------------- strict binding (R2-05, R3-02)
 
     [Fact]

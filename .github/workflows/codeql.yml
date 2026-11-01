@@ -1,9 +1,7 @@
 name: CodeQL
-# First run 2026-11-01 (run 41313272589): analysis itself completed, but BOTH jobs failed at the SARIF upload with
-# "Code scanning is not enabled for this repository". The repo is PRIVATE; code scanning on a private repo needs GitHub
-# Code Security / Advanced Security (paid) -- a licensing/settings matter, not fixable in YAML. Product Owner decision
-# needed: (a) make the repo public (free), (b) buy GHAS, or (c) keep CodeQL out of required checks and switch the
-# analyze step to `upload: never` + upload the SARIF as a workflow artifact. Until then this workflow will stay red.
+# History: the first run 2026-11-01 (run 41313272589) analysed fine but failed at the SARIF upload with
+# "Code scanning is not enabled for this repository" because the repo was PRIVATE (code scanning there needs paid GHAS).
+# The repo was made PUBLIC on 2026-11-01 and CodeQL then passed (run 41321316201), so no action is needed.
 # Separate real defect fixed here: C# build-mode none printed 16 "dotnet restore --no-dependencies ... failed with
 # exit code 1" errors (CodeQL 2.20.2 bundled with v3.28.3 predates .NET 10; its buildless restore fakes the targeting
 # pack root). C# now uses a real build (manual) with the repo SDK and a newer pinned action. UNVERIFIED until a new run.

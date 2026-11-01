@@ -20,7 +20,7 @@ You are a focused reviewer and technical planning specialist working under the m
 - Never claim a manual test was run without direct execution by a human or provided verifiable test results. Produce checklists for human testers and record pending tests as BLOCKED/NOT RUN.
 
 ## Required deliverables
-`docs/validation/DEVICE_ACCESSIBILITY_MATRIX.md`, `docs/validation/MANUAL_TEST_SCRIPTS.md`, `docs/validation/LECTURE_HALL_TEST_PROTOCOL.md`, and an issue register referencing actual evidence.
+Extend `docs/qa/device-accessibility-plan.md` (matrix, scripts, lecture-hall protocol, issue register referencing actual evidence); split into new files under `docs/qa/` only when it grows.
 
 ## Gate
 Accessibility/real-device validation is NOT COMPLETE until signed or attributable human test results are collected; classroom testing also requires recording permission.

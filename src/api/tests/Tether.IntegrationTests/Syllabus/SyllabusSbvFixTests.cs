@@ -74,6 +74,46 @@ public class SyllabusForgedSnippetTests(SyllabusForgedSnippetTests.Factory f) : 
     }
 }
 
+/// <summary>
+/// SBV-04: a stripped hidden character between a letter and its combining mark used to leave the stored canonical text non-NFC, although the
+/// contract (API_CONTRACTS_P2.md section 2.2) says it is NFC. The stored text, the paste content hash and every stored quote now agree on the
+/// final NFC string, so the decomposed-with-hidden-character paste and the precomposed paste are the same syllabus for duplicate detection.
+/// </summary>
+public class SyllabusCanonicalNfcTests(ApiFactory f) : SyllabusTestBase(f), IClassFixture<ApiFactory>
+{
+    [Fact]
+    public async Task SBV04_the_stored_canonical_text_hash_and_quotes_are_nfc_after_a_stripped_character()
+    {
+        var a = await NewActorAsync(); var course = await CourseAsync(a.Client);
+        var done = await CreateReadyAsync(a.Client, course, Paste("Room: Salle Ve\u200B\u0301rone\nMidterm exam in Ve\u200B\u0301rone: Oct 19, 2026 at 10:00 AM"));
+        Assert.Equal("ready", done.GetProperty("status").GetString());
+        var sid = done.GetProperty("id").GetString()!; var g = Guid32(sid);
+
+        Assert.Equal(1, await F.ScalarAsync($"select count(*) from syllabus.canonical_texts where syllabus_id = '{g}' and text is nfc normalized"));
+        Assert.Equal(1, await F.ScalarAsync($"""
+            select count(*) from syllabus.canonical_texts
+            where syllabus_id = '{g}' and text = 'Room: Salle V' || U&'\00E9' || 'rone' || chr(10) || 'Midterm exam in V' || U&'\00E9' || 'rone: Oct 19, 2026 at 10:00 AM'
+            """));
+        // the paste content hash is the SHA-256 of the stored (final) canonical text
+        Assert.Equal(1, await F.ScalarAsync($"""
+            select count(*) from syllabus.syllabi s join syllabus.canonical_texts t on t.syllabus_id = s.id
+            where s.id = '{g}' and s.content_sha256 = encode(sha256(convert_to(t.text, 'UTF8')), 'hex')
+            """));
+        // the quote is the canonical slice at its offsets (BMP only, so UTF-16 offsets equal code-point offsets), and nothing was dropped
+        Assert.Equal(0, done.GetProperty("counts").GetProperty("droppedInvalid").GetInt32());
+        Assert.Equal(1, await F.ScalarAsync($"""
+            select count(*) from syllabus.items i join syllabus.canonical_texts t on t.syllabus_id = i.syllabus_id
+            where i.syllabus_id = '{g}' and i.snippet_text = substr(t.text, i.snippet_start + 1, i.snippet_end - i.snippet_start)
+              and i.context_text = substr(t.text, i.context_start + 1, i.context_end - i.context_start) and i.context_text is nfc normalized
+            """));
+
+        // the same syllabus typed with the precomposed letter is a duplicate of the first (before the fix the hashes differed)
+        var dup = await CreateAsync(a.Client, course, Paste("Room: Salle V\u00E9rone\nMidterm exam in V\u00E9rone: Oct 19, 2026 at 10:00 AM"));
+        await dup.AssertProblemAsync(System.Net.HttpStatusCode.Conflict, "duplicate_syllabus");
+        Assert.Equal(sid, (await dup.BodyAsync()).GetProperty("existingSyllabusId").GetString());
+    }
+}
+
 /// <summary>SBV-02: dates beyond the 200 unclaimed-date cap are counted in counts.droppedInvalid, not lost silently (real mock extractor).</summary>
 public class SyllabusCapOverflowTests(ApiFactory f) : SyllabusTestBase(f), IClassFixture<ApiFactory>
 {

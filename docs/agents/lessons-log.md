@@ -19,7 +19,7 @@ Entry format:
 - **Status:** APPLIED.
 
 ### 2026-11-01 Gitleaks 3666 false positives; CodeQL red
-- **Root cause:** full-history scan of test literals; CodeQL upload impossible on a private repo; C# buildless restore failed on .NET 10.
+- **Root cause:** full-history scan of test literals; CodeQL upload impossible on a private repo (fixed by making the repo public); C# buildless restore failed on .NET 10.
 - **Agents:** devops-engineer (workflows authored without a run), production-readiness-auditor.
 - **Prevention:** playbook L-GITLEAKS / L-CODEQL; devops definition: dry-run locally what can be run (gitleaks full history), state plainly what only a GitHub run can prove.
 - **Status:** APPLIED.
@@ -39,4 +39,33 @@ Entry format:
 - **Root cause:** sticky site header paired with page targets by axe; the 200px scroll sampling missed the bad window on Windows. The defect existed on Windows too (found with 2-3px sampling).
 - **Agents:** frontend-engineer (header), qa-engineer (sampling too sparse to prove absence).
 - **Prevention:** playbook L-STICKY; a deterministic "header straddle" geometry check now exists.
-- **Status:** APPLIED.
+- **Status:** APPLIED. Residual: QA definition line on stating the sampling step when claiming absence (PROPOSED P4 in `refinements/2026-11-01-first-ci-day-incidents.md`).
+
+### 2026-11-01 Backend agent refused a Lead instruction that contradicted the contract (good outcome)
+- **Symptom:** the Lead's prompt told `backend-engineer` to add bare `UTC` to the syllabus zone allow-list; `API_CONTRACTS_P2.md` 2.3 (commit 96a1caf) says `Etc/UTC` is the only UTC id and bare `UTC` is `400`. The agent refused.
+- **Root cause:** the Lead prompt conflicted with the contract (delegation process, not an agent defect). Prompt text itself was not available to me; evidence is the contract diff and the Lead's report.
+- **Agents:** none at fault; backend-engineer behaved correctly.
+- **Prevention:** playbook item "contracts and decisions beat instructions" (P1) so this holds for every agent; Lead delegation checklist (P5).
+- **Status:** PROPOSED (`refinements/2026-11-01-first-ci-day-incidents.md`).
+
+### 2026-11-01 Lead re-stated environment facts in delegation prompts
+- **Root cause:** facts lived only in the Lead's head until f8b45f3; playbook section 2 now holds them. Remaining risk is the Lead copying them again and drifting.
+- **Agents:** none (Lead process).
+- **Prevention:** `docs/agents/delegation-checklist.md` (P5): point at playbook sections, send only task deltas.
+- **Status:** PROPOSED.
+
+### 2026-11-01 Dev server reported "still running" after exit: wording follow-up
+- **Prevention:** tighten playbook item 2 to require quoting the check used (P2). Entry above remains APPLIED for the base rule.
+- **Status:** PROPOSED (follow-up only).
+
+### 2026-11-01 Periodic audit of 18 definitions
+- **Findings (ranked, details in `refinements/2026-11-01-periodic-audit.md`):** (1) stale deliverable paths in 5 assurance definitions, plus a self-contradiction in the legal one; (2) "advisory" role sentence contradicts implementing roles in 12 definitions; (3) identical method and escalation boilerplate in 12 definitions belongs in the playbook; (4) repo visibility contradiction (gh says PUBLIC; codeql.yml comment, diagnosis doc and L-CODEQL assume private); (5) gate statuses duplicated in the playbook and stale in RELEASE_GATES G5; (6) five playbook lessons lack log entries; (7) no `adhd-ux-specialist` leftovers; all 18 names match filenames.
+- **Status:** PROPOSED.
+- **Open (not a definition change):** does the web client treat close code 4401 on first hello as "session not available" (L-HELLO question)? Route to `frontend-engineer`.
+
+### Pre-log entries (provenance from the findings register and the Lead; added 2026-11-01 so the log indexes every playbook lesson)
+- **L-DEVSERVER:** running `next build` or a second `next dev` corrupted `.next`; dev server returned 500 on every page. Seen several times during the redesign slices.
+- **L-RATE:** dev login (10/min/IP) and per-user limits caused false 429s when specs ran back to back; the hub Join limit is configured under `Realtime:*`, not `RateLimiting__*`.
+- **L-CHECKOUT:** a `git checkout` of a file that held another agent's uncommitted work was blocked by the permission guard before it ran.
+- **L-DROP:** SBR-06 (a backstop silently dropped data, hiding deadlines); SBV-02 (cap drops uncounted).
+- **L-FORGE:** SBV-01 (extractor-written snippet text could be stored as a quote).

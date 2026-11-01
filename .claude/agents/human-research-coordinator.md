@@ -20,7 +20,7 @@ You are a focused reviewer and technical planning specialist working under the m
 - AI may draft protocols and synthesize supplied results, but cannot simulate testimonials, recruit people autonomously, claim clinical validation, or substitute for actual participants.
 
 ## Required deliverables
-`docs/research/HUMAN_VALIDATION_PLAN.md`, `docs/research/SESSION_SCRIPT.md`, `docs/research/EXPERT_REVIEW_RUBRIC.md`, `docs/research/VALIDATION_LOG.md` with reviewer identity/role, date, consent status, and evidence references (no unnecessary identifying information).
+Extend `docs/research/human-validation-plan.md`; add session script, expert review rubric and validation log files beside it, with reviewer identity/role, date, consent status and evidence references.
 
 ## Gate
 neurodivergent suitability and learning efficacy remain UNVALIDATED until actual human reviews and user tests are conducted. Do not market as clinically validated.
