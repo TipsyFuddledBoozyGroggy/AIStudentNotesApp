@@ -2,6 +2,7 @@ import { chromium, expect, request, test, type Browser, type Page } from "@playw
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { baseline, box, contentEdges, controls, ink, near, offGrid, overflowX, px, type Rect } from "./geometry";
+import { settle } from "./settle";
 
 // Alignment and theme-independence gate (themes-spec 5.2 / 5.3, redesign-round2 3.3 item 3). Runs against `npm run
 // dev:real` on :3000 (real API for the signed-in pages; lecture states from the dev-only harness: synthetic data, no
@@ -645,6 +646,7 @@ async function landmarks(browser: Browser, width: number, prefs: Record<string, 
   {
     const { page, close } = await open(browser, "/", width, { auth: true, prefs });
     await expect(page.getByRole("heading", { name: "Your courses" })).toBeVisible();
+    await settle(page, prefs);
     out.container = await box(header(page));
     out.header = await box(page.locator("[data-site-header]"));
     out.nav = await box(page.getByRole("navigation", { name: "Primary" }));
@@ -662,12 +664,15 @@ async function landmarks(browser: Browser, width: number, prefs: Record<string, 
   }
   {
     const { page, close } = await open(browser, "/courses/new", width, { auth: true, prefs });
+    await expect(page.getByLabel(/Course name/)).toBeVisible();
+    await settle(page, prefs);
     out.field = await box(page.getByLabel(/Course name/));
     await close();
   }
   {
     const { page, close } = await open(browser, "/dev/lecture-harness/live-quick-recap", width, { prefs });
     await expect(page.getByText(/^Fixture:/)).toBeVisible();
+    await settle(page, { focusMode: false, ...prefs });
     out.transcript = await landmark(page.locator(".transcript-panel"));
     out.quickRecap = await landmark(page.locator("#lecture-quick-recap"));
     out.tldr = await landmark(page.locator("#lecture-tldr"));
@@ -677,6 +682,7 @@ async function landmarks(browser: Browser, width: number, prefs: Record<string, 
   {
     const { page, close } = await open(browser, "/dev/lecture-harness/live-quick-recap", width, { prefs: { ...prefs, focusMode: true } });
     await expect(page.getByText(/^Fixture:/)).toBeVisible();
+    await settle(page, { ...prefs, focusMode: true });
     out.dock = await box(page.locator("#lecture-quick-recap"));
     await close();
   }

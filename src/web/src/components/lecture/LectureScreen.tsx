@@ -314,7 +314,10 @@ export function LectureScreen(props: LectureScreenProps) {
             : "max-w-content lg:grid-cols-[minmax(0,1fr)_var(--lecture-aside-w)] lg:gap-10 xl:grid-cols-[var(--margin-col)_minmax(0,1fr)_var(--lecture-aside-w)] 2xl:max-w-lecture"
         }`}
       >
-        <div className="min-w-0 space-y-6 xl:col-span-2 xl:grid xl:grid-cols-subgrid xl:gap-y-6 xl:space-y-0">
+        {/* xl:content-start: the column is stretched to the rail's height (the rail's TL;DR is in the look's heading face),
+            and its auto rows must not share that extra space out, or the transcript moves down by half the difference
+            per look (seen: Calm / Glass +2.5px on the stopped screen at 1280). */}
+        <div className="min-w-0 space-y-6 xl:col-span-2 xl:grid xl:grid-cols-subgrid xl:content-start xl:gap-y-6 xl:space-y-0">
           {tldrInline ? <div className="min-w-0 xl:col-start-2">{tldr}</div> : null}
           {/* Make notes (PO-18d, slice 8a): only while the server says Stopped (never Failed, Active, Paused, a mismatch or a
               fatal state), first in the transcript column before the search tools. It places itself on the grid: the

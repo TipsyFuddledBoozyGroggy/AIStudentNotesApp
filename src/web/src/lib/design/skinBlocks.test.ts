@@ -633,7 +633,16 @@ describe("Type scale (redesign-round2 2.1): line boxes on the 4px grid", () => {
     const line = find(".transcript-line")?.decls.find(([k]) => k === "@apply")?.[1] ?? "";
     expect(line).toContain("leading-7");
     expect(line).toContain("items-baseline");
-    expect(find(".transcript-time")?.decls.find(([k]) => k === "@apply")?.[1]).toContain("leading-7");
+    // The time's own line box is the fixed xs leading (20px), shorter than the words' 28px, so in the baseline-aligned row
+    // it can never make the row taller whatever its face (CI run 41328040245: Gamer's mono time made rows 31px on Linux).
+    // A fixed rem token, never `normal` or a unitless value, and no skin may change it (the Gamer rule below is face only).
+    const time = find(".transcript-time")?.decls ?? [];
+    expect(time.find(([k]) => k === "@apply")?.[1]).not.toMatch(/leading-/);
+    expect(time).toContainEqual(["line-height", "var(--leading-xs)"]);
+    expect(TYPE_SCALE.xs.leading).toBe("1.25rem");
+    const base = find(".transcript-time");
+    for (const r of RULES.filter((r) => r !== base && r.selector.includes("transcript-time")))
+      for (const [k, v] of r.decls) expect([r.selector, k === "line-height" || (k === "@apply" && /leading-/.test(v))]).toEqual([r.selector, false]);
     expect(find(".transcript-partial")?.decls.find(([k]) => k === "@apply")?.[1]).toContain("min-h-7");
   });
 

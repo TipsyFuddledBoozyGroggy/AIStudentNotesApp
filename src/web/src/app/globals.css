@@ -1174,13 +1174,20 @@ html:has([data-lecture-root]) {
 
 /* Transcript reading layout (section 4 "Transcript line"): hanging timestamp column, 68ch measure, 17/28 line boxes
    (redesign-round2 3.3 item 1), no zebra. Timestamps share the text's first baseline (grid items aligned on baseline)
-   instead of the old 0.2em nudge. */
+   instead of the old 0.2em nudge.
+   The time's line box is the fixed 20px xs leading, not the words' 28: in a baseline-aligned grid row the row is
+   (tallest part above the shared baseline) + (tallest part below it), and where the baseline sits inside a line box
+   depends on the face's ascent and descent. With a 15px time in a 28px box the time's part below the baseline was
+   taller than the 17px words' part (Paper: 29px rows; Gamer's mono time on Linux: 31px, CI run 41328040245), so the
+   row height depended on the time's face. A 20px box leaves the time >= 3px inside the words' box on both sides for any
+   ordinary face, so every row is exactly the words' 28px lines in every look (lecture-looks.spec.ts guards it). */
 @layer components {
   .transcript-line {
     @apply mb-3 grid max-w-prose grid-cols-[3.25rem_minmax(0,1fr)] items-baseline gap-x-3 rounded-control leading-7;
   }
   .transcript-time {
-    @apply text-sm leading-7 tabular-nums text-muted;
+    @apply text-sm tabular-nums text-muted;
+    line-height: var(--leading-xs);
   }
   .transcript-divider {
     @apply mb-3 flex max-w-prose items-center gap-3 text-sm text-muted;

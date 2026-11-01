@@ -3,6 +3,7 @@ import { chromium, expect, request, test, type Browser, type Page } from "@playw
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { contrastRatio } from "../src/lib/design/contrast";
+import { settle } from "./settle";
 
 // Redesign-round2 slice 8 (= themes T5): the lecture family under the ten looks (5 themes x light / dark) at 390 and 1280,
 // in a real browser (headless Chromium, the clean `npm run dev:real` on :3000; lecture states from the dev-only harness:
@@ -171,7 +172,8 @@ async function open(width: number, s: Screen, prefs: Record<string, unknown>) {
   await page.goto(`${ORIGIN}${s.url()}`);
   await s.ready(page);
   if (s.act) await s.act(page);
-  await page.evaluate(() => document.fonts.ready);
+  // Hydrated, prefs applied, every used face loaded, boxes stable (settle.ts; the failing look varied between CI runs).
+  await settle(page, { focusMode: false, ...prefs, ...(s.prefs ?? {}) });
   await page.waitForTimeout(300);
   return { page, close: () => context.close() };
 }
@@ -180,6 +182,7 @@ interface Box { x: number; y: number; w: number; h: number; headIn: number; head
 interface Probe {
   boxes: Record<string, Box>;
   transcript: { size: string; line: string; family: string; columns: string; ink: string; inkIsInk: boolean; bg: string; bgIsSurface: boolean; time: string; surface: string; canvas: string } | null;
+  rows: string[];
   synthesis: { size: number; text: string }[];
   pill: { label: string; color: string; bg: string; border: string; family: string; barBg: string; dimmed: string[] } | null;
   bar: { bg: string; surface: string; filter: string; image: string } | null;
@@ -279,6 +282,13 @@ const probe = (page: Page, width: number): Promise<Probe> =>
         canvas,
       };
     }
+    // 1b. Row boxes: a transcript row is exactly its words' box (whole 28px lines); the baseline-aligned time never adds
+    // height whatever its face (CI run 41328040245: Gamer's mono time made rows 31px on Linux only).
+    const rows = Array.from(document.querySelectorAll<HTMLElement>(".transcript-line")).slice(0, 4).flatMap((row, i) => {
+      const words = (row.children[1] as HTMLElement).getBoundingClientRect().height;
+      const h = row.getBoundingClientRect().height;
+      return Math.abs(h - words) > 0.5 ? [`transcript row ${i} ${h}px vs its words ${words}px (the time's face leaks into the row)`] : [];
+    });
     // 2. Synthesis.
     const synthesis = Array.from(document.querySelectorAll<HTMLElement>(".synthesis")).filter(visible).map((s) => ({ size: parseFloat(cs(s).fontSize), text: (s.textContent ?? "").trim().slice(0, 30) }));
     // 3. Pill and bar.
@@ -361,7 +371,7 @@ const probe = (page: Page, width: number): Promise<Probe> =>
       });
       document.querySelectorAll("[data-lecture-root] .hang-row > :first-child .cite").forEach((c, i) => i < 3 && check(`lead citation ${i}`, c.getBoundingClientRect()));
     }
-    return { boxes, transcript, synthesis, pill, bar, surfaces, live, regions, margin };
+    return { boxes, transcript, rows, synthesis, pill, bar, surfaces, live, regions, margin };
   }, width);
 
 const hex = (rgb: string) => {
@@ -391,7 +401,7 @@ function invariants(p: Probe, where: string): string[] {
     if (!/^rgb\(/.test(p.bar.bg) || p.bar.bg !== p.bar.surface) out.push(`${where}: bar ${p.bar.bg} is not the opaque surface ${p.bar.surface}`);
     if (p.bar.filter !== "none" || p.bar.image !== "none") out.push(`${where}: bar filter ${p.bar.filter} image ${p.bar.image}`);
   }
-  out.push(...p.surfaces.map((s) => `${where}: ${s}`), ...p.margin.map((s) => `${where}: ${s}`));
+  out.push(...p.surfaces.map((s) => `${where}: ${s}`), ...p.margin.map((s) => `${where}: ${s}`), ...p.rows.map((s) => `${where}: ${s}`));
   if (p.regions.length) {
     // The lecture screen owns exactly three (status, alert, finals); the consent and mic-blocked screens have the
     // Announcer's two and no transcript.
@@ -493,6 +503,91 @@ for (const s of SCREENS) {
     expect(problems, `${s.name}`).toEqual([]);
   });
 }
+
+// The transcript row cannot depend on the timestamp's face (CI run 41328040245: Gamer's mono time made every first row
+// 31px instead of Paper's 29 on the Linux runner, while Windows rendered both alike, so the landmark gate failed on Linux
+// only). Windows cannot reproduce Linux's metrics, so this emulates them: the time is re-set in faces with extreme ascent
+// and descent (a same-origin webfont the page already uses, loaded again with ascent/descent overrides), a generic
+// monospace and serif, and 11 / 20px sizes. In each, every row must stay exactly its words' box and the first row must
+// keep the height it has unmodified. Deterministic on any OS; it failed on Windows before the fix (Paper rows 29 vs 28).
+test("slice 8: the transcript row height does not depend on the timestamp's face or metrics (emulated wide fallback)", async () => {
+  test.setTimeout(180_000);
+  const problems: string[] = [];
+  const variants: { name: string; css?: string; face?: { ascent: string; descent: string } }[] = [
+    // Ascent minus descent of 1.0em and 0.4em: wider than the common monospace fallbacks on either side (DejaVu Sans Mono
+    // about 0.69em, Liberation Mono 0.53, Noto Sans Mono 0.78, Consolas 0.49, JetBrains Mono 0.72). The 20px time box
+    // keeps the row the words' 28px for faces in that range (globals.css .transcript-time).
+    { name: "tall ascent", face: { ascent: "115%", descent: "15%" } },
+    { name: "deep descent", face: { ascent: "75%", descent: "35%" } },
+    { name: "generic monospace", css: "font-family: monospace !important;" },
+    { name: "generic serif", css: "font-family: serif !important;" },
+    { name: "11px", css: "font-size: 11px !important;" },
+    { name: "20px", css: "font-size: 20px !important;" },
+  ];
+  const s = SCREENS.find((x) => x.name === "live")!;
+  for (const width of WIDTHS) {
+    for (const look of LOOKS.filter((l) => l.id === "paper-light" || l.id === "gamer-dark")) {
+      const where = `face-independence@${width} ${look.id}`;
+      const { page, close } = await open(width, s, look.prefs);
+      const measure = () =>
+        page.evaluate(() => {
+          const rows = Array.from(document.querySelectorAll<HTMLElement>(".transcript-line")).slice(0, 4);
+          return rows.map((r) => ({ h: r.getBoundingClientRect().height, words: (r.children[1] as HTMLElement).getBoundingClientRect().height }));
+        });
+      const base = await measure();
+      if (base.length === 0) problems.push(`${where}: no transcript rows`);
+      for (const v of variants) {
+        const applied = await page.evaluate(async (v) => {
+          document.getElementById("face-probe")?.remove();
+          let decl = v.css ?? "";
+          if (v.face) {
+            // A webfont file the page already loaded (same origin, so the rules are readable), as a new face with overrides.
+            let url = "";
+            for (const sheet of Array.from(document.styleSheets)) {
+              let rules: CSSRuleList;
+              try {
+                rules = sheet.cssRules;
+              } catch {
+                continue;
+              }
+              for (const r of Array.from(rules)) {
+                const m = r instanceof CSSFontFaceRule ? /url\(["']?([^"')]+)["']?\)/.exec(r.style.getPropertyValue("src")) : null;
+                if (m && !url) url = m[1];
+              }
+            }
+            if (!url) return "no same-origin webfont found to re-load with overrides";
+            const name = `FaceProbe${v.face.ascent.replace("%", "")}x${v.face.descent.replace("%", "")}`;
+            const f = new FontFace(name, `url(${url})`, { ascentOverride: v.face.ascent, descentOverride: v.face.descent });
+            await f.load();
+            document.fonts.add(f);
+            decl = `font-family: "${name}" !important;`;
+          }
+          const st = document.createElement("style");
+          st.id = "face-probe";
+          st.textContent = `.transcript-time { ${decl} }`;
+          document.head.appendChild(st);
+          await document.fonts.ready;
+          const t = getComputedStyle(document.querySelector(".transcript-time")!);
+          if (v.face && !t.fontFamily.includes("FaceProbe")) return `override not applied (${t.fontFamily})`;
+          return "";
+        }, v);
+        if (applied) {
+          problems.push(`${where} ${v.name}: ${applied}`);
+          continue;
+        }
+        await page.waitForTimeout(50);
+        const got = await measure();
+        got.forEach((r, i) => {
+          if (Math.abs(r.h - r.words) > 0.5) problems.push(`${where} ${v.name}: row ${i} ${r.h}px vs its words ${r.words}px`);
+          if (base[i] && Math.abs(r.h - base[i].h) > 0.5) problems.push(`${where} ${v.name}: row ${i} ${r.h}px vs ${base[i].h}px unmodified`);
+        });
+      }
+      base.forEach((r, i) => Math.abs(r.h - r.words) > 0.5 && problems.push(`${where} unmodified: row ${i} ${r.h}px vs its words ${r.words}px`));
+      await close();
+    }
+  }
+  expect(problems).toEqual([]);
+});
 
 // Low-stimulation on every theme (redesign-round2 3.3 item 6: safety surfaces never reduced; recording status never
 // dimmed). On Portal, Gamer, Calm and Glass the overlay keeps the palette, so the pill, the bar and the safety-note fill
