@@ -348,6 +348,13 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
           {syllabus.document.unreadablePages.length > 0 && <p>{C.unreadablePages(pages(syllabus.document.unreadablePages))}</p>}
         </div>
       )}
+      {/* SBR-06 (docs/ux/dropped-dates-notice.md 5): a completeness fact, no count shown, not live, not dismissible. */}
+      {syllabus.counts.droppedInvalid > 0 && (
+        <div className="note note-notice mt-6 space-y-1" data-dropped-notice="" data-dropped-invalid={syllabus.counts.droppedInvalid}>
+          <p className="font-semibold">{C.dropped}</p>
+          <p>{C.droppedBody}</p>
+        </div>
+      )}
       {(hiddenContentDropped || injectionSuspect) && (
         <div className="note note-notice mt-6">
           <p>{hiddenContentDropped ? C.hostile : C.suspect}</p>

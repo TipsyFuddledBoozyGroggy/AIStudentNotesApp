@@ -5,7 +5,11 @@ import { syllabusApi } from "@/lib/syllabus/client";
 import * as sdb from "@/mocks/syllabusDb";
 import { server } from "@/mocks/server";
 import { axeViolations } from "@/test/axe";
+import { DEMO_TAGS, REVIEW_COPY } from "./copy";
+import { NotRead } from "./NotRead";
+import { Processing } from "./Processing";
 import { Review } from "./Review";
+import { SyllabusCard } from "./SyllabusCard";
 import { COURSE, EMAIL, renderWithAnnouncer, signedInWithCourse } from "./testUtils";
 
 async function mount(scenario: "ready" | "partial" | "hostile" | "purged" = "ready") {
@@ -445,5 +449,148 @@ describe("Calendar step rail (redesign-round2 slice 8c)", () => {
     expect(counts()).toBe("0 approved, 0 skipped, 11 not decided.");
     expect(counts()).toBe(summaryTail());
     expect(r.statusLog.some((t) => /approved, .* skipped/.test(t))).toBe(false);
+  });
+});
+
+// SBR-06 (docs/ux/dropped-dates-notice.md 5 and 8): counts.droppedInvalid > 0 shows one static Note, no count, in the
+// fixed order h1, Demo lines, partial, dropped, hostile or suspect, purged, items error, summary.
+describe("Review: dropped-dates notice (SBR-06)", () => {
+  const LEAD = REVIEW_COPY.dropped;
+  const BODY = REVIEW_COPY.droppedBody;
+  type Fixture = "ready" | "partial" | "hostile" | "purged";
+
+  async function mountDropped(scenario: Fixture, droppedInvalid: number, opts: { empty?: boolean } = {}) {
+    signedInWithCourse();
+    sdb.seedSyllabus(EMAIL, COURSE, scenario);
+    if (opts.empty) sdb.find(EMAIL, `syl_${scenario}`)!.items = [];
+    const fetched = await syllabusApi.getSyllabus(`syl_${scenario}`);
+    const syllabus = { ...fetched, counts: { ...fetched.counts, droppedInvalid } };
+    const r = renderWithAnnouncer(<Review api={syllabusApi} syllabus={syllabus} courseId={COURSE} />);
+    await screen.findByText(opts.empty ? REVIEW_COPY.empty : /We found \d+ items/);
+    return { ...r, syllabus };
+  }
+  const note = () => document.querySelector<HTMLElement>("[data-dropped-notice]");
+  const before = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  it.each<Fixture>(["ready", "partial", "hostile", "purged"])("droppedInvalid 0 on %s: no note, no text", async (s) => {
+    const { syllabus } = await mountDropped(s, 0);
+    expect(syllabus.counts.droppedInvalid).toBe(0);
+    expect(note()).toBeNull();
+    expect(screen.queryByText(/Parts of this syllabus/)).toBeNull();
+  });
+
+  it("droppedInvalid 1 and 1000: the same two sentences, byte-identical, with no digit or percent in the note", async () => {
+    const texts: string[] = [];
+    for (const n of [1, 1000]) {
+      const r = await mountDropped("ready", n);
+      const el = note()!;
+      expect(Array.from(el.querySelectorAll("p")).map((p) => p.textContent)).toEqual([LEAD, BODY]);
+      expect(el.textContent).not.toMatch(/\d|%|percent/i);
+      expect(el).toHaveAttribute("data-dropped-invalid", String(n)); // tests only, never visible text
+      texts.push(el.innerHTML);
+      r.unmount();
+    }
+    expect(texts[0]).toBe(texts[1]);
+  });
+
+  it("is a plain div.note.note-notice: no role, no live region, no heading, no button, no close control", async () => {
+    await mountDropped("ready", 3);
+    const el = note()!;
+    expect(el.tagName).toBe("DIV");
+    expect(el).toHaveClass("note", "note-notice");
+    expect(el).not.toHaveAttribute("role");
+    expect(el).not.toHaveAttribute("aria-live");
+    expect(el.querySelector("[role], [aria-live], h1, h2, h3, h4, h5, h6, button, a, input")).toBeNull();
+    expect(el.closest("[aria-live], [role=status], [role=alert]")).toBeNull();
+    expect(el.querySelector("p")).toHaveClass("font-semibold");
+  });
+
+  it("DOM order: after both Demo lines and the partial note, always before the Review summary", async () => {
+    await mountDropped("partial", 2);
+    const el = note()!;
+    const partial = screen.getByText(REVIEW_COPY.partial).closest(".note")!;
+    expect(before(screen.getByText(DEMO_TAGS.calendar), el)).toBe(true);
+    expect(before(screen.getByText(DEMO_TAGS.source), el)).toBe(true);
+    expect(before(partial, el)).toBe(true);
+    expect(before(el, screen.getByRole("region", { name: REVIEW_COPY.summaryRegion }))).toBe(true);
+  });
+
+  it("DOM order: before the hostile note and the Review summary", async () => {
+    await mountDropped("hostile", 2);
+    expect(before(note()!, screen.getByText(REVIEW_COPY.hostile))).toBe(true);
+    expect(before(note()!, screen.getByRole("region", { name: REVIEW_COPY.summaryRegion }))).toBe(true);
+  });
+
+  it("DOM order: before the purged note", async () => {
+    await mountDropped("purged", 2);
+    expect(before(note()!, screen.getByText(REVIEW_COPY.purged))).toBe(true);
+  });
+
+  it("empty list plus droppedInvalid > 0: the empty-state sentence and the note both render", async () => {
+    await mountDropped("ready", 4, { empty: true });
+    expect(screen.getByText("No dates or deadlines were found in this syllabus.")).toBeInTheDocument();
+    expect(note()).not.toBeNull();
+    expect(screen.queryByRole("region", { name: REVIEW_COPY.summaryRegion })).toBeNull();
+  });
+
+  it("h1 keeps focus on mount, nothing is announced; Approve and Undo log only the item messages", async () => {
+    const r = await mountDropped("ready", 5);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
+    expect(r.statusLog).toEqual([]);
+    expect(r.alertLog).toEqual([]);
+    await userEvent.click(screen.getByRole("button", { name: "Approve Office hours" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Undo approval of Office hours" }));
+    await screen.findByRole("button", { name: "Approve Office hours" });
+    await waitFor(() => expect(r.statusLog[0]).toBe("Approved: Office hours."));
+    expect(r.statusLog.every((t) => /^(Approved|Undone): Office hours\.$/.test(t))).toBe(true); // only the item messages
+    expect(r.alertLog).toEqual([]);
+    expect(note()).not.toBeNull();
+  });
+
+  it("not rendered in one-at-a-time or the calendar confirm step", async () => {
+    await mountDropped("ready", 5);
+    await userEvent.click(screen.getByRole("button", { name: "Approve Office hours" }));
+    await screen.findByRole("button", { name: "Undo approval of Office hours" });
+    await userEvent.click(screen.getByRole("button", { name: "Review one at a time" }));
+    await screen.findByRole("heading", { level: 1, name: "Review one at a time" });
+    expect(note()).toBeNull();
+    expect(screen.queryByText(LEAD)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Back to the list" }));
+    await screen.findByRole("heading", { level: 1, name: REVIEW_COPY.h1 });
+    expect(note()).not.toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Add 1 approved item to the demo calendar" }));
+    await screen.findByRole("heading", { level: 1, name: "Add approved items to the demo calendar" });
+    expect(note()).toBeNull();
+    expect(screen.queryByText(LEAD)).toBeNull();
+  });
+
+  it("not rendered by SyllabusCard (mock keeps droppedInvalid from the entry override), NotRead or Processing", async () => {
+    signedInWithCourse();
+    sdb.seedSyllabus(EMAIL, COURSE, "ready");
+    const e = sdb.find(EMAIL, "syl_ready")!;
+    e.override = { counts: { droppedInvalid: 7 } };
+    sdb.recount(e);
+    const fetched = await syllabusApi.getSyllabus("syl_ready");
+    expect(fetched.counts.droppedInvalid).toBe(7); // recount preserved it
+    const card = renderWithAnnouncer(<SyllabusCard courseId={COURSE} api={syllabusApi} />);
+    await screen.findByText(/We found 11 items/);
+    expect(note()).toBeNull();
+    expect(screen.queryByText(LEAD)).toBeNull();
+    card.unmount();
+    const nr = renderWithAnnouncer(<NotRead syllabus={{ ...fetched, status: "failed", statusReason: "timeout" }} courseId={COURSE} onPasteInstead={() => {}} />);
+    expect(note()).toBeNull();
+    expect(screen.queryByText(LEAD)).toBeNull();
+    nr.unmount();
+    renderWithAnnouncer(
+      <Processing api={syllabusApi} initial={{ ...fetched, status: "extracting", pollAfterSeconds: 2 }} courseId={COURSE} msPerSecond={100000} onReview={() => {}} onPasteInstead={() => {}} />,
+    );
+    expect(note()).toBeNull();
+    expect(screen.queryByText(LEAD)).toBeNull();
+  });
+
+  it("has no axe violations with the note present (alongside the partial note)", async () => {
+    const { container } = await mountDropped("partial", 9);
+    expect(note()).not.toBeNull();
+    expect(await axeViolations(container)).toEqual([]);
   });
 });

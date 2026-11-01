@@ -146,6 +146,9 @@ export const REVIEW_COPY = {
   empty: "No dates or deadlines were found in this syllabus.",
   emptyBody: "Some syllabi list dates in a table or an image, which can be hard to read. You can try another version.",
   partial: "Tether read only part of this syllabus. The items below are not the whole list.",
+  /** SBR-06: counts.droppedInvalid > 0. No count is shown (docs/ux/dropped-dates-notice.md section 2). */
+  dropped: "Parts of this syllabus could not be turned into items.",
+  droppedBody: "Your syllabus is the complete list. Check it for dates that are not shown here.",
   partialPages: (pages: string) => `Not read: ${pages}.`,
   unreadablePages: (pages: string) => `Pages that could not be read: ${pages}.`,
   hostile: "This file has hidden text, so please check each date. Each item needs its own decision.",

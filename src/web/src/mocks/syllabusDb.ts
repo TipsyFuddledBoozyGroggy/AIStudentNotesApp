@@ -62,6 +62,9 @@ const STEPS = ["queued", "extracting", "proposing"] as const;
 export function recount(e: Entry): void {
   const items = e.items.filter((i) => i.kind !== "policy");
   const c = (pred: (i: Wire) => boolean) => items.filter(pred).length;
+  // Written once at persist time on the server (SBR-06), not derived from items: kept from the entry override, else 0.
+  const fixed = (e.override?.counts ?? {}) as Wire;
+  const persisted = (k: string) => (typeof fixed[k] === "number" ? (fixed[k] as number) : 0);
   e.syllabus.counts = {
     total: items.length,
     undecided: c((i) => i.decision === "undecided"),
@@ -69,8 +72,8 @@ export function recount(e: Entry): void {
     skipped: c((i) => i.decision === "skipped"),
     needsDate: c((i) => (i.when as Wire).status === "needs_date"),
     synced: c((i) => i.syncState === "synced"),
-    droppedInvalid: 0,
-    unclaimedDates: 0,
+    droppedInvalid: persisted("droppedInvalid"),
+    unclaimedDates: persisted("unclaimedDates"),
   };
 }
 
@@ -109,6 +112,9 @@ export function createFromPaste(email: string, courseId: string, body: Wire, out
   syllabus.notice = { version: body.noticeVersion, attested: true, attestedAt: new Date().toISOString() }; // server receipt time (R3-11)
   syllabus.contentSha256 = textHash(body.text as string);
   const e: Entry = { syllabus, items: [], outcome: finishedScenario(outcome), stepsLeft: STEPS.length, ownerEmail: email };
+  // Mock only: `mock:dropped-invalid` in the text finishes with counts.droppedInvalid = 3 (SBR-06 notice; the real
+  // extractor drops only on a bug). unclaimedDates stays 0 because the mock serves no unclaimed-dates list.
+  if (typeof body.text === "string" && body.text.includes("mock:dropped-invalid")) e.override = { counts: { droppedInvalid: 3 } };
   state.entries[id] = e;
   saveSyllabusDb();
   return syllabus;
@@ -119,7 +125,7 @@ export function createFromUpload(email: string, courseId: string, meta: Wire, fi
   const s = createFromPaste(email, courseId, { ...meta, text: file.text ?? "" }, outcome);
   const e = state.entries[s.id as string];
   e.syllabus = { ...e.syllabus, inputKind: "upload", fileType: file.fileType, contentSha256: file.hash };
-  if (file.fileType !== "txt") e.override = { status: "failed", statusReason: "disabled", pollAfterSeconds: null, document: { ...(e.syllabus.document as Wire), charCount: 0 } };
+  if (file.fileType !== "txt") e.override = { ...(e.override ?? {}), status: "failed", statusReason: "disabled", pollAfterSeconds: null, document: { ...(e.syllabus.document as Wire), charCount: 0 } };
   saveSyllabusDb();
   return e.syllabus;
 }

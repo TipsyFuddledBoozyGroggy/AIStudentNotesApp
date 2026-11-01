@@ -72,6 +72,15 @@ it("accessible names start with the visible text (WCAG 2.5.3)", () => {
   expect(I.undoSkipName(t).startsWith(I.undo)).toBe(true);
 });
 
+it("SBR-06: the dropped-dates notice carries no count (no digits) and is the spec's DRAFT wording", () => {
+  const { dropped, droppedBody } = copy.REVIEW_COPY;
+  expect(dropped).not.toMatch(/\d|%|percent/i);
+  expect(droppedBody).not.toMatch(/\d|%|percent/i);
+  const spec = fs.readFileSync(path.resolve(process.cwd(), "../../docs/ux/dropped-dates-notice.md"), "utf8");
+  expect(spec).toContain(`dropped: "${dropped}"`);
+  expect(spec).toContain(`droppedBody: "${droppedBody}"`);
+});
+
 it("slice 8c: the Calendar step's counts sentence is the summary line's second half in the same words", () => {
   const S = copy.SYNC_COPY;
   expect(S.railCounts(2, 0, 4)).toBe("2 approved, 0 skipped, 4 not decided.");
