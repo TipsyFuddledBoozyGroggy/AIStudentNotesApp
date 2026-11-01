@@ -1,18 +1,20 @@
 import { ApiError } from "@/lib/api/errors";
-import { isExportOf, isId, parseBatchResult, parseItem, parseItemPage, parseRemoveResult, parseSyllabus, parseSyllabusPage, parseSyncResult } from "./parse";
-import { batchDecisionBody, calendarRemoveBody, calendarSyncBody, createFromTextBody, createMetadataBody, decisionBody, isIdempotencyKey, patchBody } from "./requests";
+import { isExportOf, isId, parseBatchResult, parseItem, parseItemPage, parseRemoveResult, parseSyllabus, parseSyllabusPage, parseSyncResult, parseUnclaimedPage } from "./parse";
+import { batchDecisionBody, calendarRemoveBody, calendarSyncBody, createFromTextBody, createMetadataBody, decisionBody, isIdempotencyKey, itemCreateBody, patchBody } from "./requests";
 import type {
   BatchAction,
   BatchResult,
   CreateFromFileInput,
   CreateFromTextInput,
   Decision,
+  ItemCreate,
   ItemPatch,
   Page,
   RemoveResult,
   Syllabus,
   SyllabusItem,
   SyncResult,
+  UnclaimedDate,
 } from "./types";
 
 /** Error for a body that does not match syllabus.v1. The UI shows a calm "could not show this" state. */
@@ -66,6 +68,13 @@ export interface SyllabusApi {
   removeFromCalendar(id: string, itemIds: readonly string[]): Promise<RemoveResult>;
   /** The export body as text (downloaded, never rendered), after checking it is this syllabus's syllabus.v1 export. */
   exportSyllabus(id: string): Promise<string>;
+  /**
+   * GET /syllabi/{id}/unclaimed-dates, following nextCursor with limit=200 (at most 2 pages). More rows than the 200 cap in
+   * total is refused as malformed rather than shown cut short.
+   */
+  listUnclaimedDates(id: string): Promise<UnclaimedDate[]>;
+  /** POST /syllabi/{id}/items (a student item). One Idempotency-Key per press; reuse it only to retry the same body. */
+  createItem(id: string, input: ItemCreate, idempotencyKey: string): Promise<SyllabusItem>;
 }
 
 export interface SyllabusApiOptions {
@@ -242,6 +251,30 @@ export function createSyllabusApi({ baseUrl, fetchImpl }: SyllabusApiOptions): S
       }
       if (!isExportOf(body, id)) throw new SyllabusParseError();
       return text;
+    },
+    async listUnclaimedDates(id) {
+      requireId(id);
+      const out: UnclaimedDate[] = [];
+      let cursor: string | null = null;
+      for (let i = 0; i < 2; i++) {
+        const q = new URLSearchParams({ limit: "200", ...(cursor ? { cursor } : {}) });
+        const page: Page<UnclaimedDate> = await json(await request(`/syllabi/${enc(id)}/unclaimed-dates?${q}`), parseUnclaimedPage);
+        out.push(...page.items);
+        cursor = page.nextCursor;
+        if (!cursor) break;
+      }
+      if (out.length > 200) throw new SyllabusParseError();
+      return out;
+    },
+    async createItem(id, input, idempotencyKey) {
+      requireId(id);
+      if (!isIdempotencyKey(idempotencyKey)) throw new SyllabusApiError(400, "validation_failed", undefined);
+      const res = await request(`/syllabi/${enc(id)}/items`, {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify(itemCreateBody(input)),
+      });
+      return json(res, parseItem);
     },
   };
 }

@@ -1,4 +1,4 @@
-import { buildItems, buildSyllabus, finishedScenario, type Scenario } from "./syllabusData";
+import { buildItems, buildSyllabus, buildUnclaimed, finishedScenario, type Scenario } from "./syllabusData";
 
 // In-memory syllabus state for the MSW mock (dev + tests), scoped per signed-in email like db.ts. Mock only: there is
 // no extraction; a scenario decides what a syllabus becomes. Persisted to localStorage only when the browser worker
@@ -18,6 +18,12 @@ interface Entry {
   override?: Wire;
   /** Mock demo calendar: one event per synced item, keyed by item id (recurrences are not expanded in the mock). */
   events?: Record<string, Wire>;
+  /** PO-20b: "Dates we noticed" (syllabus-unclaimed-date wire rows), fixed after extraction like the server's. */
+  unclaimed?: Wire[];
+  /** Rows a paste asked for (`mock:unclaimed`, `mock:unclaimed-200`), built when it finishes. */
+  unclaimedOnFinish?: number;
+  /** Student items created so far (the id counter; deleted items still count, so ids never repeat). */
+  studentSeq?: number;
 }
 
 interface State {
@@ -26,6 +32,8 @@ interface State {
   idem: Record<string, { fingerprint: string; syllabusId: string }>;
   /** `${email}|sync|${key}` -> fingerprint and the original sync result body (a replay returns it as history). */
   syncIdem?: Record<string, { fingerprint: string; syllabusId: string; body: Wire }>;
+  /** `${email}|item|${key}` -> fingerprint and the created item's id (POST /syllabi/{id}/items replay). */
+  itemIdem?: Record<string, { fingerprint: string; syllabusId: string; itemId: string }>;
   seq: number;
 }
 
@@ -53,7 +61,7 @@ export function saveSyllabusDb(): void {
 }
 
 export function resetSyllabusDb(): void {
-  state = { entries: {}, idem: {}, syncIdem: {}, seq: 100 };
+  state = { entries: {}, idem: {}, syncIdem: {}, itemIdem: {}, seq: 100 };
   saveSyllabusDb();
 }
 
@@ -92,7 +100,37 @@ function finish(e: Entry): void {
     ...(e.override ?? {}),
   };
   e.items = e.override?.status === "failed" ? [] : buildItems(s.id as string, s.courseId as string, e.outcome);
+  if (e.unclaimedOnFinish && e.override?.status !== "failed") setUnclaimed(e, buildUnclaimed(s.id as string, e.unclaimedOnFinish));
   recount(e);
+}
+
+/** The entry's unclaimed rows; counts.unclaimedDates is persisted with them (as the server writes it once). */
+function setUnclaimed(e: Entry, rows: Wire[]): void {
+  e.unclaimed = rows;
+  const counts = { ...((e.override?.counts ?? {}) as Wire), unclaimedDates: rows.length };
+  e.override = { ...(e.override ?? {}), counts };
+}
+
+/** Tests and dev: give a seeded syllabus these "Dates we noticed" rows (0..200). */
+export function seedUnclaimed(email: string, id: string, rows: Wire[]): void {
+  const e = find(email, id);
+  if (!e) throw new Error(`no syllabus ${id} for ${email}`);
+  setUnclaimed(e, rows);
+  recount(e);
+  saveSyllabusDb();
+}
+
+export function itemIdemGet(email: string, key: string) {
+  return state.itemIdem?.[`${email}|item|${key}`];
+}
+export function itemIdemPut(email: string, key: string, fingerprint: string, syllabusId: string, itemId: string): void {
+  state.itemIdem = { ...(state.itemIdem ?? {}), [`${email}|item|${key}`]: { fingerprint, syllabusId, itemId } };
+  saveSyllabusDb();
+}
+
+export function nextStudentSeq(e: Entry): number {
+  e.studentSeq = (e.studentSeq ?? 0) + 1;
+  return e.studentSeq;
 }
 
 /** Seeds a syllabus in a given scenario for `email` (tests and dev). Id: `syl_<scenario>` unless given. */
@@ -113,8 +151,10 @@ export function createFromPaste(email: string, courseId: string, body: Wire, out
   syllabus.contentSha256 = textHash(body.text as string);
   const e: Entry = { syllabus, items: [], outcome: finishedScenario(outcome), stepsLeft: STEPS.length, ownerEmail: email };
   // Mock only: `mock:dropped-invalid` in the text finishes with counts.droppedInvalid = 3 (SBR-06 notice; the real
-  // extractor drops only on a bug). unclaimedDates stays 0 because the mock serves no unclaimed-dates list.
+  // extractor drops only on a bug). `mock:unclaimed-200` finishes with 200 "Dates we noticed" rows (the cap) and
+  // `mock:unclaimed` with 3 (PO-20b); otherwise unclaimedDates stays 0.
   if (typeof body.text === "string" && body.text.includes("mock:dropped-invalid")) e.override = { counts: { droppedInvalid: 3 } };
+  if (typeof body.text === "string" && body.text.includes("mock:unclaimed")) e.unclaimedOnFinish = body.text.includes("mock:unclaimed-200") ? 200 : 3;
   state.entries[id] = e;
   saveSyllabusDb();
   return syllabus;

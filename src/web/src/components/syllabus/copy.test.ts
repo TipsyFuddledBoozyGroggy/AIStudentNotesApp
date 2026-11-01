@@ -81,6 +81,38 @@ it("SBR-06: the dropped-dates notice carries no count (no digits) and is the spe
   expect(spec).toContain(`droppedBody: "${droppedBody}"`);
 });
 
+it("PO-20b: UNCLAIMED_COPY and the three REVIEW_COPY keys are the spec's DRAFT wording (unclaimed-dates-list.md 5)", () => {
+  const spec = fs.readFileSync(path.resolve(process.cwd(), "../../docs/ux/unclaimed-dates-list.md"), "utf8");
+  const U = copy.UNCLAIMED_COPY;
+  for (const [k, v] of Object.entries(U)) if (typeof v === "string") expect(spec, k).toContain(`${k}: "${v}"`);
+  for (const [k, v] of Object.entries(U.form)) if (typeof v === "string") expect(spec, `form.${k}`).toContain(`${k}: "${v}"`);
+  for (const k of ["droppedSee", "emptyNoticed", "emptyNoticedBody"] as const) expect(spec, k).toContain(`${k}: "${copy.REVIEW_COPY[k]}"`);
+  expect(collectStrings(U).length).toBeGreaterThan(30); // linted with the rest of the module above
+});
+
+it("PO-20b: no string in UNCLAIMED_COPY carries a digit except through a template argument (the head count comes from data)", () => {
+  const out: string[] = [];
+  const walk = (v: unknown) => {
+    if (typeof v === "string") out.push(v);
+    else if (typeof v === "function") out.push(String((v as (...a: unknown[]) => unknown)("X", "X", "X")));
+    else if (v && typeof v === "object") Object.values(v).forEach(walk);
+  };
+  walk(copy.UNCLAIMED_COPY);
+  expect(out.filter((s) => /\d/.test(s))).toEqual([]);
+  expect(copy.UNCLAIMED_COPY.lines(1)).toBe("1 line");
+  expect(copy.UNCLAIMED_COPY.lines(12)).toBe("12 lines");
+});
+
+it("PO-20b: accessible names start with the visible text, and no G1 wording (consent, recording, Demo, Google) appears", () => {
+  const U = copy.UNCLAIMED_COPY;
+  expect(U.addName("Oct 5").startsWith(U.add)).toBe(true);
+  expect(U.hideName("Oct 5").startsWith(U.hide)).toBe(true);
+  expect(U.undoName("Oct 5").startsWith(U.undo)).toBe(true);
+  expect(U.goToItemName("Quiz").startsWith(U.goToItem)).toBe(true);
+  const all = [...collectStrings(U), copy.REVIEW_COPY.droppedSee, copy.REVIEW_COPY.emptyNoticed, copy.REVIEW_COPY.emptyNoticedBody].join(" ");
+  expect(all).not.toMatch(/record|microphone|consent|demo|google/i);
+});
+
 it("slice 8c: the Calendar step's counts sentence is the summary line's second half in the same words", () => {
   const S = copy.SYNC_COPY;
   expect(S.railCounts(2, 0, 4)).toBe("2 approved, 0 skipped, 4 not decided.");

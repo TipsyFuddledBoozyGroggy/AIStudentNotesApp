@@ -178,5 +178,92 @@ export function buildItems(syllabusId: string, courseId: string, scenario: Scena
   return specs.map((s) => item(syllabusId, courseId, purged && (s.n === "02" || s.n === "04") ? { ...s, decision: "approved" } : s, { purged, suffix }));
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// PO-20b "Dates we noticed": synthetic unclaimed dates (syllabus-unclaimed-date). Never seeded into a scenario (the
+// scenarios keep counts.unclaimedDates 0); a test seeds them with sdb.seedUnclaimed, and a paste whose text holds
+// `mock:unclaimed` (3 rows) or `mock:unclaimed-200` (200 rows, the cap) finishes with them. Like the real extractor,
+// `text` is the bare date hit and `context` the whole line, with offsets into one synthetic canonical text.
+
+const NOTICED_LINES = [
+  "Bring a calculator on Oct 5 for the in-class exercise.",
+  "Field trip permission slips due Nov 2; see the course site for the form.",
+  "Guest speaker from the city museum on Oct 19.",
+];
+const MONTHS = ["Sep", "Oct", "Nov", "Dec"];
+
+/** One row. `line` must contain `hit`; the offsets are into a canonical text where this line starts at `lineStart`. */
+export function unclaimedRow(id: string, line: string, hit: string, lineStart: number, page: number | null = null): Wire {
+  const at = line.indexOf(hit);
+  if (at < 0) throw new Error("the hit must be inside the line");
+  return {
+    id,
+    snippet: { text: hit, start: lineStart + at, end: lineStart + at + hit.length, page, precision: "exact", context: { text: line, start: lineStart, end: lineStart + line.length } },
+  };
+}
+
+/** `n` rows (0..200): the three sample lines first, then "Bring item k to class on Mon D." lines with varied dates. */
+export function buildUnclaimed(syllabusId: string, n: number): Wire[] {
+  const suffix = syllabusId.replace(/^syl_/, "");
+  const out: Wire[] = [];
+  let at = 40;
+  for (let k = 0; k < n; k++) {
+    let line: string;
+    let hit: string;
+    if (k < NOTICED_LINES.length) {
+      line = NOTICED_LINES[k];
+      hit = /(Oct|Nov) \d+/.exec(line)![0];
+    } else {
+      hit = `${MONTHS[k % MONTHS.length]} ${(k % 28) + 1}`;
+      line = `Bring handout ${k + 1} to class on ${hit}.`;
+    }
+    out.push(unclaimedRow(`unc_${suffix}-${String(k + 1).padStart(3, "0")}`, line, hit, at, k < NOTICED_LINES.length ? k + 2 : null));
+    at += line.length + 1;
+  }
+  return out;
+}
+
+/** A student-added item as the server represents it (origin student, no snippet, student_entered, undecided). */
+export function buildStudentItem(syllabusId: string, courseId: string, n: number, body: Wire, defaultTimezone: string, now: string): Wire {
+  const id = `itm_${syllabusId.replace(/^syl_/, "")}-s${n}`;
+  const allDay = body.allDay === true;
+  return {
+    id,
+    syllabusId,
+    courseId,
+    itemKey: mockItemKey(syllabusId, id),
+    origin: "student",
+    kind: body.kind,
+    title: body.title,
+    notes: (body.notes as string | null | undefined) ?? null,
+    when: {
+      status: "resolved",
+      written: null,
+      date: body.date,
+      endDate: (body.endDate as string | null | undefined) ?? null,
+      time: allDay ? null : ((body.time as string | null | undefined) ?? null),
+      endTime: allDay ? null : ((body.endTime as string | null | undefined) ?? null),
+      allDay,
+      timezone: (body.timezone as string | undefined) ?? defaultTimezone,
+      timezoneSource: body.timezone ? "student" : "course_default",
+      derivation: "student_entered",
+      unknownReason: null,
+      alternatives: [],
+    },
+    recurrence: null,
+    confidence: "probably_right",
+    confidenceReason: "Entered by you.",
+    flags: [],
+    snippet: null,
+    edited: false,
+    decision: "undecided",
+    syncState: "not_synced",
+    syncedRevision: null,
+    revision: 1,
+    etag: `W/"${id}-1"`,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 /** Items a "processing" syllabus produces when it finishes (the default extraction result). */
 export const finishedScenario = (requested: Scenario): Scenario => (requested === "processing" ? "ready" : requested);

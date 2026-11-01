@@ -1,6 +1,6 @@
 import { http, HttpResponse } from "msw";
 import * as db from "./db";
-import { SCENARIOS, type Scenario } from "./syllabusData";
+import { buildStudentItem, SCENARIOS, type Scenario } from "./syllabusData";
 import * as sdb from "./syllabusDb";
 
 // MSW handlers for syllabus.v1 (docs/API_CONTRACTS_P2.md section 5), mock calendar only. Faithful to the contract on the
@@ -284,7 +284,83 @@ export const syllabusHandlers = [
     return HttpResponse.json(next, { headers: { ETag: next.etag as string } });
   }),
   ...f2Handlers(),
+  ...unclaimedHandlers(),
 ];
+
+// ---------------------------------------------------------------------------------------------------------------------
+// PO-20b "Dates we noticed": the unclaimed-dates page and the student item create (contract 5, rows 133 and 142). Same
+// faithfulness rule (bodies validated against the real schemas in syllabusUnclaimedHandlers.test.ts). Like the server,
+// a create outside ready/partial AND a create past the item caps (300 total, 100 student) are both 409 `invalid_state`.
+
+const MAX_ITEMS = 300;
+const MAX_STUDENT_ITEMS = 100;
+
+function unclaimedHandlers() {
+  return [
+    http.get(`${P}/syllabi/:id/unclaimed-dates`, ({ params, request }) => {
+      const o = owned(params);
+      if (o instanceof Response) return o;
+      const q = new URL(request.url).searchParams;
+      const rawLimit = q.get("limit");
+      const limit = rawLimit === null ? 50 : /^[0-9]{1,3}$/.test(rawLimit) ? Number(rawLimit) : NaN;
+      if (!(limit >= 1 && limit <= 200)) return invalid("limit", "out_of_range");
+      const cursor = q.get("cursor");
+      let from = 0;
+      if (cursor !== null) {
+        const m = /^u([0-9]{1,3})$/.exec(cursor);
+        if (!m) return invalid("cursor");
+        from = Number(m[1]);
+      }
+      const rows = o.e.unclaimed ?? [];
+      const page = rows.slice(from, from + limit);
+      const next = from + limit < rows.length ? `u${from + limit}` : null;
+      return HttpResponse.json({ items: page, nextCursor: next });
+    }),
+
+    http.post(`${P}/syllabi/:id/items`, async ({ params, request }) => {
+      const key = request.headers.get("Idempotency-Key");
+      const o = owned(params);
+      if (o instanceof Response) return o;
+      if (key !== null && !KEY.test(key)) return invalid("Idempotency-Key", "invalid"); // optional on this route
+      const parsed = await readJson(request);
+      if (!parsed.ok) return problem(400, "validation_failed");
+      const body = parsed.body;
+      const { email, e } = o;
+      const sid = String(params.id);
+      const fingerprint = `${sid}|${JSON.stringify(body, Object.keys(body).sort())}`;
+      if (key) {
+        const prior = sdb.itemIdemGet(email, key);
+        if (prior) {
+          if (prior.fingerprint !== fingerprint) return invalid("Idempotency-Key", "reused");
+          const it = e.items.find((i) => i.id === prior.itemId);
+          if (!it || prior.syllabusId !== sid) return problem(404, "not_found");
+          return HttpResponse.json(it, { status: 201, headers: { ETag: it.etag as string, "Idempotency-Replayed": "true", Location: `/api/v1/syllabi/${sid}/items/${it.id as string}` } });
+        }
+      }
+      const extra = unknownMember(body, ["kind", "title", "notes", "date", "endDate", "time", "endTime", "allDay", "timezone"]);
+      if (extra) return invalid(extra, "unknown_member");
+      if (typeof body.kind !== "string" || !EDITABLE_KINDS.has(body.kind)) return invalid("kind");
+      if (typeof body.title !== "string" || body.title.length < 1 || BAD_SINGLE_LINE.test(body.title) || codePoints(body.title) > 200) return invalid("title");
+      if (body.notes != null && (typeof body.notes !== "string" || codePoints(body.notes) > 500)) return invalid("notes");
+      if (typeof body.date !== "string" || !realDate(body.date)) return invalid("date");
+      if (body.endDate != null && (typeof body.endDate !== "string" || !realDate(body.endDate) || body.endDate < body.date)) return invalid("endDate");
+      for (const k of ["time", "endTime"] as const) if (body[k] != null && (typeof body[k] !== "string" || !TIME.test(body[k] as string))) return invalid(k);
+      if ("allDay" in body && typeof body.allDay !== "boolean") return invalid("allDay");
+      if (body.allDay === true && (body.time != null || body.endTime != null)) return invalid("allDay", "conflict");
+      if (body.endTime != null && body.time == null) return invalid("endTime", "conflict");
+      if ("timezone" in body && (typeof body.timezone !== "string" || !ZONE.test(body.timezone))) return invalid("timezone", "not_allowed");
+      if (e.syllabus.status !== "ready" && e.syllabus.status !== "partial") return problem(409, "invalid_state");
+      const students = e.items.filter((i) => i.origin === "student").length;
+      if (e.items.length >= MAX_ITEMS || students >= MAX_STUDENT_ITEMS) return problem(409, "invalid_state");
+      const now = new Date().toISOString();
+      const it = buildStudentItem(sid, e.syllabus.courseId as string, sdb.nextStudentSeq(e), body, (e.syllabus.context as Wire).defaultTimezone as string, now);
+      e.items.push(it);
+      if (key) sdb.itemIdemPut(email, key, fingerprint, sid, it.id as string);
+      touch(e);
+      return HttpResponse.json(it, { status: 201, headers: { ETag: it.etag as string, Location: `/api/v1/syllabi/${sid}/items/${it.id as string}` } });
+    }),
+  ];
+}
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Increment F2: multipart create, delete, batch decisions, mock calendar sync and remove, export. Same faithfulness rule:
@@ -598,7 +674,7 @@ function f2Handlers() {
       const o = owned(params);
       if (o instanceof Response) return o;
       const { e } = o;
-      const body = { schemaVersion: "syllabus.v1", exportedAt: new Date().toISOString(), syllabus: e.syllabus, items: e.items, unclaimedDates: [], calendarEvents: Object.values(e.events ?? {}) };
+      const body = { schemaVersion: "syllabus.v1", exportedAt: new Date().toISOString(), syllabus: e.syllabus, items: e.items, unclaimedDates: e.unclaimed ?? [], calendarEvents: Object.values(e.events ?? {}) };
       return HttpResponse.json(body, { headers: { "Cache-Control": "no-store", "Content-Disposition": 'attachment; filename="syllabus-export.json"', "X-Content-Type-Options": "nosniff" } });
     }),
   ];

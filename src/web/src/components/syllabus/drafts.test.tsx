@@ -9,7 +9,7 @@ import * as sdb from "@/mocks/syllabusDb";
 import { AuthProvider, useAuth } from "../AuthProvider";
 import { Processing } from "./Processing";
 import { Review } from "./Review";
-import { clearAllDrafts, clearSyllabusDrafts, readDraft, removeDraft, setDraftOwner, writeDraft } from "./storage";
+import { clearAllDrafts, clearSyllabusDrafts, readDraft, readDraftsUnder, removeDraft, setDraftOwner, writeDraft } from "./storage";
 import { SyllabusFlow } from "./SyllabusFlow";
 import { COURSE, draftStorageKey, EMAIL, renderWithAnnouncer, signedInWithCourse, TEST_USER_ID } from "./testUtils";
 
@@ -83,6 +83,30 @@ describe("storage: user-scoped drafts", () => {
     expect(keys()).toEqual([draftStorageKey("draft.c2"), draftStorageKey("edit.s10.i1")]);
   });
 
+  it("PO-20b: clearSyllabusDrafts also removes that syllabus's noticed-date states and add-form drafts, each prefix named explicitly", () => {
+    setDraftOwner(TEST_USER_ID);
+    writeDraft("unclaimed.s1.u1", { s: "hidden" });
+    writeDraft("unclaimed.s1.u2", { s: "added", itemId: "itm_1" });
+    writeDraft("unclaimed-add.s1.u3", { title: "x", kind: "other", date: "", time: "", allDay: true });
+    writeDraft("unclaimed.s10.u1", { s: "hidden" }); // a different syllabus whose id starts the same
+    writeDraft("unclaimed-add.s10.u1", {});
+    writeDraft("unclaimedx.s1.u1", {}); // not one of the two prefixes
+    clearSyllabusDrafts("s1");
+    expect(keys()).toEqual([draftStorageKey("unclaimed-add.s10.u1"), draftStorageKey("unclaimed.s10.u1"), draftStorageKey("unclaimedx.s1.u1")].sort());
+  });
+
+  it("PO-20b: readDraftsUnder lists only this user's keys under the prefix (unclaimed. never matches unclaimed-add.)", () => {
+    setDraftOwner(TEST_USER_ID);
+    writeDraft("unclaimed.s1.u1", { s: "hidden" });
+    writeDraft("unclaimed.s1.u2", "not a record");
+    writeDraft("unclaimed-add.s1.u3", { s: "hidden" });
+    ls().setItem(draftStorageKey("unclaimed.s1.u9", OTHER), JSON.stringify({ s: "hidden" }));
+    const isObj = (v: unknown): v is { s: string } => typeof v === "object" && v !== null;
+    expect(readDraftsUnder("unclaimed.s1.", isObj)).toEqual([["u1", { s: "hidden" }]]);
+    setDraftOwner(null);
+    expect(readDraftsUnder("unclaimed.s1.", isObj)).toEqual([]);
+  });
+
   it("every storage access is wrapped: a throwing localStorage never breaks a caller", () => {
     setDraftOwner(TEST_USER_ID);
     const boom = () => {
@@ -96,6 +120,7 @@ describe("storage: user-scoped drafts", () => {
     expect(() => clearSyllabusDrafts("s1", "c1")).not.toThrow();
     expect(() => clearAllDrafts()).not.toThrow();
     expect(() => setDraftOwner("u2")).not.toThrow();
+    expect(readDraftsUnder("unclaimed.s1.", isStr)).toEqual([]);
   });
 });
 

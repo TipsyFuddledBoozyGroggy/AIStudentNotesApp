@@ -198,6 +198,27 @@ export interface ItemPatch {
   timezone?: string;
 }
 
+/**
+ * syllabus-unclaimed-date: a date-like span no item covers ("Dates we noticed"). Never auto-promoted (contract 3); the
+ * snippet is server-sliced from the canonical text. After the purge its text, offsets and context are null together.
+ */
+export interface UnclaimedDate {
+  id: string;
+  snippet: Snippet;
+}
+
+/**
+ * POST /syllabi/{id}/items (syllabus-item-create-request), the members this client sends. A date is required (no undated
+ * student items in v1); `timezone` and `notes` are left out so the server uses the syllabus default zone.
+ */
+export interface ItemCreate {
+  kind: EditableKind;
+  title: string;
+  date: string;
+  allDay: boolean;
+  time: string | null;
+}
+
 export type BatchAction = "approve" | "skip" | "undecide";
 export type ItemErrorCode =
   | "item_needs_date"

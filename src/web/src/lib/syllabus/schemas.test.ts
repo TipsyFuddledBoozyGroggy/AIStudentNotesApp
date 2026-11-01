@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadFixtures } from "@/lib/lecture/schemas.node";
-import { parseBatchResult, parseItem, parseItemPage, parseSyllabus, parseSyllabusPage } from "./parse";
-import { batchDecisionBody, calendarSyncBody, createFromTextBody, decisionBody, newIdempotencyKey, NOTICE_VERSION, patchBody } from "./requests";
+import { parseBatchResult, parseItem, parseItemPage, parseSyllabus, parseSyllabusPage, parseUnclaimed, parseUnclaimedPage } from "./parse";
+import { batchDecisionBody, calendarSyncBody, createFromTextBody, decisionBody, itemCreateBody, newIdempotencyKey, NOTICE_VERSION, patchBody } from "./requests";
 import { loadSyllabusSchemas, loadSyllabusValidators } from "./schemas.node";
 
 // R3-07 (docs/API_CONTRACTS_P2.md sections 2.2, 12, 17 item 6): an ajv CODE-POINT validator (the `u` flag) runs in the
@@ -97,6 +97,16 @@ describe("request builders produce schema-valid bodies", () => {
     expect(cp.byName("syllabus-calendar-sync-request")(calendarSyncBody(new Map([["itm_01", 3]])))).toBe(true);
   });
 
+  it("PO-20b: the student item create body is schema-valid with and without a time, and sends no timezone or notes", () => {
+    const v = cp.byName("syllabus-item-create-request");
+    const allDay = itemCreateBody({ kind: "other", title: "Bring a calculator on Oct 5 for the in-class exercise.", date: "2026-10-05", allDay: true, time: "09:00" });
+    expect(allDay).toEqual({ kind: "other", title: "Bring a calculator on Oct 5 for the in-class exercise.", date: "2026-10-05", allDay: true, time: null });
+    expect(v(allDay), cp.explain("syllabus-item-create-request")).toBe(true);
+    const timed = itemCreateBody({ kind: "exam", title: "Quiz", date: "2026-10-05", allDay: false, time: "09:00" });
+    expect(v(timed)).toBe(true);
+    expect(Object.keys(timed).sort()).toEqual(["allDay", "date", "kind", "time", "title"]);
+  });
+
   it("idempotency keys match the header schema", () => {
     for (let i = 0; i < 20; i++) expect(cp.byName("syllabus-idempotency-key")(newIdempotencyKey())).toBe(true);
   });
@@ -109,6 +119,8 @@ describe("strict parsers over the shared fixtures", () => {
     "syllabus-page": parseSyllabusPage,
     "syllabus-item-page": parseItemPage,
     "syllabus-decision-batch-result": parseBatchResult,
+    "syllabus-unclaimed-date": parseUnclaimed,
+    "syllabus-unclaimed-date-page": parseUnclaimedPage,
   };
   const pv = valid.filter((f) => P[f.schema]);
   const pi = invalid.filter((f) => P[f.schema]);

@@ -20,6 +20,7 @@ import { ItemRow } from "./ItemRow";
 import { OneAtATime } from "./OneAtATime";
 import { clearSyllabusDrafts, readLocal, writeLocal } from "./storage";
 import { SyncConfirm, SyncResultView, type SentRun } from "./Sync";
+import { UnclaimedDates } from "./UnclaimedDates";
 
 export interface ReviewProps {
   api: SyllabusApi;
@@ -100,6 +101,11 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
   const [exporting, setExporting] = useState(false);
   const dataProblemRef = useRef<HTMLDivElement>(null);
   const calendarStepRef = useRef<HTMLHeadingElement>(null);
+  // PO-20b "Dates we noticed" (docs/ux/unclaimed-dates-list.md): its own open state, outside the groups' set, so Expand
+  // all / Collapse all and regrouping never touch it. null until the items load (then open only when there are no items).
+  const [unclaimedOpen, setUnclaimedOpen] = useState<boolean | null>(null);
+  const [focusUnclaimed, setFocusUnclaimed] = useState(false);
+  const unclaimedHeadRef = useRef<HTMLButtonElement>(null);
 
   // A press that did not go through: focus its message (UX 8, the student caused it).
   useEffect(() => {
@@ -116,6 +122,7 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
         setItems(list);
         // Default expansion (UX 5.1), set in the same update as the data so it never renders all-collapsed first.
         setOpen((prev) => prev ?? defaultOpen(list, by));
+        setUnclaimedOpen((prev) => prev ?? decidable(list).length === 0); // spec 4.8: open when it is the only content
       })
       .catch(() => !cancelled && setLoadFailed(true));
     return () => {
@@ -168,6 +175,29 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
     },
     [applyItems],
   );
+
+  // "See dates we noticed" (spec 4.9): focus the section's head after the open state has rendered.
+  useEffect(() => {
+    if (!focusUnclaimed) return;
+    unclaimedHeadRef.current?.focus();
+    setFocusUnclaimed(false);
+  }, [focusUnclaimed, unclaimedOpen]);
+
+  // A student item made from a noticed date (spec 4.10): insert the server's 201 body and open the group that holds it.
+  const onUnclaimedAdded = useCallback((item: SyllabusItem) => {
+    const list = [...(itemsRef.current ?? []).filter((i) => i.id !== item.id), item];
+    itemsRef.current = list;
+    setItems(list);
+    const g = groupItems(list, byRef.current).find((x) => x.items.some((i) => i.id === item.id));
+    if (g) setOpen((prev) => new Set([...(prev ?? []), g.key]));
+  }, []);
+
+  const onGoToItem = useCallback((itemId: string) => {
+    const g = groupItems(itemsRef.current ?? [], byRef.current).find((x) => x.items.some((i) => i.id === itemId));
+    if (!g) return;
+    setOpen((prev) => new Set([...(prev ?? []), g.key]));
+    setFocusItem({ id: itemId, target: "row" });
+  }, []);
 
   useEffect(() => {
     if (!focusItem || mode.m !== "list") return;
@@ -273,6 +303,8 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
   const needsDate = d.filter((i) => i.when.status === "needs_date").length;
   const allOpen = groups.length > 0 && groups.every((g) => open?.has(g.key));
   const purged = syllabus.retention.canonicalTextPurged;
+  // Spec 4.1: rendered only with items loaded, before the purge, and when the server noticed at least one date.
+  const showUnclaimed = items !== null && !purged && syllabus.counts.unclaimedDates > 0;
   const { injectionSuspect, hiddenContentDropped } = syllabus.document;
   const clear = items ? clearItems(syllabus, items) : [];
   const candidates = items ? syncCandidates(items) : [];
@@ -353,6 +385,19 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
         <div className="note note-notice mt-6 space-y-1" data-dropped-notice="" data-dropped-invalid={syllabus.counts.droppedInvalid}>
           <p className="font-semibold">{C.dropped}</p>
           <p>{C.droppedBody}</p>
+          {/* PO-20b: the one action reserved for this Note (dropped-dates-notice 6), only while the list renders. */}
+          {showUnclaimed && (
+            <button
+              type="button"
+              className="btn-tertiary btn-sm optical-start"
+              onClick={() => {
+                setUnclaimedOpen(true);
+                setFocusUnclaimed(true);
+              }}
+            >
+              {C.droppedSee}
+            </button>
+          )}
         </div>
       )}
       {(hiddenContentDropped || injectionSuspect) && (
@@ -378,8 +423,8 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
 
       {items && d.length === 0 && (
         <div className="mt-6 space-y-2">
-          <p className="font-semibold">{C.empty}</p>
-          <p className="text-muted">{C.emptyBody}</p>
+          <p className="font-semibold">{showUnclaimed ? C.emptyNoticed : C.empty}</p>
+          <p className="text-muted">{showUnclaimed ? C.emptyNoticedBody : C.emptyBody}</p>
         </div>
       )}
 
@@ -458,10 +503,12 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
       )}
       </div>
 
-      {items && d.length > 0 && (
+      {/* The body stays mounted when the first item is added from "Dates we noticed" (4.8 -> list), so the section keeps
+          its fetched rows and focus target. With no decidable items it holds only that section and no rail. */}
+      {items && (d.length > 0 || showUnclaimed) && (
         <div className="review-body mt-6">
           <div className="review-groups space-y-4">
-            {groups.map((g) => {
+            {d.length > 0 && groups.map((g) => {
               const isOpen = open?.has(g.key) ?? false;
               const label = groupLabel(g);
               const u = g.kind === "policy" ? 0 : g.items.filter((i) => i.decision === "undecided").length;
@@ -511,35 +558,49 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
                 </section>
               );
             })}
+            {showUnclaimed && (
+              <UnclaimedDates
+                api={api}
+                syllabus={syllabus}
+                items={items}
+                open={unclaimedOpen ?? false}
+                onToggle={() => setUnclaimedOpen((o) => !o)}
+                headRef={unclaimedHeadRef}
+                onAdded={onUnclaimedAdded}
+                onGoToItem={onGoToItem}
+              />
+            )}
           </div>
 
-          <div className="review-rail">
-            <section aria-labelledby="calendar-step-h" className="note note-neutral calendar-step mt-6" data-calendar-step="">
-              <h2 id="calendar-step-h" ref={calendarStepRef} tabIndex={-1} className="note-title">
-                {S.barRegion}
-              </h2>
-              {/* Plain text, not live: the status region already announces each decision. */}
-              <p className="help" data-calendar-counts="">
-                {S.railCounts(approved, skipped, undecided)}
-              </p>
-              <div className="calendar-step-action mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-                <button
-                  type="button"
-                  className="btn-primary"
-                  aria-disabled={candidates.length === 0 ? true : undefined}
-                  aria-describedby={candidates.length === 0 ? "calendar-step-hint" : undefined}
-                  onClick={() => candidates.length > 0 && toMode({ m: "confirm" })}
-                >
-                  {S.bar(candidates.length)}
-                </button>
-                {candidates.length === 0 && (
-                  <p id="calendar-step-hint" className="help">
-                    {S.barHint}
-                  </p>
-                )}
-              </div>
-            </section>
-          </div>
+          {d.length > 0 && (
+            <div className="review-rail">
+              <section aria-labelledby="calendar-step-h" className="note note-neutral calendar-step mt-6" data-calendar-step="">
+                <h2 id="calendar-step-h" ref={calendarStepRef} tabIndex={-1} className="note-title">
+                  {S.barRegion}
+                </h2>
+                {/* Plain text, not live: the status region already announces each decision. */}
+                <p className="help" data-calendar-counts="">
+                  {S.railCounts(approved, skipped, undecided)}
+                </p>
+                <div className="calendar-step-action mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    aria-disabled={candidates.length === 0 ? true : undefined}
+                    aria-describedby={candidates.length === 0 ? "calendar-step-hint" : undefined}
+                    onClick={() => candidates.length > 0 && toMode({ m: "confirm" })}
+                  >
+                    {S.bar(candidates.length)}
+                  </button>
+                  {candidates.length === 0 && (
+                    <p id="calendar-step-hint" className="help">
+                      {S.barHint}
+                    </p>
+                  )}
+                </div>
+              </section>
+            </div>
+          )}
         </div>
       )}
 

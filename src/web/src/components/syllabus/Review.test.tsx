@@ -1,7 +1,8 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { syllabusApi } from "@/lib/syllabus/client";
+import { buildUnclaimed } from "@/mocks/syllabusData";
 import * as sdb from "@/mocks/syllabusDb";
 import { server } from "@/mocks/server";
 import { axeViolations } from "@/test/axe";
@@ -592,5 +593,158 @@ describe("Review: dropped-dates notice (SBR-06)", () => {
     const { container } = await mountDropped("partial", 9);
     expect(note()).not.toBeNull();
     expect(await axeViolations(container)).toEqual([]);
+  });
+});
+
+// PO-20b / SBV-05 (docs/ux/unclaimed-dates-list.md section 10, checklist 1, 11 to 14, 19). The dropped-dates Note's "no
+// button" rule above now reads "no button unless the list renders": those mounts have counts.unclaimedDates 0.
+describe("Review: Dates we noticed around the rest of the screen (PO-20b)", () => {
+  type Fixture = "ready" | "partial" | "hostile" | "purged";
+  const section = () => document.querySelector<HTMLElement>("[data-unclaimed-section]");
+  const note = () => document.querySelector<HTMLElement>("[data-dropped-notice]");
+  const before = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  const noticedRows = () => document.querySelectorAll("li[data-unclaimed-id]");
+
+  function watchUnclaimed() {
+    const urls: string[] = [];
+    const on = ({ request }: { request: Request }) => {
+      if (request.url.includes("/unclaimed-dates")) urls.push(request.url);
+    };
+    server.events.on("request:start", on);
+    return { urls, stop: () => server.events.removeListener("request:start", on) };
+  }
+
+  async function mountNoticed(scenario: Fixture, n: number, opts: { droppedInvalid?: number; empty?: boolean } = {}) {
+    signedInWithCourse();
+    sdb.seedSyllabus(EMAIL, COURSE, scenario);
+    if (n > 0) sdb.seedUnclaimed(EMAIL, `syl_${scenario}`, buildUnclaimed(`syl_${scenario}`, n));
+    if (opts.empty) sdb.find(EMAIL, `syl_${scenario}`)!.items = [];
+    const fetched = await syllabusApi.getSyllabus(`syl_${scenario}`);
+    const syllabus = { ...fetched, counts: { ...fetched.counts, droppedInvalid: opts.droppedInvalid ?? 0 } };
+    const r = renderWithAnnouncer(<Review api={syllabusApi} syllabus={syllabus} courseId={COURSE} />);
+    await screen.findByRole("heading", { level: 1, name: REVIEW_COPY.h1 });
+    await waitFor(() => expect(screen.queryByText(REVIEW_COPY.loadingItems)).toBeNull());
+    return { ...r, syllabus };
+  }
+
+  it.each<Fixture>(["ready", "partial", "hostile", "purged"])("counts.unclaimedDates 0 on %s: no section, no words, no Note button, no request", async (s) => {
+    const w = watchUnclaimed();
+    const { syllabus } = await mountNoticed(s, 0, { droppedInvalid: 2 });
+    expect(syllabus.counts.unclaimedDates).toBe(0);
+    expect(section()).toBeNull();
+    expect(screen.queryByText(/Dates we noticed/)).toBeNull();
+    expect(within(note()!).queryByRole("button")).toBeNull();
+    expect(w.urls).toEqual([]);
+    w.stop();
+  });
+
+  it("dropped Note plus noticed dates: the two sentences unchanged, then one tertiary 'See dates we noticed' that opens the section and focuses its head", async () => {
+    const r = await mountNoticed("ready", 4, { droppedInvalid: 3 });
+    const el = note()!;
+    expect(Array.from(el.querySelectorAll("p")).map((p) => p.textContent)).toEqual([REVIEW_COPY.dropped, REVIEW_COPY.droppedBody]);
+    const see = within(el).getByRole("button");
+    expect(see).toHaveAccessibleName("See dates we noticed");
+    expect(see).toHaveClass("btn-tertiary");
+    expect(el.closest("[aria-live], [role=status], [role=alert]")).toBeNull();
+    const head = within(section()!).getByRole("button", { name: "Dates we noticed, 4 lines" });
+    expect(head).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(see);
+    await waitFor(() => expect(head).toHaveFocus());
+    expect(head).toHaveAttribute("aria-expanded", "true");
+    await waitFor(() => expect(noticedRows()).toHaveLength(4));
+    expect(r.statusLog).toEqual([]);
+  });
+
+  it("no items but noticed dates: the empty sentences change, the section renders open, and there is no Calendar step", async () => {
+    await mountNoticed("ready", 3, { empty: true });
+    expect(screen.getByText(REVIEW_COPY.emptyNoticed)).toBeInTheDocument();
+    expect(screen.getByText(REVIEW_COPY.emptyNoticedBody)).toBeInTheDocument();
+    expect(screen.queryByText(REVIEW_COPY.empty)).toBeNull();
+    expect(within(section()!).getByRole("button", { name: "Dates we noticed, 3 lines" })).toHaveAttribute("aria-expanded", "true");
+    expect(document.querySelector("[data-calendar-step]")).toBeNull();
+    expect(document.querySelector(".review-rail")).toBeNull();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
+    await waitFor(() => expect(noticedRows()).toHaveLength(3));
+  });
+
+  it("no items: adding the first one keeps the section (open, its rows) and brings the list and the Calendar step", async () => {
+    const r = await mountNoticed("ready", 3, { empty: true });
+    await waitFor(() => expect(noticedRows()).toHaveLength(3));
+    const li = document.querySelector<HTMLElement>('li[data-unclaimed-id="unc_ready-002"]')!;
+    await userEvent.click(within(li).getByRole("button", { name: "Add as item: Nov 2" }));
+    fireEvent.change(within(li).getByLabelText("Date"), { target: { value: "2026-11-02" } });
+    await userEvent.click(within(li).getByRole("button", { name: "Add item" }));
+    const goTo = await within(li).findByRole("button", { name: /^Go to the item Field trip permission slips/ });
+    await waitFor(() => expect(goTo).toHaveFocus());
+    expect(screen.getByText("We found 1 item. 0 approved, 0 skipped, 1 not decided.")).toBeInTheDocument();
+    expect(document.querySelector("[data-calendar-step]")).not.toBeNull();
+    expect(within(section()!).getByRole("button", { name: "Dates we noticed, 2 lines" })).toHaveAttribute("aria-expanded", "true");
+    expect(noticedRows()).toHaveLength(3);
+    await waitFor(() => expect(r.statusLog).toEqual(["Added as an item: Field trip permission slips due Nov 2; see the course site for the form. It is not decided yet."]));
+  });
+
+  it("purged with noticed dates counted: no section, no Note button; the purged Note as today", async () => {
+    const w = watchUnclaimed();
+    signedInWithCourse();
+    sdb.seedSyllabus(EMAIL, COURSE, "purged");
+    sdb.seedUnclaimed(EMAIL, "syl_purged", [{ id: "unc_p1", snippet: { text: null, start: null, end: null, page: 1, precision: "exact", context: null } }]);
+    const fetched = await syllabusApi.getSyllabus("syl_purged");
+    expect(fetched.counts.unclaimedDates).toBe(1);
+    renderWithAnnouncer(<Review api={syllabusApi} syllabus={{ ...fetched, counts: { ...fetched.counts, droppedInvalid: 2 } }} courseId={COURSE} />);
+    await screen.findByText(/We found \d+ items/);
+    expect(section()).toBeNull();
+    expect(within(note()!).queryByRole("button")).toBeNull();
+    expect(screen.getByText(REVIEW_COPY.purged)).toBeInTheDocument();
+    expect(w.urls).toEqual([]);
+    w.stop();
+  });
+
+  it("not rendered in one-at-a-time, the calendar confirm, the result, SyllabusCard, NotRead or Processing", async () => {
+    const { syllabus } = await mountNoticed("ready", 5);
+    expect(section()).not.toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Review one at a time" }));
+    await screen.findByRole("heading", { level: 1, name: "Review one at a time" });
+    expect(section()).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Back to the list" }));
+    await screen.findByRole("heading", { level: 1, name: REVIEW_COPY.h1 });
+    await userEvent.click(screen.getByRole("button", { name: "Approve Office hours" }));
+    await screen.findByRole("button", { name: "Undo approval of Office hours" });
+    await userEvent.click(screen.getByRole("button", { name: "Add 1 approved item to the demo calendar" }));
+    await screen.findByRole("heading", { level: 1, name: "Add approved items to the demo calendar" });
+    expect(section()).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Add 1 item to the demo calendar" }));
+    await screen.findByRole("heading", { level: 1, name: "Done. 1 item is in the demo calendar." });
+    expect(section()).toBeNull();
+    expect(screen.queryByText(/Dates we noticed/)).toBeNull();
+    cleanup();
+    renderWithAnnouncer(<SyllabusCard courseId={COURSE} api={syllabusApi} />);
+    await screen.findByText(/in the demo calendar/); // the card after the sync above
+    expect(screen.queryByText(/noticed/)).toBeNull();
+    cleanup();
+    renderWithAnnouncer(<NotRead syllabus={{ ...syllabus, status: "failed", statusReason: "timeout" }} courseId={COURSE} onPasteInstead={() => {}} />);
+    expect(screen.queryByText(/noticed/)).toBeNull();
+    cleanup();
+    renderWithAnnouncer(
+      <Processing api={syllabusApi} initial={{ ...syllabus, status: "extracting", pollAfterSeconds: 2 }} courseId={COURSE} msPerSecond={100000} onReview={() => {}} onPasteInstead={() => {}} />,
+    );
+    expect(screen.queryByText(/noticed/)).toBeNull();
+  });
+
+  it("the two Demo lines keep their text and come first; the section sits far below them", async () => {
+    await mountNoticed("ready", 2);
+    const cal = screen.getByText(DEMO_TAGS.calendar);
+    const src = screen.getByText(DEMO_TAGS.source);
+    expect(before(cal, src)).toBe(true);
+    expect(before(src, section()!)).toBe(true);
+    expect(before(screen.getByRole("region", { name: REVIEW_COPY.summaryRegion }), section()!)).toBe(true);
+  });
+
+  it("has no axe violations with the Note action and in the no-items state", async () => {
+    const a = await mountNoticed("partial", 3, { droppedInvalid: 1 });
+    expect(await axeViolations(a.container)).toEqual([]);
+    cleanup();
+    const b = await mountNoticed("ready", 3, { empty: true });
+    await waitFor(() => expect(noticedRows()).toHaveLength(3));
+    expect(await axeViolations(b.container)).toEqual([]);
   });
 });

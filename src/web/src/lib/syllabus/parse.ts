@@ -20,6 +20,7 @@ import type {
   SyncResult,
   SyncState,
   TimezoneSource,
+  UnclaimedDate,
   UnknownReason,
   Weekday,
 } from "./types";
@@ -396,6 +397,21 @@ function parsePage<T>(v: unknown, one: (x: unknown) => T | null, max = 200): Pag
 
 export const parseSyllabusPage = (v: unknown) => parsePage(v, parseSyllabus);
 export const parseItemPage = (v: unknown) => parsePage(v, parseItem);
+
+/**
+ * syllabus-unclaimed-date (PO-20b). Stricter than the item parser: the object has exactly `id` and `snippet`
+ * (additionalProperties: false), and the snippet is required (never null). The snippet keeps the R2-04 null-together rule.
+ */
+export function parseUnclaimed(v: unknown): UnclaimedDate | null {
+  if (!isObj(v) || Object.keys(v).some((k) => k !== "id" && k !== "snippet")) return null;
+  if (!isId(v.id)) return null;
+  const snippet = parseSnippet(v.snippet);
+  if (!snippet) return null;
+  return { id: v.id, snippet };
+}
+
+/** syllabus-unclaimed-date-page: at most 200 rows (the per-syllabus cap); one bad row refuses the page. */
+export const parseUnclaimedPage = (v: unknown) => (isObj(v) && Object.keys(v).every((k) => k === "items" || k === "nextCursor") ? parsePage(v, parseUnclaimed) : null);
 
 export function parseBatchResult(v: unknown): BatchResult | null {
   if (!isObj(v) || !Array.isArray(v.results) || v.results.length > 100 || !isObj(v.counts)) return null;

@@ -17,7 +17,7 @@ export interface EditValues {
   allDay: boolean;
 }
 
-const isValues = (v: unknown): v is EditValues =>
+export const isValues = (v: unknown): v is EditValues =>
   isRecord(v) && typeof v.title === "string" && typeof v.kind === "string" && typeof v.date === "string" && typeof v.time === "string" && typeof v.allDay === "boolean";
 
 export const draftKeyFor = (item: Pick<SyllabusItem, "syllabusId" | "id">) => `edit.${item.syllabusId}.${item.id}`;
@@ -34,10 +34,11 @@ export function valuesOf(item: SyllabusItem): EditValues {
   };
 }
 
-type Field = "title" | "date" | "time";
-type Errors = Partial<Record<Field, string>>;
+export type Field = "title" | "date" | "time";
+export type Errors = Partial<Record<Field, string>>;
 
-function validate(v: EditValues, needsDate: boolean): Errors {
+/** Shared with the "Dates we noticed" add form (UnclaimedAddForm), where the date is always required. */
+export function validate(v: EditValues, needsDate: boolean): Errors {
   const e: Errors = {};
   const t = v.title.trim();
   if (!t) e.title = C.errors.titleEmpty;

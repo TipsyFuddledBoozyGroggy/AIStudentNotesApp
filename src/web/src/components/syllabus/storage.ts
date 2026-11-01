@@ -76,14 +76,47 @@ export function clearAllDrafts(): void {
   removeWhere((k) => k.startsWith(USER_PREFIX) || LEGACY.some((r) => r.test(k)));
 }
 
-/** A deleted syllabus: its item edit drafts and its course's paste draft (this user's; legacy keys too). */
+/**
+ * A deleted syllabus: its item edit drafts, its "Dates we noticed" states and add-form drafts (PO-20b,
+ * docs/ux/unclaimed-dates-list.md 4.6), and its course's paste draft (this user's; legacy keys too). Each prefix is named
+ * on its own: `unclaimed.` and `unclaimed-add.` are matched explicitly, never one through the other.
+ */
 export function clearSyllabusDrafts(syllabusId: string, courseId?: string): void {
-  const edit = `edit.${syllabusId}.`;
+  const prefixes = [`edit.${syllabusId}.`, `unclaimed.${syllabusId}.`, `unclaimed-add.${syllabusId}.`];
   const draft = courseId === undefined ? null : `draft.${courseId}`;
   removeWhere((k) => {
     const rest = k.startsWith(USER_PREFIX) ? k.slice(k.indexOf(".", USER_PREFIX.length) + 1) : k.startsWith(PREFIX) ? k.slice(PREFIX.length) : null;
-    return rest !== null && (rest.startsWith(edit) || (draft !== null && rest === draft));
+    return rest !== null && (prefixes.some((p) => rest.startsWith(p)) || (draft !== null && rest === draft));
   });
+}
+
+/**
+ * Every draft of the signed-in user whose key starts with `prefix`, as [rest of the key, value] pairs (values that fail
+ * `check` are skipped). Empty with no signed-in user or no storage. Used to read the "Dates we noticed" states before the
+ * list itself is fetched.
+ */
+export function readDraftsUnder<T>(prefix: string, check: (v: unknown) => v is T): [string, T][] {
+  if (owner === null) return [];
+  const full = `${ownedPrefix(owner)}${prefix}`;
+  const out: [string, T][] = [];
+  try {
+    const ls = window.localStorage;
+    for (let i = 0; i < ls.length; i++) {
+      const k = ls.key(i);
+      if (k === null || !k.startsWith(full)) continue;
+      const raw = ls.getItem(k);
+      if (raw === null) continue;
+      try {
+        const v: unknown = JSON.parse(raw);
+        if (check(v)) out.push([k.slice(full.length), v]);
+      } catch {
+        /* a corrupt entry is ignored */
+      }
+    }
+  } catch {
+    /* storage unavailable */
+  }
+  return out;
 }
 
 export function readDraft<T>(key: string, check: (v: unknown) => v is T): T | null {

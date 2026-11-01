@@ -1,4 +1,4 @@
-import type { BatchAction, CreateFromTextInput, CreateMeta, Decision, ItemPatch } from "./types";
+import type { BatchAction, CreateFromTextInput, CreateMeta, Decision, ItemCreate, ItemPatch } from "./types";
 
 // Request-body builders for syllabus.v1. Each returns exactly the members the request schema allows
 // (additionalProperties: false; read-only fields are never sent). syllabus.schemas.test.ts validates every builder's
@@ -34,6 +34,14 @@ export function patchBody(patch: ItemPatch): Record<string, unknown> {
   for (const [k, v] of Object.entries(patch)) if (v !== undefined) out[k] = v;
   if (Object.keys(out).length === 0) throw new Error("A patch needs at least one member (minProperties: 1).");
   return out;
+}
+
+/**
+ * Student-added item (syllabus-item-create-request). Exactly kind, title, date, allDay and time: no timezone (the server
+ * uses the syllabus default), no notes, and never a link to the unclaimed date it came from (the schema has none).
+ */
+export function itemCreateBody(input: ItemCreate): Record<string, unknown> {
+  return { kind: input.kind, title: input.title, date: input.date, allDay: input.allDay, time: input.allDay ? null : input.time };
 }
 
 /** Batch decision body. `itemEtags` is an object keyed by item id (contract 6.1), so a duplicate id cannot be expressed. */

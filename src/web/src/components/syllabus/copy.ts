@@ -162,6 +162,56 @@ export const REVIEW_COPY = {
   itemsError: "Your items could not be shown. Nothing was changed.",
   tryAgain: "Try again",
   summaryRegion: "Review summary",
+  /** PO-20b: the one action the dropped-dates Note may carry (dropped-dates-notice.md 6), shown only when the list renders. */
+  droppedSee: "See dates we noticed",
+  /** Empty items but counts.unclaimedDates > 0 (unclaimed-dates-list.md 4.8). */
+  emptyNoticed: "No items were made from this syllabus, but some dates were noticed.",
+  emptyNoticedBody: "They are listed below. You can add any of them as an item.",
+} as const;
+
+/**
+ * PO-20b (docs/ux/unclaimed-dates-list.md section 5): the "Dates we noticed" section on the Review list. DRAFT wording,
+ * not yet reviewed by neurodivergent-ux-specialist; mock only; G4 NOT_RUN.
+ *
+ * `form.notReady` and `form.limit` are kept verbatim from the spec but are NOT shown in v1: the server answers both "not
+ * ready" and the 100-student-item cap with the same 409 `invalid_state` (ItemService.CreateAsync), so the client cannot
+ * tell them apart and shows ACTION_COPY.generic instead.
+ */
+export const UNCLAIMED_COPY = {
+  label: "Dates we noticed",
+  lines: (n: number) => (n === 1 ? "1 line" : `${n} lines`),
+  allHandled: "all hidden or added",
+  help: "These lines from your syllabus have a date, but Tether did not turn them into items.",
+  help2: "Each line is shown word for word. You can add one as an item, or hide it.",
+  help3: "Hiding a line keeps it out of this list on this device. You can undo it at any time.",
+  add: "Add as item",
+  addName: (t: string) => `Add as item: ${t}`,
+  hide: "Hide",
+  hideName: (t: string) => `Hide: ${t}`,
+  hidden: "Hidden:",
+  undo: "Undo",
+  undoName: (t: string) => `Undo hiding ${t}`,
+  hiddenMsg: (t: string) => `Hidden: ${t}.`,
+  shownMsg: (t: string) => `Shown again: ${t}.`,
+  added: "Added as an item:",
+  goToItem: "Go to the item",
+  goToItemName: (t: string) => `Go to the item ${t}`,
+  addedMsg: (t: string) => `Added as an item: ${t}. It is not decided yet.`,
+  showMore: (n: number) => `Show ${n} more`,
+  showHandled: (n: number) => `Show hidden and added dates (${n})`,
+  loading: "Getting the dates we noticed.",
+  loadError: "The dates we noticed could not be shown. Nothing was changed.",
+  tryAgain: "Try again",
+  form: {
+    legend: (t: string) => `Add an item from: ${t}`,
+    titleHelp: "This starts as the line from your syllabus. You can change it.",
+    dateHelp: "Read the date from the line above and enter it here.",
+    save: "Add item",
+    busy: "Adding...",
+    cancel: "Cancel",
+    notReady: "Items can't be added while this syllabus is being read. Nothing was changed.",
+    limit: "This syllabus holds as many added items as it can. Nothing was changed.",
+  },
 } as const;
 
 export const ITEM_COPY = {
