@@ -75,3 +75,6 @@ Entry format:
 - **Root cause:** Lead process: `git add -A` with agents running, and a check that could not see the problem.
 - **Prevention:** delegation checklist item 7: while any agent is running, add files by explicit path; verify a commit with `git show --name-only`. Not an agent-definition change.
 - **Status:** APPLIED (checklist). Fixed forward in 7cff155; nothing was pushed in between.
+
+### 2026-11-01 Update on L-HELLO open question
+- The question 'does the web client treat 4401 on the first hello as session not available?' was answered by reading the code and adding six unit tests (commit 126bea0): yes. The related hardening (cap on repeated 4401) is PO-20af.
