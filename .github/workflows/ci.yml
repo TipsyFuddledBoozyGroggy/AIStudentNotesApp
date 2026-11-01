@@ -2,9 +2,10 @@ name: CI
 # Authored 2026-11-01. NEVER RUN ON GITHUB as of this writing (no run record exists; RELEASE_GATES G5 stays NOT_RUN
 # until one does). See docs/ops/ci-matrix.md for the job table, local equivalents and known limits.
 #
-# Action pins: every `uses:` is a full commit SHA with the tag in the trailing comment. The SHAs were read from the
-# public tag refs with `git ls-remote` on 2026-10-31; they have not been exercised by a run. Dependabot
-# (.github/dependabot.yml, ecosystem github-actions) proposes bumps.
+# Action pins: every `uses:` is a full commit SHA with the tag in the trailing comment. The SHAs were verified on
+# 2026-10-31 per docs/security/action-pin-verification.md (includes Trivy v0.35.0 and CodeQL v3.28.3); they have
+# still not been exercised by a GitHub run. CodeQL v3 is slated for deprecation in Dec 2026; the v4 move is a
+# follow-up (see docs/ops/ci-matrix.md). Dependabot (.github/dependabot.yml, ecosystem github-actions) proposes bumps.
 on:
   pull_request:
   push:

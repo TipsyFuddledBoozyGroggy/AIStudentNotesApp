@@ -44,7 +44,8 @@ A deployed database needs the same settings in its parameter group; that is a de
 - SBR-04: the docs-only filter treats `docs/ops/` and any `.sh/.bash/.ps1/.cmd/.bat` file as code, so editing the DB log canary runs the heavy jobs.
 - SBR-01 (cache half): `image-scan` runs on pull requests only, so a compromised scan action can only write PR-scoped caches. Cost: main is not scanned automatically after merge. Residual: the runtime cache token is still exposed to the action until it is replaced by a checksum-pinned binary (follow-up, not done).
 - None of the SBR-01..04 changes has run on GitHub yet.
-- Action SHAs were read from public tag refs with `git ls-remote` on 2026-10-31; they were not exercised. The tags are older than the newest releases; Dependabot will propose bumps.
+- Action SHAs were verified on 2026-10-31 per `docs/security/action-pin-verification.md` (Trivy v0.35.0, CodeQL v3.28.3). Verified is not exercised: none of them has run on GitHub yet. Some tags are older than the newest releases; Dependabot will propose bumps.
+- **CodeQL v3 deprecation (follow-up, not done):** `github/codeql-action` v3 is slated for deprecation in Dec 2026. The move to v4 (SHA `9b3254085494b55a0f7c4c2b3d2d52cc712ce370`, v4.39.1) is a follow-up that needs its release notes read first (behaviour, runner and input changes) and its own pin verification entry before any SHA in `ci.yml` is changed. The current v3.28.3 pins stay until then.
 - Postgres service in CI is the repo compose file (needs Docker Compose v2 with `--wait`, present on ubuntu-24.04 runners per GitHub's docs; not verified here).
 - Playwright browser cache is keyed by Playwright version; OS libraries are re-installed each run.
 - Windows line endings: `docs/ops/db-log-canary.sh` must stay LF (there is no `.gitattributes` rule for it; CI checks out on Linux, a CRLF checkout on Windows would break it under Git Bash).
