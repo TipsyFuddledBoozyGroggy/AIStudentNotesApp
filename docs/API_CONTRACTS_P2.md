@@ -130,7 +130,7 @@ All user-scoped; a foreign or missing id is `404 not_found`. Ownership of the co
 | GET | `/syllabi/{id}` | | 200 `Syllabus` + ETag (poll target) | 404 |
 | DELETE | `/syllabi/{id}` | none (no query parameters) | 204; hard delete of everything in section 5.2, including the mock events; cancels a running job | 404 |
 | GET | `/syllabi/{id}/items?cursor&limit&decision&kind&needsDate` | | 200 page of `Item` | 400, 404 |
-| POST | `/syllabi/{id}/items` | `syllabus-item-create-request`, optional `Idempotency-Key` | 201 `Item` (`origin: "student"`) | 400, 404, 409 `invalid_state` while not `ready`/`partial` |
+| POST | `/syllabi/{id}/items` | `syllabus-item-create-request`, optional `Idempotency-Key` | 201 `Item` (`origin: "student"`) | 400, 404, 409 `invalid_state` while not `ready`/`partial` **or when an item cap is reached** (300 items in total or 100 student items; documented as observed behaviour 2026-11-01, SBV-09: both causes return the same code today, so clients must treat any 409 here as "cannot add" and not infer the cause; a distinct additive code such as `item_limit_reached` is a possible later change, not decided) |
 | GET | `/syllabi/{id}/items/{itemId}` | | 200 `Item` + ETag | 404 |
 | PATCH | `/syllabi/{id}/items/{itemId}` | `syllabus-item-update-request` (JSON merge-patch semantics; request `Content-Type` must be `application/json`, see section 2.1) + `If-Match` | 200 `Item` | 400, 404, 412, 415, 428, 409 `item_not_syncable` (policy) |
 | DELETE | `/syllabi/{id}/items/{itemId}` | `If-Match` | 204; only `origin: "student"` items; removes any mock event | 404, 409 `student_item_only`, 412, 428 |
