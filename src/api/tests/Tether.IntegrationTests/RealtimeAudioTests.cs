@@ -327,6 +327,8 @@ public class RealtimeAudioTests(RealtimeAudioTests.Factory f) : LectureTestBase(
         var (a, _, id) = await LiveAsync();
         await using var audio = await OpenAsync(a, id);
         await audio.SendAudioAsync(4);
+        // live first: a stop that beats the ticket redemption is a ticket failure (4401), not a cutoff (B2ArchiveHelloRaceTests)
+        Assert.True(await Rt.WaitAsync(() => audio.FramesOf("ack").Count >= 4), "audio socket never became live");
         await PostAsync(a.Client, $"/sessions/{id}/stop");
         Assert.Equal(4409, await audio.WaitCloseAsync());
         var n = await EventCountAsync(id);
@@ -390,6 +392,7 @@ public class RealtimeAudioTests(RealtimeAudioTests.Factory f) : LectureTestBase(
         var (a, course, id) = await LiveAsync();
         await using var audio = await OpenAsync(a, id);
         await audio.SendAudioAsync(2);
+        Assert.True(await Rt.WaitAsync(() => audio.FramesOf("ack").Count >= 2), "audio socket never became live"); // see B2ArchiveHelloRaceTests
         Assert.Equal(HttpStatusCode.NoContent, (await a.Client.DeleteAsync($"/api/v1/courses/{course}?purge=true")).StatusCode);
         Assert.Equal(4409, await audio.WaitCloseAsync());
         Assert.Equal(0, await F.ScalarAsync($"select count(*) from transcript.transcript_events where session_id = '{id}'"));

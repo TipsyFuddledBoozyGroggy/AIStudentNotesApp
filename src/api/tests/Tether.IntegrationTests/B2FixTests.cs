@@ -143,6 +143,9 @@ public class B2PushTests(B2PushTests.Factory f) : LectureTestBase(f), IClassFixt
         await using var hub = await Rt.HubProbe.StartAsync(F, Rt.CookieOf(a.Client));
         await hub.JoinAsync(id);
         await audio.SendAudioAsync(2);
+        // The socket must be live (ticket redeemed, relay registered) before the archive, or the archive can win the redemption
+        // and the socket is refused with 4401 instead of being pushed closed (B2ArchiveHelloRaceTests; the CI failure of 2026-11-01).
+        Assert.True(await Rt.WaitAsync(() => audio.FramesOf("ack").Count >= 2), "audio socket never became live");
 
         var sw = Stopwatch.StartNew();
         Assert.Equal(HttpStatusCode.NoContent, (await a.Client.DeleteAsync($"/api/v1/courses/{course}")).StatusCode);
@@ -166,6 +169,7 @@ public class B2PushTests(B2PushTests.Factory f) : LectureTestBase(f), IClassFixt
         await using var hub = await Rt.HubProbe.StartAsync(F, Rt.CookieOf(a.Client));
         await hub.JoinAsync(id);
         await audio.SendAudioAsync(2);
+        Assert.True(await Rt.WaitAsync(() => audio.FramesOf("ack").Count >= 2), "audio socket never became live"); // same race as the archive test
 
         var sw = Stopwatch.StartNew();
         Assert.Equal(HttpStatusCode.NoContent, (await a.Client.DeleteAsync($"/api/v1/courses/{course}?purge=true")).StatusCode);
@@ -178,6 +182,60 @@ public class B2PushTests(B2PushTests.Factory f) : LectureTestBase(f), IClassFixt
         Assert.Equal(1, await CountAsync("consent_events", $"session_id = '{id}' and kind = 'Stop'"));
         Assert.Equal(1, await CountAsync("audit_events", $"session_id = '{id}' and action = 'session.stop'"));
         Assert.Equal(1, await CountAsync("audit_events", $"session_id = '{id}' and action = 'session.delete'"));
+    }
+}
+
+/// <summary>
+/// Deterministic form of the CI-only failure of <see cref="B2PushTests.Archiving_a_course_stops_its_live_session_and_closes_the_socket_by_push"/>
+/// (Expected 4409, Actual 4401). The client sends <c>hello</c> and returns without waiting for the server to redeem the ticket, so the
+/// archive can commit before the redemption. The trap holds the redemption's ticket lookup until the archive has committed.
+/// </summary>
+public class B2ArchiveHelloRaceTests(B2ArchiveHelloRaceTests.Factory f) : LectureTestBase(f), IClassFixture<B2ArchiveHelloRaceTests.Factory>
+{
+    /// <summary>Polling off (as in <see cref="B2PushTests.Factory"/>) and a <see cref="CommandTrap"/> on the Lectures DbContext.</summary>
+    public sealed class Factory : RealtimeFactory
+    {
+        public CommandTrap Trap { get; } = new();
+
+        protected override IEnumerable<KeyValuePair<string, string?>> Extra =>
+            [new("Realtime:RevalidateSeconds", "3600"), new("Realtime:RelayCheckSeconds", "3600"), new("Realtime:MaxConnectionSeconds", "7200")];
+
+        protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.ConfigureTestServices(s => s.ConfigureDbContext<Tether.Lectures.Persistence.LecturesDbContext>(o => o.AddInterceptors(Trap)));
+        }
+    }
+
+    /// <summary>The redemption's ticket lookup (AudioTicketService.ConsumeAsync) is the only SELECT over audio_tickets that filters by token_hash.</summary>
+    private static bool IsRedemptionLookup(string sql) =>
+        sql.TrimStart().StartsWith("SELECT", StringComparison.Ordinal) && sql.Contains("audio_tickets", StringComparison.Ordinal)
+        && sql.Contains("token_hash", StringComparison.Ordinal);
+
+    [Fact]
+    public async Task An_archive_that_commits_before_the_hello_is_redeemed_refuses_the_socket_with_4401_and_accepts_no_audio()
+    {
+        var a = await NewActorAsync();
+        var course = await CourseAsync(a.Client);
+        var id = (await StartOkAsync(a.Client, course)).GetProperty("id").GetString()!;
+        var trap = ((Factory)F).Trap;
+        trap.Arm(IsRedemptionLookup,
+            async () => Assert.Equal(HttpStatusCode.NoContent, (await a.Client.DeleteAsync($"/api/v1/courses/{course}")).StatusCode));
+
+        await using var audio = await Rt.AudioClient.ConnectAsync(F, Rt.CookieOf(a.Client), id);
+        var res = await PostAsync(a.Client, $"/sessions/{id}/audio-ticket");
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        await audio.HelloAsync((await res.BodyAsync()).GetProperty("ticket").GetString()!);
+        try { await audio.SendAudioAsync(2); } catch (Exception) { /* may already be closed */ }
+
+        // API_CONTRACTS section 15 item 8: a ticket for a session that is no longer Active is a ticket failure, and every ticket
+        // failure is the same 4401 (C-01). 4409 is only for a socket whose ticket was accepted. So 4401 here is the contract,
+        // not a bug; the push test must wait until its socket is live before archiving.
+        Assert.Equal(4401, await audio.WaitCloseAsync(3000));
+        Assert.True(trap.Fired, "the race window was not reached");
+        Assert.Empty(audio.FramesOf("ack"));
+        Assert.Equal("Stopped", await F.TextAsync($"select state from lectures.lecture_sessions where id = '{id}'"));
+        Assert.Equal(0, await F.ScalarAsync($"select count(*) from transcript.transcript_events where session_id = '{id}' and kind = 'Final'"));
     }
 }
 

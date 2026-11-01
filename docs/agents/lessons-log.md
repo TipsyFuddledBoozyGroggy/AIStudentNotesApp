@@ -27,3 +27,10 @@ Entry format:
 ### 2026-11-01 Slice 7 agent reported the dev server "still running" after it had exited
 - **Prevention:** playbook rule 2 and L-STATUS (verify state with a command before reporting).
 - **Status:** APPLIED.
+
+### 2026-11-01 B2PushTests 4401 vs 4409 on a slow CI runner
+- **Symptom:** one integration test failed only on GitHub (`Expected 4409, Actual 4401`).
+- **Root cause:** test race; `hello` is fire-and-forget, archive committed before ticket redemption. Product behaviour (4401 for any ticket failure) is the documented contract.
+- **Agents:** backend-engineer / qa-engineer (tests written without waiting for the first ack).
+- **Prevention:** playbook L-HELLO. Open question: does the frontend treat 4401 on first hello as "session not available"? (not checked)
+- **Status:** APPLIED (4 tests now wait for acks; deterministic reproduction `B2ArchiveHelloRaceTests`).
