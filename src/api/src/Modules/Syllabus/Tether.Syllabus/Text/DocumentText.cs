@@ -101,7 +101,7 @@ internal static class DocumentText
         // content hash is computed from it. NFC only composes or reorders, it cannot bring back a stripped character, a space run or an
         // edge space, so a second Canonicalize pass changes nothing (idempotent). Text that was already NFC is unchanged, so its hash is too.
         var text = result.ToString();
-        if (false && !text.IsNormalized(NormalizationForm.FormC)) text = text.Normalize(NormalizationForm.FormC);
+        if (!text.IsNormalized(NormalizationForm.FormC)) text = text.Normalize(NormalizationForm.FormC);
         return new CanonicalDocument(text, hidden, suspect);
     }
 
