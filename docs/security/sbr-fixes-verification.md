@@ -774,3 +774,29 @@ The phrase "nothing else is silently wrong" is limited to what my probes found. 
   - HEAD's tests against the parent's source. I did not show the new tests failing before the fix; that rests on the commit's claim and on my probe of the old behaviour in the tenth pass.
   - `SyllabusDateMatcherTests`, the rest of the integration suite, the dev API and any web test.
 - **Not verified:** the commit's figures (AI 333, architecture 27, reader 131, contract 870, integration 654) and its claim that the output changed on 1 of 13,033 inputs.
+
+# Twelfth pass: SBV-37 fix (commit 9684247)
+
+Reviewer: security-engineer, 2026-11-02. HEAD at review end is d1618d8, a later docs-only commit (`docs/PROGRESS.md`); the source is as at 9684247. Ratings calibrated to the personal-tool scope (PO-15/16).
+
+## Result
+
+- **SBV-37 MEDIUM: FIXED-VERIFIED.** In `FindTime`, when only the end has am/pm and the start would be at or after the end, the start is read in the other half of the day. If it is still at or after the end, there is no time (all-day; exams get `time_missing`). The end is kept only when it is after the start, so no stored start is ever at or after its end. The weekly path calls the same `FindTime`.
+- '12' cases from the probe, all correct: '12am' 00:00, '12pm' 12:00, '12-1pm' 12:00-13:00, '11-12pm' 11:00-12:00, '12-1am' 00:00-01:00, '11-12am' all-day with `time_missing`, weekly '12-1pm' 12:00-13:00.
+- The tests are good evidence: dated and weekly theories, controls, and a 4,320-case sweep that checks an independently written expectation, no start at or after its end, and no dropped end.
+
+## New rows (both LOW, OPEN)
+
+- **SBV-39 (introduced by the fix), builder note 1.** The other-half reading has no length limit: '1-1pm' is 01:00-13:00, '12-12pm' 00:00-12:00, '5-1pm' 05:00-13:00, all `probably_right`. Only identical start and end clocks reach 12 hours. LOW because these are typos or unusual layouts, the start digits are as written, and the student reviews before any Calendar write. **Lead decision needed; I recommend** that a range of 12 hours or more from the other-half reading gives no time, the same as the unorderable case. Whether to cap shorter ones (for example '5-1pm') is a product call. The row also notes a pre-existing gap: when am/pm is on the start, an earlier end is dropped without a flag ('11am-1' gives 11:00 with no end).
+- **SBV-40 (pre-existing, L-DROP), builder note 3.** A dateless weekly line whose time cannot be read makes nothing, with no count: 'Office hours Tuesdays by appointment', 'No class Mondays', and since this fix 'Office hours Tuesdays 11-12am'. Those lines used to give a wrong 23:00 rule, so silence replaced a wrong time. 'Office hours Tuesdays 11-12am and 3-4pm' also gives nothing, because `FindTime` returns at the first unorderable range. This breaks the "count every drop" rule. It is LOW because no dated deadline is lost and nothing wrong is stored. It is the same class as SBV-33, so the Lead may defer it with the same reason.
+
+## What I ran and what I did not verify (twelfth pass)
+
+- **Ran:**
+  - `git show 9684247`, and reads of `FindTime`, `ToHour`, `TryRecurrence`, `BuildDated`, `BuildRecurring`, the two loops of `Extract`, and the SBV-37 section of `DateMatcherTests.cs`.
+  - `dotnet test tests/Tether.SyllabusTests` in `mcr.microsoft.com/dotnet/sdk:10.0` at HEAD: Passed 573, Failed 0, Skipped 0.
+  - The same project in a scratch copy with the extractor from 9684247's parent, filtered to SBV37: 16 of 26 failed. The 10 that pass are the controls.
+  - The scratch probe `sbv37probe`, 29 lines through `MockRuleExtractor`, `SyllabusLimits.Apply` and `ServerFlags.Rederive`.
+  - The register's section 6 recipes.
+- **Not run:** integration tests, the dev API, any web test.
+- **Not verified:** the commit's figures (AI 333, architecture 27, reader 131, contract 870, integration 654) and its claim that 2,893 of 85,656 probe outputs changed.
