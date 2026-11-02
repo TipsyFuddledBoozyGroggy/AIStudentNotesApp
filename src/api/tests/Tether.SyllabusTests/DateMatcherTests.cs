@@ -733,4 +733,126 @@ public class DateMatcherTests
     {
         Assert.Empty(SyllabusSignals.FindDates(raw));
     }
+
+    // ---------------------------------------------------------------- SBV-37: am/pm written only on the end of a range
+    // Lead ruling 2026-11-02: the start takes the end's am/pm UNLESS that puts the start at or after the end; then the start takes the other
+    // am/pm. A range whose start is still at or after the end gives no time (all-day), never a start at or after its end.
+
+    [Theory]
+    [InlineData("Final exam Dec 9 11:00-1:00 PM", 11, 0, 13, 0)]                                // was 23:00, end dropped
+    [InlineData("Final exam Dec 9 11-1pm", 11, 0, 13, 0)]                                       // was 23:00, end dropped
+    [InlineData("Final exam Dec 9 10-12pm", 10, 0, 12, 0)]                                      // was 22:00, end dropped
+    [InlineData("Final exam Dec 9 10:30-12:30 PM", 10, 30, 12, 30)]                             // was 22:30, end dropped
+    [InlineData("Final exam Dec 9 11:30-12:45pm", 11, 30, 12, 45)]                              // was 23:30, end dropped
+    [InlineData("Final exam Dec 9 11-12pm", 11, 0, 12, 0)]                                      // was 23:00, end dropped
+    [InlineData("Final exam Dec 9 at 11 - 1 p.m.", 11, 0, 13, 0)]
+    public void SBV37_a_range_across_noon_with_am_pm_only_on_the_end_starts_in_the_morning(string raw, int h1, int m1, int h2, int m2)
+    {
+        var item = Assert.Single(StoredItems(raw));
+        Assert.Equal(new DateOnly(2026, 12, 9), item.Date);
+        Assert.Equal(new TimeOnly(h1, m1), item.Time);
+        Assert.Equal(new TimeOnly(h2, m2), item.EndTime);
+        Assert.False(item.AllDay);
+    }
+
+    [Theory]
+    [InlineData("Final exam Dec 9 9-11pm", 21, 0, 23, 0)]
+    [InlineData("Final exam Dec 9 2-4pm", 14, 0, 16, 0)]
+    [InlineData("Final exam Dec 9 12-2pm", 12, 0, 14, 0)]
+    [InlineData("Final exam Dec 9 8-9am", 8, 0, 9, 0)]
+    [InlineData("Final exam Dec 9 1:30-3:00 PM", 13, 30, 15, 0)]
+    [InlineData("Final exam Dec 9 11am-1pm", 11, 0, 13, 0)]
+    [InlineData("Final exam Dec 9 10pm-11pm", 22, 0, 23, 0)]
+    public void SBV37_controls_a_range_that_does_not_cross_noon_keeps_the_ends_am_pm_on_the_start(string raw, int h1, int m1, int h2, int m2)
+    {
+        var item = Assert.Single(StoredItems(raw));
+        Assert.Equal(new TimeOnly(h1, m1), item.Time);
+        Assert.Equal(new TimeOnly(h2, m2), item.EndTime);
+    }
+
+    [Theory]
+    [InlineData("Final exam Dec 9 11-12am")]                                                     // 11:00 or 23:00, both after 00:00
+    [InlineData("Final exam Dec 9 12-12am")]
+    [InlineData("Final exam Dec 9 11:30-11am")]
+    public void SBV37_a_range_whose_start_is_after_its_end_either_way_is_no_time(string raw)
+    {
+        var item = Assert.Single(StoredItems(raw));
+        Assert.Equal(new DateOnly(2026, 12, 9), item.Date);
+        Assert.Null(item.Time);
+        Assert.Null(item.EndTime);
+        Assert.True(item.AllDay);
+        Assert.Contains("time_missing", item.Flags);
+    }
+
+    [Theory]
+    [InlineData("Office hours Tuesdays 11-1pm", 11, 0, 13, 0)]                                  // was 23:00, end dropped
+    [InlineData("Office hours Tuesdays 10-12pm", 10, 0, 12, 0)]                                 // was 22:00
+    [InlineData("Office hours Tuesdays 11:00-1:00 PM", 11, 0, 13, 0)]                           // was 23:00
+    [InlineData("Office hours Tuesdays 11:30-12:45pm", 11, 30, 12, 45)]                         // was 23:30
+    [InlineData("Office hours Tuesdays 9-11pm", 21, 0, 23, 0)]                                  // control
+    [InlineData("Office hours Tuesdays 2-4pm", 14, 0, 16, 0)]                                   // control
+    public void SBV37_the_weekly_rule_reads_the_range_the_same_way(string raw, int h1, int m1, int h2, int m2)
+    {
+        var rec = Assert.Single(X.Extract(Input(raw)).Items).Recurrence!;
+        Assert.Equal(new TimeOnly(h1, m1), rec.Start);
+        Assert.Equal(new TimeOnly(h2, m2), rec.End);
+    }
+
+    [Fact]
+    public void SBV37_a_weekly_range_whose_start_is_after_its_end_either_way_makes_no_weekly_rule()
+    {
+        Assert.DoesNotContain(X.Extract(Input("Office hours Tuesdays 11-12am")).Items, i => i.Recurrence is not null);
+    }
+
+    /// <summary>The ruling, written out independently of the extractor: (start, end) or null for no time.</summary>
+    private static (TimeOnly Start, TimeOnly End)? Sbv37Expected(int h1, int m1, int h2, int m2, bool pm)
+    {
+        static int Hour(int h, bool pm) => pm ? (h == 12 ? 12 : h + 12) : (h == 12 ? 0 : h);
+        var end = new TimeOnly(Hour(h2, pm), m2);
+        var start = new TimeOnly(Hour(h1, pm), m1);
+        if (start < end) return (start, end);
+        start = new TimeOnly(Hour(h1, !pm), m1);
+        return start < end ? (start, end) : null;
+    }
+
+    [Fact]
+    public void SBV37_sweep_every_hour_pair_with_am_pm_only_on_the_end_never_starts_at_or_after_its_end()
+    {
+        var failures = new List<string>();
+        var n = 0;
+        (int M1, int M2, bool Colon1, bool Colon2)[] minutes = [(0, 0, false, false), (0, 0, true, true), (30, 15, true, true), (45, 0, true, false), (0, 30, false, true)];
+        (string Text, bool Pm)[] meridiems = [("pm", true), (" PM", true), ("p.m.", true), ("am", false), (" AM", false), (" a.m.", false)];
+        for (var h1 = 1; h1 <= 12; h1++)
+            for (var h2 = 1; h2 <= 12; h2++)
+                foreach (var (m1, m2, colon1, colon2) in minutes)
+                    foreach (var (ap, pm) in meridiems)
+                    {
+                        var clock = $"{h1}{(colon1 ? $":{m1:00}" : "")}-{h2}{(colon2 ? $":{m2:00}" : "")}{ap}";
+                        var expected = Sbv37Expected(h1, m1, h2, m2, pm);
+                        n++;
+
+                        // dated path
+                        var line = (n % 2 == 0 ? "Final exam Dec 9 " : "Final exam Dec 9 at ") + clock;
+                        var items = StoredItems(line);
+                        if (items.Count != 1) { failures.Add($"{line}: {items.Count} items"); continue; }
+                        var i = items[0];
+                        if (i.Date != new DateOnly(2026, 12, 9)) failures.Add($"{line}: date {i.Date}");
+                        if (i.Time != expected?.Start || i.EndTime != expected?.End)
+                            failures.Add($"{line}: {i.Time}-{i.EndTime}, expected {expected?.Start}-{expected?.End}");
+                        if (i.Time is { } s && i.EndTime is { } e && s >= e) failures.Add($"{line}: start {s} not before end {e}");
+                        if (i.Time is not null && i.EndTime is null) failures.Add($"{line}: end dropped");
+                        if (i.Time is { } s2 && (s2.Hour % 12 != h1 % 12 || s2.Minute != m1)) failures.Add($"{line}: start {s2} is not the written {h1}:{m1:00}");
+                        if (i.AllDay != (expected is null)) failures.Add($"{line}: allDay {i.AllDay}");
+
+                        // weekly path
+                        var weekly = "Office hours Tuesdays " + clock;
+                        var rec = X.Extract(Input(weekly)).Items.SingleOrDefault(x => x.Recurrence is not null)?.Recurrence;
+                        if (expected is null) { if (rec is not null) failures.Add($"{weekly}: weekly {rec.Start}-{rec.End}, expected none"); }
+                        else if (rec is null) failures.Add($"{weekly}: no weekly rule");
+                        else if (rec.Start != expected.Value.Start || rec.End != expected.Value.End)
+                            failures.Add($"{weekly}: {rec.Start}-{rec.End}, expected {expected.Value.Start}-{expected.Value.End}");
+                    }
+        Assert.True(n >= 12 * 12 * 5 * 6, $"sweep too small: {n}");
+        Assert.True(failures.Count == 0, $"{failures.Count} of {n}: " + string.Join(" | ", failures.Take(25)));
+    }
 }

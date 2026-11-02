@@ -186,6 +186,15 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
                 var meridiem2 = ap2.Length > 0 ? ap2 : ap1;
                 if (ToHour(h2, meridiem2, out var hh2) && mi2 <= 59) end = new TimeOnly(hh2, mi2);
             }
+            // SBV-37 (Lead ruling, 2026-11-02): am/pm written only on the END of a range is given to the start too, UNLESS that puts the start
+            // at or after the end; then the start is read in the other half of the day ('11-1pm' is 11:00-13:00, '10-12pm' is 10:00-12:00,
+            // '9-11pm' stays 21:00-23:00). If the start is still at or after the end ('11-12am'), the range is no time at all: never a start
+            // at or after its own end, and never the old reading (start in the evening, end silently dropped). Same rule on the weekly path.
+            if (ap1.Length == 0 && ap2.Length > 0 && end is { } written && new TimeOnly(hh1, mi1) >= written)
+            {
+                var other = char.ToLowerInvariant(ap2[0]) == 'p' ? "am" : "pm";
+                if (!ToHour(h1, other, out hh1) || new TimeOnly(hh1, mi1) >= written) return null;
+            }
             return (new TimeOnly(hh1, mi1), end is { } e && e > new TimeOnly(hh1, mi1) ? e : null, m.Value.Trim());
         }
         return null;
