@@ -57,7 +57,7 @@ public class LectureB15Tests(ApiFactory factory) : LectureTestBase(factory), ICl
 
         Assert.Equal(0, await ChildCountsAsync(a.UserId.ToString(), id));
         await (await a.Client.GetAsync($"/api/v1/sessions/{id}")).AssertProblemAsync(HttpStatusCode.NotFound, "not_found");
-        // B1-09 (open decision): evidence is kept by default.
+        // PO-20aw (decided): evidence is kept by default on session/course deletion.
         Assert.Equal(1, await CountAsync("consent_records", $"user_id = '{a.UserId}'"));
         Assert.True(await CountAsync("consent_events", $"user_id = '{a.UserId}'") >= 1);
         Assert.True(await CountAsync("audit_events", $"user_id = '{a.UserId}'") >= 1);

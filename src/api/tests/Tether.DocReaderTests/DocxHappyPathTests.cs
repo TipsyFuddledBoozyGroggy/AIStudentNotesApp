@@ -167,9 +167,42 @@ public class DocxHappyPathTests
             .Read();
         Assert.True(r.Succeeded, r.Failure.ToString());
         Assert.Equal(["Final exam"], r.Paragraphs);
+        var all = Reader.Everything(r);
+        Assert.DoesNotContain("HEADER-ONLY", all);
+        Assert.DoesNotContain("FOOTER-ONLY", all);
+        Assert.DoesNotContain("FOOTNOTE-ONLY", all);
         Assert.Equal(2, r.Dropped.HeaderFooterPartsSkipped);
         Assert.Equal(1, r.Dropped.NoteReferencesSkipped);
         Assert.Equal(0, r.Dropped.HiddenContentRemoved);
+    }
+
+    [Fact]
+    public void A_date_only_in_a_header_footer_footnote_or_endnote_is_not_in_the_output()
+    {
+        var hdr = $"<?xml version=\"1.0\"?><w:hdr xmlns:w=\"{W}\">{P("Midterm moved to Mar 3, 2027")}</w:hdr>";
+        var ftr = $"<?xml version=\"1.0\"?><w:ftr xmlns:w=\"{W}\">{P("Paper due Apr 4, 2027")}</w:ftr>";
+        var fn = $"<?xml version=\"1.0\"?><w:footnotes xmlns:w=\"{W}\"><w:footnote w:id=\"1\">{P("Quiz on May 5, 2027")}</w:footnote></w:footnotes>";
+        var en = $"<?xml version=\"1.0\"?><w:endnotes xmlns:w=\"{W}\"><w:endnote w:id=\"1\">{P("Final on Jun 6, 2027")}</w:endnote></w:endnotes>";
+        var body = "<w:p><w:r><w:t>Exam 1: Oct 19, 2026</w:t></w:r><w:r><w:footnoteReference w:id=\"1\"/></w:r><w:r><w:endnoteReference w:id=\"1\"/></w:r></w:p>";
+        var r = Standard(body)
+            .Set("word/header1.xml", hdr).Set("word/footer1.xml", ftr).Set("word/footnotes.xml", fn).Set("word/endnotes.xml", en)
+            .Set("word/_rels/document.xml.rels", DocumentRels(Rel("rIdH", "header", "header1.xml") + Rel("rIdF", "footer", "footer1.xml") + Rel("rIdN", "footnotes", "footnotes.xml") + Rel("rIdE", "endnotes", "endnotes.xml")))
+            .Read();
+        Assert.True(r.Succeeded, r.Failure.ToString());
+        Assert.Equal(["Exam 1: Oct 19, 2026"], r.Paragraphs);
+        var all = Reader.Everything(r);
+        foreach (var d in new[] { "Mar 3", "Apr 4", "May 5", "Jun 6", "2027" }) Assert.DoesNotContain(d, all);
+    }
+
+    [Fact]
+    public void Header_and_footer_parts_that_are_malformed_or_missing_are_never_read_and_break_nothing()
+    {
+        var r = Standard(P("Body only"))
+            .Set("word/header1.xml", "<not xml <<<")
+            .Set("word/_rels/document.xml.rels", DocumentRels(Rel("rIdH", "header", "header1.xml") + Rel("rIdF", "footer", "missing-footer.xml")))
+            .Read();
+        Assert.True(r.Succeeded, r.Failure.ToString());
+        Assert.Equal(["Body only"], r.Paragraphs);
     }
 
     [Fact]

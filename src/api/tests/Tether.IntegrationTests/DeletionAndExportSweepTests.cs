@@ -28,7 +28,7 @@ public class DeletionAndExportSweepTests(ApiFactory factory) : NotesTestBase(fac
     /// <summary>Survivors after a lecture SESSION is deleted (and, with <see cref="CourseExtra"/>, after a COURSE purge).</summary>
     private static readonly Dictionary<string, string> SessionSurvivors = new()
     {
-        ["lectures.consent_records"] = "Consent evidence is content free (ids, versions, times) and append-only on the app path; kept by decision B1-09 and removed only by lectures.purge_evidence (the erasure path). SessionService.DeleteAsync documents it.",
+        ["lectures.consent_records"] = "Consent evidence is content free (ids, versions, times) and append-only on the app path; kept by decision PO-20aw and removed only by lectures.purge_evidence (the erasure path). SessionService.DeleteAsync documents it.",
         ["lectures.consent_events"] = "Same as consent_records: content-free, append-only evidence of Start/Pause/Stop; no FK to the session by design.",
         ["lectures.audit_events"] = "Content-free audit trail (action name, ids, time); no FK by design; removed only by lectures.purge_evidence. Holds the session.delete row itself.",
         ["ai.ai_usage"] = "Content-free cost ledger (tokens, micros, outcome). No session FK BY DESIGN so that deleting a lecture does not refund the daily budget (docs/data/lock-order-audit.md, schema-syllabus-p2.md); rows die with the user (fk_ai_usage_user_id).",
