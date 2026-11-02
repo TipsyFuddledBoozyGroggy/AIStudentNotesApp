@@ -151,3 +151,17 @@ On or before 2026-12-01: re-scan the newest `postgres:16.x-alpine`; if gosu is r
 Other steps checked the same day: the repo config scan on a `git archive HEAD` copy is clean (exit 0). The `dotnet/sdk:10.0` report-only step shows 1 HIGH (libbrotli1 CVE-2026-111497, fixed in 1.1.0-2ubuntu0.1); it does not gate, and is dev tooling, so it is only reported.
 
 **Unproven until a PR run:** that trivy-action v0.35.0 honours `trivyignores: .trivyignore.yaml` on the runner (its entrypoint code supports a single YAML file, read from the pinned SHA), that the runner pulls the same gosu, . The running `cc-postgres-dev` image id (sha256:0cefaabd...) equals the `postgres:16.15-alpine` digest pulled today, so recreating it on the pinned tag should change nothing (read from `docker inspect`; recreate not done).
+
+
+## CI record, 2026-11-01 and 2026-11-02
+
+First runs on GitHub were red for non-code reasons and a few real bugs; each was fixed at its cause (see `docs/agents/lessons-log.md`). Fully green runs of the sharded pipeline, all jobs plus the aggregate `ci result (all required jobs)` check:
+
+| Run | Commit | Wall time |
+|---|---|---|
+| 41336514945 | first green run (after the layout and header fixes) | 19 min |
+| 41362025461 | 3471b93 | about 22 min |
+| 41394794168 | 1c32d29 (F-3 lock-order fix) | 22 min |
+| 41395502167 | cfdc590 (canary test fix) | about 22 min |
+
+Typical wall time is 20 to 25 minutes, set by the two `screens` shards. Not yet exercised on GitHub: the Trivy and dependency-review jobs (pull requests only), the nightly full matrix (not built, PO-20ak), and any deployment, backup/restore drill or telemetry (gate G5 stays not passed).
