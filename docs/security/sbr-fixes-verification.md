@@ -590,3 +590,74 @@ Reviewer: security-engineer, 2026-11-02, HEAD `347296b`. Ratings follow `severit
   - The register's section 6 recipes after editing the register.
 - **Not run:** `SyllabusServerDatesTests` and the rest of the integration suite (shared dev DB; told not to), the dev API and any web test. I did not show the new tests failing on the parent commit; the author reports 31 of 110.
 - **Not verified:** the commit's figures (AI 333, reader 131, architecture 27, contract 870, integration 653).
+
+# Ninth pass: SBV-18, SBV-29 and SBV-30 fixes (commit ad6bee5)
+
+Reviewer: security-engineer, 2026-11-02, HEAD `ad6bee5`. Ratings follow `severity-policy.md`, calibrated to the personal-tool scope (PO-15/16). No source or test file was edited.
+
+## Result
+
+- **SBV-18 MEDIUM: FIXED-VERIFIED.** Every example in the finding now reads as written or not at all:
+  - 'Sept 2026' and 'Dec 2026' read no day (the day is `[0-9]{1,2}(?!\d)`), and 'Dec 123' is not Dec 12.
+  - '5 October 2026' is Oct 5, explicit_full (the new `DayMonth` needs a written year and a date context).
+  - Lower-case 'may 3' and 'mar 2' are skipped unless an ordinal or a year follows.
+  - 'problems 9/30', '5/20 points', '5/20%' and 'pages 9/30' are not dates.
+  - The new tests fail on the parent commit's source (48 of 64) and pass on HEAD.
+- **SBV-29 LOW: FIXED-VERIFIED.** Every captured digit is `[0-9]`, and every number in `FindDates` goes through `Num` (`int.TryParse`, NumberStyles.None, invariant culture, at most 4 characters, null instead of an exception). The Clock regex also captures `[0-9]` only, so its `int.Parse` cannot throw. My fuzz: 200,000 inputs mixing fullwidth, Arabic-Indic, Devanagari, mathematical and superscript digits, 'ſept', 'İ' and 'ı', with 0 exceptions. 'ſept 5' is not read as a month, so there is no case-folding misread.
+- **SBV-30 LOW: FIXED-VERIFIED.**
+  - A reversed or empty range is read as its first day.
+  - A range end followed by ':N', '.N' or am/pm is not a range end.
+  - `ServerDates` drops an end date that is not after the date (counted, quote kept), so a reversed claim no longer fails the whole syllabus at `ck_items_end_date`.
+  - 'Dec 9-10.' at the end of a sentence and 'Oct 12-16 10am-noon' stay ranges.
+- **Question (1), ReDoS: no regex comes near the 250 ms timeout.**
+  - Raw 200,000-character lines bypassed canonicalisation. They were runs of spaces, 'Dec ', 'December ', digits, '1 ', '1-', hyphens, '1/', '1/1 ', 'on ', 'on 1 ', '1 Dec ', 'Monday, 1 Dec ', 'problems ' plus '9/30', spaces around '9/30', 'Dec 9-' plus digits, and '1' plus spaces plus '2'.
+  - The slowest single regex on any of them was 64 ms (Clock on '1/1 '). The new lookbehinds peaked at 61 ms (DayMonth on 200,000 digits) and 11 ms (Numeric on spaces before a digit).
+  - In production the lookbehinds' `\s*` never sees more than one space: `DocumentText.Canonicalize` collapses space runs and caps the text at 50,000 code points.
+  - The server's 1,500-code-point contexts took 0 to 1 ms each.
+  - On a timeout, `RegexMatchTimeoutException` is not caught in the Syllabus module.
+    - In `Extract` it reaches `ProcessAsync`'s catch, which fails the syllabus `invalid_output` and logs the type only.
+    - In `Apply` or `Rederive` it is thrown inside `PersistAsync`'s transaction before any `SaveChanges`, so the `await using` transaction rolls back and the same catch runs.
+    - Fails closed, no partial state (READ; I found no input that reaches a timeout, so this path was not exercised; SBV-16 unchanged).
+- **Question (2), day-first reading: acceptable for personal use.** I would not make every day-first date please_check.
+  - It reads correctly after 'on', 'due', 'by', ':', ';', '(', a weekday and at the line start.
+  - 'Fri 5th Oct 2026' is caught as a weekday conflict.
+  - It reads nothing for 'Midterm 2 Dec 2026', 'Chapter 12 December 2026', 'Exam 3 May 2026' and 'Week 12 December 2026'.
+  - The weak spot is the bare comma: 'Read chapters 4, 5 May 2026' becomes May 5, 2026 `looks_right` (SBV-34 LOW).
+  - 'Grades rise by 2 Dec 2026' reads Dec 2, but the line has no item keyword, so it is only an unclaimed date.
+- **Question (3), may/mar and N/M:**
+  - No bypass turns a non-date into a confident date beyond SBV-34 ('worth 5/20', 'pp. 9/30').
+  - The new exclusions do turn some real deadlines into silence: 'quiz on may 3', 'exam due may 3', 'quiz on mar. 3', 'Exam (Section 2) 3 Dec 2026', 'Exam from 1 to 3 Dec 2026' (SBV-33 LOW).
+- **Question (5), reversed ranges and the server check:** correct as above. 'Dec 30-32' has no end date. 'Feb 28-29, 2027' quietly loses its impossible end day (stored Feb 28; not a finding).
+
+## New findings
+
+- **SBV-32 MEDIUM (reachable with the mock; pre-existing, now asserted by the new tests):** `FindTime` ignores its `afterIndex` argument, so the day of a date becomes the start hour.
+  - 'Homework due Dec 9 - 1pm' is stored at 21:00, 'Homework due Dec 10 - 2:00 PM' at 22:00, 'Paper due Dec 11 - 9am' at 11:00.
+  - The meridiem has no word boundary, so 'Building 3 Amos Hall' is 03:00.
+  - All are `probably_right`.
+  - `DateMatcherTests` asserts 'Quiz Dec 9 - 11pm' as 21:00-23:00 and 'Quiz Dec 9-10am' as 09:00-10:00. The Lead should decide those readings.
+- **SBV-33 LOW:** the new exclusions make some real deadlines produce no item, no unclaimed date and no count (lesson L-DROP).
+- **SBV-34 LOW:** the comma context reads a list number as the day (`looks_right`, batch-approvable), and some N/M counts still read as dates.
+
+## Observations (Info, not findings)
+
+- **SBV-I23 (Lead product question, in the register):** a month and year with no day, and a day-first date outside the contexts ('Midterm 2 Dec 2026'), now yield no item. The Lead proposes a 'needs a date' item; the PO has not decided. Silence is safer than the old wrong day. If the PO declines, widen SBV-33.
+- **SBV-I24 (review only):** `FindDates` checks each new hit against every earlier hit (`hits.Any(Overlaps)`), so it is quadratic in the number of hits.
+  - At the 50,000-code-point text cap the worst line ('1/1 ' repeated, 12,497 hits) took 378 ms in `FindDates` and 399 ms for the whole pipeline.
+  - A raw 200,000-character line, which intake cannot produce, took 2.4 s.
+  - This is CPU time, not a regex timeout, and it predates this commit. A sorted sweep would make it linear if the cap is ever raised.
+
+## What I ran and what I did not verify (ninth pass)
+
+- **Ran:**
+  - `git show HEAD`, and reads of `SyllabusSignals.cs`, `MockRuleExtractor.cs` (Clock, FindTime, BuildDated, Apply), `Jobs.cs` (ProcessAsync, PersistAsync), `DocumentText.cs` (Canonicalize), `DateMatcherTests.cs` and `SyllabusDateMatcherTests.cs`.
+  - `MSYS_NO_PATHCONV=1 docker run --rm -v "<repo>:/repo" -w /repo/src/api mcr.microsoft.com/dotnet/sdk:10.0 dotnet test tests/Tether.SyllabusTests`: Passed 475, Failed 0, Skipped 0.
+  - The new `DateMatcherTests.cs` against the parent commit's `src/api` (from `git archive HEAD~1`, in my scratchpad), filtered to `DateMatcherTests`: Failed 48, Passed 16, Total 64.
+  - Two scratch console probes (outside the repo; the repo is mounted and its `bin`/`obj` get build output, as `dotnet test` does).
+    - About 100 misread attempts through `MockRuleExtractor`, `SyllabusLimits.Apply` and `ServerFlags.Rederive`.
+    - The 200,000-input fuzz.
+    - 31 raw 200,000-character timing lines (each regex alone, then `FindDates`, the canonical pipeline and the mock on raw text).
+    - 9 server contexts of 1,500 code points, and 4 lines at the 50,000-code-point cap.
+  - The register's section 6 recipes after editing the register.
+- **Not run:** `SyllabusDateMatcherTests` and the rest of the integration suite (shared dev DB; told not to), the dev API and any web test. A real regex timeout was not triggered, so the fail-closed path rests on reading.
+- **Not verified:** the commit's figures (AI 333, reader 131, contract 870, architecture 27, integration 654) and the author's 3,642-text equivalence run.
