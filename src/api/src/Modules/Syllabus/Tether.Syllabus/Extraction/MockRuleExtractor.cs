@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Tether.Syllabus.Application;
 using Tether.Syllabus.Text;
+using DateHit = Tether.Syllabus.Extraction.SyllabusSignals.DateHit;
 
 namespace Tether.Syllabus.Extraction;
 
@@ -37,21 +38,15 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
     public string Version => ExtractorVersion;
     public string Model => "mock";
 
-    private static readonly TimeSpan Timeout = TimeSpan.FromMilliseconds(250);
-    private const RegexOptions Opts = RegexOptions.CultureInvariant | RegexOptions.IgnoreCase;
+    // SBV-10: the date, weekday, tentative, injection and supersession matchers live in SyllabusSignals, shared with the server re-derivation
+    private static readonly TimeSpan Timeout = SyllabusSignals.Timeout;
+    private const RegexOptions Opts = SyllabusSignals.Opts;
 
-    private static readonly Regex MonthDay = new(
-        @"\b(?<mon>Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sept?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(?<day>\d{1,2})(?:st|nd|rd|th)?(?:\s*[-–]\s*(?<day2>\d{1,2})(?:st|nd|rd|th)?)?(?:\s*,\s*|\s+)?(?<year>(?:19|20|21)\d{2}\b)?",
-        Opts, Timeout);
-    private static readonly Regex Numeric = new(@"(?<![\d/.-])(?<m>\d{1,2})/(?<d>\d{1,2})(?:/(?<y>\d{4}|\d{2}))?(?![\d/])", Opts, Timeout);
-    private static readonly Regex Iso = new(@"(?<![\d-])(?<y>\d{4})-(?<m>\d{2})-(?<d>\d{2})(?![\d-])", Opts, Timeout);
     private static readonly Regex Clock = new(
         @"(?<![\d:])(?<h1>\d{1,2})(?::(?<m1>\d{2}))?\s*(?<a1>[ap]\.?m\.?)?\s*(?:[-–]\s*(?<h2>\d{1,2})(?::(?<m2>\d{2}))?\s*(?<a2>[ap]\.?m\.?)?)?(?![\d:])",
         Opts, Timeout);
-    private static readonly Regex Weekday = new(@"\b(?<wd>Mon|Tue(?:s)?|Wed(?:nes)?|Thu(?:r|rs)?|Fri|Sat(?:ur)?|Sun)(?:day)?s?\b\.?", Opts, Timeout);
     private static readonly Regex CompactDays = new(@"\b(?<c>MWF|MTWRF|MW|WF|MF|TR|TTh|TuTh)\b", RegexOptions.CultureInvariant, Timeout);
     private static readonly Regex Tba = new(@"\b(TBA|TBD|to be announced|to be determined)\b", Opts, Timeout);
-    private static readonly Regex Tentative = new(@"\b(tentative|subject to change|may (?:shift|change|move)|approximately|provisional)\b", Opts, Timeout);
     private static readonly Regex Policy = new(@"\b(late (?:work|policy|submission)s?|attendance policy|academic integrity|honou?r code|grading policy|accommodations?)\b", Opts, Timeout);
     private static readonly Regex ExamK = new(@"\b(exam|midterm|final|quiz|test)\b", Opts, Timeout);
     private static readonly Regex AssignK = new(@"\b(due|assignment|homework|problem set|pset|ps\d+|project|paper|essay|lab report|lab)\b", Opts, Timeout);
@@ -59,16 +54,6 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
     private static readonly Regex OfficeK = new(@"\boffice hours?\b", Opts, Timeout);
     private static readonly Regex MeetK = new(@"\b(lectures?|class meets|meets|meeting|section)\b", Opts, Timeout);
     private static readonly Regex NoClassK = new(@"\b(no class|holiday|break|recess|no lecture)\b", Opts, Timeout);
-    private static readonly Regex InjectionRx = new(
-        @"(ignore (?:all |any )?(?:the )?(?:previous|prior|above|earlier) (?:instructions|prompts?)|disregard (?:all |any )?(?:the )?(?:previous|prior|above)|\bsystem\s*:|\byou are (?:now )?(?:a|an|the) |reveal (?:your |the )?(?:system )?prompt|</?\s*untrusted|developer message|new instructions\s*:)",
-        Opts, Timeout);
-
-    private static readonly string[] SupersessionCues =
-    [
-        "canceled", "cancelled", "cancellation", "postponed", "rescheduled", "reschedule", "moved", "delayed", "pushed back", "changed", "change of",
-        "updated", "revised", "extended", "replaced", "instead", "formerly", "previously", "no longer", "is not", "will not be", "won't be",
-        "not held", "not on", "unless", "except", "tbd", "tba", "to be announced", "subject to change",
-    ];
 
     public ExtractorOutput Extract(ExtractorInput input)
     {
@@ -78,14 +63,14 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
         var unclaimed = new List<ProposedSnippet>();
         var dropped = 0;
 
-        var injection = input.InjectionSuspectFromText || InjectionRx.IsMatch(text);
-        var lowQuality = IsLowQuality(text);
+        var injection = input.InjectionSuspectFromText || SyllabusSignals.Injection.IsMatch(text);
+        var lowQuality = SyllabusSignals.IsLowQuality(text);
 
         for (var li = 0; li < lines.Count; li++)
         {
             var (ls, le) = lines[li];
             var line = text.Substring(ls, le - ls);
-            var dates = FindDates(line);
+            var dates = SyllabusSignals.FindDates(line);
             var kind = Classify(line, hasDate: dates.Count > 0);
 
             // SBV-02: every proposal lost to the item or unclaimed cap is counted in droppedInvalid (the orchestrator clamps it to the wire maximum)
@@ -126,7 +111,7 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
         {
             var (ls, le) = lines[li];
             var line = text.Substring(ls, le - ls);
-            if (FindDates(line).Count > 0) continue;
+            if (SyllabusSignals.FindDates(line).Count > 0) continue;
             var kind = Classify(line, hasDate: false);
             if (kind is not ("office_hours" or "other")) continue;
             var rec = TryRecurrence(line, kind, null);
@@ -150,52 +135,6 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
         if (ReadK.IsMatch(line)) return "reading";
         if (MeetK.IsMatch(line)) return "other";
         return null;
-    }
-
-    private sealed record DateHit(int Index, int Length, int? Year, int? Month, int? Day, int? Day2, bool Ambiguous, bool Invalid, string Text, string Style);
-
-    private static List<DateHit> FindDates(string line)
-    {
-        var hits = new List<DateHit>();
-        foreach (Match m in Iso.Matches(line))
-            hits.Add(new DateHit(m.Index, m.Length, int.Parse(m.Groups["y"].Value, CultureInfo.InvariantCulture), int.Parse(m.Groups["m"].Value, CultureInfo.InvariantCulture),
-                int.Parse(m.Groups["d"].Value, CultureInfo.InvariantCulture), null, false, false, m.Value.TrimEnd(), "iso"));
-        foreach (Match m in MonthDay.Matches(line))
-        {
-            if (hits.Any(h => Overlaps(h, m))) continue;
-            var yearText = m.Groups["year"].Success ? m.Groups["year"].Value : null;
-            var span = m.Value.TrimEnd(' ', ',');
-            hits.Add(new DateHit(m.Index, span.Length, yearText is null ? null : int.Parse(yearText, CultureInfo.InvariantCulture), MonthNumber(m.Groups["mon"].Value),
-                int.Parse(m.Groups["day"].Value, CultureInfo.InvariantCulture), m.Groups["day2"].Success ? int.Parse(m.Groups["day2"].Value, CultureInfo.InvariantCulture) : null,
-                false, false, span, "month"));
-        }
-        foreach (Match m in Numeric.Matches(line))
-        {
-            if (hits.Any(h => Overlaps(h, m))) continue;
-            var a = int.Parse(m.Groups["m"].Value, CultureInfo.InvariantCulture); var b = int.Parse(m.Groups["d"].Value, CultureInfo.InvariantCulture);
-            int? year = null;
-            if (m.Groups["y"].Success) { var y = int.Parse(m.Groups["y"].Value, CultureInfo.InvariantCulture); year = y < 100 ? 2000 + y : y; }
-            // month first is the default (design question 7); both readings possible and different is "ambiguous_format", never guessed
-            var ambiguous = a is >= 1 and <= 12 && b is >= 1 and <= 12 && a != b;
-            var invalid = !(a is >= 1 and <= 12) && !(b is >= 1 and <= 12) || (a > 12 && b > 12);
-            hits.Add(new DateHit(m.Index, m.Length, year, a, b, null, ambiguous, invalid, m.Value, "numeric"));
-        }
-        return [.. hits.OrderBy(h => h.Index)];
-    }
-
-    private static bool Overlaps(DateHit h, Match m) => m.Index < h.Index + h.Length && h.Index < m.Index + m.Length;
-
-    private static int MonthNumber(string s) => s.ToLowerInvariant()[..3] switch
-    {
-        "jan" => 1, "feb" => 2, "mar" => 3, "apr" => 4, "may" => 5, "jun" => 6, "jul" => 7, "aug" => 8, "sep" => 9, "oct" => 10, "nov" => 11, _ => 12,
-    };
-
-    private static string? WeekdayBefore(string line, int index)
-    {
-        var prefix = line[..index];
-        var m = Weekday.Matches(prefix).LastOrDefault();
-        if (m is null || prefix.Length - (m.Index + m.Length) > 3) return null;
-        return m.Groups["wd"].Value.ToLowerInvariant()[..2] switch { "mo" => "MO", "tu" => "TU", "we" => "WE", "th" => "TH", "fr" => "FR", "sa" => "SA", _ => "SU" };
     }
 
     private static (TimeOnly Start, TimeOnly? End, string Text)? FindTime(string line, int? afterIndex)
@@ -236,7 +175,7 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
         if (date is not null) return null;                                           // an explicit date is a single occurrence
         if (kind is not ("office_hours" or "other")) return null;
         var days = new SortedSet<int>();
-        foreach (Match m in Weekday.Matches(line))
+        foreach (Match m in SyllabusSignals.Weekday.Matches(line))
             days.Add(m.Groups["wd"].Value.ToLowerInvariant()[..2] switch { "mo" => 1, "tu" => 2, "we" => 3, "th" => 4, "fr" => 5, "sa" => 6, _ => 0 });
         foreach (Match m in CompactDays.Matches(line))
             foreach (var d in m.Groups["c"].Value switch
@@ -251,17 +190,7 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
         return new ProposedRecurrence(codes, t.Start, t.End, default, default, "term_end");
     }
 
-    private static bool IsLowQuality(string text)
-    {
-        if (text.Length < 40) return false;
-        var good = 0;
-        foreach (var ch in text) if (char.IsLetterOrDigit(ch) || ch is ' ' or '\n' or '.' or ',' or ':' or '-' or '/' or '(' or ')' or ';' or '\'' or '"' or '?' or '!' or '%' or '&' or '$' or '#') good++;
-        return (double)good / text.Length < 0.7;
-    }
-
     // ---- item builders ----
-
-    private static string[] ForcingFlags => ["tentative_language", "weekday_mismatch", "table_layout_risk", "outside_term", "injection_suspect", "supersession_cue", "low_text_quality", "dst_ambiguous"];
 
     private static ProposedItem BuildDated(string text, List<(int Start, int End)> lines, int li, string kind, DateHit hit, bool injection, bool lowQuality, ExtractorInput input)
     {
@@ -272,31 +201,28 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
         DateOnly? date = null; DateOnly? endDate = null;
         var alts = new List<(DateOnly, TimeOnly?)>();
 
-        var weekday = WeekdayBefore(line, hit.Index);
+        var weekday = SyllabusSignals.WeekdayBefore(line, hit.Index);
         var time = FindTime(line, hit.Index + hit.Length);
         if (time is null && kind == "exam") flags.Add("time_missing");
 
-        var month = hit.Month; var day = hit.Day;
-        if (hit.Invalid) unknown = "ambiguous_format";
-        else if (hit.Ambiguous) unknown = "ambiguous_format";
-        else if (month is null or < 1 or > 12 || day is null or < 1 or > 31) unknown = "ambiguous_format";
+        // SBV-10: the month and day are read by the shared rule, so the server's weekday check reads a written date the same way
+        if (SyllabusSignals.MonthDayOf(hit) is not { } md) unknown = "ambiguous_format";
         else
         {
-            // a numeric date where only the day-first reading is valid (m > 12) is read day-first
-            if (hit.Style == "numeric" && month > 12 && day <= 12) (month, day) = (day, month);
+            var (month, day) = md;
             int? year = hit.Year;
             if (year is not null)
             {
-                if (year is < 2000 or > 2100 || day > DateTime.DaysInMonth(year.Value, month.Value)) unknown = "date_not_verifiable";
-                else { date = new DateOnly(year.Value, month.Value, day.Value); derivation = "explicit_full"; }
+                if (year is < 2000 or > 2100 || day > DateTime.DaysInMonth(year.Value, month)) unknown = "date_not_verifiable";
+                else { date = new DateOnly(year.Value, month, day); derivation = "explicit_full"; }
             }
             else if (input.TermStart is { } ts && input.TermEnd is { } te)
             {
                 var candidates = new List<DateOnly>();
                 foreach (var y in new[] { ts.Year, te.Year }.Distinct())
-                    if (y is >= 2000 and <= 2100 && day <= DateTime.DaysInMonth(y, month.Value))
+                    if (y is >= 2000 and <= 2100 && day <= DateTime.DaysInMonth(y, month))
                     {
-                        var c = new DateOnly(y, month.Value, day.Value);
+                        var c = new DateOnly(y, month, day);
                         if (c >= ts && c <= te) candidates.Add(c);
                     }
                 if (candidates.Count == 1) { date = candidates[0]; derivation = "year_from_term"; flags.Add("year_inferred"); }
@@ -364,28 +290,12 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
         string? derivation, string? unknown, IReadOnlyList<(DateOnly, TimeOnly?)> alts, ProposedRecurrence? rec, List<string> flags, bool injection, bool lowQuality, ExtractorInput input)
     {
         var snippet = SliceSnippet(text, lines, li, hit);
-        if (Tentative.IsMatch(line)) flags.Add("tentative_language");
-        if (HasSupersessionCue(snippet.Text) || HasSupersessionCue(snippet.ContextText)) flags.Add("supersession_cue");
+        if (SyllabusSignals.Tentative.IsMatch(line)) flags.Add("tentative_language");
+        if (SyllabusSignals.HasSupersessionCue(snippet.Text) || SyllabusSignals.HasSupersessionCue(snippet.ContextText)) flags.Add("supersession_cue");
         if (injection) flags.Add("injection_suspect");
         if (lowQuality) flags.Add("low_text_quality");
         var distinct = flags.Distinct().ToList();
-
-        string confidence; string reason;
-        var forced = distinct.Any(f => ForcingFlags.Contains(f)) || input.HiddenContentDropped;
-        if (whenStatus == "needs_date")
-        {
-            confidence = "please_check";
-            reason = unknown switch
-            {
-                "tba" => "The date is to be announced.", "conflicting" => "The date and the weekday written do not agree.",
-                "ambiguous_format" => "The date could be read two ways.", "date_not_verifiable" => "The date could not be matched to your term.",
-                _ => "No full date is written for this.",
-            };
-        }
-        else if (whenStatus == "not_applicable") { confidence = "probably_right"; reason = "No date is written for this."; }
-        else if (forced) { confidence = "please_check"; reason = input.HiddenContentDropped ? "This file has hidden text, so please check each date." : distinct.Contains("supersession_cue") ? "The wording around this date may mean it changed." : "One detail here is unclear. Please check."; }
-        else if (derivation == "explicit_full") { confidence = "looks_right"; reason = "The full date is written in your syllabus."; }
-        else { confidence = "probably_right"; reason = derivation == "year_from_term" ? "The year comes from your term dates." : "Worked out from your term dates."; }
+        var (confidence, reason) = SyllabusSignals.Confidence(whenStatus, unknown, derivation, distinct, input.HiddenContentDropped);
 
         var title = MakeTitle(line, kind, hit, time?.Text);
         return new ProposedItem(kind, title, whenStatus, hit?.Text is { } dt ? Truncate(dt, 100) : null, time?.Text is { Length: > 0 } tt ? Truncate(tt, 50) : null,
@@ -395,21 +305,12 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
 
     private static string Truncate(string s, int cp) => TextPolicy.CodePoints(s) <= cp ? s : new string(s.EnumerateRunes().Take(cp).SelectMany(r => r.ToString()).ToArray());
 
-    private static bool HasSupersessionCue(string s)
-    {
-        string folded;
-        try { folded = s.Normalize(NormalizationForm.FormKC).ToLowerInvariant(); } catch (ArgumentException) { folded = s.ToLowerInvariant(); }
-        foreach (var cue in SupersessionCues)
-            if (Regex.IsMatch(folded, @"(?<![a-z])" + Regex.Escape(cue) + @"(?![a-z])", RegexOptions.CultureInvariant, Timeout)) return true;
-        return false;
-    }
-
     private static string MakeTitle(string line, string kind, DateHit? hit, string? timeText)
     {
         var t = line;
         if (hit is not null && hit.Index + hit.Length <= t.Length) t = t.Remove(hit.Index, hit.Length);
         if (!string.IsNullOrEmpty(timeText)) { var i = t.IndexOf(timeText, StringComparison.Ordinal); if (i >= 0) t = t.Remove(i, timeText.Length); }
-        t = Weekday.Replace(t, " ");
+        t = SyllabusSignals.Weekday.Replace(t, " ");
         t = Regex.Replace(t, @"\s+", " ", RegexOptions.CultureInvariant, Timeout).Trim(' ', ':', '-', '–', ',', ';', '|', '.', '(', ')');
         if (TextPolicy.CodePoints(t) > 120) t = Truncate(t, 120).TrimEnd(' ', ':', '-', ',', ';');
         if (t.Length >= 2 && TextPolicy.TryValidate(t, TextKind.SingleLine, 200, out var ok)) return ok;

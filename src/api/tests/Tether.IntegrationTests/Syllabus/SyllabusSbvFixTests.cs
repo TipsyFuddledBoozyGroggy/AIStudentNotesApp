@@ -146,6 +146,113 @@ public class SyllabusNarrowedContextTests(SyllabusNarrowedContextTests.Factory f
 }
 
 /// <summary>
+/// SBV-10 (docs/ai/syllabus-extraction-design.md section 17, condition 3): the server, not the extractor, has the last word on the
+/// context-based flags and the confidence they force. A stand-in extractor wraps the mock and, for "The final is NOT on Dec 9, 2026", narrows
+/// the quote to "on Dec 9, 2026", leaves out <c>supersession_cue</c> and says <c>looks_right</c>. The stored and served item has the cue,
+/// is <c>please_check</c> and is refused by batch approve. An extra valid flag the extractor adds is kept; an unknown flag is still refused.
+/// </summary>
+public class SyllabusServerFlagsTests(SyllabusServerFlagsTests.Factory f) : SyllabusTestBase(f), IClassFixture<SyllabusServerFlagsTests.Factory>
+{
+    internal sealed class SteeringExtractor : ISyllabusExtractor
+    {
+        private readonly MockRuleExtractor _inner = new();
+        public string Version => _inner.Version;
+        public string Model => _inner.Model;
+        public ExtractorOutput Extract(ExtractorInput input)
+        {
+            var o = _inner.Extract(input);
+            ProposedSnippet Narrow(string needle)
+            {
+                var s = input.Text.IndexOf(needle, StringComparison.Ordinal);
+                return new ProposedSnippet(s, s + needle.Length, needle, s, s + needle.Length, needle, "exact");
+            }
+            var items = o.Items.Select(i =>
+                i.Snippet.ContextText.Contains("NOT on Dec 9", StringComparison.Ordinal)
+                    ? i with
+                    {
+                        Snippet = Narrow("on Dec 9, 2026"), Flags = [.. i.Flags.Where(f => f != "supersession_cue")],
+                        Confidence = "looks_right", ConfidenceReason = "The full date is written in your syllabus.",
+                    }
+                : i.Snippet.ContextText.StartsWith("Midterm", StringComparison.Ordinal) ? i with { Flags = [.. i.Flags, "section_ambiguous"] }
+                : i.Snippet.ContextText.Contains("BADFLAG", StringComparison.Ordinal) ? i with { Flags = [.. i.Flags, "not_a_flag"] }
+                : i).ToList();
+            return o with { Items = items };
+        }
+    }
+
+    public sealed class Factory : ApiFactory
+    {
+        protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.ConfigureTestServices(s => { s.RemoveAll<ISyllabusExtractor>(); s.AddSingleton<ISyllabusExtractor, SteeringExtractor>(); });
+        }
+    }
+
+    private static Task<HttpResponseMessage> Batch(HttpClient c, string syl, params System.Text.Json.JsonElement[] items) =>
+        c.SendAsync(Req(HttpMethod.Post, $"{Api}/syllabi/{syl}/decisions",
+            new { action = "approve", itemEtags = items.ToDictionary(i => i.GetProperty("id").GetString()!, i => i.GetProperty("etag").GetString()!) }));
+
+    [Fact]
+    public async Task SBV10_a_narrowed_quote_that_omits_supersession_cue_and_says_looks_right_is_stored_please_check_and_is_not_batch_approvable()
+    {
+        var a = await NewActorAsync(); var course = await CourseAsync(a.Client);
+        var done = await CreateReadyAsync(a.Client, course, Paste("Midterm exam: Oct 19, 2026 at 10:00 AM\nThe final is NOT on Dec 9, 2026"));
+        Assert.Equal("ready", done.GetProperty("status").GetString());
+        SyllabusSchemas.AssertValid("syllabus", done);
+        Assert.True(done.GetProperty("batchApproveAllowed").GetBoolean());                        // the document itself is clean
+        var sid = done.GetProperty("id").GetString()!; var g = Guid32(sid);
+
+        var items = await ItemsAsync(a.Client, sid);
+        var final = Assert.Single(items, i => i.GetProperty("snippet").GetProperty("text").GetString() == "on Dec 9, 2026");
+        SyllabusSchemas.AssertValid("syllabus-item", final);
+        Assert.Equal("The final is NOT on Dec 9, 2026", final.GetProperty("snippet").GetProperty("context").GetProperty("text").GetString());
+        Assert.Contains("supersession_cue", final.GetProperty("flags").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal("please_check", final.GetProperty("confidence").GetString());
+        Assert.Equal("The wording around this date may mean it changed.", final.GetProperty("confidenceReason").GetString());
+
+        // the extractor's extra valid flag is kept and, not being a forcing flag, leaves the honest midterm looks_right
+        var midterm = ByTitle(items, "Midterm");
+        Assert.Contains("section_ambiguous", midterm.GetProperty("flags").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal("looks_right", midterm.GetProperty("confidence").GetString());
+
+        // batch approve: the midterm is applied, the final is refused (batch_not_eligible) and stays undecided
+        var res = await Batch(a.Client, sid, midterm, final);
+        Assert.Equal(System.Net.HttpStatusCode.OK, res.StatusCode);
+        var b = await res.BodyAsync();
+        SyllabusSchemas.AssertValid("syllabus-decision-batch-result", b);
+        Assert.Equal(1, b.GetProperty("counts").GetProperty("applied").GetInt32());
+        Assert.Equal(1, b.GetProperty("counts").GetProperty("rejected").GetInt32());
+        var rejected = b.GetProperty("results").EnumerateArray().Single(r => r.GetProperty("outcome").GetString() == "rejected");
+        Assert.Equal("batch_not_eligible", rejected.GetProperty("errorCode").GetString());
+        Assert.Equal(final.GetProperty("id").GetString(), rejected.GetProperty("itemId").GetString());
+        // one-by-one approval still needs the student's acknowledgement
+        await (await Decide(a.Client, sid, final, "approved")).AssertProblemAsync(System.Net.HttpStatusCode.Conflict, "acknowledgement_required");
+
+        // the row: flag, confidence and decision; the immutable proposal row keeps what the extractor said (provenance)
+        Assert.Equal(1, await F.ScalarAsync($"""
+            select count(*) from syllabus.items where syllabus_id = '{g}' and snippet_text = 'on Dec 9, 2026'
+              and 'supersession_cue' = any(flags) and confidence = 'please_check' and decision = 'undecided'
+            """));
+        Assert.Equal(1, await F.ScalarAsync($"""
+            select count(*) from syllabus.item_proposals p join syllabus.items i on i.id = p.item_id
+            where i.syllabus_id = '{g}' and i.snippet_text = 'on Dec 9, 2026' and p.proposal->>'confidence' = 'looks_right'
+              and not (p.proposal->'flags' ? 'supersession_cue')
+            """));
+    }
+
+    [Fact]
+    public async Task SBV10_an_unknown_flag_from_the_extractor_is_still_refused()
+    {
+        var a = await NewActorAsync(); var course = await CourseAsync(a.Client);
+        var done = await CreateReadyAsync(a.Client, course, Paste("Quiz 3 due Oct 28, 2026 BADFLAG"));
+        Assert.Equal("failed", done.GetProperty("status").GetString());                           // ck_items_flags, as before SBV-10
+        Assert.Equal("invalid_output", done.GetProperty("statusReason").GetString());
+        Assert.Equal(0, await F.ScalarAsync($"select count(*) from syllabus.items where syllabus_id = '{Guid32(done.GetProperty("id").GetString()!)}'"));
+    }
+}
+
+/// <summary>
 /// SBV-04: a stripped hidden character between a letter and its combining mark used to leave the stored canonical text non-NFC, although the
 /// contract (API_CONTRACTS_P2.md section 2.2) says it is NFC. The stored text, the paste content hash and every stored quote now agree on the
 /// final NFC string, so the decomposed-with-hidden-character paste and the precomposed paste are the same syllabus for duplicate detection.

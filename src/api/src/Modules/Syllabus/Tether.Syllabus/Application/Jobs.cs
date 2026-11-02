@@ -84,8 +84,9 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
             if (text is null) { await FailAsync(core, lease, syllabusId, "unreadable_file", ct); return; }
             if (!await SetStageAsync(core, lease, syllabusId, "proposing", ct)) return;
             await Task.Delay(opt.MockStageDelayMilliseconds, ct);
-            var output = extractor.Extract(new ExtractorInput(text.Text, syl.TermStart, syl.TermEnd, syl.DefaultTimezone, syl.HiddenContentDropped, syl.InjectionSuspect));
-            await PersistAsync(core, lease, syl, text.Text, output, ct);
+            var input = new ExtractorInput(text.Text, syl.TermStart, syl.TermEnd, syl.DefaultTimezone, syl.HiddenContentDropped, syl.InjectionSuspect);
+            var output = extractor.Extract(input);
+            await PersistAsync(core, lease, syl, input, output, ct);
         }
         catch (OperationCanceledException) { /* deleted while running, or shutting down: the lease expiry re-queues a shutdown case */ }
         catch (Exception ex)
@@ -126,8 +127,9 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
         await tx.CommitAsync(ct);
     }
 
-    private async Task PersistAsync(SyllabusCore core, Lease lease, SyllabusDoc syl, string canonical, ExtractorOutput output, CancellationToken ct)
+    private async Task PersistAsync(SyllabusCore core, Lease lease, SyllabusDoc syl, ExtractorInput input, ExtractorOutput output, CancellationToken ct)
     {
+        var canonical = input.Text;
         var db = core.Db; var uid = core.Uid; var now = Now();
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         // the DELETE handler takes this same lock: it either waits for this step or this step finds the syllabus gone and writes nothing
@@ -148,12 +150,17 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
             // SBV-06: the stored context window is chosen by the server (the whole canonical line around the snippet, or a bounded window
             // of a very long line), never by the extractor, so a narrowed context cannot hide a word such as "NOT" next to a quoted date.
             // SBV-02: the overflow beyond the item and unclaimed caps is counted as well.
+            // SBV-10: the context-based flags (supersession cue, tentative language, injection, low text quality, weekday mismatch, outside
+            // the term, DST gap) are re-derived by the server from the stored quote and the server-chosen context and UNIONED with the
+            // extractor's flags (an extractor can add a flag, never remove one); the confidence is then lowered to what the confidence rule
+            // gives for the merged flags, never raised. The proposal row below keeps what the extractor itself said (provenance).
             var kept = SyllabusLimits.Apply(output, opt.MaxAiItems, canonical);
-            var fitting = kept.Items;
+            var doc = ServerFlags.Document(input);
             var unclaimedFitting = kept.Unclaimed;
             var droppedInvalid = kept.DroppedInvalid;
-            foreach (var p in fitting)
+            foreach (var proposal in kept.Items)
             {
+                var p = ServerFlags.Rederive(proposal, input, doc);
                 var id = Ids.New();
                 items.Add(new SyllabusItem
                 {
@@ -172,7 +179,7 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
                 proposals.Add(new ItemProposal
                 {
                     ItemId = id, UserId = uid, SyllabusId = syl.Id, ValidatorVersion = extractor.Version, PromptVersion = "none", SchemaVersion = "syllabus.extract.v1", Model = extractor.Model, CreatedAt = now,
-                    Proposal = JsonSerializer.Serialize(new { kind = p.Kind, title = p.Title, status = p.WhenStatus, date = Local.DateOrNull(p.Date), flags = p.Flags, confidence = p.Confidence }),
+                    Proposal = JsonSerializer.Serialize(new { kind = proposal.Kind, title = proposal.Title, status = proposal.WhenStatus, date = Local.DateOrNull(proposal.Date), flags = proposal.Flags, confidence = proposal.Confidence }),
                 });
             }
             db.Items.AddRange(items);
@@ -185,8 +192,9 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
             }));
             await db.SaveChangesAsync(ct);
 
-            var suspect = syl.InjectionSuspect || output.InjectionSuspect;
-            var batch = !suspect && !syl.HiddenContentDropped && !output.LowTextQuality && !items.Any(i => i.Flags.Contains("low_text_quality"));
+            // SBV-10: the document-level signals the server read itself count too, so an extractor cannot clear them either
+            var suspect = syl.InjectionSuspect || output.InjectionSuspect || doc.InjectionSuspect;
+            var batch = !suspect && !syl.HiddenContentDropped && !output.LowTextQuality && !doc.LowTextQuality && !items.Any(i => i.Flags.Contains("low_text_quality"));
             await core.Sql.ExecAsync("""
                 UPDATE syllabus.syllabi SET status = 'ready', status_reason = NULL, injection_suspect = @p0, batch_approve_allowed = @p1, dropped_invalid = @p2,
                     extractor_version = @p3, model = @p4, schema_version = 'syllabus.extract.v1', updated_at = @p5, purge_after = NULL
