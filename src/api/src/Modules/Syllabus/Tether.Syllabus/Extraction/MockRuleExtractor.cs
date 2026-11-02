@@ -44,8 +44,9 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
 
     // SBV-29: the captured hour and minute digits are ASCII only, so int.Parse below cannot throw on a Unicode digit (\d matches every
     // Unicode decimal digit); the boundaries keep \d, so a Unicode digit next to a number still stops it from being read.
+    // SBV-32: a meridiem is "am"/"pm" (dots optional) NOT followed by a letter, so "Building 3 Amos Hall" or "room 3 Pmb" has no time.
     private static readonly Regex Clock = new(
-        @"(?<![\d:])(?<h1>[0-9]{1,2})(?::(?<m1>[0-9]{2}))?\s*(?<a1>[ap]\.?m\.?)?\s*(?:[-–]\s*(?<h2>[0-9]{1,2})(?::(?<m2>[0-9]{2}))?\s*(?<a2>[ap]\.?m\.?)?)?(?![\d:])",
+        @"(?<![\d:])(?<h1>[0-9]{1,2})(?::(?<m1>[0-9]{2}))?\s*(?<a1>[ap]\.?m\.?(?!\p{L}))?\s*(?:[-–]\s*(?<h2>[0-9]{1,2})(?::(?<m2>[0-9]{2}))?\s*(?<a2>[ap]\.?m\.?(?!\p{L}))?)?(?![\d:])",
         Opts, Timeout);
     private static readonly Regex Tba = new(@"\b(TBA|TBD|to be announced|to be determined)\b", Opts, Timeout);
     private static readonly Regex Policy = new(@"\b(late (?:work|policy|submission)s?|attendance policy|academic integrity|honou?r code|grading policy|accommodations?)\b", Opts, Timeout);
@@ -138,9 +139,16 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
         return null;
     }
 
+    /// <summary>
+    /// The first clock time in <paramref name="line"/> at or after <paramref name="afterIndex"/> (the end of the date's own text), or anywhere
+    /// in the line for a weekly rule (null). SBV-32 (Lead ruling 2026-11-02): for a dated item the time is read ONLY from the text after the
+    /// date, so the date's day is never a start hour ("Homework due Dec 9 - 1pm" is 13:00, not 21:00; "Dec 9-10am" is 10:00, not 09:00-10:00).
+    /// A time written before the date is not read.
+    /// </summary>
     private static (TimeOnly Start, TimeOnly? End, string Text)? FindTime(string line, int? afterIndex)
     {
-        foreach (Match m in Clock.Matches(line))
+        var from = Math.Clamp(afterIndex ?? 0, 0, line.Length);
+        foreach (Match m in Clock.Matches(line, from))
         {
             var hasColon = m.Groups["m1"].Success; var ap1 = m.Groups["a1"].Value; var ap2 = m.Groups["a2"].Value;
             if (!hasColon && ap1.Length == 0 && ap2.Length == 0) continue;           // a bare number is not a time
@@ -303,7 +311,8 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
     {
         var t = line;
         if (hit is not null && hit.Index + hit.Length <= t.Length) t = t.Remove(hit.Index, hit.Length);
-        if (!string.IsNullOrEmpty(timeText)) { var i = t.IndexOf(timeText, StringComparison.Ordinal); if (i >= 0) t = t.Remove(i, timeText.Length); }
+        // SBV-32: the time was read after the date, so it is removed from there (an equal string earlier in the line is left in the title)
+        if (!string.IsNullOrEmpty(timeText)) { var i = t.IndexOf(timeText, Math.Min(hit?.Index ?? 0, t.Length), StringComparison.Ordinal); if (i >= 0) t = t.Remove(i, timeText.Length); }
         t = SyllabusSignals.Weekday.Replace(t, " ");
         t = Regex.Replace(t, @"\s+", " ", RegexOptions.CultureInvariant, Timeout).Trim(' ', ':', '-', '–', ',', ';', '|', '.', '(', ')');
         if (TextPolicy.CodePoints(t) > 120) t = Truncate(t, 120).TrimEnd(' ', ':', '-', ',', ';');

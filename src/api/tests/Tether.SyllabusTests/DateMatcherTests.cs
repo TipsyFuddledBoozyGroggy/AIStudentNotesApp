@@ -361,14 +361,17 @@ public class DateMatcherTests
         Assert.Contains(r.Unclaimed, u => u.Text == mock.Snippet.Text);
     }
 
+    // SBV-32 (Lead ruling, 2026-11-02): these rows used to expect the date's day read as a start hour ('Quiz Dec 9-10am' = 09:00-10:00,
+    // 'Quiz Dec 9 - 11pm' = 21:00-23:00, 'Quiz Dec 9-10:30 AM' = 09:00-10:30). That was the misread itself. The time is read only from the
+    // text after the date's own text ('Dec 9'), so each is ONE time with no end time: 10:00, 23:00, 10:30. No start-end range is inferred.
     [Theory]
-    [InlineData("Quiz Dec 9-10am", 9, 0, 10, 0)]
-    [InlineData("Quiz Dec 9-10 am", 9, 0, 10, 0)]
-    [InlineData("Quiz Dec 9-10 a.m.", 9, 0, 10, 0)]
-    [InlineData("Quiz Dec 9 - 11pm", 21, 0, 23, 0)]
-    [InlineData("Quiz Dec 9-10:30", -1, 0, -1, 0)]
-    [InlineData("Quiz Dec 9-10:30 AM", 9, 0, 10, 30)]
-    public void SBV30_a_time_after_a_hyphen_is_a_time_range_not_a_date_range(string raw, int h1, int m1, int h2, int m2)
+    [InlineData("Quiz Dec 9-10am", 10, 0)]
+    [InlineData("Quiz Dec 9-10 am", 10, 0)]
+    [InlineData("Quiz Dec 9-10 a.m.", 10, 0)]
+    [InlineData("Quiz Dec 9 - 11pm", 23, 0)]
+    [InlineData("Quiz Dec 9-10:30", 10, 30)]
+    [InlineData("Quiz Dec 9-10:30 AM", 10, 30)]
+    public void SBV30_a_time_after_a_hyphen_is_a_time_not_a_date_range(string raw, int h1, int m1)
     {
         var hit = SyllabusSignals.FindDates(raw).First();
         Assert.Equal((12, 9), SyllabusSignals.MonthDayOf(hit));
@@ -376,11 +379,8 @@ public class DateMatcherTests
         var item = Assert.Single(StoredItems(raw));
         Assert.Equal(new DateOnly(2026, 12, 9), item.Date);
         Assert.Null(item.EndDate);                                                               // was Dec 9 to Dec 10
-        if (h1 >= 0)
-        {
-            Assert.Equal(new TimeOnly(h1, m1), item.Time);
-            Assert.Equal(new TimeOnly(h2, m2), item.EndTime);
-        }
+        Assert.Equal(new TimeOnly(h1, m1), item.Time);
+        Assert.Null(item.EndTime);                                                               // SBV-32: the day 9 is not a start hour
 
         // a steered extractor that claims the two-day range is dropped and counted
         var input = Input(raw);
@@ -389,5 +389,166 @@ public class DateMatcherTests
         var r = SyllabusLimits.Apply(o with { Items = [claim] }, 200, input.Text);
         Assert.Empty(r.Items);
         Assert.Equal(o.DroppedInvalid + 1, r.DroppedInvalid);
+    }
+
+    // ---------------------------------------------------------------- SBV-32: the time is read only after the date
+
+    [Theory]
+    [InlineData("Homework due Dec 9 - 1pm", 9, 13, 0)]                                         // was 21:00 (the day 9 read as 9pm)
+    [InlineData("Homework due Dec 10 - 2:00 PM", 10, 14, 0)]                                   // was 22:00
+    [InlineData("Paper due Dec 11 - 9am", 11, 9, 0)]                                           // was 11:00
+    [InlineData("Quiz Dec 9-10am", 9, 10, 0)]                                                  // was 09:00-10:00
+    [InlineData("Homework due Dec 9 at 1pm", 9, 13, 0)]
+    [InlineData("Lab 3 report due Dec 9 at 5 PM", 9, 17, 0)]                                   // a number before the date is not read
+    public void SBV32_the_time_is_the_clock_time_written_after_the_date(string raw, int day, int h, int m)
+    {
+        var item = Assert.Single(StoredItems(raw));
+        Assert.Equal(new DateOnly(2026, 12, day), item.Date);
+        Assert.Equal(new TimeOnly(h, m), item.Time);
+        Assert.Null(item.EndTime);
+        Assert.False(item.AllDay);
+    }
+
+    [Theory]
+    [InlineData("Exam Dec 9 Building 3 Amos Hall")]
+    [InlineData("Exam Dec 9 in room 3 Pmb")]
+    [InlineData("Exam Dec 9 section 3 a.mixed")]
+    public void SBV32_am_or_pm_followed_by_a_letter_is_not_a_meridiem(string raw)
+    {
+        var item = Assert.Single(StoredItems(raw));
+        Assert.Equal(new DateOnly(2026, 12, 9), item.Date);
+        Assert.Null(item.Time);                                                                  // was 03:00 / 15:00
+        Assert.True(item.AllDay);
+    }
+
+    [Fact]
+    public void SBV32_a_weekly_line_with_a_word_starting_with_am_has_no_time_and_no_recurrence()
+    {
+        var input = Input("Office hours Tuesdays in Building 3 Amos Hall");
+        Assert.DoesNotContain(X.Extract(input).Items, i => i.Recurrence is not null);           // was weekly at 03:00
+    }
+
+    [Theory]
+    [InlineData("Office hours Tuesdays 2-3pm", 14, 15)]
+    [InlineData("Office hours Tuesdays 2:00-3:00 PM", 14, 15)]
+    public void SBV32_controls_a_weekly_time_range_with_no_date_is_still_read(string raw, int h1, int h2)
+    {
+        var rec = Assert.Single(X.Extract(Input(raw)).Items).Recurrence!;
+        Assert.Equal(new TimeOnly(h1, 0), rec.Start);
+        Assert.Equal(new TimeOnly(h2, 0), rec.End);
+    }
+
+    [Fact]
+    public void SBV32_controls_a_time_range_written_after_the_date_is_still_a_range()
+    {
+        var item = Assert.Single(StoredItems("Final exam Dec 9 2-4pm"));
+        Assert.Equal(new TimeOnly(14, 0), item.Time);
+        Assert.Equal(new TimeOnly(16, 0), item.EndTime);
+        item = Assert.Single(StoredItems("Reading week Oct 12-16 10am-noon"));
+        Assert.Equal(new DateOnly(2026, 10, 16), item.EndDate);
+    }
+
+    /// <summary>(written clock text, start, end or null)</summary>
+    private static IEnumerable<(string Text, TimeOnly Start, TimeOnly? End)> Clocks()
+    {
+        foreach (var h in new[] { 1, 2, 5, 9, 10, 11, 12 })
+            foreach (var (ap, pm) in new[] { ("am", false), ("pm", true), (" AM", false), (" PM", true), ("a.m.", false), (" p.m.", true) })
+            {
+                var hh = pm ? (h == 12 ? 12 : h + 12) : (h == 12 ? 0 : h);
+                yield return ($"{h}{ap}", new TimeOnly(hh, 0), null);
+                yield return ($"{h}:30{ap}", new TimeOnly(hh, 30), null);
+            }
+        foreach (var (h, m) in new[] { (0, 15), (8, 0), (9, 45), (13, 5), (17, 30), (23, 59) })
+            yield return ($"{h}:{m:00}", new TimeOnly(h, m), null);
+        yield return ("2-4pm", new TimeOnly(14, 0), new TimeOnly(16, 0));
+        yield return ("10:00-11:15 AM", new TimeOnly(10, 0), new TimeOnly(11, 15));
+    }
+
+    [Fact]
+    public void SBV32_sweep_a_resolved_time_always_equals_the_clock_time_written_after_the_date()
+    {
+        var failures = new List<string>();
+        var n = 0;
+        var dates = new List<(string Text, DateOnly Date)>();
+        for (var d = 1; d <= 31; d++) dates.Add(($"Oct {d}", new DateOnly(2026, 10, d)));                 // every day, so every hour 1-12 is a day
+        for (var d = 1; d <= 11; d++) dates.Add(($"Dec {d}, 2026", new DateOnly(2026, 12, d)));
+        dates.Add(("September 9th", new DateOnly(2026, 9, 9)));
+        dates.Add(("Nov. 12", new DateOnly(2026, 11, 12)));
+        string[] prefixes = ["Quiz ", "Homework due ", "Lab 3 report due ", "Exam 2 (room 101) on "];
+        string[] separators = [" at ", " - ", " ", ", ", "-", " from "];
+        foreach (var (dateText, date) in dates)
+            foreach (var (clock, start, end) in Clocks())
+                foreach (var sep in separators)
+                {
+                    if (sep == "-" && (end is not null || dateText.EndsWith("2026", StringComparison.Ordinal))) continue;   // 'Dec 9-2-4pm' is not a way to write it
+                    var prefix = prefixes[n % prefixes.Length];
+                    n++;
+                    var line = prefix + dateText + sep + clock;
+                    var items = StoredItems(line);
+                    if (items.Count != 1) { failures.Add($"{line}: {items.Count} items"); continue; }
+                    var i = items[0];
+                    if (i.Date != date) failures.Add($"{line}: date {i.Date}");
+                    if (i.Time != start) failures.Add($"{line}: time {i.Time}");
+                    if (i.EndTime != end) failures.Add($"{line}: end time {i.EndTime}");
+                    if (i.EndDate is not null) failures.Add($"{line}: end date {i.EndDate}");
+                }
+        Assert.True(n > 5_000, $"sweep too small: {n}");
+        Assert.True(failures.Count == 0, $"{failures.Count} of {n}: " + string.Join(" | ", failures.Take(25)));
+    }
+
+    // ---------------------------------------------------------------- SBV-34: a comma is not a day-first date context
+
+    [Theory]
+    [InlineData("Read chapters 4, 5 May 2026")]
+    [InlineData("Homework sets 1, 2 Dec 2026")]
+    public void SBV34_a_list_number_after_a_comma_is_not_a_day(string raw)
+    {
+        Assert.DoesNotContain(SyllabusSignals.FindDates(raw), h => h.Day is not null);
+        Assert.DoesNotContain(StoredItems(raw), i => i.Date is not null);                        // was May 5 / Dec 2, 2026 looks_right
+    }
+
+    [Theory]
+    [InlineData("Quiz on Fri, 4 Dec 2026", 12, 4)]
+    [InlineData("Quiz: 4 Dec 2026", 12, 4)]
+    [InlineData("Quiz (4 Dec 2026)", 12, 4)]
+    [InlineData("Quiz due 4 Dec 2026", 12, 4)]
+    public void SBV34_controls_a_day_first_date_in_a_date_context_is_still_read(string raw, int month, int day)
+    {
+        var hit = Assert.Single(SyllabusSignals.FindDates(raw));
+        Assert.Equal((month, day), SyllabusSignals.MonthDayOf(hit));
+        Assert.Equal(2026, hit.Year);
+    }
+
+    // ---------------------------------------------------------------- SBV-33: a lowercase may/mar after a date word is a month
+
+    [Theory]
+    [InlineData("quiz on may 3", 5, 3)]
+    [InlineData("exam due may 3", 5, 3)]
+    [InlineData("quiz on mar. 3", 3, 3)]
+    [InlineData("Paper due by may 3", 5, 3)]
+    [InlineData("Paper due before mar 3", 3, 3)]
+    [InlineData("Late labs accepted until may 3", 5, 3)]
+    [InlineData("Exam window from may 3", 5, 3)]
+    [InlineData("Reading through mar 3", 3, 3)]
+    [InlineData("quiz On may 3", 5, 3)]
+    public void SBV33_a_lowercase_may_or_mar_right_after_a_date_word_is_a_month(string raw, int month, int day)
+    {
+        var hit = Assert.Single(SyllabusSignals.FindDates(raw));
+        Assert.Equal((month, day), SyllabusSignals.MonthDayOf(hit));
+        var input = Input(raw, term: false);
+        var o = X.Extract(input);
+        Assert.True(o.Items.Count + o.Unclaimed.Count > 0, "the deadline must not be silent");    // was no item, no unclaimed date, no count
+    }
+
+    [Theory]
+    [InlineData("Students may 3 times retake the quiz")]
+    [InlineData("Late homework may 2 days late be accepted for the lab")]
+    [InlineData("Lab groups mar 2 desks per lab")]
+    [InlineData("Quizzes on time may 3 points earn")]
+    [InlineData("Exam: you may 3 times ask")]
+    [InlineData("Homework due soon may 2 days slip")]
+    public void SBV33_controls_a_lowercase_may_or_mar_without_a_date_word_right_before_it_is_still_not_a_month(string raw)
+    {
+        Assert.Empty(SyllabusSignals.FindDates(raw));
     }
 }

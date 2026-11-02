@@ -19,22 +19,28 @@ internal static class SyllabusSignals
     // digit, which int.Parse refuses (it threw, failing the whole syllabus). Boundaries keep \d, so a Unicode digit next to a number still
     // stops it from being read as a day. A day is at most two digits with no digit after it, so "Sept 2026" is a month and a year with no
     // day (it was read as Sep 20) and "Dec 123" is not Dec 12. A range end ("Oct 12-16") is not a range end when a clock time follows it
-    // ("Dec 9-10am", "Dec 9-10:30" is Dec 9 with a time range); a reversed or empty range is read as the first day only (FindDates).
+    // ("Dec 9-10am", "Dec 9-10:30" is Dec 9 with a time, read after "Dec 9": 10:00, 10:30; SBV-32); a reversed or empty range is read as the
+    // first day only (FindDates).
     private const string MonthNames =
         @"Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sept?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?";
     private const string Year = @"(?<year>(?:19|20|21)[0-9]{2}\b)";
 
+    // SBV-33: <cue> succeeds when a lowercase "may"/"mar" is directly preceded by a date word (on, due, by, before, until, from, through), so
+    // "quiz on may 3" and "exam due mar. 3" are dates while "Students may 3 times" is not (FindDates). The lookbehind runs only after a month
+    // name has matched, and it adds no text to the match. SBV-30/32: a range end followed by a clock time, or by "-" and a clock time with a
+    // meridiem ("Dec 9 - 2-4pm"), is not a date range end.
     internal static readonly Regex MonthDay = new(
-        @"\b(?<mon>" + MonthNames + @")\.?\s+(?<day>[0-9]{1,2})(?!\d)(?<ord>st|nd|rd|th)?(?:\s*[-–]\s*(?<day2>[0-9]{1,2})(?!\d)(?:st|nd|rd|th)?(?!\s*(?:[:.][0-9]|[ap]\.?m\b)))?(?:\s*,\s*|\s+)?" + Year + "?",
+        @"\b(?<mon>" + MonthNames + @")(?:(?<=\b(?:on|due|by|before|until|from|through)\s+(?:may|mar))(?<cue>))?\.?\s+(?<day>[0-9]{1,2})(?!\d)(?<ord>st|nd|rd|th)?(?:\s*[-–]\s*(?<day2>[0-9]{1,2})(?!\d)(?:st|nd|rd|th)?(?!\s*(?:[:.][0-9]|[ap]\.?m\b|[-–]\s*[0-9]{1,2}(?:[:.][0-9]{2})?\s*[ap]\.?m\b)))?(?:\s*,\s*|\s+)?" + Year + "?",
         Opts, Timeout);
     /// <summary>
     /// SBV-18: a day-first date ("5 October 2026", "Fri 5th Oct 2026") is read only with a written year and only where a date is expected:
-    /// at the start of the text, after punctuation that introduces one ("(", ":", ";", ","), or after a word that does ("on", "due", "by",
+    /// at the start of the text, after punctuation that introduces one ("(", "[", ":", ";"), or after a word that does ("on", "due", "by",
     /// "from", "until", "before", "after", a weekday). So "Quiz on 5 October 2026" is Oct 5 (it was Oct 20), while "Midterm 2 Dec 2026"
-    /// (a label number and a month) reads no day at all.
+    /// (a label number and a month) reads no day at all. SBV-34: a bare comma is not such a context, because it separates list numbers
+    /// ("Read chapters 4, 5 May 2026" reads no day); a weekday's comma ("Fri, 4 Dec 2026") still is.
     /// </summary>
     internal static readonly Regex DayMonth = new(
-        @"(?<=(?:^|[(\[:;,]|\b(?:on|due|by|from|until|till|before|after|(?:Mon|Tue|Tues|Wed|Thu|Thur|Thurs|Fri|Sat|Sun)(?:day)?)\.?,?)\s*)(?<!\d)(?<day>[0-9]{1,2})(?!\d)(?<ord>st|nd|rd|th)?\s+(?<mon>" + MonthNames + @")\b\.?(?:\s*,\s*|\s+)" + Year,
+        @"(?<=(?:^|[(\[:;]|\b(?:on|due|by|from|until|till|before|after|(?:Mon|Tue|Tues|Wed|Thu|Thur|Thurs|Fri|Sat|Sun)(?:day)?)\.?,?)\s*)(?<!\d)(?<day>[0-9]{1,2})(?!\d)(?<ord>st|nd|rd|th)?\s+(?<mon>" + MonthNames + @")\b\.?(?:\s*,\s*|\s+)" + Year,
         Opts, Timeout);
     /// <summary>
     /// SBV-18: "N/M" is not a date when it is a count or a score: after "problem(s)", "page(s)", "question(s)", "exercise(s)", or before
@@ -118,8 +124,11 @@ internal static class SyllabusSignals
             if (hits.Any(h => Overlaps(h, m))) continue;
             // SBV-18: "may" and "mar" in lower case are usually the verbs ("Students may 3 times ..."); they are a month only with an ordinal
             // day or a written year ("may 3rd", "may 3, 2027"). "May", "MAY", "Mar", "March" and "march" are months as before.
+            // SBV-33: also when a date word comes right before it ("quiz on may 3", "exam due may 3", "until mar. 3"), so those deadlines are
+            // not silently lost; nothing wider (Lead ruling 2026-11-02).
             var mon = m.Groups["mon"].Value;
-            if (mon.Length == 3 && char.IsLower(mon[0]) && mon.ToLowerInvariant() is "may" or "mar" && !m.Groups["ord"].Success && !m.Groups["year"].Success) continue;
+            if (mon.Length == 3 && char.IsLower(mon[0]) && mon.ToLowerInvariant() is "may" or "mar"
+                && !m.Groups["ord"].Success && !m.Groups["year"].Success && !m.Groups["cue"].Success) continue;
             if (Num(m.Groups["day"]) is not { } day) continue;
             int? year = null;
             if (m.Groups["year"].Success) { if (Num(m.Groups["year"]) is not { } y) continue; year = y; }
