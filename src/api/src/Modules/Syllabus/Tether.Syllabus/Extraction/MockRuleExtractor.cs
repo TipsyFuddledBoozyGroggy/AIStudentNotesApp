@@ -45,8 +45,11 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
     // SBV-29: the captured hour and minute digits are ASCII only, so int.Parse below cannot throw on a Unicode digit (\d matches every
     // Unicode decimal digit); the boundaries keep \d, so a Unicode digit next to a number still stops it from being read.
     // SBV-32: a meridiem is "am"/"pm" (dots optional) NOT followed by a letter, so "Building 3 Amos Hall" or "room 3 Pmb" has no time.
+    // SBV-36a: except a known time zone abbreviation glued to it (upper case, then a non-letter), so "11:59pmET" is 23:59 again.
+    // SBV-36c: the hour must not follow a letter, so "room CS3pm" has no time.
+    private const string Meridiem = @"[ap]\.?m\.?(?:(?!\p{L})|(?=(?-i:ET|EST|EDT|CT|CST|CDT|MT|MST|MDT|PT|PST|PDT|UTC|GMT)(?!\p{L})))";
     private static readonly Regex Clock = new(
-        @"(?<![\d:])(?<h1>[0-9]{1,2})(?::(?<m1>[0-9]{2}))?\s*(?<a1>[ap]\.?m\.?(?!\p{L}))?\s*(?:[-–]\s*(?<h2>[0-9]{1,2})(?::(?<m2>[0-9]{2}))?\s*(?<a2>[ap]\.?m\.?(?!\p{L}))?)?(?![\d:])",
+        @"(?<![\d:\p{L}])(?<h1>[0-9]{1,2})(?::(?<m1>[0-9]{2}))?\s*(?<a1>" + Meridiem + @")?\s*(?:[-–]\s*(?<h2>[0-9]{1,2})(?::(?<m2>[0-9]{2}))?\s*(?<a2>" + Meridiem + @")?)?(?![\d:])",
         Opts, Timeout);
     private static readonly Regex Tba = new(@"\b(TBA|TBD|to be announced|to be determined)\b", Opts, Timeout);
     private static readonly Regex Policy = new(@"\b(late (?:work|policy|submission)s?|attendance policy|academic integrity|honou?r code|grading policy|accommodations?)\b", Opts, Timeout);
@@ -104,7 +107,7 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
             var rec = TryRecurrence(line, kind, first);
             items.Add(rec is not null
                 ? BuildRecurring(text, lines, li, kind, rec, injection, lowQuality, input)
-                : BuildDated(text, lines, li, kind, first, injection, lowQuality, input));
+                : BuildDated(text, lines, li, kind, dates, injection, lowQuality, input));
         }
 
         // recurring lines without any explicit date
@@ -140,18 +143,37 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
     }
 
     /// <summary>
-    /// The first clock time in <paramref name="line"/> at or after <paramref name="afterIndex"/> (the end of the date's own text), or anywhere
-    /// in the line for a weekly rule (null). SBV-32 (Lead ruling 2026-11-02): for a dated item the time is read ONLY from the text after the
-    /// date, so the date's day is never a start hour ("Homework due Dec 9 - 1pm" is 13:00, not 21:00; "Dec 9-10am" is 10:00, not 09:00-10:00).
-    /// A time written before the date is not read.
+    /// The clock time of the <paramref name="i"/>-th date of <paramref name="line"/> (<paramref name="dates"/> is <see cref="SyllabusSignals.FindDates"/>
+    /// of the line, in order). SBV-32 (Lead ruling 2026-11-02): it is read ONLY from the text after the date's own text, so the date's day is
+    /// never a start hour ("Homework due Dec 9 - 1pm" is 13:00, not 21:00; "Dec 9-10am" is 10:00, not 09:00-10:00); a time written before the
+    /// date is not read (SBV-36d, as ruled). SBV-35 (Lead ruling 2026-11-02): the scan stops at the start of the next date on the line, so a
+    /// time written for a later date is not given to this one ("Quiz Dec 9; Exam Dec 11 at 2pm": Dec 9 has no time, Dec 11 is 14:00).
+    /// SBV-36b: a colon time with no am/pm counts only when its hour is 13-23 or written with a leading zero ("14:00", "08:30"), so
+    /// "John 3:16" and "sections 3:10-3:45" are no time.
     /// </summary>
-    private static (TimeOnly Start, TimeOnly? End, string Text)? FindTime(string line, int? afterIndex)
+    internal static (TimeOnly Start, TimeOnly? End, string Text)? TimeOf(string line, IReadOnlyList<DateHit> dates, int i) =>
+        FindTime(line, dates[i].Index + dates[i].Length, i + 1 < dates.Count ? dates[i + 1].Index : line.Length, strictColon: true);
+
+    /// <summary>
+    /// The first clock time in <paramref name="line"/> in [<paramref name="afterIndex"/>, <paramref name="beforeIndex"/>), or anywhere in the line
+    /// for a weekly rule (null). A clock that runs past <paramref name="beforeIndex"/> is no time. <paramref name="strictColon"/> applies the
+    /// SBV-36b rule (dated items only: the weekly rule keeps reading "Office hours Tuesdays 10:00-11:00", which would otherwise vanish
+    /// without a trace, because a dateless line with no recurrence makes neither an item nor a date we noticed).
+    /// </summary>
+    private static (TimeOnly Start, TimeOnly? End, string Text)? FindTime(string line, int? afterIndex, int? beforeIndex = null, bool strictColon = false)
     {
         var from = Math.Clamp(afterIndex ?? 0, 0, line.Length);
+        var bound = Math.Clamp(beforeIndex ?? line.Length, from, line.Length);
         foreach (Match m in Clock.Matches(line, from))
         {
+            if (m.Index + m.Value.TrimEnd().Length > bound) break;                   // at or across the next date: no time for this one
             var hasColon = m.Groups["m1"].Success; var ap1 = m.Groups["a1"].Value; var ap2 = m.Groups["a2"].Value;
             if (!hasColon && ap1.Length == 0 && ap2.Length == 0) continue;           // a bare number is not a time
+            if (strictColon && ap1.Length == 0 && ap2.Length == 0)
+            {
+                var hText = m.Groups["h1"].Value;                                     // SBV-36b: '14:00' or '08:30', never 'John 3:16'
+                if (!(hText.Length == 2 && hText[0] == '0') && int.Parse(hText, CultureInfo.InvariantCulture) is < 13 or > 23) continue;
+            }
             var h1 = int.Parse(m.Groups["h1"].Value, CultureInfo.InvariantCulture);
             var mi1 = hasColon ? int.Parse(m.Groups["m1"].Value, CultureInfo.InvariantCulture) : 0;
             var meridiem1 = ap1.Length > 0 ? ap1 : ap2;
@@ -194,17 +216,18 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
 
     // ---- item builders ----
 
-    private static ProposedItem BuildDated(string text, List<(int Start, int End)> lines, int li, string kind, DateHit hit, bool injection, bool lowQuality, ExtractorInput input)
+    private static ProposedItem BuildDated(string text, List<(int Start, int End)> lines, int li, string kind, IReadOnlyList<DateHit> dates, bool injection, bool lowQuality, ExtractorInput input)
     {
         var (ls, le) = lines[li];
         var line = text.Substring(ls, le - ls);
+        var hit = dates[0];
         var flags = new List<string>();
         string? unknown = null; string? derivation = null;
         DateOnly? date = null; DateOnly? endDate = null;
         var alts = new List<(DateOnly, TimeOnly?)>();
 
         var weekday = SyllabusSignals.WeekdayBefore(line, hit.Index);
-        var time = FindTime(line, hit.Index + hit.Length);
+        var time = TimeOf(line, dates, 0);
         if (time is null && kind == "exam") flags.Add("time_missing");
 
         // SBV-10: the month and day are read by the shared rule, so the server's weekday check reads a written date the same way
