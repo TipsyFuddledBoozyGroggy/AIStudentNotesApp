@@ -37,6 +37,27 @@ internal static class SyllabusSignals
     internal static readonly IReadOnlySet<string> ForcingFlags = new HashSet<string>(StringComparer.Ordinal)
         { "tentative_language", "weekday_mismatch", "table_layout_risk", "outside_term", "injection_suspect", "supersession_cue", "low_text_quality", "dst_ambiguous" };
 
+    // SBV-14: the fixed vocabulary of confidenceReason (API_CONTRACTS_P2.md section 4, "confidence"). Copy reviewed in docs/ux/language-guide.md 8.3.
+    internal const string ReasonFullDate = "The full date is written in your syllabus.";
+    internal const string ReasonYearFromTerm = "The year comes from your term dates.";
+    internal const string ReasonFromTerm = "Worked out from your term dates.";
+    internal const string ReasonNoDate = "No date is written for this.";
+    internal const string ReasonUnclear = "One detail here is unclear. Please check.";
+    internal const string ReasonHidden = "This file has hidden text, so please check each date.";
+    internal const string ReasonChanged = "The wording around this date may mean it changed.";
+    internal const string ReasonTba = "The date is to be announced.";
+    internal const string ReasonConflicting = "The date and the weekday written do not agree.";
+    internal const string ReasonAmbiguous = "The date could be read two ways.";
+    internal const string ReasonNotVerifiable = "The date could not be matched to your term.";
+    internal const string ReasonNotStated = "No full date is written for this.";
+
+    /// <summary>Every <c>confidenceReason</c> the server ever stores: the rule's reasons and the two set by item edits (<see cref="ItemRules"/>).</summary>
+    internal static readonly IReadOnlySet<string> ReasonVocabulary = new HashSet<string>(StringComparer.Ordinal)
+    {
+        ReasonFullDate, ReasonYearFromTerm, ReasonFromTerm, ReasonNoDate, ReasonUnclear, ReasonHidden, ReasonChanged, ReasonTba, ReasonConflicting,
+        ReasonAmbiguous, ReasonNotVerifiable, ReasonNotStated, ItemRules.StudentReason, ItemRules.EditedAiReason,
+    };
+
     public static bool HasSupersessionCue(string s)
     {
         string folded;
@@ -116,8 +137,16 @@ internal static class SyllabusSignals
     }
 
     /// <summary>
-    /// The confidence rule (V12): a needs-date item is please_check; a dateless policy is probably_right; any forcing flag or hidden content
-    /// in the file forces please_check; only an explicit full date looks right; anything else is probably right.
+    /// The flags syllabus-item.schema.json (allOf P2-08/P2-19) forces to <c>please_check</c> on ANY item, a dateless policy included (SBV-11).
+    /// The web parser refuses an item that breaks this, and with it the whole page.
+    /// </summary>
+    internal static readonly IReadOnlySet<string> SchemaForcingFlags = new HashSet<string>(StringComparer.Ordinal)
+        { "injection_suspect", "supersession_cue", "low_text_quality" };
+
+    /// <summary>
+    /// The confidence rule (V12): a needs-date item is please_check; a dateless policy is probably_right unless it carries one of the
+    /// <see cref="SchemaForcingFlags"/> (SBV-11), then please_check; any forcing flag or hidden content in the file forces please_check on a
+    /// dated item; only an explicit full date looks right; anything else is probably right.
     /// </summary>
     public static (string Confidence, string Reason) Confidence(string whenStatus, string? unknownReason, string? derivation, IReadOnlyCollection<string> flags, bool hiddenContentDropped)
     {
@@ -125,16 +154,28 @@ internal static class SyllabusSignals
         if (whenStatus == "needs_date")
             return ("please_check", unknownReason switch
             {
-                "tba" => "The date is to be announced.", "conflicting" => "The date and the weekday written do not agree.",
-                "ambiguous_format" => "The date could be read two ways.", "date_not_verifiable" => "The date could not be matched to your term.",
-                _ => "No full date is written for this.",
+                "tba" => ReasonTba, "conflicting" => ReasonConflicting, "ambiguous_format" => ReasonAmbiguous, "date_not_verifiable" => ReasonNotVerifiable,
+                _ => ReasonNotStated,
             });
-        if (whenStatus == "not_applicable") return ("probably_right", "No date is written for this.");
-        if (forced)
-            return ("please_check", hiddenContentDropped ? "This file has hidden text, so please check each date."
-                : flags.Contains("supersession_cue") ? "The wording around this date may mean it changed." : "One detail here is unclear. Please check.");
-        if (derivation == "explicit_full") return ("looks_right", "The full date is written in your syllabus.");
-        return ("probably_right", derivation == "year_from_term" ? "The year comes from your term dates." : "Worked out from your term dates.");
+        // a policy has no date, so the date-worded reasons ("this date", "each date") do not fit; hidden content alone does not force it (Lead ruling)
+        if (whenStatus == "not_applicable") return flags.Any(SchemaForcingFlags.Contains) ? ("please_check", ReasonUnclear) : ("probably_right", ReasonNoDate);
+        if (forced) return ("please_check", hiddenContentDropped ? ReasonHidden : flags.Contains("supersession_cue") ? ReasonChanged : ReasonUnclear);
+        if (derivation == "explicit_full") return ("looks_right", ReasonFullDate);
+        return ("probably_right", derivation == "year_from_term" ? ReasonYearFromTerm : ReasonFromTerm);
+    }
+
+    /// <summary>
+    /// SBV-14: the reason stored for <paramref name="confidence"/>, always from the fixed vocabulary, never the extractor's text. When the
+    /// stored confidence is the rule's, it is the rule's reason. When an extractor was more cautious than the rule (the stored confidence is
+    /// the lower of the two, V12), it is <see cref="ReasonUnclear"/> for please_check, and for probably_right (the rule said looks_right, which
+    /// only an explicit full date gets) <see cref="ReasonFullDate"/>, which states the evidence and not a certainty. An unknown confidence keeps
+    /// the rule's reason (the database refuses the value anyway).
+    /// </summary>
+    public static string Reason(string confidence, string whenStatus, string? unknownReason, string? derivation, IReadOnlyCollection<string> flags, bool hiddenContentDropped)
+    {
+        var (rule, reason) = Confidence(whenStatus, unknownReason, derivation, flags, hiddenContentDropped);
+        if (confidence == rule) return reason;
+        return confidence switch { "please_check" => ReasonUnclear, "probably_right" when derivation == "explicit_full" => ReasonFullDate, _ => reason };
     }
 }
 
@@ -156,7 +197,8 @@ internal static class SyllabusSignals
 /// The final flags are the extractor's (in its order, duplicates merged) followed by the server's that it left out, so an extractor can add
 /// a flag but never remove one. Unknown flags are passed through untouched, so the database check still refuses them as before. The
 /// confidence is then lowered, never raised, to what <see cref="SyllabusSignals.Confidence"/> gives for the merged set (V12: min of the model
-/// and the server cap); when it is lowered, the reason is the rule's. An item the server has nothing to add to is returned as the same
+/// and the server cap). SBV-14: the reason is always set by the server (<see cref="SyllabusSignals.Reason"/>, fixed vocabulary) for the
+/// stored confidence; the extractor's reason text is never stored. An item the server has nothing to change is returned as the same
 /// instance, so the mock's output is stored byte-identical, and the step is idempotent.
 /// </summary>
 internal static class ServerFlags
@@ -173,16 +215,15 @@ internal static class ServerFlags
         var merged = new List<string>(p.Flags.Count + derived.Count);
         foreach (var f in p.Flags.Concat(derived)) if (!merged.Contains(f, StringComparer.Ordinal)) merged.Add(f);
 
-        var (ruleConfidence, ruleReason) = SyllabusSignals.Confidence(p.WhenStatus, p.UnknownReason, p.Derivation, merged, doc.HiddenContentDropped);
+        var (ruleConfidence, _) = SyllabusSignals.Confidence(p.WhenStatus, p.UnknownReason, p.Derivation, merged, doc.HiddenContentDropped);
         var lower = Rank(p.Confidence) is { } given && Rank(ruleConfidence) is { } rule && rule < given;   // an unknown value is left for the DB to refuse
+        var confidence = lower ? ruleConfidence : p.Confidence;
+        // SBV-14: the reason is always the server's, from the fixed vocabulary, for the confidence that is stored (never the extractor's text)
+        var reason = SyllabusSignals.Reason(confidence, p.WhenStatus, p.UnknownReason, p.Derivation, merged, doc.HiddenContentDropped);
+        var sameFlags = merged.SequenceEqual(p.Flags, StringComparer.Ordinal);
 
-        if (!lower && merged.SequenceEqual(p.Flags, StringComparer.Ordinal)) return p;
-        return p with
-        {
-            Flags = merged,
-            Confidence = lower ? ruleConfidence : p.Confidence,
-            ConfidenceReason = lower ? ruleReason : p.ConfidenceReason,
-        };
+        if (!lower && sameFlags && string.Equals(reason, p.ConfidenceReason, StringComparison.Ordinal)) return p;
+        return p with { Flags = sameFlags ? p.Flags : merged, Confidence = confidence, ConfidenceReason = reason };
     }
 
     private static int? Rank(string confidence) => confidence switch { "please_check" => 0, "probably_right" => 1, "looks_right" => 2, _ => null };

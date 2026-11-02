@@ -153,7 +153,9 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
             // SBV-10: the context-based flags (supersession cue, tentative language, injection, low text quality, weekday mismatch, outside
             // the term, DST gap) are re-derived by the server from the stored quote and the server-chosen context and UNIONED with the
             // extractor's flags (an extractor can add a flag, never remove one); the confidence is then lowered to what the confidence rule
-            // gives for the merged flags, never raised. The proposal row below keeps what the extractor itself said (provenance).
+            // gives for the merged flags, never raised. SBV-14: the confidence reason is always the server's (fixed vocabulary), never the
+            // extractor's text. SBV-11: a policy item with a schema-forcing flag is please_check. The proposal row below keeps what the
+            // extractor itself said (provenance: its flags and confidence; its reason text is not kept, it is not validated structure).
             var kept = SyllabusLimits.Apply(output, opt.MaxAiItems, canonical);
             var doc = ServerFlags.Document(input);
             var unclaimedFitting = kept.Unclaimed;

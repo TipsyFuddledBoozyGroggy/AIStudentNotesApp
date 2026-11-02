@@ -190,12 +190,13 @@ public class ServerFlagsTests
         {
             Items =
             [
-                midterm with { Confidence = "probably_right", ConfidenceReason = "The year comes from your term dates." },   // lower than the rule: kept
+                midterm with { Confidence = "probably_right", ConfidenceReason = "The year comes from your term dates." },   // lower than the rule: kept (the confidence)
                 ps1 with { Confidence = "looks_right", ConfidenceReason = "The full date is written in your syllabus." },     // year inferred: lowered
                 policy with { Confidence = "looks_right", ConfidenceReason = "The full date is written in your syllabus." },  // dateless: lowered
             ],
         });
-        Assert.Equal(("probably_right", "The year comes from your term dates."), (stored[0].Confidence, stored[0].ConfidenceReason));
+        // SBV-14: the extractor's wrong reason (the year IS written) is replaced by the server's; before SBV-14 this asserted the extractor's text
+        Assert.Equal(("probably_right", "The full date is written in your syllabus."), (stored[0].Confidence, stored[0].ConfidenceReason));
         Assert.Equal((ps1.Confidence, ps1.ConfidenceReason), (stored[1].Confidence, stored[1].ConfidenceReason));
         Assert.Equal((policy.Confidence, policy.ConfidenceReason), (stored[2].Confidence, stored[2].ConfidenceReason));
     }
