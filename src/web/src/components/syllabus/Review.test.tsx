@@ -9,6 +9,7 @@ import { axeViolations } from "@/test/axe";
 import { DEMO_TAGS, REVIEW_COPY } from "./copy";
 import { NotRead } from "./NotRead";
 import { Processing } from "./Processing";
+import { ItemRow } from "./ItemRow";
 import { Review } from "./Review";
 import { SyllabusCard } from "./SyllabusCard";
 import { COURSE, EMAIL, renderWithAnnouncer, signedInWithCourse } from "./testUtils";
@@ -115,6 +116,31 @@ describe("Review list (F1)", () => {
     expect(approve).toHaveAccessibleDescription("Approving this means you checked the date against your syllabus.");
     await userEvent.click(approve);
     expect(await within(lab).findByText("Approved")).toBeInTheDocument();
+  });
+
+  it("a flagged 'Please check' policy row starts closed like every policy row, shows no confidence, reason or hint, and still opens (UX policy-row-source-open)", async () => {
+    signedInWithCourse();
+    sdb.seedSyllabus(EMAIL, COURSE, "ready");
+    const items = await syllabusApi.listItems("syl_ready");
+    const base = items.find((i) => i.kind === "policy");
+    if (!base) throw new Error("fixture has no policy item");
+    const reason = "This file has hidden text, so please check each date.";
+    const flagged = { ...base, confidence: "please_check" as const, confidenceReason: reason, flags: ["injection_suspect" as const] };
+    renderWithAnnouncer(
+      <ul>
+        <ItemRow api={syllabusApi} item={flagged} defaultTimezone="America/New_York" purged={false} onChange={() => {}} />
+      </ul>,
+    );
+    const policy = row(flagged.title);
+    const t = within(policy).getByRole("button", { name: "See where this came from" });
+    expect(t).toHaveAttribute("aria-expanded", "false");
+    expect(within(policy).getByText("Late work loses 10 percent per day.")).not.toBeVisible();
+    expect(within(policy).queryByText("Please check")).toBeNull();
+    expect(within(policy).queryByText(reason)).toBeNull();
+    expect(within(policy).queryByText("Approving this means you checked the date against your syllabus.")).toBeNull();
+    await userEvent.click(t);
+    expect(t).toHaveAttribute("aria-expanded", "true");
+    expect(within(policy).getByText("Late work loses 10 percent per day.")).toBeVisible();
   });
 
   it("needs-a-date rows have no Approve; Add date opens the form on the date field; saving keeps Not decided", async () => {

@@ -48,7 +48,8 @@ function Meta({ parts }: { parts: ReactNode[] }) {
  * One item as a ledger row (UX 5.2-5.7; redesign-round2 slice 6, wireframe 5.4). Line 1: title (h3, so heading navigation
  * steps through items) with its date and "Date has passed"; the actions on the right from 768 (Approve bordered, Skip and
  * Edit quiet). Line 2: kind, recurrence, confidence (visible only when it is not "Looks right"; the words stay in the
- * accessible text), decision word, "You edited this"; the source disclosure as a link on the right. Untrusted text
+ * accessible text), decision word, "You edited this"; the source disclosure as a link on the right; the quote opens by
+ * default only on a decidable `please_check` row; policy rows always start closed (docs/ux/policy-row-source-open.md). Untrusted text
  * (title, snippet, context, notes, reasons) is rendered only as plain text nodes. Approve and Skip turn into Undo in the
  * same position, so focus stays on the pressed control; Undo never expires. The visible state is always the server's
  * state: a failed save leaves the row as it was and offers "Try again" beside it.
@@ -62,7 +63,7 @@ export function ItemRow({ api, item, defaultTimezone, purged, onChange }: ItemRo
   const isPolicy = item.kind === "policy";
   const needsDate = item.when.status === "needs_date";
   const [editing, setEditing] = useState<false | "title" | "date">(() => (hasDraft(item) ? (needsDate ? "date" : "title") : false));
-  const [sourceOpen, setSourceOpen] = useState(item.confidence === "please_check");
+  const [sourceOpen, setSourceOpen] = useState(!isPolicy && item.confidence === "please_check");
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<null | { kind: "save" | "conflict" | "session"; retry: Pending | null }>(null);
   const editBtn = useRef<HTMLButtonElement>(null);
