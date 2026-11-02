@@ -86,7 +86,11 @@ public class RealtimeLogCanaryTests(RealtimeLogCanaryTests.Factory f) : LectureT
         await using (var audio2 = await Rt.AudioClient.ConnectAsync(F, cookie, id2))
         {
             await audio2.HelloAsync(ticket2);
-            for (uint i = 0; i < 12; i++) { await audio2.SendBinaryAsync(CanaryFrame(i)); await Task.Delay(1); }
+            // Exactly 10 frames of 250 ms: frame 9 ends at 2500 ms, the point where the replay emits the failing final. The server
+            // cannot fail the pump (and close) before frame 9 arrives, and nothing is sent after it. Sending more frames raced that
+            // expected close: when the close won, the client's send hit a disposed TestWebSocket (ObjectDisposedException, seen
+            // intermittently under full-suite load, captured 2026-11-01).
+            for (uint i = 0; i < 10; i++) { await audio2.SendBinaryAsync(CanaryFrame(i)); await Task.Delay(1); }
             Assert.Equal(1011, await audio2.WaitCloseAsync()); // the pump failed and closed the socket
         }
 

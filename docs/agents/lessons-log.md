@@ -89,3 +89,8 @@ Entry format:
 
 ### 2026-11-01 Lock-order audit (follow-up to the 1011/4409 deadlock)
 - An audit that cannot verify an ordering must say so and leave the finding open; here it guessed F-4 was safe and the engineer's CommandTrap showed it was a real cycle. Prefer recording the actual statement order (CommandTrap) over inference. Status: APPLIED (docs/data/lock-order-audit.md Resolution section).
+
+### 2026-11-01 RealtimeLogCanaryTests intermittent ObjectDisposedException (found over several runs)
+- **Symptom:** failed only inside the full integration suite, passed alone; the message was never captured until a repeated-run investigation saved it.
+- **Root cause:** a test race: the test kept sending frames after the server's expected 1011 close. Not a product race, not a leak.
+- **Prevention:** when a test fails intermittently, capture the failure text first (trx or detailed output, repeated runs) before theorising. Playbook note updated. Status: APPLIED.
