@@ -338,3 +338,6 @@ Lead decisions on the builder's nine notes:
 9. **DR-04 still open:** `UploadIntake.Sniff` requires `[Content_Types].xml` as the first entry and would wrongly refuse files from other tools; fix when the pipeline is wired.
 
 Not tested: real Word, Google Docs or LibreOffice exports (none allowed), peak memory under bombs, stack-overflow behaviour (that is what the sandbox is for), fuzzing.
+
+
+**DR-04 resolved at intake (2026-11-02).** `UploadIntake.Sniff` no longer requires `[Content_Types].xml` first. A `PK` file is a DOCX candidate; at the end of the stream a shallow check of the zip central directory (last 512 KB held in a ring buffer, nothing inflated) accepts it only if `[Content_Types].xml` and `word/document.xml` are both listed, in any order (exact names, case-insensitive), else 415. ZIP64, multi-disk archives, a directory over 512 KB, more than 1,000 entries or a name over 260 bytes are refused at intake. Zip bombs, `..` paths, macros, OLE and embedded packages are still decided only by the reader (stage A). The API does not reference `Tether.DocReader`. Earlier notes in this document that call DR-04 open are superseded by this paragraph. The reader is still not wired into the pipeline.

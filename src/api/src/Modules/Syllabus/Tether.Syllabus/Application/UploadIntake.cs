@@ -13,7 +13,8 @@ internal sealed record IntakeResult(IResult? Error, CreateSyllabusRequest? Metad
 /// <summary>
 /// Multipart intake validation only (P2-B1). It decides the file type by magic bytes, enforces the streaming caps while reading, and hashes the
 /// bytes in the same pass. It never writes bytes anywhere: there is no parser in this increment (real DOCX/PDF parsing and the sandboxed
-/// parser worker are P2-B3), so PDF and DOCX bytes are counted, hashed and discarded; plain text is decoded in memory (it needs no parser)
+/// parser worker are P2-B3), so PDF and DOCX bytes are counted, hashed and discarded (a ZIP's last 512 KB are held in memory for the
+/// request only, to read its central directory, DR-04); plain text is decoded in memory (it needs no parser)
 /// and follows the same path as pasted text. The client filename is read once to compare its extension and is then dropped: never stored,
 /// logged, echoed or used as a path (API_CONTRACTS_P2 5.1 item 1).
 /// </summary>
@@ -25,9 +26,9 @@ internal static class UploadIntake
     public static SniffKind Sniff(ReadOnlySpan<byte> head)
     {
         if (head.StartsWith("%PDF-"u8)) return SniffKind.Pdf;
-        if (head.StartsWith("PK\x03\x04"u8))
-            // OOXML packages written by Word start with [Content_Types].xml; the full check (word/document.xml) belongs to the sandboxed parser.
-            return head.Length >= 49 && head.Slice(30, 19).SequenceEqual("[Content_Types].xml"u8) ? SniffKind.Docx : SniffKind.Unsupported;
+        // A ZIP is only a DOCX candidate here. DR-04: tools order entries differently, so the first entry proves nothing; ReadFileAsync
+        // confirms [Content_Types].xml and word/document.xml in the central directory at the end of the stream (ZipDirectory), else 415.
+        if (head.StartsWith("PK\x03\x04"u8)) return SniffKind.Docx;
         return SniffKind.Text;
     }
 
@@ -131,37 +132,61 @@ internal static class UploadIntake
         SyllabusService.Material("metadata.v2", meta.Title, meta.TermStart, meta.TermEnd, meta.DefaultTimezone, meta.AllowDuplicate ? "1" : "0",
             meta.NoticeVersion, meta.Attestation.Accepted ? "1" : "0", meta.Attestation.AcceptedAt);
 
-    private static async Task<(SniffKind Kind, string? Sha, byte[]? TextBytes, IResult? Error)> ReadFileAsync(Stream body, SyllabusOptions opt, CancellationToken ct)
+    /// <summary>
+    /// Reads the file part once: counts against the cap, hashes, sniffs the head, keeps text bytes (they need no parser) and, for a ZIP,
+    /// only the last <see cref="ZipDirectory.TailBytes"/> in memory so the central directory can be checked at the end (DR-04). PDF bytes
+    /// and the rest of a ZIP are hashed and dropped; nothing is written anywhere.
+    /// </summary>
+    internal static async Task<(SniffKind Kind, string? Sha, byte[]? TextBytes, IResult? Error)> ReadFileAsync(Stream body, SyllabusOptions opt, CancellationToken ct)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var buf = new byte[64 * 1024];
         var head = new byte[HeadBytes]; var headLen = 0;
-        var total = 0L; var kind = SniffKind.Unsupported; var sniffed = false; var keep = true;
-        var text = new MemoryStream();
+        var total = 0L; SniffKind? kind = null;
+        var text = new MemoryStream();                             // text bytes, and every byte read before the type is known
+        ZipDirectory.Tail? tail = null;                            // a ZIP's last bytes, for its central directory
         int n;
         while ((n = await body.ReadAsync(buf, ct)) > 0)
         {
             total += n;
-            if (total > opt.UploadMaxBytes) return (kind, null, null, SyllabusProblem.TooLarge());      // counted while reading, never Content-Length
+            if (total > opt.UploadMaxBytes) return (kind ?? SniffKind.Unsupported, null, null, SyllabusProblem.TooLarge());   // counted while reading, never Content-Length
             hash.AppendData(buf, 0, n);
-            if (headLen < HeadBytes) { var take = Math.Min(HeadBytes - headLen, n); Array.Copy(buf, 0, head, headLen, take); headLen += take; }
-            if (!sniffed && headLen >= HeadBytes)
+            var chunk = buf.AsSpan(0, n);
+            if (headLen < HeadBytes) { var take = Math.Min(HeadBytes - headLen, n); chunk[..take].CopyTo(head.AsSpan(headLen)); headLen += take; }
+            if (kind is null)
             {
-                kind = Sniff(head.AsSpan(0, headLen)); sniffed = true;
-                if (kind == SniffKind.Unsupported) return (kind, null, null, SyllabusProblem.Unsupported());
-                if (kind != SniffKind.Text) { keep = false; text = new MemoryStream(); }
+                if (text.Length + n > TextBufferCap) return (SniffKind.Unsupported, null, null, SyllabusProblem.TooLarge());
+                text.Write(chunk);
+                if (headLen < HeadBytes) continue;
+                kind = Decide(Sniff(head), text, ref tail);
+                if (kind == SniffKind.Unsupported) return (SniffKind.Unsupported, null, null, SyllabusProblem.Unsupported());
+                if (kind != SniffKind.Text) text = new MemoryStream();
+                continue;
             }
-            if (!keep) continue;                                   // PDF/DOCX bytes are hashed and dropped, never kept
-            if (text.Length + n > TextBufferCap) return (kind, null, null, SyllabusProblem.TooLarge());
-            text.Write(buf, 0, n);
+            if (kind == SniffKind.Text)
+            {
+                if (text.Length + n > TextBufferCap) return (SniffKind.Text, null, null, SyllabusProblem.TooLarge());
+                text.Write(chunk);
+            }
+            else tail?.Append(chunk);                              // PDF bytes are hashed and dropped; a ZIP keeps only its tail window
         }
-        if (!sniffed)
+        if (kind is null)
         {
-            kind = headLen == 0 ? SniffKind.Unsupported : Sniff(head.AsSpan(0, headLen));
-            if (kind == SniffKind.Unsupported) return (kind, null, null, SyllabusProblem.Unsupported());
-            keep = kind == SniffKind.Text;
+            kind = headLen == 0 ? SniffKind.Unsupported : Decide(Sniff(head.AsSpan(0, headLen)), text, ref tail);
+            if (kind == SniffKind.Unsupported) return (SniffKind.Unsupported, null, null, SyllabusProblem.Unsupported());
         }
-        return (kind, Convert.ToHexStringLower(hash.GetHashAndReset()), keep ? text.ToArray() : null, null);
+        // DR-04: a ZIP is a DOCX only when [Content_Types].xml and word/document.xml are in its central directory, in any order.
+        if (kind == SniffKind.Docx && !ZipDirectory.HasDocxParts(tail!.ToArray(), total))
+            return (SniffKind.Unsupported, null, null, SyllabusProblem.Unsupported());
+        return (kind.Value, Convert.ToHexStringLower(hash.GetHashAndReset()), kind == SniffKind.Text ? text.ToArray() : null, null);
+
+        static SniffKind Decide(SniffKind sniffed, MemoryStream soFar, ref ZipDirectory.Tail? zipTail)
+        {
+            if (sniffed != SniffKind.Docx) return sniffed;
+            zipTail = new ZipDirectory.Tail();
+            zipTail.Append(soFar.GetBuffer().AsSpan(0, (int)soFar.Length));
+            return sniffed;
+        }
     }
 
     /// <summary>Extension, part Content-Type and signature must agree (a disagreement is 415, never a guess).</summary>

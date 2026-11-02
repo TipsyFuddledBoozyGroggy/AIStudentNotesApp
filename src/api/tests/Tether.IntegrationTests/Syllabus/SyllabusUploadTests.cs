@@ -37,11 +37,53 @@ public class SyllabusUploadTests(ApiFactory factory) : SyllabusTestBase(factory)
 
     private static byte[] Pdf() => [.. "%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n"u8];
 
-    private static byte[] Docx()
+    /// <summary>
+    /// A synthetic package (DR-04): the sniff reads the central directory, so a local header naming [Content_Types].xml with no directory
+    /// (this helper's shape before DR-04) is no longer a DOCX. Entries are written in the order given.
+    /// </summary>
+    private static byte[] Docx(params string[] order)
     {
-        var head = new byte[200];
-        "PK\x03\x04"u8.CopyTo(head); head[26] = 19; "[Content_Types].xml"u8.CopyTo(head.AsSpan(30));
-        return head;
+        if (order.Length == 0) order = ["[Content_Types].xml", "_rels/.rels", "word/document.xml", "word/styles.xml"];
+        using var ms = new MemoryStream();
+        using (var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+            foreach (var n in order)
+            {
+                using var s = zip.CreateEntry(n).Open();
+                s.Write("<x>Synthetic Course 101</x>"u8);
+            }
+        return ms.ToArray();
+    }
+
+    [Fact]
+    public async Task DR04_a_docx_is_accepted_whatever_the_entry_order_and_a_zip_missing_either_required_part_is_415()
+    {
+        var a = await NewActorAsync();
+        const string type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        string[][] accepted =
+        [
+            ["_rels/.rels", "word/document.xml", "[Content_Types].xml", "word/styles.xml"],       // in the middle
+            ["word/document.xml", "_rels/.rels", "word/styles.xml", "[Content_Types].xml"],       // last
+        ];
+        foreach (var order in accepted)
+        {
+            var res = await Upload(a.Client, await CourseAsync(a.Client, string.Join(",", order)[..20]), Form(Docx(order), "s.docx", type));
+            Assert.Equal(HttpStatusCode.Accepted, res.StatusCode);
+            var b = await res.BodyAsync();
+            Assert.Equal("docx", b.GetProperty("fileType").GetString());
+            Assert.Equal("failed", (await WaitDoneAsync(a.Client, b.GetProperty("id").GetString()!)).GetProperty("status").GetString());   // no parser yet (one job in flight per user)
+        }
+        var before = await F.ScalarAsync($"select count(*) from syllabus.syllabi where user_id = '{a.UserId}'");
+        var course = await CourseAsync(a.Client, "refused");
+        foreach (var order in new[] { new[] { "_rels/.rels", "word/document.xml" }, ["[Content_Types].xml", "_rels/.rels"], ["[Content_Types].xml", "../word/document.xml"] })
+        {
+            var res = await Upload(a.Client, course, Form(Docx(order), "s.docx", type));
+            await res.AssertProblemAsync(HttpStatusCode.UnsupportedMediaType, "unsupported_type");
+            Assert.Equal("The content is not a PDF, DOCX or plain text file.", (await res.BodyAsync()).GetProperty("detail").GetString());
+        }
+        // a valid package still has to agree with the extension and part type
+        await (await Upload(a.Client, course, Form(Docx(), "s.pdf", "application/pdf"))).AssertProblemAsync(HttpStatusCode.UnsupportedMediaType, "unsupported_type");
+        await (await Upload(a.Client, course, Form(Docx(), "s.docx", "application/zip"))).AssertProblemAsync(HttpStatusCode.UnsupportedMediaType, "unsupported_type");
+        Assert.Equal(before, await F.ScalarAsync($"select count(*) from syllabus.syllabi where user_id = '{a.UserId}'"));
     }
 
     [Fact]
