@@ -45,7 +45,6 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
     private static readonly Regex Clock = new(
         @"(?<![\d:])(?<h1>\d{1,2})(?::(?<m1>\d{2}))?\s*(?<a1>[ap]\.?m\.?)?\s*(?:[-–]\s*(?<h2>\d{1,2})(?::(?<m2>\d{2}))?\s*(?<a2>[ap]\.?m\.?)?)?(?![\d:])",
         Opts, Timeout);
-    private static readonly Regex CompactDays = new(@"\b(?<c>MWF|MTWRF|MW|WF|MF|TR|TTh|TuTh)\b", RegexOptions.CultureInvariant, Timeout);
     private static readonly Regex Tba = new(@"\b(TBA|TBD|to be announced|to be determined)\b", Opts, Timeout);
     private static readonly Regex Policy = new(@"\b(late (?:work|policy|submission)s?|attendance policy|academic integrity|honou?r code|grading policy|accommodations?)\b", Opts, Timeout);
     private static readonly Regex ExamK = new(@"\b(exam|midterm|final|quiz|test)\b", Opts, Timeout);
@@ -174,15 +173,8 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
     {
         if (date is not null) return null;                                           // an explicit date is a single occurrence
         if (kind is not ("office_hours" or "other")) return null;
-        var days = new SortedSet<int>();
-        foreach (Match m in SyllabusSignals.Weekday.Matches(line))
-            days.Add(m.Groups["wd"].Value.ToLowerInvariant()[..2] switch { "mo" => 1, "tu" => 2, "we" => 3, "th" => 4, "fr" => 5, "sa" => 6, _ => 0 });
-        foreach (Match m in CompactDays.Matches(line))
-            foreach (var d in m.Groups["c"].Value switch
-            {
-                "MWF" => new[] { 1, 3, 5 }, "MTWRF" => new[] { 1, 2, 3, 4, 5 }, "MW" => new[] { 1, 3 }, "WF" => new[] { 3, 5 }, "MF" => new[] { 1, 5 },
-                _ => new[] { 2, 4 },
-            }) days.Add(d);
+        // SBV-12: the weekdays are read by the shared rule, so the server's recurrence check reads a written weekday the same way
+        var days = SyllabusSignals.WrittenWeekdays(line, 0, line.Length);
         if (days.Count == 0) return null;
         if (FindTime(line, null) is not { } t) return null;
         var codes = days.Select(d => Local.Weekday((DayOfWeek)d)).ToArray();
@@ -486,6 +478,8 @@ internal static class SyllabusLimits
     /// example an oversize title steered by hostile syllabus text) but whose snippet is canonical is kept as an unclaimed date instead, so the
     /// student still sees that the syllabus mentions a date there: every kept snippet is re-cut here from <paramref name="canonical"/>, never
     /// model text. A policy item (no date by definition) is not kept that way. The demoted item still counts as dropped (it is not an item).
+    /// SBV-12: an item whose resolved date or recurrence is not what its quote says (<see cref="ServerDates.Consistent"/>) is dropped and
+    /// demoted the same way, so the claimed date is never stored and the quote stays visible as a date we noticed.
     /// Unclaimed dates stay within <see cref="MaxUnclaimed"/> (the extractor's own list first).
     /// </summary>
     public static Kept Apply(ExtractorOutput output, int maxItems, string canonical)
@@ -496,7 +490,9 @@ internal static class SyllabusLimits
         foreach (var p in proposed)
         {
             var canonicalSnippet = TryCanonical(p.Snippet, canonical, out var sn);
-            if (canonicalSnippet && Fits(p)) items.Add(p with { Snippet = sn });
+            // SBV-12: the item's date fields must be a date written in the server-cut quote; a claimed date it does not hold is an invalid
+            // model-written field, dropped and counted like an oversize title (never stored, never corrected); its quote is demoted below
+            if (canonicalSnippet && Fits(p) && ServerDates.Consistent(p with { Snippet = sn })) items.Add(p with { Snippet = sn });
             else droppedItems.Add((p, canonicalSnippet ? sn : null));             // a forged or out-of-range snippet leaves no trace
         }
 

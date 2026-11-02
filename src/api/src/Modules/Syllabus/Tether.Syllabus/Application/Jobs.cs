@@ -150,6 +150,8 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
             // SBV-06: the stored context window is chosen by the server (the whole canonical line around the snippet, or a bounded window
             // of a very long line), never by the extractor, so a narrowed context cannot hide a word such as "NOT" next to a quoted date.
             // SBV-02: the overflow beyond the item and unclaimed caps is counted as well.
+            // SBV-12: an item whose resolved date or recurrence is not written in its stored quote is dropped and counted the same way (its
+            // quote is kept as an unclaimed date); the claimed date is never stored. This runs inside Apply, before the flags below.
             // SBV-10: the context-based flags (supersession cue, tentative language, injection, low text quality, weekday mismatch, outside
             // the term, DST gap) are re-derived by the server from the stored quote and the server-chosen context and UNIONED with the
             // extractor's flags (an extractor can add a flag, never remove one); the confidence is then lowered to what the confidence rule

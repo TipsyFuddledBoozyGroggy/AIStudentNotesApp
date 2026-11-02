@@ -125,6 +125,29 @@ internal static class SyllabusSignals
     public static string WeekdayCode(string wd) =>
         wd.ToLowerInvariant()[..2] switch { "mo" => "MO", "tu" => "TU", "we" => "WE", "th" => "TH", "fr" => "FR", "sa" => "SA", _ => "SU" };
 
+    internal static readonly Regex CompactDays = new(@"\b(?<c>MWF|MTWRF|MW|WF|MF|TR|TTh|TuTh)\b", RegexOptions.CultureInvariant, Timeout);
+
+    /// <summary>
+    /// SBV-12: the weekdays a recurrence may be built from, as the mock reads them: every weekday name (singular or plural) and every compact
+    /// code (MWF, TR, ...) written in [<paramref name="from"/>, <paramref name="to"/>) of <paramref name="text"/>, whole inside that span, as
+    /// <see cref="DayOfWeek"/> numbers (0 = Sunday). The mock passes the whole line; the server passes the stored quote's span of its context.
+    /// </summary>
+    public static SortedSet<int> WrittenWeekdays(string text, int from, int to)
+    {
+        var days = new SortedSet<int>();
+        foreach (Match m in Weekday.Matches(text))
+            if (m.Index >= from && m.Index + m.Length <= to)
+                days.Add(m.Groups["wd"].Value.ToLowerInvariant()[..2] switch { "mo" => 1, "tu" => 2, "we" => 3, "th" => 4, "fr" => 5, "sa" => 6, _ => 0 });
+        foreach (Match m in CompactDays.Matches(text))
+            if (m.Index >= from && m.Index + m.Length <= to)
+                foreach (var d in m.Groups["c"].Value switch
+                {
+                    "MWF" => new[] { 1, 3, 5 }, "MTWRF" => new[] { 1, 2, 3, 4, 5 }, "MW" => new[] { 1, 3 }, "WF" => new[] { 3, 5 }, "MF" => new[] { 1, 5 },
+                    _ => new[] { 2, 4 },
+                }) days.Add(d);
+        return days;
+    }
+
     /// <summary>
     /// The month and day a date hit stands for, exactly as the mock reads it, or null when it is not one calendar day: an invalid or
     /// ambiguous numeric date, or a month or day out of range (so "14/9" is "ambiguous_format", never guessed day-first).
@@ -270,4 +293,64 @@ internal static class ServerFlags
     private static bool DstGap(ProposedItem p) =>
         p.WhenStatus == "resolved" && p.Recurrence is null && !p.AllDay && p.Date is { } d && p.Time is { } t && ZoneAllowList.Contains(p.Timezone)
         && Local.IsInDstGap(d, t, p.Timezone!);
+}
+
+/// <summary>
+/// SBV-12 (docs/ai/syllabus-extraction-design.md section 17, condition 5): the server does not trust the extractor's RESOLVED date. An item's
+/// date fields must be what is WRITTEN in its stored quote, read with the same matchers the mock uses (<see cref="SyllabusSignals.FindDates"/>,
+/// <see cref="SyllabusSignals.MonthDayOf"/>, <see cref="SyllabusSignals.WrittenWeekdays"/>). It runs on the server-cut snippet and server-chosen
+/// context (after SBV-01 and SBV-06), and before the flags are re-derived (SBV-10). A date counts as written in the quote only when the whole
+/// written date (as the matcher reads it from the context) lies inside the snippet, so a quote cut to "Dec 1" out of "Dec 19, 2026", or to
+/// "Dec 9" out of "Dec 9, 2026", does not support a date.
+/// <list type="bullet">
+/// <item>(a) a resolved single date: some date written in the quote reads as its month and day; when that written date has a year, it is the
+/// date's year; when the item has an end date, the written date is a range whose second day is the end date's day in the same month (as the mock
+/// builds a range);</item>
+/// <item>(b) <c>explicit_full</c>: that written date has a year (four digits, or a numeric date's two-digit year read as 20yy, exactly as the
+/// mock reads it, which also calls such a date <c>explicit_full</c>);</item>
+/// <item>(c) an ambiguous numeric date ("3/4", "10/5") reads as no calendar day (<see cref="SyllabusSignals.MonthDayOf"/>), so it can never
+/// support a resolved date; the contract's handling is <c>needs_date</c> / <c>ambiguous_format</c>;</item>
+/// <item>(d) a recurrence: no date is written in the quote (a written date is a single occurrence, as in the mock), every weekday of
+/// <c>byDay</c> is written in the quote (a weekday name, singular or plural, or a compact code such as MWF), and <c>when.date</c> is
+/// <c>recurrence.from</c> and falls on one of those weekdays (API_CONTRACTS_P2.md section 4: <c>when.date</c> is the first occurrence).</item>
+/// </list>
+/// A resolved non-recurring date with any other derivation (<c>relative_to_anchor</c>) has no written date to match and fails closed. Items
+/// that are not resolved, and items without a date, are not checked here (the database's <c>ck_items_needs_date_fields</c> holds the
+/// needs_date shape). Lead ruling: an item that fails is an invalid model-written field, dropped and counted by
+/// <see cref="SyllabusLimits.Apply"/>, and its verbatim snippet stays visible as an unclaimed date; the claimed date is never stored or corrected.
+/// The mock's items always pass (it builds them from the same readings), so its output is stored byte-identical.
+/// </summary>
+internal static class ServerDates
+{
+    public static bool Consistent(ProposedItem p)
+    {
+        var s = p.Snippet;
+        var ctx = s.ContextText;
+        var from = s.Start - s.ContextStart; var to = s.End - s.ContextStart;
+        if (from < 0 || to > ctx.Length || from >= to) return false;                              // not the server's snippet: refuse rather than guess
+
+        if (p.Recurrence is { } rec) return RecurrenceWritten(p, rec, ctx, from, to);
+        if (p.WhenStatus != "resolved" || p.Date is not { } date) return true;
+
+        foreach (var hit in SyllabusSignals.FindDates(ctx))
+        {
+            if (hit.Index < from || hit.Index + hit.Length > to) continue;                        // not whole inside the quote
+            if (SyllabusSignals.MonthDayOf(hit) is not { } md || md != (date.Month, date.Day)) continue;   // (a), (c)
+            if (hit.Year is { } y ? y != date.Year : p.Derivation == "explicit_full") continue;   // (a) the written year; (b) explicit_full needs one
+            if (p.EndDate is { } end && !(hit.Day2 is { } day2 && end.Year == date.Year && end.Month == date.Month && end.Day == day2)) continue;
+            return true;
+        }
+        return false;
+    }
+
+    private static bool RecurrenceWritten(ProposedItem p, ProposedRecurrence rec, string ctx, int from, int to)
+    {
+        // a date written in (or reaching into) the quote makes it a single occurrence, never a weekly rule
+        if (SyllabusSignals.FindDates(ctx).Any(h => h.Index < to && h.Index + h.Length > from)) return false;
+        if (rec.ByDay is not { Length: > 0 } byDay) return false;
+        var written = SyllabusSignals.WrittenWeekdays(ctx, from, to).Select(d => Local.Weekday((DayOfWeek)d)).ToHashSet(StringComparer.Ordinal);
+        if (!byDay.All(written.Contains)) return false;
+        if (p.Date is { } date && (date != rec.From || !byDay.Contains(Local.Weekday(date.DayOfWeek), StringComparer.Ordinal))) return false;
+        return true;
+    }
 }
