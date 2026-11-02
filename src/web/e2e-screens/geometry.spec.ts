@@ -407,6 +407,7 @@ test("slice 8b: lecture bar one row at 1280 in every fixture; one-line Demo note
     for (const fixture of NOTE_FIXTURES) {
       const { page, close } = await open(browser, `/dev/lecture-harness/${fixture}`, width);
       await expect(page.getByText(/^Fixture:/)).toBeVisible();
+      await settle(page);
       const problems: string[] = [];
       const bar = await box(page.locator("[data-lecture-status-bar]"));
       if (width >= 1280 && !near(bar.height, 57, 1)) problems.push(`bar height ${bar.height} (one 56px row + rule expected)`);
