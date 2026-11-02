@@ -325,3 +325,39 @@ Reviewer: security-engineer. Date: 2026-11-01. HEAD `400f1cc`, working tree clea
   - that the flows-a shard passes on GitHub (it has never run);
   - that the tests fail on the old code (judged by reading);
   - whether a production build emits the MSW chunk (not built).
+
+# Fourth pass: SBV-06 server half (commit a2f9b52)
+
+Reviewer: security-engineer. Date: 2026-11-02. HEAD `a2f9b52`, working tree clean at start. Scope calibrated to the personal, non-commercial tool (PO-15/16); every issue is reported anyway.
+
+**Method.** I read `git show HEAD` in full (`MockRuleExtractor.cs`, `Jobs.cs`, `ExtractorTests.cs`, `SyllabusSbvFixTests.cs`, design doc section 17), then the current `SyllabusLimits` (`MockRuleExtractor.cs:489-617`), `ContextWindow` and `Finish` (`:362-462`), `Jobs.cs:135-194` and `ItemService.cs:222-239,449-460`. I ran the SBV06 unit tests (below). Nothing in `src/` or `tests/` was changed.
+
+## Result
+
+**New findings: 0 CRITICAL, 0 HIGH, 1 MEDIUM (SBV-10), 0 LOW. Nothing blocks a push. SBV-10 blocks connecting any real extractor and production.**
+
+| ID | Verdict | Register status |
+|---|---|---|
+| SBV-06 LOW | **Fixed (server half).** `TryCanonical` still runs every SBV-01 check on the extractor's snippet and context (a forged context is a counted drop, not corrected), then replaces the context with `ServerContext(canonical, Start, End)`: the whole canonical line or run of lines holding the snippet, or on a line over 1,500 code points the surrogate-safe `ContextWindow`, snapped inwards to grapheme boundaries. `Apply` uses it for items and unclaimed dates; `Jobs.cs` stores only `Apply`'s output | OPEN to FIXED-VERIFIED |
+
+**Why FIXED-VERIFIED.** The tests would fail on the old code: `SBV06_a_context_narrowed_to_hide_a_negation_is_replaced_by_the_whole_line` and `SyllabusNarrowedContextTests` expect "The final is NOT on Dec 9, 2026" where the old `TryCanonical` stored the extractor's verified but narrowed "on Dec 9, 2026"; the long-line theory expects the window filled to 1,500 code points; the unclaimed long-line case expects the mock's snippet-only context to be widened; the grapheme theory checks both edges against `StringInfo.ParseCombiningCharacters` boundaries, and its shift-1 case puts an unsnapped cut between `q` and U+0301. The byte-identical theory over 8 fixtures and the forged-context control guard against regressions. The extractor still chooses the snippet offsets (by design, SBV-01 checks them).
+
+## New finding
+
+### SBV-10 MEDIUM: flags and confidence are still the extractor's, so a narrowed quote can still skip "please check"
+- **Where:** `Jobs.cs:165` stores `Confidence`, `ConfidenceReason` and `Flags` from the proposal; only `low_text_quality` is read back (`:189`). The mock computes `supersession_cue` from its own snippet and context (`MockRuleExtractor.cs:368`) and forces `please_check` in `Finish` (`:374-386`). Nothing on the server repeats that after `ServerContext`.
+- **Scenario (real extractor only):** a syllabus steers the model to quote "on Dec 9, 2026", omit `supersession_cue` and say `looks_right`. The stored context now reads "The final is NOT on Dec 9, 2026" (SBV-06 fixed), but the item has no flag and no "please check", is batch-approvable without acknowledgement (`ItemService.cs:232`), and once approved is eligible for calendar sync (mock-only today). `ck_items_flags_force_check` forces `please_check` only when a forcing flag is present, so an omitted flag passes.
+- **Not reachable today:** the mock's flags come from a context equal to the server context, and the provider guard refuses any real extractor.
+- **Rating:** unsure between LOW and MEDIUM, so MEDIUM per policy. It is one of the recorded preconditions for a real extractor (design doc section 17, PO-20aj), and the harm is a wrong deadline shown as confident. Calibrated to PO-15/16, it blocks connecting a real extractor and production, not local work or a push.
+- **Fix:** after `Apply`, re-derive the context-derived flags server-side from the stored snippet and server-chosen context (supersession cues, tentative language, injection markers; move the mock's matchers to a shared server class), union them with the extractor's flags so the extractor can add but never remove a server flag, then recompute the forced confidence and reason as `Finish` does. Consider re-deriving `weekday_mismatch` and `outside_term` from the written weekday, date and term as well. Tests: a stand-in extractor that narrows the quote, omits the flag and says `looks_right` must store `please_check` with `supersession_cue` and be refused by batch approve; mock output byte-identical. Owners: backend-engineer, ai-agent-engineer.
+
+## Observations (Info, not findings)
+
+- **SBV-I12 (grapheme caveat, cosmetic):** `ServerContext` resegments from at most 64 UTF-16 units before the window edge, not from the line start. Inside a single grapheme run longer than that margin it can lose step with the true boundaries. In practice that means regional indicators: 64 units is 32 regional-indicator code points (16 flags), so by my reading a run of more than about 16 consecutive flags crossing the cut can, depending on parity, leave a cut between the two halves of a flag. The code comment says "more than 32 regional-indicator pairs", which looks like an overstatement of the threshold (READ, not probed). Long conjoining-jamo or extender runs are a theoretical second case. The effect is one broken flag glyph at the edge of a quote; the context is still an exact canonical slice that contains the snippet. No action needed; if fixed, resegment from the line start for lines under some bound, or walk back to the start of the regional-indicator run.
+- **SBV-I13:** on a line over 1,500 code points, a negation more than about 750 code points from the snippet falls outside the window. This is by design (column bound) and not a practical way to hide a word next to a date.
+
+## What I ran and what I did not verify (fourth pass)
+
+- **Ran:** `git show HEAD`, `git status --short`, `docker ps`; `MSYS_NO_PATHCONV=1 docker run --rm --network aistudentnotesapp_default -v "<repo>:/repo" -w /repo/src/api mcr.microsoft.com/dotnet/sdk:10.0 dotnet test tests/Tether.SyllabusTests --filter "FullyQualifiedName~SBV06"`: `Passed! - Failed: 0, Passed: 27, Skipped: 0, Total: 27`; the register's section 6 count recipes before and after editing the register.
+- **Not run:** `SyllabusNarrowedContextTests` and the rest of the integration suite (shared dev DB; the dev API was up), the full .NET suite, any web test. I did not mutate the code to watch the tests fail on the old version; "would fail without the fix" is judged by reading the assertions against the old `TryCanonical`.
+- **Not verified:** the commit's "syllabus 187, AI 333, architecture 22, contract 870, integration 629" (author's and Lead's claim); the SBV-I12 threshold (no probe).
