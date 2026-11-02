@@ -537,3 +537,56 @@ None.
   - The register's section 6 recipes after editing the register.
 - **Not run:** the DR04 integration test, `SyllabusFlagsCheckMigrationTests` and the rest of the integration suite (shared dev DB; told not to); the dev API; any web test. I did not show the new unit tests failing on the parent commit (by reading, the old `Sniff` returns Unsupported unless `[Content_Types].xml` is the first entry, so the "content types last" cases would fail).
 - **Not verified:** the commit's figures (AI 333, reader 131, architecture 27, contract 870, integration 652).
+
+# Eighth pass: SBV-12 server date check (commit 347296b)
+
+Reviewer: security-engineer, 2026-11-02, HEAD `347296b`. Ratings follow `severity-policy.md`, calibrated to the personal-tool scope (PO-15/16). No source or test file was edited.
+
+## Result
+
+- **SBV-12 MEDIUM: FIXED-VERIFIED.** `ServerDates.Consistent` (`SyllabusSignals.cs:323-356`) runs inside `SyllabusLimits.Apply` (`MockRuleExtractor.cs:495`) on the server-cut snippet and server context, before `Rederive`. A failure is a counted drop and the quote is kept as an unclaimed date, so the claimed date is never stored and never corrected.
+  - Single dates: the claim must match a date hit lying whole inside the quote. Month and day must agree, a written year must agree, explicit_full needs a written year, and an end date must be the written second day. Ambiguous numeric dates read as no day. `relative_to_anchor` fails closed.
+  - Recurrences: no date may overlap the quote, every `byDay` weekday must be written in the quote, and `when.date` must equal `from` and fall on one of those weekdays.
+  - Exceptions are not caught: the job fails `invalid_output` with nothing stored (fail closed, SBV-16 unchanged).
+- **Attacks that fail (dropped and counted, probe RAN):**
+  - Dec 19 from 'Dec 1, 2019'.
+  - 'Dec 9 19 students' claimed as Dec 19.
+  - '10/5' and '10/5pm' claimed as Oct 5.
+  - 'the 5th of October'.
+  - '5 October 2026' claimed as Oct 5 explicit_full.
+  - A needs-date item carrying an unwritten recurrence.
+  - The unit tests also cover a quote cut to 'Dec 1' out of 'Dec 19, 2026', a date only in the context, and a single date presented as a weekly rule.
+- **Regex time:** worst-case 1,500 code point contexts (month names before runs of spaces, repeated '1/1/', repeated 'Dec 1', repeated weekday names, a long tail of commas) and 200,000 character lines all finished in under 2 ms. I found no input that reaches the 250 ms timeout. If one did, the syllabus would fail closed (SBV-16).
+- **Two-digit years (Lead decision):** accepted, rated LOW within SBV-31. The year is written and the mock already reads it this way. The cost is that '1/15/99' becomes 2099 and 'Lab score 8/13/20 points' becomes 2020-08-13, both `looks_right`, and explicit_full is never flagged outside_term.
+
+## New findings
+
+- **SBV-18 MEDIUM (reachable with the mock today):** the shared matcher reads 'Month YYYY' as a day.
+  - 'Paper due by Sept 2026' becomes Sep 20 and 'Quiz on 5 October 2026' becomes Oct 20, both stored resolved `probably_right` by the mock.
+  - Also read as dates: 'Dec 123' (Dec 12), the verb 'may' ('may 3'), and numbers such as 'problems 9/30' and '5/20 points'.
+  - SBV-12 accepts the same readings from a real extractor.
+  - Fix: a `(?!\d)` after the day, plus sweep lines for these cases.
+- **SBV-19 MEDIUM (precondition):** a recurrence labelled explicit_full is kept. It becomes `looks_right` with the false reason 'The full date is written in your syllabus.' and can be batch-approved.
+- **SBV-20 MEDIUM (precondition):** recurrence evidence is any weekday-like token. 'sat', 'MW' and 'No class Mondays' all qualify, for any item kind, with no time required.
+- **Recorded from the design doc's condition 5 'Still not covered' list:**
+  - SBV-21 alternatives (MEDIUM, shown on the web as the dates the item could be).
+  - SBV-22 time, end time and zone (MEDIUM).
+  - SBV-23 written evidence fields (LOW; not rendered today).
+  - SBV-24 recurrence from/until (LOW).
+  - SBV-25 year_from_term uniqueness (LOW).
+  - SBV-26 relative_to_anchor always dropped (LOW, fails closed).
+  - SBV-27 extractor-written student_entered (LOW).
+  - SBV-28 long-line recurrence edge (LOW, fails closed).
+- **SBV-29 LOW (pre-existing, mock too):** a fullwidth or Arabic-Indic digit after a month name throws FormatException, so the whole syllabus fails.
+- **SBV-30 LOW:** a reversed range end passes the check, then the DB check fails the whole syllabus. The mock also reads 'Dec 9-10am' as a two-day range.
+- **SBV-31 LOW:** explicit_full year scope. It covers the two-digit years above, accepts years 1900 to 2199 that the mock refuses, and explicit_full is never flagged outside_term.
+
+## What I ran and what I did not verify (eighth pass)
+
+- **Ran:**
+  - `git show HEAD` and reads of `SyllabusSignals.cs`, `MockRuleExtractor.cs` (Apply, TryCanonical, ServerContext, the mock builders), `Jobs.cs` (PersistAsync, ProcessAsync), `ServerDatesTests.cs`, `SyllabusServerDatesTests.cs`, design doc section 17 condition 5, ItemService.cs:232 and ItemRow.tsx:163.
+  - `MSYS_NO_PATHCONV=1 docker run --rm -v "<repo>:/repo" -w /repo/src/api mcr.microsoft.com/dotnet/sdk:10.0 dotnet test tests/Tether.SyllabusTests`: Passed 411, Failed 0, Skipped 0.
+  - A scratch console probe outside the repo (a project named like the test assembly so it can see internals; the repo is mounted and its `bin`/`obj` get build output, as `dotnet test` does). It covers 29 attack cases through `MockRuleExtractor`, `SyllabusLimits.Apply` and `ServerFlags.Rederive`, plus 7 timing cases.
+  - The register's section 6 recipes after editing the register.
+- **Not run:** `SyllabusServerDatesTests` and the rest of the integration suite (shared dev DB; told not to), the dev API and any web test. I did not show the new tests failing on the parent commit; the author reports 31 of 110.
+- **Not verified:** the commit's figures (AI 333, reader 131, architecture 27, contract 870, integration 653).
