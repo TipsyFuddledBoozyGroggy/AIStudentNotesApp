@@ -717,3 +717,60 @@ Reviewer: security-engineer, 2026-11-02, HEAD `19796cd`. Ratings follow `severit
   - The register's section 6 recipes after editing the register.
 - **Not run:** `SyllabusDateMatcherTests` and the rest of the integration suite (shared dev DB; told not to), the dev API and any web test. A real regex timeout was not triggered.
 - **Not verified:** the commit's figures (AI 333, architecture 27, reader 131, contract 870, integration 654) and the '8 of 8,730 runs' output-diff claim.
+
+# Eleventh pass: SBV-35 and SBV-36 fixes (commit c729753), and the stop-polishing decision
+
+Reviewer: security-engineer, 2026-11-02, HEAD `c729753`. Ratings follow `severity-policy.md`, calibrated to the personal-tool scope (PO-15/16). No source or test file was edited.
+
+## Result
+
+- **SBV-35 MEDIUM: FIXED-VERIFIED.**
+  - `TimeOf` scans only from the end of date i to the start of date i+1; a clock that runs past that bound gives no time.
+  - FindDates hits never overlap, and the bound is clamped to at least the start, so a hit inside the first date's range could only give no time.
+  - Probe results: 'Dec 9-11 at 2pm' is one hit, a two-day range at 14:00. In 'Dec 9 - Dec 11 at 2pm', 'Dec 9 to Dec 11 at 2pm' and 'Dec 9 through Dec 11, 2pm', Dec 9 is all-day (exams get `time_missing`) and Dec 11 is unclaimed. On three-date lines each date gets only its own time. 'Week 15: Dec 7 review, Dec 9 Quiz 3, Final Dec 14 2-4pm' now gives Dec 7 all-day (was 14:00-16:00).
+  - Edge cases fail toward all-day: a clock running into the next date ('Quiz 12/9 2pm-12/11'), and a false date hit in between ('Dec 9 (ch 3/4) at 2pm').
+- **SBV-36 LOW: FIXED-VERIFIED for (a) to (c); (d) split to SBV-36d.**
+  - (a) Zone rule: only upper-case zone abbreviations count, and a letter after the zone cancels it. '3pmET', '3 PMEST', '3pmUTC+1' and '3 p.m.EST' read correctly. These give no time: '3pmet', '3pmEt', 'PMESTX', 'pmETX', 'pmPTO', 'pmÉT', 'AMPLE', 'AMGT', '2pmETA' and '2AMPTON'. Only the contrived upper-case runs 'AMPT', 'AMCT' and 'PMMT' after a number read as am/pm plus a zone.
+  - (b) Colon rule (dated items only): 'John 3:16', '10:30', '9:00' and '1:30-3:30' give no time. '09:00', '13:00-14:30' and '10:30 AM' read. The residual 13-23 colon numbers ('Gen 14:15') moved to SBV-36d.
+  - (c) Letter boundary: 'CS3pm' and 'x3pm' give no time, while '(3pm)', '@3pm' and '#3pm' still read.
+- **ReDoS check:** the changed Clock regex was timed on 34 worst-case units in 4 shapes of 200,000 characters each (272 runs). There were 0 timeouts, and the worst single match took 16.0 ms (the 19796cd pattern took 23.1 ms on the same line). That is under the earlier 64 ms ceiling.
+  - Whole-extraction worst: 1,711 ms for 200,000 characters of 'Dec 9 Dec 10'. This is CPU time in the quadratic `FindDates` (SBV-I24), not a timeout.
+  - A timeout fails closed: it propagates to `Jobs.cs:92-96`, which marks the syllabus `invalid_output` and logs only the exception type (READ). A copy of the pattern with a 1-tick timeout throws (RAN).
+
+## Lead decision recorded: stop polishing the mock importer's heuristics
+
+The following are DEFERRED-WITH-REASON as accepted limits of the mock stand-in. The common reason: the mock is to be replaced by a real extractor, and the server checks (SBV-01, SBV-06, SBV-10, SBV-11, SBV-12, SBV-14) guard against a lying extractor.
+
+| Row | What remains | Why it is acceptable |
+|---|---|---|
+| SBV-33 | Still silent: 'final exam: may 3', 'exam may 3-5', 'Exam due, may 3', 'Exam (Section 2) 3 Dec 2026', 'Exam from 1 to 3 Dec 2026', 'Final exam, 4 Dec 2026' | Silence, not a wrong date, in uncommon layouts |
+| SBV-34 (b) | 'Read pp. 9/30' is read as Sep 30, `probably_right` | Not ordinary text: page ranges use a hyphen. Not batch-approvable, and the quote is shown |
+| SBV-28 | A recurrence on a long dateless line is dropped | A mock-only edge that fails closed and is counted |
+| SBV-36d | A time written before the date is not read (the Lead's ruling); 'Gen 14:15' reads 14:15 | The first fails toward no time; the second is uncommon |
+
+**Caveat that outlives the mock:** `FindDates` is also the server's yardstick (SBV-12). A real extractor's correct 'may 3' item would be dropped (counted), and its 'pp. 9/30' misread would pass. Both are on the new checklist in design doc section 17.
+
+The phrase "nothing else is silently wrong" is limited to what my probes found. It is not a proof.
+
+## Exceptions kept OPEN (confident wrong time from ordinary syllabus text)
+
+- **SBV-37 MEDIUM (new, pre-existing, reachable with the mock):** when am/pm is written only on the end of a range, it is applied to the start too.
+  - 'Final exam Dec 9 11:00-1:00 PM' and '11-1pm' are stored at 23:00 (the end is dropped). '10-12pm' is stored at 22:00, and '11:30-12:45pm' at 23:30.
+  - A weekly 'Office hours Tuesdays 11-1pm' gets 23:00.
+  - These items are `probably_right`, or `looks_right` when the year is written.
+- **SBV-38 LOW (new, pre-existing):**
+  - (a) Weekly rules read colon times without am/pm as 24-hour times: 'Office hours Tue/Thu 2:00-3:30' is stored 02:00-03:30.
+  - (b) A written zone is ignored: '3pmPT' in a New York course is stored at 15:00 New York time, with only `timezone_assumed`.
+- **Info (review only):** 'Quiz Dec 9 and 11 at 2pm' gives Dec 9 at 14:00 and nothing for Dec 11, because a bare '11' is not a date hit.
+
+## What I ran and what I did not verify (eleventh pass)
+
+- **Ran:**
+  - `git show HEAD`, and reads of `MockRuleExtractor.cs` (Meridiem, Clock, TimeOf, FindTime, ToHour, TryRecurrence, BuildDated), `SyllabusSignals.cs` (FindDates, Overlaps), `Jobs.cs:80-99` and `DateMatcherTests.cs` (the diff).
+  - `MSYS_NO_PATHCONV=1 docker run --rm -v "<repo>:/repo" -w /repo/src/api mcr.microsoft.com/dotnet/sdk:10.0 dotnet test tests/Tether.SyllabusTests`: Passed 548, Failed 0, Skipped 0.
+  - The scratch probe `sbv35probe` (outside the repo, build output in the container's /tmp). It ran about 120 lines through `MockRuleExtractor`, `SyllabusLimits.Apply` and `ServerFlags.Rederive`, with per-date `TimeOf` readings, plus 272 Clock timing runs and 5 whole-extraction timings.
+  - The register's section 6 recipes after editing the register.
+- **Not run:**
+  - HEAD's tests against the parent's source. I did not show the new tests failing before the fix; that rests on the commit's claim and on my probe of the old behaviour in the tenth pass.
+  - `SyllabusDateMatcherTests`, the rest of the integration suite, the dev API and any web test.
+- **Not verified:** the commit's figures (AI 333, architecture 27, reader 131, contract 870, integration 654) and its claim that the output changed on 1 of 13,033 inputs.

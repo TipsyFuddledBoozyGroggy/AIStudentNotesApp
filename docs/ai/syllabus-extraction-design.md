@@ -321,6 +321,24 @@ No code, prompts, schemas files, fixtures, parser grammar, measurements or provi
 
 ## 17. Conditions before any real extractor (PO-20aj, 2026-11-01)
 
+**Checklist: still open before ANY real extractor is connected** (security-engineer, 2026-11-02, HEAD c729753; status lives in `docs/security/findings-register.md`). Conditions 1 to 5 below are met server-side (SBV-01, SBV-06, SBV-10, SBV-11, SBV-12, SBV-14 FIXED-VERIFIED). Each box closes only with code and a test that fails without it; an AI verdict closes nothing.
+
+- [ ] SBV-19 (MEDIUM): refuse `explicit_full` on a recurrence (it has no written date).
+- [ ] SBV-20 (MEDIUM): a weekly rule needs a real weekday token plus a time and a recurring kind, not any weekday-like letters ('sat', 'MW', 'No class Mondays').
+- [ ] SBV-21 (MEDIUM): every `alternatives` date must be a reading of a date hit inside the quote.
+- [ ] SBV-22 (MEDIUM): time, end time and zone checked against the quote, read exactly as the mock reads them (first clock after the date, bounded at the next date, SBV-35; colon and zone rules, SBV-36), without copying SBV-37 (end-only am/pm shared with the start) or SBV-38 (weekly 24-hour colon times; written zone ignored).
+- [ ] SBV-13 (LOW): informational flags (`year_inferred`, `time_missing`, `timezone_assumed`, `until_from_term`) derived by the server.
+- [ ] SBV-15 (LOW): on lines over 1,500 code points, cues outside the context window are re-derived.
+- [ ] SBV-23 (LOW): `written.*` evidence fields derived from (or equal to) the matching date hit, before any UI or export shows them.
+- [ ] SBV-24 (LOW): recurrence `from`, `until`, `untilSource` checked against the term.
+- [ ] SBV-25 (LOW): `year_from_term` must be the term's unique candidate year.
+- [ ] SBV-26 (LOW): a server-side resolver for `relative_to_anchor`, or the extractor must propose such items as needs_date.
+- [ ] SBV-27 (LOW): refuse an extractor-written `student_entered` derivation.
+- [ ] SBV-31 (LOW): years outside 2000 to 2100 refused server-side; `explicit_full` far from the term flagged.
+- [ ] SBV-16 (LOW, fails closed): decide whether a regex timeout should fail the whole syllabus.
+- [ ] Shared-matcher limits (SBV-33, SBV-34 (b), SBV-36d, DEFERRED for the mock): `SyllabusSignals.FindDates` is also the server's yardstick (SBV-12), so a correct real-extractor date the matcher cannot read is dropped (counted) and a misread the matcher shares ('Read pp. 9/30' as Sep 30) passes. Re-assess with the real extractor's eval set.
+- [ ] Not security rows, still required: G2 vendor terms, retention and cost (`docs/RELEASE_GATES.md`), Product Owner approval to spend and to lift the mock-only provider guard, and a real-model prompt-injection and accuracy eval (section 11).
+
 These two conditions are recorded as required before a real model-based extractor is connected. The mock extractor meets them by construction and is tested.
 
 1. **The server chooses the quote context (SBV-06).** The extractor must not choose the context window of a quote. A model that picks it could narrow a verbatim quote to hide a word (example: "The final is NOT on Dec 9" cut to "on Dec 9"). The server computes the context from the canonical text.
