@@ -60,7 +60,9 @@ public class SyllabusDateMatcherTests(SyllabusDateMatcherTests.Factory f) : Syll
         // exactly the honest dates: Oct 19 (midterm), Oct 5 (day-first, written year), Dec 9 at 10 AM with no end date.
         // SBV-32 (Lead ruling, 2026-11-02): this used to expect 'Quiz Dec 9-10am' stored 09:00 to 10:00, which read the day 9 as a start hour.
         // The time is read only after the date's own text 'Dec 9', so it is 10:00 with no end time and no inferred start-end range.
-        Assert.Equal(3, await F.ScalarAsync($"select count(*) from syllabus.items where syllabus_id = '{g}'"));
+        // PO-20av: 'Paper due by Sept 2026' is the fourth item, a 'Needs a date' item with no date at all (never Sep 20).
+        Assert.Equal(4, await F.ScalarAsync($"select count(*) from syllabus.items where syllabus_id = '{g}'"));
+        Assert.Equal(1, await F.ScalarAsync($"select count(*) from syllabus.items where syllabus_id = '{g}' and when_status = 'needs_date' and date_local is null"));
         Assert.Equal(1, await F.ScalarAsync($"select count(*) from syllabus.items where syllabus_id = '{g}' and date_local = '2026-10-19'"));
         Assert.Equal(1, await F.ScalarAsync($"select count(*) from syllabus.items where syllabus_id = '{g}' and date_local = '2026-10-05' and end_date_local is null"));
         Assert.Equal(1, await F.ScalarAsync($"""

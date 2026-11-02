@@ -92,6 +92,12 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
                     if (items.Count < input.MaxAi()) items.Add(BuildNeedsDate(text, lines, li, kind, "tba", injection, lowQuality, input));
                     else dropped++;
                 }
+                // PO-20av: a month and a year with no day is a "Needs a date" item (no day invented, quote kept); a weekly line is left to the second pass
+                else if (kind is not null && SyllabusSignals.HasMonthYearOnly(line) && TryRecurrence(line, kind, null) is null)
+                {
+                    if (items.Count < input.MaxAi()) items.Add(BuildNeedsDate(text, lines, li, kind, "not_stated", injection, lowQuality, input));
+                    else dropped++;
+                }
                 continue;
             }
 

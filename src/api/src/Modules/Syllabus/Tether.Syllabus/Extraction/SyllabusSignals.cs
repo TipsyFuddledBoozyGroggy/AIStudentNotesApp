@@ -43,6 +43,27 @@ internal static class SyllabusSignals
         @"(?<=(?:^|[(\[:;]|\b(?:on|due|by|from|until|till|before|after|(?:Mon|Tue|Tues|Wed|Thu|Thur|Thurs|Fri|Sat|Sun)(?:day)?)\.?,?)\s*)(?<!\d)(?<day>[0-9]{1,2})(?!\d)(?<ord>st|nd|rd|th)?\s+(?<mon>" + MonthNames + @")\b\.?(?:\s*,\s*|\s+)" + Year,
         Opts, Timeout);
     /// <summary>
+    /// PO-20av (T-MONTH-ONLY, option A): a month and a year with NO day ("Sept 2026", "December 2026"). It is NOT a date (<see cref="FindDates"/>
+    /// never returns it, so no day is ever read or invented); the mock uses it only to make a "Needs a date" item from a line that has no date
+    /// at all. Lower-case "may"/"mar" are the verbs and are not a month here (they are checked in <see cref="HasMonthYearOnly"/>).
+    /// </summary>
+    internal static readonly Regex MonthYear = new(
+        @"(?<![\p{L}\p{N}])(?<mon>" + MonthNames + @")\.?,?\s+" + Year + @"(?![\p{L}\p{N}])",
+        Opts, Timeout);
+
+    /// <summary>True when <paramref name="line"/> has a month and a year but no day (PO-20av). Call only for a line where <see cref="FindDates"/> found nothing.</summary>
+    internal static bool HasMonthYearOnly(string line)
+    {
+        foreach (Match m in MonthYear.Matches(line))
+        {
+            var mon = m.Groups["mon"].Value;
+            if (mon.Length == 3 && char.IsLower(mon[0]) && mon.ToLowerInvariant() is "may" or "mar") continue;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
     /// SBV-18: "N/M" is not a date when it is a count or a score: after "problem(s)", "page(s)", "question(s)", "exercise(s)", or before
     /// "point(s)", "pt(s)", "mark(s)" or "%".
     /// </summary>
