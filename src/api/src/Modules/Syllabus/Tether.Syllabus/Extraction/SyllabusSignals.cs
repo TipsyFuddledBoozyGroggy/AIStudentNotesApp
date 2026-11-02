@@ -15,11 +15,35 @@ internal static class SyllabusSignals
     internal static readonly TimeSpan Timeout = TimeSpan.FromMilliseconds(250);
     internal const RegexOptions Opts = RegexOptions.CultureInvariant | RegexOptions.IgnoreCase;
 
+    // SBV-18 / SBV-29 / SBV-30. Digits that are READ (captured and parsed) are ASCII only ([0-9]); .NET's \d matches every Unicode decimal
+    // digit, which int.Parse refuses (it threw, failing the whole syllabus). Boundaries keep \d, so a Unicode digit next to a number still
+    // stops it from being read as a day. A day is at most two digits with no digit after it, so "Sept 2026" is a month and a year with no
+    // day (it was read as Sep 20) and "Dec 123" is not Dec 12. A range end ("Oct 12-16") is not a range end when a clock time follows it
+    // ("Dec 9-10am", "Dec 9-10:30" is Dec 9 with a time range); a reversed or empty range is read as the first day only (FindDates).
+    private const string MonthNames =
+        @"Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sept?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?";
+    private const string Year = @"(?<year>(?:19|20|21)[0-9]{2}\b)";
+
     internal static readonly Regex MonthDay = new(
-        @"\b(?<mon>Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sept?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(?<day>\d{1,2})(?:st|nd|rd|th)?(?:\s*[-–]\s*(?<day2>\d{1,2})(?:st|nd|rd|th)?)?(?:\s*,\s*|\s+)?(?<year>(?:19|20|21)\d{2}\b)?",
+        @"\b(?<mon>" + MonthNames + @")\.?\s+(?<day>[0-9]{1,2})(?!\d)(?<ord>st|nd|rd|th)?(?:\s*[-–]\s*(?<day2>[0-9]{1,2})(?!\d)(?:st|nd|rd|th)?(?!\s*(?:[:.][0-9]|[ap]\.?m\b)))?(?:\s*,\s*|\s+)?" + Year + "?",
         Opts, Timeout);
-    internal static readonly Regex Numeric = new(@"(?<![\d/.-])(?<m>\d{1,2})/(?<d>\d{1,2})(?:/(?<y>\d{4}|\d{2}))?(?![\d/])", Opts, Timeout);
-    internal static readonly Regex Iso = new(@"(?<![\d-])(?<y>\d{4})-(?<m>\d{2})-(?<d>\d{2})(?![\d-])", Opts, Timeout);
+    /// <summary>
+    /// SBV-18: a day-first date ("5 October 2026", "Fri 5th Oct 2026") is read only with a written year and only where a date is expected:
+    /// at the start of the text, after punctuation that introduces one ("(", ":", ";", ","), or after a word that does ("on", "due", "by",
+    /// "from", "until", "before", "after", a weekday). So "Quiz on 5 October 2026" is Oct 5 (it was Oct 20), while "Midterm 2 Dec 2026"
+    /// (a label number and a month) reads no day at all.
+    /// </summary>
+    internal static readonly Regex DayMonth = new(
+        @"(?<=(?:^|[(\[:;,]|\b(?:on|due|by|from|until|till|before|after|(?:Mon|Tue|Tues|Wed|Thu|Thur|Thurs|Fri|Sat|Sun)(?:day)?)\.?,?)\s*)(?<!\d)(?<day>[0-9]{1,2})(?!\d)(?<ord>st|nd|rd|th)?\s+(?<mon>" + MonthNames + @")\b\.?(?:\s*,\s*|\s+)" + Year,
+        Opts, Timeout);
+    /// <summary>
+    /// SBV-18: "N/M" is not a date when it is a count or a score: after "problem(s)", "page(s)", "question(s)", "exercise(s)", or before
+    /// "point(s)", "pt(s)", "mark(s)" or "%".
+    /// </summary>
+    internal static readonly Regex Numeric = new(
+        @"(?<![\d/.-])(?<!\b(?:problems?|pages?|questions?|exercises?)\s*)(?<m>[0-9]{1,2})/(?<d>[0-9]{1,2})(?:/(?<y>[0-9]{4}|[0-9]{2}))?(?![\d/])(?!\s*(?:(?:points?|pts?|marks?)\b|%))",
+        Opts, Timeout);
+    internal static readonly Regex Iso = new(@"(?<![\d-])(?<y>[0-9]{4})-(?<m>[0-9]{2})-(?<d>[0-9]{2})(?![\d-])", Opts, Timeout);
     internal static readonly Regex Weekday = new(@"\b(?<wd>Mon|Tue(?:s)?|Wed(?:nes)?|Thu(?:r|rs)?|Fri|Sat(?:ur)?|Sun)(?:day)?s?\b\.?", Opts, Timeout);
     internal static readonly Regex Tentative = new(@"\b(tentative|subject to change|may (?:shift|change|move)|approximately|provisional)\b", Opts, Timeout);
     internal static readonly Regex Injection = new(
@@ -77,27 +101,47 @@ internal static class SyllabusSignals
 
     internal sealed record DateHit(int Index, int Length, int? Year, int? Month, int? Day, int? Day2, bool Ambiguous, bool Invalid, string Text, string Style);
 
+    /// <summary>
+    /// Every date written in <paramref name="line"/>, in order. Never throws for any input (SBV-29): the patterns capture ASCII digits only and
+    /// every number is parsed with <see cref="Num"/>; a hit whose number does not parse is skipped, not guessed.
+    /// </summary>
     public static List<DateHit> FindDates(string line)
     {
         var hits = new List<DateHit>();
         foreach (Match m in Iso.Matches(line))
-            hits.Add(new DateHit(m.Index, m.Length, int.Parse(m.Groups["y"].Value, CultureInfo.InvariantCulture), int.Parse(m.Groups["m"].Value, CultureInfo.InvariantCulture),
-                int.Parse(m.Groups["d"].Value, CultureInfo.InvariantCulture), null, false, false, m.Value.TrimEnd(), "iso"));
+        {
+            if (Num(m.Groups["y"]) is not { } y || Num(m.Groups["m"]) is not { } mo || Num(m.Groups["d"]) is not { } d) continue;
+            hits.Add(new DateHit(m.Index, m.Length, y, mo, d, null, false, false, m.Value.TrimEnd(), "iso"));
+        }
         foreach (Match m in MonthDay.Matches(line))
         {
             if (hits.Any(h => Overlaps(h, m))) continue;
-            var yearText = m.Groups["year"].Success ? m.Groups["year"].Value : null;
+            // SBV-18: "may" and "mar" in lower case are usually the verbs ("Students may 3 times ..."); they are a month only with an ordinal
+            // day or a written year ("may 3rd", "may 3, 2027"). "May", "MAY", "Mar", "March" and "march" are months as before.
+            var mon = m.Groups["mon"].Value;
+            if (mon.Length == 3 && char.IsLower(mon[0]) && mon.ToLowerInvariant() is "may" or "mar" && !m.Groups["ord"].Success && !m.Groups["year"].Success) continue;
+            if (Num(m.Groups["day"]) is not { } day) continue;
+            int? year = null;
+            if (m.Groups["year"].Success) { if (Num(m.Groups["year"]) is not { } y) continue; year = y; }
+            var day2 = m.Groups["day2"].Success ? Num(m.Groups["day2"]) : null;
+            // SBV-30: a range ends after it starts. "Oct 16-12" or "Dec 10-10" is read as its first day only (the mock never made a range of
+            // it, and a claimed end date then has no written second day to match, so ServerDates drops it instead of the database refusing it).
+            if (day2 is { } d2 && d2 <= day) day2 = null;
             var span = m.Value.TrimEnd(' ', ',');
-            hits.Add(new DateHit(m.Index, span.Length, yearText is null ? null : int.Parse(yearText, CultureInfo.InvariantCulture), MonthNumber(m.Groups["mon"].Value),
-                int.Parse(m.Groups["day"].Value, CultureInfo.InvariantCulture), m.Groups["day2"].Success ? int.Parse(m.Groups["day2"].Value, CultureInfo.InvariantCulture) : null,
-                false, false, span, "month"));
+            hits.Add(new DateHit(m.Index, span.Length, year, MonthNumber(mon), day, day2, false, false, span, "month"));
+        }
+        foreach (Match m in DayMonth.Matches(line))
+        {
+            if (hits.Any(h => Overlaps(h, m))) continue;
+            if (Num(m.Groups["day"]) is not { } day || Num(m.Groups["year"]) is not { } year) continue;
+            hits.Add(new DateHit(m.Index, m.Length, year, MonthNumber(m.Groups["mon"].Value), day, null, false, false, m.Value, "day_month"));
         }
         foreach (Match m in Numeric.Matches(line))
         {
             if (hits.Any(h => Overlaps(h, m))) continue;
-            var a = int.Parse(m.Groups["m"].Value, CultureInfo.InvariantCulture); var b = int.Parse(m.Groups["d"].Value, CultureInfo.InvariantCulture);
+            if (Num(m.Groups["m"]) is not { } a || Num(m.Groups["d"]) is not { } b) continue;
             int? year = null;
-            if (m.Groups["y"].Success) { var y = int.Parse(m.Groups["y"].Value, CultureInfo.InvariantCulture); year = y < 100 ? 2000 + y : y; }
+            if (m.Groups["y"].Success) { if (Num(m.Groups["y"]) is not { } y) continue; year = y < 100 ? 2000 + y : y; }
             // month first is the default (design question 7); both readings possible and different is "ambiguous_format", never guessed
             var ambiguous = a is >= 1 and <= 12 && b is >= 1 and <= 12 && a != b;
             var invalid = !(a is >= 1 and <= 12) && !(b is >= 1 and <= 12) || (a > 12 && b > 12);
@@ -105,6 +149,10 @@ internal static class SyllabusSignals
         }
         return [.. hits.OrderBy(h => h.Index)];
     }
+
+    /// <summary>SBV-29: an ASCII decimal number, or null (never an exception): no sign, no spaces, no Unicode digits, invariant culture.</summary>
+    private static int? Num(Group g) =>
+        g.Success && g.Length is > 0 and <= 4 && int.TryParse(g.ValueSpan, NumberStyles.None, CultureInfo.InvariantCulture, out var v) ? v : null;
 
     private static bool Overlaps(DateHit h, Match m) => m.Index < h.Index + h.Length && h.Index < m.Index + m.Length;
 
@@ -304,8 +352,8 @@ internal static class ServerFlags
 /// "Dec 9" out of "Dec 9, 2026", does not support a date.
 /// <list type="bullet">
 /// <item>(a) a resolved single date: some date written in the quote reads as its month and day; when that written date has a year, it is the
-/// date's year; when the item has an end date, the written date is a range whose second day is the end date's day in the same month (as the mock
-/// builds a range);</item>
+/// date's year; when the item has an end date, it is after the date (SBV-30) and the written date is a range whose second day is the end date's
+/// day in the same month (as the mock builds a range);</item>
 /// <item>(b) <c>explicit_full</c>: that written date has a year (four digits, or a numeric date's two-digit year read as 20yy, exactly as the
 /// mock reads it, which also calls such a date <c>explicit_full</c>);</item>
 /// <item>(c) an ambiguous numeric date ("3/4", "10/5") reads as no calendar day (<see cref="SyllabusSignals.MonthDayOf"/>), so it can never
@@ -337,7 +385,8 @@ internal static class ServerDates
             if (hit.Index < from || hit.Index + hit.Length > to) continue;                        // not whole inside the quote
             if (SyllabusSignals.MonthDayOf(hit) is not { } md || md != (date.Month, date.Day)) continue;   // (a), (c)
             if (hit.Year is { } y ? y != date.Year : p.Derivation == "explicit_full") continue;   // (a) the written year; (b) explicit_full needs one
-            if (p.EndDate is { } end && !(hit.Day2 is { } day2 && end.Year == date.Year && end.Month == date.Month && end.Day == day2)) continue;
+            // SBV-30: an end date must be after the date (ck_items_end_date would otherwise fail the whole syllabus) and be the written second day
+            if (p.EndDate is { } end && !(end > date && hit.Day2 is { } day2 && end.Year == date.Year && end.Month == date.Month && end.Day == day2)) continue;
             return true;
         }
         return false;

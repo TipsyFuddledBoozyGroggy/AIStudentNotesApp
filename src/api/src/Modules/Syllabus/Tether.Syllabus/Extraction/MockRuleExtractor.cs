@@ -42,8 +42,10 @@ internal sealed class MockRuleExtractor : ISyllabusExtractor
     private static readonly TimeSpan Timeout = SyllabusSignals.Timeout;
     private const RegexOptions Opts = SyllabusSignals.Opts;
 
+    // SBV-29: the captured hour and minute digits are ASCII only, so int.Parse below cannot throw on a Unicode digit (\d matches every
+    // Unicode decimal digit); the boundaries keep \d, so a Unicode digit next to a number still stops it from being read.
     private static readonly Regex Clock = new(
-        @"(?<![\d:])(?<h1>\d{1,2})(?::(?<m1>\d{2}))?\s*(?<a1>[ap]\.?m\.?)?\s*(?:[-–]\s*(?<h2>\d{1,2})(?::(?<m2>\d{2}))?\s*(?<a2>[ap]\.?m\.?)?)?(?![\d:])",
+        @"(?<![\d:])(?<h1>[0-9]{1,2})(?::(?<m1>[0-9]{2}))?\s*(?<a1>[ap]\.?m\.?)?\s*(?:[-–]\s*(?<h2>[0-9]{1,2})(?::(?<m2>[0-9]{2}))?\s*(?<a2>[ap]\.?m\.?)?)?(?![\d:])",
         Opts, Timeout);
     private static readonly Regex Tba = new(@"\b(TBA|TBD|to be announced|to be determined)\b", Opts, Timeout);
     private static readonly Regex Policy = new(@"\b(late (?:work|policy|submission)s?|attendance policy|academic integrity|honou?r code|grading policy|accommodations?)\b", Opts, Timeout);
