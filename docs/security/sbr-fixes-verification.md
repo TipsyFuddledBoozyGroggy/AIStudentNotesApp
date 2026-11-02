@@ -661,3 +661,59 @@ Reviewer: security-engineer, 2026-11-02, HEAD `ad6bee5`. Ratings follow `severit
   - The register's section 6 recipes after editing the register.
 - **Not run:** `SyllabusDateMatcherTests` and the rest of the integration suite (shared dev DB; told not to), the dev API and any web test. A real regex timeout was not triggered, so the fail-closed path rests on reading.
 - **Not verified:** the commit's figures (AI 333, reader 131, contract 870, architecture 27, integration 654) and the author's 3,642-text equivalence run.
+
+# Tenth pass: SBV-32, SBV-33 and SBV-34 fixes (commit 19796cd)
+
+Reviewer: security-engineer, 2026-11-02, HEAD `19796cd`. Ratings follow `severity-policy.md`, calibrated to the personal-tool scope (PO-15/16). No source or test file was edited.
+
+## Result
+
+- **SBV-32 MEDIUM: FIXED-VERIFIED.**
+  - `FindTime` now scans from the end of the date hit. .NET lookbehinds still see the text before the start index, so the date's own digits cannot begin a time.
+  - A meridiem must not be followed by a letter.
+  - Read correctly: 'Dec 9 - 1pm' (13:00), 'Dec 9-10am' (10:00), 'Dec 9 - 2-4pm' and 'Dec 9-2:00-4:00pm' (14:00-16:00), 'Dec 9-11 2-4pm' (a two-day range at 14:00-16:00), '12am' (00:00), '12pm' (12:00), '10 a.m.', '10a.m', '10 A.M.'.
+  - 'Noon' and 'midnight' give no time (all-day), which is safe.
+  - 'Amos Hall' and 'Pmb' give no time.
+  - HEAD's `DateMatcherTests.cs` fails on the parent's source (26 of 99, every one a new case) and passes on HEAD.
+- **SBV-33 LOW: partly fixed, stays OPEN.**
+  - What works: the lookbehind cue makes a lower-case may/mar a month right after on, due, by, before, until, from or through, so 'quiz on may 3', 'exam due may 3' and 'quiz on mar. 3' are no longer silent.
+  - No verb misread found: I found no natural sentence where the cue reads the verb as a date. 'Students who sit the quiz on may 3 times' is contrived and needs_date.
+  - Still silent: 'final exam: may 3', 'exam may 3-5', 'Exam due, may 3', and the ')' and 'to' layouts. The Lead's ruling is 'nothing wider'; it is in the code comment, not in DECISIONS.md.
+  - New silence from the SBV-34 fix: 'Final exam, 4 Dec 2026' and 'Essay deadline, 4 December 2026' read correctly at ad6bee5 and now give nothing.
+- **SBV-34 LOW: part (a) fixed, part (b) untouched, stays OPEN.**
+  - (a) Fixed: 'Read chapters 4, 5 May 2026' and 'Homework sets 1, 2 Dec 2026' read no day. A weekday's or date word's comma still works.
+  - (b) Unchanged: 'Read pp. 9/30' is still Sep 30 `probably_right`.
+- **ReDoS: no regex comes near the 250 ms timeout.**
+  - The per-match maximum on 200,000-character lines was 63.8 ms, the unchanged DayMonth on a line of digits (61 ms in the ninth pass). The new MonthDay cue peaked at 20.3 ms (old pattern 12.7 ms), and a 200,000-space run before 'may 1' took 16 ms. The new Clock regex matched the old one (at most 0.2 ms per match, 49 ms for 100,000 matches).
+  - 0 timeouts in 378 timed regex runs. The slowest whole extraction was 824 ms on a raw 'Dec 9 - 2-4 ' line with 16,667 hits: CPU time in the quadratic `FindDates` (SBV-I24), not a timeout.
+  - The fail-closed path is unchanged (Jobs.cs not touched). It rests on reading, as in the ninth pass.
+- **The server still does not check times.** `ServerDates.Consistent` checks dates only. SBV-22 stays MEDIUM OPEN as a real-extractor precondition and now notes that a server time rule must match the mock's new reading, bounded at the next date (SBV-35).
+
+## New findings
+
+- **SBV-35 MEDIUM (reachable with the mock; pre-existing):** the mock makes an item of the first date on a line and reads the first clock anywhere after it, so a time written for a later date is given to the first one.
+  - 'Quiz Dec 9; Exam Dec 11 at 2pm' is stored Dec 9 at 14:00.
+  - With written years it is `looks_right` and batch-approvable.
+  - In a sweep, 128 of 128 lines took the second date's time.
+  - The commit's sweep has one date per line, so it cannot see this.
+  - Rated MEDIUM because I was unsure between LOW and MEDIUM, same reasoning as SBV-32. Fix: bound the scan at the next date hit.
+- **SBV-36 LOW:**
+  - (a) Introduced by the fix: '11:59pmET' is now 11:59 (was 23:59) and '2:00-3:30pmET' is 02:00-03:30.
+  - (b) A colon number with no meridiem is read as a time: 'John 3:16' is 03:16.
+  - (c) There is no letter boundary before the hour: 'CS3pm' is 15:00.
+  - (d) Under the Lead's ruling, a time written before the date is not read: 'Homework due 5pm Dec 9' is all-day with no flag.
+
+## What I ran and what I did not verify (tenth pass)
+
+- **Ran:**
+  - `git show HEAD`, and reads of `MockRuleExtractor.cs` (Clock, FindTime, BuildDated, MakeTitle), `SyllabusSignals.cs` (MonthDay, DayMonth, FindDates, ServerDates), `DateMatcherTests.cs` and `SyllabusDateMatcherTests.cs`.
+  - `MSYS_NO_PATHCONV=1 docker run --rm -v "<repo>:/repo" -w /repo/src/api mcr.microsoft.com/dotnet/sdk:10.0 dotnet test tests/Tether.SyllabusTests`: Passed 510, Failed 0, Skipped 0.
+  - HEAD's `DateMatcherTests.cs` against the parent's `src/api` (from `git archive HEAD~1`, in my scratchpad), filtered to `DateMatcherTests`: Failed 26, Passed 73, Total 99.
+  - The scratch console probe `sbv32probe`, outside the repo. The repo is mounted and its `bin`/`obj` get build output, as `dotnet test` does. It ran:
+    - about 120 lines through `MockRuleExtractor`, `SyllabusLimits.Apply` and `ServerFlags.Rederive`;
+    - a 128-line two-date sweep;
+    - 378 regex timing runs, plus old-versus-new per-match timing of Clock and MonthDay;
+    - 16 whole-extraction timings.
+  - The register's section 6 recipes after editing the register.
+- **Not run:** `SyllabusDateMatcherTests` and the rest of the integration suite (shared dev DB; told not to), the dev API and any web test. A real regex timeout was not triggered.
+- **Not verified:** the commit's figures (AI 333, architecture 27, reader 131, contract 870, integration 654) and the '8 of 8,730 runs' output-diff claim.
