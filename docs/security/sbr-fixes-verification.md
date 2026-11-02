@@ -499,3 +499,41 @@ Tests show the fixes are real:
   - The dev API, any web test, and the real `parsePage` on a served page.
   - Any query of the dev DB for pre-fix rows.
 - **Not verified:** the commit's figures (AI 333, reader 131, architecture 27, contract 870, integration 650).
+
+# Seventh pass: DR-04 intake and SBV-17 migration (commit 689a544)
+
+Reviewer: security-engineer, 2026-11-02, HEAD `689a544`. Ratings follow `severity-policy.md`, calibrated to the personal-tool scope (PO-15/16). No source or test file was edited.
+
+## Result
+
+- **DR-04 LOW: FIXED-VERIFIED** (added to the register this pass; it was a Lead note in `docs/architecture/document-reader.md`, a fail-closed false refusal).
+  - `Sniff` treats any `PK\x03\x04` file as a DOCX candidate; PDF and text sniffing are unchanged, and `TypeAgrees` still needs `.docx` (or no extension) and the DOCX or octet-stream part type. The 10 MB cap is still counted while reading, before any other work.
+  - `ReadFileAsync` keeps at most 64 bytes plus one 64 KB read before the type is known, then a fixed 512 KB ring for a candidate. Nothing is sized from file values. `tail!` is always set on the DOCX path.
+  - `ZipDirectory.HasDocxParts`: the end record counts only where its comment length reaches exactly to the end (scan bounded to 65,557 bytes). Offset + size is summed in `long` and must equal the end record's absolute position; the offset must be inside the window, so the `int` cast is at most 512 KB. Every header read is guarded (`p <= end - 46`, `size <= header.Length`, three `ushort` lengths summed in `int`, at most about 196 KB). The walk must stop exactly at the end record. Multi-disk, ZIP64 markers, 0 or more than 1,000 entries and names outside 1..260 bytes are refused. Nothing in it can throw on hostile input.
+  - The ring buffer's wrap and the full-overwrite branch are correct (checked by reading and by the probe below).
+- **SBV-17 LOW: FIXED-VERIFIED** (READ; the migration test was not run).
+  - The UPDATE matches only rows with confidence <> please_check and one of the three flags. Under S001's check such a row cannot be `resolved`, so only policy and needs-date rows change; those cannot be approved or synced, so calendar state is unaffected. It bumps `row_version` through the trigger (the ETag changes) and does not fire the snippet trigger. A second run matches nothing.
+  - New check: for resolved rows it equals S001's seven-flag rule; for any other status the three flags force please_check. `confidence`, `flags` and `when_status` are NOT NULL, so NULL cannot pass it vacuously.
+  - Down restores S001's expression exactly and keeps the corrected rows (they satisfy both). Raw SQL only, so the EF snapshot does not drift.
+  - `SyllabusFlagsCheckMigrationTests` (READ) plants legacy rows at S002, checks the correction and the controls, the served page against the schema, INSERT and UPDATE violations for every status, then Down and Up again.
+
+## New findings
+
+None.
+
+## Observations (Info, not findings)
+
+- **SBV-I19:** the intake check is shallow by design: local headers, sizes and data are never compared with the directory, so a package with corrupt entries passes intake (the probe accepted 54,895 of 200,000 random byte-flip mutations, almost all flips outside the directory). Correct for intake, since the bytes are dropped and the sandboxed reader decides; the reader must never treat "intake said DOCX" as evidence.
+- **SBV-I20:** a `PK` upload now costs a 512 KB ring plus a 512 KB copy, and a ZIP that is not a DOCX is read to the end (up to 10 MB) before the 415, where it used to stop at 64 bytes. Bounded by the existing per-user create slot, the bytes-in-flight budget and the read deadline.
+- **SBV-I21:** S003 does not set `updated_at` on the corrected rows; a needs-date row would get the generic "unclear" sentence rather than its unknown-reason sentence (no such row can come from the current rule); `ADD CONSTRAINT` scans `syllabus.items` under ACCESS EXCLUSIVE (trivial at personal scale; use NOT VALID then VALIDATE if the table is ever large).
+- **SBV-I22:** the intake takes the end record nearest the end whose comment length is exact. For a package whose comment ends with a fake 0-entry end record, intake refused it and `System.IO.Compression` also listed 0 entries in the probe, so I found no disagreement; a parser differential would in any case only change an intake verdict, not what the reader accepts. Some writers always emit a ZIP64 end record; intake refuses those (documented), a possible false 415.
+
+## What I ran and what I did not verify (seventh pass)
+
+- **Ran:**
+  - `git show HEAD` and file reads (UploadIntake.cs, ZipDirectory.cs, S001/S002/S003, SyllabusSignals.cs, DocxSniffTests.cs, the DR04 integration test, SyllabusFlagsCheckMigrationTests.cs).
+  - `MSYS_NO_PATHCONV=1 docker run --rm -v "<repo>:/repo" -w /repo/src/api mcr.microsoft.com/dotnet/sdk:10.0 dotnet test tests/Tether.SyllabusTests`: Passed 300, Failed 0, Skipped 0.
+  - A scratch console probe (outside the repo, repo mounted read-only) loading the built `Tether.Syllabus.dll` by reflection: ring-buffer output equal to the true last 512 KB for 11 sizes (0 to 1.6 MB) x 4 chunkings (0 mismatches); 250,000 fuzzed inputs to `HasDocxParts` (byte flips, truncation, random tails with a planted end record, file lengths up to 2^40): 0 exceptions; a PDF and a text file ending in a valid offset-adjusted package: `ReadFileAsync` gives Pdf and Text (not DOCX); `PK\x03\x04` plus text: Unsupported with an error; a 2 MB package read 1 byte at a time: Docx, no error, 176 ms.
+  - The register's section 6 recipes after editing the register.
+- **Not run:** the DR04 integration test, `SyllabusFlagsCheckMigrationTests` and the rest of the integration suite (shared dev DB; told not to); the dev API; any web test. I did not show the new unit tests failing on the parent commit (by reading, the old `Sniff` returns Unsupported unless `[Content_Types].xml` is the first entry, so the "content types last" cases would fail).
+- **Not verified:** the commit's figures (AI 333, reader 131, architecture 27, contract 870, integration 652).
