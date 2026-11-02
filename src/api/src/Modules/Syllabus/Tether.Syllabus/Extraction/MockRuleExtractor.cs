@@ -22,6 +22,7 @@ internal sealed record ExtractorOutput(IReadOnlyList<ProposedItem> Items, IReadO
 /// sliced by the server, and it cannot invent a date. It tests the pipeline, validators, UI states and persistence, not model quality.
 /// The orchestrator does not rely on that (SBV-01): <see cref="SyllabusLimits.Apply"/> checks every snippet's offsets against the canonical
 /// text, rejects (and counts) any whose text or context is not the slice at those offsets, and stores only the slices it cuts itself.
+/// It also ignores the proposed context window and computes its own from the snippet offsets (SBV-06, <see cref="SyllabusLimits.ServerContext"/>).
 /// </summary>
 internal interface ISyllabusExtractor
 {
@@ -518,7 +519,8 @@ internal static class SyllabusLimits
     /// (<see cref="Fits(ProposedSnippet)"/>), lie within the text, and fall on code-point boundaries; its <c>Text</c> and <c>ContextText</c>
     /// must equal (ordinal) the canonical slices at those offsets. A proposal that disagrees is rejected (the caller counts it): text that is
     /// not at its offsets is model text, never a quote of the student's syllabus. On success the returned record carries the slices cut here,
-    /// so what is stored comes from the canonical text, not from the extractor.
+    /// so what is stored comes from the canonical text, not from the extractor. SBV-06: only the snippet offsets survive; the context offsets
+    /// and text are replaced by <see cref="ServerContext"/>, so the extractor cannot choose how much of the line is shown around a quote.
     /// </summary>
     internal static bool TryCanonical(ProposedSnippet s, string canonical, out ProposedSnippet sliced)
     {
@@ -529,8 +531,50 @@ internal static class SyllabusLimits
         var text = canonical.Substring(s.Start, s.End - s.Start);
         var context = canonical.Substring(s.ContextStart, s.ContextEnd - s.ContextStart);
         if (!string.Equals(text, s.Text, StringComparison.Ordinal) || !string.Equals(context, s.ContextText, StringComparison.Ordinal)) return false;
-        sliced = s with { Text = text, ContextText = context };
-        return true;
+        // SBV-06: the extractor's (verified) context window is discarded; the server picks the window from the snippet offsets alone
+        var (cs, ce) = ServerContext(canonical, s.Start, s.End);
+        sliced = s with { Text = text, ContextStart = cs, ContextEnd = ce, ContextText = canonical.Substring(cs, ce - cs) };
+        return Fits(sliced);                                                      // always true by construction; a defensive, counted drop otherwise
+    }
+
+    /// <summary>
+    /// SBV-06: the context window of the snippet [<paramref name="start"/>, <paramref name="end"/>), chosen by the server from the canonical
+    /// text and the snippet offsets only, never from the extractor, so a model cannot narrow a quote's context to hide a word ("The final is
+    /// NOT on Dec 9" cut to "on Dec 9"). It is the whole canonical line (or run of lines, if the snippet crosses a line break) that contains
+    /// the snippet. A line over <see cref="ContextText"/> code points gets the same window the mock uses for its items
+    /// (<see cref="MockRuleExtractor.ContextWindow"/>: at most 1,500 code points around the snippet, never splitting a surrogate pair, so it
+    /// also stays within <see cref="ContextSpan"/> UTF-16 units), whose edges are then moved inwards to grapheme-cluster boundaries where one
+    /// exists between the window edge and the snippet. The result always contains the snippet and is an exact slice of the canonical text.
+    /// For the mock's own output this equals the context it proposed, except an unclaimed date on a line over 1,500 code points, where the
+    /// mock's snippet-only context is widened to the window.
+    /// </summary>
+    internal static (int Start, int End) ServerContext(string canonical, int start, int end)
+    {
+        var ls = start == 0 ? 0 : canonical.LastIndexOf('\n', start - 1) + 1;
+        var nl = canonical.IndexOf('\n', end);
+        var le = nl < 0 ? canonical.Length : nl;
+        var (cs, ce) = MockRuleExtractor.ContextWindow(canonical, ls, le, start, end, ContextText);
+        if (cs == ls && ce == le) return (cs, ce);                                // the whole line fits: nothing is cut
+
+        // Snap the cut edges to grapheme-cluster boundaries (UAX #29, as .NET's StringInfo implements it). Segmentation restarts a short way
+        // before the window instead of at the line start, so a 100,000-unit line costs O(window) per snippet; a line break is always a
+        // boundary, and the canonical text keeps at most 4 marks per base, so the segmentation is back in step within that margin (a run of
+        // more than 32 regional-indicator pairs right at the edge is the one case where a cut can still land between two flags' halves).
+        var from = Math.Max(ls, cs - 64);
+        if (from > ls && char.IsLowSurrogate(canonical[from]) && char.IsHighSurrogate(canonical[from - 1])) from--;
+        int? snapStart = null; var snapEnd = -1;
+        for (var b = from; ; )
+        {
+            if (snapStart is null && b >= cs && b <= start) snapStart = b;
+            if (b >= end && b <= ce) snapEnd = b;
+            if (b >= le || b > ce) break;
+            b += Math.Max(1, System.Globalization.StringInfo.GetNextTextElementLength(canonical.AsSpan(b, le - b)));
+        }
+        if (snapStart is { } s0) cs = s0;
+        if (snapEnd >= 0) ce = snapEnd;
+        while (cs < start && canonical[cs] == ' ') cs++;
+        while (ce > end && canonical[ce - 1] == ' ') ce--;
+        return (cs, ce);
     }
 
     /// <summary>

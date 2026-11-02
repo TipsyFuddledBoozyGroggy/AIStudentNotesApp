@@ -145,6 +145,8 @@ internal sealed class ExtractionRunner(IServiceScopeFactory scopes, SyllabusOpti
             // invalid_output; a dropped item whose verbatim snippet fits is kept as an unclaimed date so its date stays visible.
             // SBV-01: the extractor's snippet and context text are never stored as given. Apply verifies them against the canonical text at
             // their offsets (within the text, on code-point boundaries, ordinal equal) and returns the slices it cut; a mismatch is a counted drop.
+            // SBV-06: the stored context window is chosen by the server (the whole canonical line around the snippet, or a bounded window
+            // of a very long line), never by the extractor, so a narrowed context cannot hide a word such as "NOT" next to a quoted date.
             // SBV-02: the overflow beyond the item and unclaimed caps is counted as well.
             var kept = SyllabusLimits.Apply(output, opt.MaxAiItems, canonical);
             var fitting = kept.Items;

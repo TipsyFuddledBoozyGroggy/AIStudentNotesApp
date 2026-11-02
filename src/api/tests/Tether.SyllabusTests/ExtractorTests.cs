@@ -395,6 +395,174 @@ public class ExtractorTests
         Assert.Equal(0, kept.DroppedInvalid);
     }
 
+    // ---------------------------------------------------------------- SBV-06: the server, not the extractor, chooses the quote's context
+
+    /// <summary>The snippet at the first occurrence of <paramref name="needle"/>, with its context narrowed to the snippet itself (canonical, so SBV-01 passes).</summary>
+    private static ProposedSnippet Narrowed(string canon, string needle, int? ctxStart = null, int? ctxEnd = null)
+    {
+        var s = canon.IndexOf(needle, StringComparison.Ordinal);
+        Assert.True(s >= 0, "fixture must contain the needle");
+        var e = s + needle.Length;
+        return Slice(canon, s, e, ctxStart ?? s, ctxEnd ?? e);
+    }
+
+    /// <summary>The line of <paramref name="canon"/> that holds offset <paramref name="at"/>.</summary>
+    private static (int Start, int End) LineAt(string canon, int at) =>
+        DocumentText.LineSpans(canon).Single(l => l.Start <= at && at < l.End);
+
+    private static void AssertServerContext(string canon, ProposedSnippet s)
+    {
+        Assert.Equal(canon[s.Start..s.End], s.Text);
+        Assert.Equal(canon[s.ContextStart..s.ContextEnd], s.ContextText);                  // an exact slice of the canonical text
+        Assert.True(s.ContextStart <= s.Start && s.End <= s.ContextEnd, "context must contain the snippet");
+        Assert.InRange(TextPolicy.CodePoints(s.ContextText), 1, SyllabusLimits.ContextText);
+        Assert.InRange(s.ContextEnd - s.ContextStart, 1, SyllabusLimits.ContextSpan);
+        Assert.True(SyllabusLimits.Fits(s));
+    }
+
+    [Fact]
+    public void SBV06_a_context_narrowed_to_hide_a_negation_is_replaced_by_the_whole_line()
+    {
+        var o = RunCanon("Midterm exam: Oct 19, 2026 at 10:00 AM\nThe final is NOT on Dec 9, 2026\nQuiz 1 due Oct 21, 2026, also Nov 3, 2026", out var canon);
+        var final = o.Items.Single(i => i.Snippet.ContextText.Contains("NOT", StringComparison.Ordinal));
+        // a steered model quotes "on Dec 9, 2026" with exactly that as its context: verbatim, so SBV-01 alone accepts it
+        var narrowed = final with { Snippet = Narrowed(canon, "on Dec 9, 2026") };
+        var unclaimed = Assert.Single(o.Unclaimed);
+        var narrowedUnclaimed = Narrowed(canon, "Nov 3, 2026");
+        var kept = SyllabusLimits.Apply(o with { Items = [.. o.Items.Select(i => i == final ? narrowed : i)], Unclaimed = [narrowedUnclaimed] }, maxItems: 200, canon);
+
+        Assert.Equal(0, kept.DroppedInvalid);
+        var stored = kept.Items.Single(i => i.Snippet.Text == "on Dec 9, 2026").Snippet;
+        Assert.Equal("The final is NOT on Dec 9, 2026", stored.ContextText);                   // the negation is back in the quote's context
+        AssertServerContext(canon, stored);
+        var u = Assert.Single(kept.Unclaimed);
+        Assert.Equal("Nov 3, 2026", u.Text);
+        Assert.Equal("Quiz 1 due Oct 21, 2026, also Nov 3, 2026", u.ContextText);
+        Assert.Equal(unclaimed.ContextStart, u.ContextStart);
+        AssertServerContext(canon, u);
+    }
+
+    [Fact]
+    public void SBV06_a_context_wider_than_the_line_is_cut_back_to_the_line()
+    {
+        var canon = DocumentText.Canonicalize("Header: CANCELLED\nQuiz due Oct 21, 2026\nFooter").Text;
+        var wide = Narrowed(canon, "Oct 21, 2026", ctxStart: 0, ctxEnd: canon.Length);       // canonical, but reaches into neighbouring lines
+        var u = Assert.Single(SyllabusLimits.Apply(new ExtractorOutput([], [wide], false, false, 0), 200, canon).Unclaimed);
+        Assert.Equal("Quiz due Oct 21, 2026", u.ContextText);
+        AssertServerContext(canon, u);
+    }
+
+    [Theory]
+    [InlineData("Quiz due Oct 21, 2026\nmiddle line\nlast line", "Oct 21, 2026", "Quiz due Oct 21, 2026")]           // first line of the text
+    [InlineData("first line\nmiddle line\nQuiz due Oct 21, 2026", "Oct 21, 2026", "Quiz due Oct 21, 2026")]           // last line of the text
+    [InlineData("Quiz due Oct 21, 2026", "Oct 21, 2026", "Quiz due Oct 21, 2026")]                                    // the only line
+    [InlineData("Oct 21, 2026", "Oct 21, 2026", "Oct 21, 2026")]                                                      // snippet is the whole text
+    [InlineData("a\n\nOct 21, 2026 quiz\n\nb", "Oct 21", "Oct 21, 2026 quiz")]                                        // starts right after a newline
+    [InlineData("a\nquiz Oct 21\nb", "Oct 21", "quiz Oct 21")]                                                        // ends right before a newline
+    public void SBV06_the_context_is_the_whole_line_at_the_start_middle_and_end_of_the_text(string raw, string needle, string line)
+    {
+        var canon = DocumentText.Canonicalize(raw).Text;
+        var u = Assert.Single(SyllabusLimits.Apply(new ExtractorOutput([], [Narrowed(canon, needle)], false, false, 0), 200, canon).Unclaimed);
+        Assert.Equal(line, u.ContextText);
+        Assert.Equal(LineAt(canon, u.Start), (u.ContextStart, u.ContextEnd));
+        AssertServerContext(canon, u);
+    }
+
+    [Theory]
+    [InlineData(3000, 1500)]
+    [InlineData(3000, 3)]       // date at the very start of a long line
+    [InlineData(3000, 2955)]    // date at the very end of a long line
+    [InlineData(1501, 750)]     // one code point over the whole-line limit
+    [InlineData(20000, 9000)]
+    public void SBV06_a_long_line_gets_a_window_of_at_most_1500_code_points_that_contains_the_snippet(int length, int at)
+    {
+        const string date = "Midterm exam NOT on Oct 19, 2026";
+        var raw = new string('x', at) + " " + date + " " + new string('y', Math.Max(1, length - at - date.Length - 2));
+        var canon = DocumentText.Canonicalize(raw).Text;
+        Assert.True(TextPolicy.CodePoints(canon) > SyllabusLimits.ContextText);
+        var u = Assert.Single(SyllabusLimits.Apply(new ExtractorOutput([], [Narrowed(canon, "on Oct 19, 2026")], false, false, 0), 200, canon).Unclaimed);
+        AssertServerContext(canon, u);
+        Assert.Equal(SyllabusLimits.ContextText, TextPolicy.CodePoints(u.ContextText));          // the window is filled, not left at the narrowed quote
+        Assert.Contains("NOT on Oct 19, 2026", u.ContextText, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void SBV06_a_long_line_of_multi_code_point_characters_is_never_cut_inside_a_code_point_or_grapheme_cluster(int shift)
+    {
+        // q + U+0301 has no precomposed form, so it stays two code points (one grapheme cluster) after NFC; flags are two regional
+        // indicators (four UTF-16 units, one cluster); U+1F600 is one astral code point. The shift padding sits between the clusters and the
+        // snippet, so it moves where the 1,500-code-point window's edges land inside the cluster runs: shift 1 cuts q|U+0301 on both sides,
+        // shift 3 cuts between the two regional indicators of a flag on the left (without snapping, the context would split those clusters).
+        var left = string.Concat(Enumerable.Repeat("q́\U0001F1FA\U0001F1F8", 400)) + new string('a', shift);
+        var right = new string('b', shift) + string.Concat(Enumerable.Repeat("\U0001F600q́", 400));
+        var canon = DocumentText.Canonicalize(left + " Quiz NOT due Oct 20, 2026 " + right).Text;
+        Assert.Contains("q́", canon, StringComparison.Ordinal);
+        var u = Assert.Single(SyllabusLimits.Apply(new ExtractorOutput([], [Narrowed(canon, "due Oct 20, 2026")], false, false, 0), 200, canon).Unclaimed);
+        AssertServerContext(canon, u);
+        Assert.Contains("NOT due Oct 20, 2026", u.ContextText, StringComparison.Ordinal);
+        Assert.False(char.IsLowSurrogate(canon[u.ContextStart]), "context starts inside a surrogate pair");
+        Assert.False(char.IsHighSurrogate(canon[u.ContextEnd - 1]), "context ends inside a surrogate pair");
+        var (ls, le) = LineAt(canon, u.Start);
+        var boundaries = System.Globalization.StringInfo.ParseCombiningCharacters(canon[ls..le]).Select(b => b + ls).Append(le).ToHashSet();
+        Assert.Contains(u.ContextStart, boundaries);                                             // never inside a grapheme cluster
+        Assert.Contains(u.ContextEnd, boundaries);
+    }
+
+    public static TheoryData<string> MockFixtures => new()
+    {
+        "PS1 due Mon Sept 14, 11:59 PM\nMidterm exam: Oct 19, 2026 at 10:00 AM\nFinal exam: TBA",
+        PairText,
+        "Header line\nMidterm exam: Oct 19, 2026 at 10:00 AM\nFooter",
+        "Late work policy: 10% per day\nOffice hours: Tue 2:00-3:00 PM\nLecture MWF 10:00 AM\nReading: Chapter 3 by Sept 21",
+        "Room: Salle Ve​́rone\nMidterm exam in Ve​́rone: Oct 19, 2026 at 10:00 AM",
+        "Quiz \U0001F600 due Oct 21, 2026\nSee 2026-11-02 and 9/14/2026\nNo class Nov 26, 2026 (holiday)",
+        new string('x', 1500) + " Midterm exam on Oct 19, 2026 at 10:00 AM " + new string('y', 1500),
+        new string('a', 2) + string.Concat(Enumerable.Repeat("\U0001F600", 900)) + " Quiz due Oct 20, 2026 " + string.Concat(Enumerable.Repeat("\U0001D11E", 900)),
+    };
+
+    [Theory]
+    [MemberData(nameof(MockFixtures))]
+    public void SBV06_the_mock_extractors_output_is_stored_byte_identical(string raw)
+    {
+        var o = RunCanon(raw, out var canon);
+        Assert.NotEmpty(o.Items.Select(i => i.Snippet).Concat(o.Unclaimed));
+        var kept = SyllabusLimits.Apply(o, maxItems: 200, canon);
+        Assert.Equal(o.DroppedInvalid, kept.DroppedInvalid);
+        Assert.Equal(o.Items, kept.Items);                                                       // record equality: every field, every snippet offset and text
+        Assert.Equal(o.Unclaimed, kept.Unclaimed);
+        foreach (var (a, b) in o.Items.Select(i => i.Snippet).Concat(o.Unclaimed).Zip(kept.Items.Select(i => i.Snippet).Concat(kept.Unclaimed)))
+            Assert.True(string.Equals(a.ContextText, b.ContextText, StringComparison.Ordinal) && (a.ContextStart, a.ContextEnd) == (b.ContextStart, b.ContextEnd));
+    }
+
+    [Fact]
+    public void SBV06_an_unclaimed_date_on_a_line_over_1500_code_points_gets_a_window_not_the_mocks_snippet_only_context()
+    {
+        // the one place the mock itself narrowed the context (AddUnclaimed: snippet only on a line over 1,500 code points); the server now widens it
+        var pad = new string('z', 700);
+        var o = RunCanon(pad + " Exam on Oct 19, 2026 " + pad + " NOT on Nov 3, 2026 " + pad, out var canon);
+        var mock = Assert.Single(o.Unclaimed);
+        Assert.Equal(mock.Text, mock.ContextText);
+        var u = Assert.Single(SyllabusLimits.Apply(o, maxItems: 200, canon).Unclaimed);
+        Assert.Equal((mock.Start, mock.End, mock.Text), (u.Start, u.End, u.Text));
+        Assert.Contains("NOT on Nov 3, 2026", u.ContextText, StringComparison.Ordinal);
+        AssertServerContext(canon, u);
+    }
+
+    [Fact]
+    public void SBV06_a_forged_context_is_still_rejected_before_the_server_replaces_it()
+    {
+        // SBV-01 runs first: a context that is not the canonical slice at its offsets is model text, dropped and counted, never "corrected"
+        var (item, _) = Pair(out var canon);
+        var forged = item with { Snippet = item.Snippet with { ContextText = "X" + item.Snippet.ContextText[1..] } };
+        var kept = SyllabusLimits.Apply(new ExtractorOutput([forged], [], false, false, 0), maxItems: 200, canon);
+        Assert.Empty(kept.Items);
+        Assert.Equal(1, kept.DroppedInvalid);
+    }
+
     // ---------------------------------------------------------------- SBV-02: drops at the caps are counted too
 
     [Fact]
