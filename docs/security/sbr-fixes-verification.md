@@ -430,3 +430,72 @@ It fails closed (rollback, type-only log, nothing stored). It could degrade per 
   - The full .NET suite, any web test, the API or web with the SBV-11 input.
   - I did not mutate the code to watch the tests fail on the old version.
 - **Not verified:** the commit's figures (AI 333, doc reader 131, architecture 27, contract 870, integration 642) and its "14 failed against a no-op re-derivation" claim.
+
+# Sixth pass: SBV-11 and SBV-14 fixes (commit bb9b124)
+
+Reviewer: security-engineer, 2026-11-02, HEAD `bb9b124`. Ratings follow `severity-policy.md`, calibrated to the personal-tool scope (PO-15/16). No source or test file was edited.
+
+## Result
+
+- **SBV-11 MEDIUM: FIXED-VERIFIED.**
+  - `SyllabusSignals.SchemaForcingFlags` is exactly the schema's three flags (`syllabus-item.schema.json:781-805`, and the web `parse.ts:363`).
+  - A `not_applicable` item carrying any of them is now please_check with "One detail here is unclear. Please check." Otherwise it stays probably_right with "No date is written for this."
+  - The mock and the server step share the rule. So both the mock's own policy item and a steered "probably_right, no flags" policy end please_check (union of flags, then lower only).
+  - Every reproduction line from the fifth pass is covered by a unit case and an integration case: "no longer", "unless", "except", "is not", the injection marker and low text quality ("updated" also has a unit case).
+  - **Hidden content alone does not force a policy, and that is correct by contract.** `hiddenContentDropped` is a field on the syllabus (`syllabus.schema.json:163`), not an item flag. The item schema forces please_check only for the three flags. Hidden content already blocks batch approve for the whole document, and policies are never approvable or syncable.
+  - Policy items cannot be PATCHed (`ItemService.cs:328`), so extraction (`Jobs.cs:165`) is the only writer of a policy's confidence.
+- **SBV-14 MEDIUM: FIXED-VERIFIED.**
+  - `ServerFlags.Rederive` now always sets `ConfidenceReason` from `SyllabusSignals.Reason`, and every stored item passes through it (`Jobs.cs:165,174`).
+  - The vocabulary is 14 strings: the rule's 12 plus `ItemRules.StudentReason` and `EditedAiReason`.
+    - All 12 rule strings were already in the code before this commit; they were moved to constants and none is new.
+    - Eight are reviewed in `language-guide.md` 8.3 (C1 to C4). The other four predate this commit unchanged ("The full date is written in your syllabus.", "The year comes from your term dates.", "Worked out from your term dates.", "The wording around this date may mean it changed.").
+    - A unit test checks the whole set against `TextPolicy` (SingleLine, 200) and for "!".
+  - When an extractor is more cautious than the rule, the reason is "One detail here is unclear. Please check." for please_check. For probably_right it is "The full date is written in your syllabus.", which is reachable only when the rule said looks_right, so derivation is `explicit_full` and the sentence is true.
+  - **The proposal row (`Jobs.cs:184`) holds kind, title, status, date, flags and confidence. It holds no reason, before or after this commit.**
+  - **No student-visible copy was added.** `ItemRow.tsx:165` shows the reason only on a non-policy please_check row, so the policy rows' new reason is not rendered. The "unclear" line on a more-cautious dated item is existing, reviewed copy.
+  - The `ServerFlagsTests` assertion change (the extractor's "year comes from your term dates" became the server's "full date is written") follows the intended behaviour change. It is not a weakened test.
+
+Tests show the fixes are real:
+- The new unit tests fail on the old code. I ran the HEAD test files against the parent commit's source in a scratch copy, with only the vocabulary set shimmed so it compiles. Failed 23, Passed 237:
+  - all 16 SBV11 forcing cases failed;
+  - the 4 SBV14 behaviour tests failed;
+  - the updated SBV10 lower-confidence case failed;
+  - 2 `TextAndIdTests` failed because the scratch copy lacked `src/shared/contracts/fixtures` (environment, unrelated);
+  - the clean-policy controls and the vocabulary test passed, as expected.
+
+## Residual (rated)
+
+### SBV-17 LOW: the "three flags force please_check" rule for undated items is not held by the database, and old rows were not backfilled
+- **What:** `ck_items_flags_force_check` is `when_status <> 'resolved' OR ...`. For `not_applicable` and `needs_date` items the rule rests on server code and the response schema.
+- **Why LOW, not higher:** today extraction is the only writer of those rows, needs-date is always please_check by the rule, and policies cannot be PATCHed.
+- **Risk:** a future writer (a migration, an admin fix, a new extraction path, a policy PATCH) could store a non-conforming row. The web would again refuse the whole item page. This fails closed.
+- **Old rows:** policy rows stored before bb9b124 with a forcing flag and probably_right were not migrated, so such a syllabus still does not load until it is deleted and re-imported. These are dev data only, and I did not query the dev DB.
+- **Fix:** a migration that first updates non-conforming rows (please_check and the fixed reason), then extends the check to every status for the three schema flags; a migration test with a legacy row. Owners backend-engineer, database-architect.
+
+## Web side effect (ItemRow.tsx:65)
+
+`sourceOpen` starts true for any please_check row, so flagged policy rows now open "See where this came from" by default.
+- **Security: not a problem.** The snippet and context are server-cut canonical text (SBV-01, SBV-06), rendered through `PlainText` as text nodes, the same as when the student opens it by hand. Nothing new reaches the page.
+- **UX: a small inconsistency (Info SBV-I18).**
+  - A policy row hides its confidence, reason, hint and actions (`ItemRow.tsx:165,190,263-275,295`). So some policies show their quote open and others closed, with nothing saying why.
+  - In an injection-suspect or low-quality document every policy row opens, which adds visual load.
+  - Arguably useful: a policy line with "unless" or "except" is worth reading in full.
+- **Suggested:** route to `adhd-ux-specialist` to choose between `item.confidence === "please_check" && !isPolicy` and a short visible cue. Not a security finding, and it does not block anything.
+
+## Observations (Info, not findings)
+
+- **SBV-I17:** `SyllabusLimits.Fits` (`MockRuleExtractor.cs:408`) still requires a non-empty extractor `ConfidenceReason` of at most 200 characters, and the reason is then discarded. An extractor that omits the reason loses the item as a counted drop. This fails closed and is cosmetic; it could be relaxed when a real extractor schema is written.
+- **SBV-I18:** the web side effect above.
+
+## What I ran and what I did not verify (sixth pass)
+
+- **Ran:**
+  - `git show HEAD` and file reads.
+  - `MSYS_NO_PATHCONV=1 docker run --rm -v "<repo>:/repo" -w /repo/src/api mcr.microsoft.com/dotnet/sdk:10.0 dotnet test tests/Tether.SyllabusTests`: Passed 260, Failed 0, Skipped 0.
+  - The same command on a scratch export of `src/api` at `bb9b124~1` (outside the repo) with the HEAD versions of `PolicyConfidenceAndReasonTests.cs` and `ServerFlagsTests.cs` and a vocabulary shim: Failed 23, Passed 237 (breakdown above).
+  - The register's section 6 recipes after editing the register.
+- **Not run:**
+  - `SyllabusPolicyForcingTests`, `SyllabusServerReasonTests` and the rest of the integration suite (shared dev DB; told not to).
+  - The dev API, any web test, and the real `parsePage` on a served page.
+  - Any query of the dev DB for pre-fix rows.
+- **Not verified:** the commit's figures (AI 333, reader 131, architecture 27, contract 870, integration 650).
