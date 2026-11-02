@@ -137,7 +137,12 @@ test.describe("syllabus: full flow on the real API", () => {
     await lab.getByRole("button", { name: /^Skip Lab report 2/ }).click();
     await lab.getByRole("button", { name: /^Undo skip of Lab report 2/ }).click();
     // A "Please check" item is approved one by one with acknowledgeCheck (contract 6.1).
-    await lab.getByRole("button", { name: /^Approve Lab report 2/ }).click();
+    // The row ignores a press while its previous decision request is in flight (ItemRow `busy`), so wait for the undo to
+    // finish before pressing Approve (CI: the click raced the in-flight "Undo skip" and Undo never appeared).
+    const approveLab = lab.getByRole("button", { name: /^Approve Lab report 2/ });
+    await expect(approveLab).toBeVisible();
+    await expect(approveLab).not.toHaveAttribute("aria-busy", "true");
+    await approveLab.click();
     await expect(lab.getByRole("button", { name: /^Undo approval of Lab report 2/ })).toBeVisible();
     const decisions = rec.find("POST", /\/items\/[^/]+\/decision$/);
     expect(decisions.map((r) => r.postDataJSON())).toEqual([
