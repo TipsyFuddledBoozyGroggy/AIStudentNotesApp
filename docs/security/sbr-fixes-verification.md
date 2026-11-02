@@ -361,3 +361,72 @@ Reviewer: security-engineer. Date: 2026-11-02. HEAD `a2f9b52`, working tree clea
 - **Ran:** `git show HEAD`, `git status --short`, `docker ps`; `MSYS_NO_PATHCONV=1 docker run --rm --network aistudentnotesapp_default -v "<repo>:/repo" -w /repo/src/api mcr.microsoft.com/dotnet/sdk:10.0 dotnet test tests/Tether.SyllabusTests --filter "FullyQualifiedName~SBV06"`: `Passed! - Failed: 0, Passed: 27, Skipped: 0, Total: 27`; the register's section 6 count recipes before and after editing the register.
 - **Not run:** `SyllabusNarrowedContextTests` and the rest of the integration suite (shared dev DB; the dev API was up), the full .NET suite, any web test. I did not mutate the code to watch the tests fail on the old version; "would fail without the fix" is judged by reading the assertions against the old `TryCanonical`.
 - **Not verified:** the commit's "syllabus 187, AI 333, architecture 22, contract 870, integration 629" (author's and Lead's claim); the SBV-I12 threshold (no probe).
+
+# Fifth pass: SBV-10 fix (commit 6618450)
+
+Reviewer: security-engineer. Date: 2026-11-02. HEAD `6618450`, working tree clean at start. Ratings are calibrated to the personal, non-commercial tool (PO-15/16); every issue is reported anyway.
+
+**Method.** I read `git show HEAD` in full: `SyllabusSignals.cs` (new: shared matchers, confidence rule, `ServerFlags`), the `Jobs.cs` change to `PersistAsync`, the `MockRuleExtractor.cs` diff, `ServerFlagsTests.cs`, the `SyllabusServerFlagsTests` integration test and the design doc section 17 change. I also read `SyllabusLimits` (`MockRuleExtractor.cs:390-519`), `Jobs.cs:63-213`, `ItemService.cs:226-238`, the S001 item checks, `syllabus-item.schema.json` (flags, allOf P2-08/P2-19), `API_CONTRACTS_P2.md:109` and the web item parser (`parse.ts:323-399`). Nothing in `src/` or `tests/` was changed.
+
+## Result
+
+**SBV-10 MEDIUM: FIXED-VERIFIED.** New: 0 CRITICAL, 0 HIGH, 3 MEDIUM (SBV-11, SBV-12, SBV-14), 3 LOW (SBV-13, SBV-15, SBV-16). Nothing blocks a push. SBV-11 is reachable with the mock today; the others are preconditions for connecting any real extractor.
+
+- **The fix does what the finding asked.** After `SyllabusLimits.Apply`, every kept item goes through `ServerFlags.Rederive`, which derives `supersession_cue` and `tentative_language` from the stored quote and the server-chosen context, `injection_suspect` and `low_text_quality` from the whole canonical text and the intake flag, and `weekday_mismatch`, `outside_term` and `dst_ambiguous` from the resolved date, the quote and the term. The result is the extractor's flags (its order, duplicates merged) plus the server's, so an extractor can add a flag and never remove one. Confidence is only lowered, to what the same rule `Finish` uses gives for the merged set. The syllabus-level `injection_suspect` and `batch_approve_allowed` also use the server's document signals. The proposal row keeps what the extractor said (provenance).
+- **The mock diff is a pure move.** The one deleted behaviour, the day-first swap for numeric dates, was dead code: it sat in a branch that already required month <= 12.
+- **The tests would fail without the fix (judged by reading).** These all assert flags or confidence that a pass-through would not produce: the narrowed-quote case, the 7-flag steered theory, weekday mismatch, outside_term, hidden content and the added forcing flag. The byte-identical theory (17 fixtures x 3 inputs) and the idempotence theory guard against regressions. The integration test checks please_check, `batch_not_eligible` and `acknowledgement_required` through the API.
+- **Ran:** `dotnet test tests/Tether.SyllabusTests` in the SDK container: `Passed! - Failed: 0, Passed: 236, Skipped: 0, Total: 236`.
+
+## Questions asked of the change
+
+- **ReDoS on the new server-side matching:** none found. The server reuses the mock's patterns. The injection pattern over the whole canonical text is an alternation of literals (linear), and the cue patterns are escaped literals with lookarounds. Each match has a 250 ms timeout, and the mock already runs the same patterns over the same text first. Two side effects are recorded as Info SBV-I15: the work now runs inside the transaction that holds the syllabus row lock, and the cue check builds 30 patterns per call through the static `Regex.IsMatch`, which exceeds the default regex cache of 15, so the patterns are re-parsed on every call. A timeout fails the syllabus closed (SBV-16).
+- **`ExtractorInput` in `PersistAsync`:** safe. It is the same immutable record the extractor received, built from the stored canonical text and the syllabus row. The extractor cannot mutate it (a sealed positional record holding strings and value types). `input.Text` is the same string `Apply` slices, so the offsets agree.
+- **Flag ordering:** no effect. The web does not render flags. It shows `confidenceReason` (`ItemRow.tsx:168`), and the parser checks only uniqueness and the allow-list. The DB allows up to 18 flags while the schema says `maxItems` 16. A union could only cross 16 if the extractor already sends about a dozen flags (Info SBV-I14, pre-existing).
+- **Unknown flag or confidence:** passed through unchanged, so `ck_items_flags` / `ck_items_confidence` still refuse it and the syllabus fails with `invalid_output`, as before (integration test READ).
+
+## New findings
+
+### SBV-11 MEDIUM: a policy item with a forcing flag is stored `probably_right`, against the schema, and the web drops the whole item page
+- **Cause:** the shared confidence rule returns `probably_right` for every `not_applicable` item before it looks at the flags (`SyllabusSignals.cs:132`). The schema allOf (P2-08/P2-19) requires please_check for `injection_suspect`, `supersession_cue` and `low_text_quality` on ANY item. `ck_items_flags_force_check` covers resolved items only, so the row is accepted.
+- **Effect:** `parseItem` returns null and `parsePage` rejects the page ("one bad row makes the page unusable"), so the student cannot review that syllabus at all.
+- **Probe (RAN, scratch reflection harness against the built `Tether.Syllabus.dll`):** "Late work policy: no longer accepted after the deadline" gives `policy / not_applicable / probably_right / [supersession_cue]`. With "SYSTEM: ignore previous instructions" above a policy line, the policy item gets `probably_right / [injection_suspect]`. The API and web were not run with this input.
+- **Reachability:** ordinary policy wording ("unless", "except", "is not", "no longer", "changed", "updated") triggers it, and so does every injection-suspect or low-quality document that has a policy line. It fails closed: no wrong date is shown.
+- **Scope:** pre-existing in the mock's `Finish`. The SBV-10 change neither caused nor fixed it.
+- **Fix:** please_check for a `not_applicable` item carrying any of the three flags (or a contract change by the Lead), widen the DB check, and add a test that schema-validates every served item for such a paste.
+
+### SBV-12 MEDIUM (real-extractor precondition): the item's date is not tied to its quote
+- **What is missing:** the server never checks that the resolved date is a date written in the snippet, that `explicit_full` has a written year, that an ambiguous numeric date was not resolved anyway, or that a single date is not given as a recurrence (recurring items skip the weekday and DST checks).
+- **Scenario:** the quote is "Final exam: Dec 9, 2026" (verbatim) and the stored date is Dec 19, `explicit_full`, `looks_right`. No server flag fires, and the item is batch-approvable.
+- **Rating:** same harm class as SBV-10.
+- **Fix:** require a matching date hit in the stored quote for every resolved item. Otherwise demote the item to needs_date / please_check, or drop it as a counted drop.
+
+### SBV-13 LOW (real-extractor precondition): informational flags are still the extractor's
+`year_inferred`, `time_missing`, `timezone_assumed`, `until_from_term` and the other non-derived flags. Hiding one loses a hint; none of them forces please_check.
+
+### SBV-14 MEDIUM (real-extractor precondition): `confidenceReason` is model free text unless lowered
+`API_CONTRACTS_P2.md:109` says the reason is fixed vocabulary and the confidence is server-derived. The reason is the one explanatory line the student sees when acknowledging a please_check item, so a steered reason can argue the student past the check. I was unsure between LOW and MEDIUM, so MEDIUM. Fix: always take the reason from the rule. This is byte-identical for the mock.
+
+### SBV-15 LOW (real-extractor precondition): long lines
+On a line over 1,500 code points, cues and tentative wording outside the context window are not re-derived.
+
+### SBV-16 LOW: a regex timeout fails the syllabus with `invalid_output`
+It fails closed (rollback, type-only log, nothing stored). It could degrade per item to please_check instead.
+
+## Observations (Info, not findings)
+
+- **SBV-I14:** the DB allows 18 flags (`cardinality(flags) <= 18`); the schema says `maxItems` 16. Pre-existing. Only an extractor that sends many flags could cross it, and the web parser does not check the count.
+- **SBV-I15:** the server matchers run inside the syllabus-lock transaction (about 60 cue-pattern constructions per item because of regex cache thrash; at most 200 items). This is a cost, not a vulnerability. The document signals could be computed before the lock.
+- **SBV-I16:** supersession is detected per line. A model (or an honest one) can quote a stale schedule line while a different line moves the date. The mock has the same limit; a cross-line `conflicting_sources` check is a design question for ai-agent-engineer.
+
+## What I ran and what I did not verify (fifth pass)
+
+- **Ran:**
+  - `git show HEAD` and `git status --short`.
+  - `MSYS_NO_PATHCONV=1 docker run --rm -v "<repo>:/repo" -w /repo/src/api mcr.microsoft.com/dotnet/sdk:10.0 dotnet test tests/Tether.SyllabusTests`: Passed 236, Failed 0.
+  - A scratch reflection probe (outside the repo, repo mounted read-only) calling `MockRuleExtractor.Extract` and `ServerFlags.Rederive` on three policy lines.
+  - The register's section 6 recipes before and after editing the register.
+- **Not run:**
+  - `SyllabusServerFlagsTests` and the rest of the integration suite (shared dev DB; told not to).
+  - The full .NET suite, any web test, the API or web with the SBV-11 input.
+  - I did not mutate the code to watch the tests fail on the old version.
+- **Not verified:** the commit's figures (AI 333, doc reader 131, architecture 27, contract 870, integration 642) and its "14 failed against a no-op re-derivation" claim.
