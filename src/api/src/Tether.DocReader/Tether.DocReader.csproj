@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    P2-B3 stage A: a pure DOCX text reader (docs/architecture/document-reader.md section 1.3, DOCX rules 1 to 7).
+    No package references and no framework references beyond Microsoft.NETCore.App: only the in-box
+    System.IO.Compression.ZipArchive and System.Xml.XmlReader are used. The reader touches neither the network
+    nor the filesystem; Tether.ArchitectureTests DocReaderBoundaryTests enforces both, and enforces that no API or
+    module assembly references this one (contract 5.1 item 8: the API never parses). It is not wired into any
+    endpoint or job until the sandbox decision (DR-Q2/DR-Q3).
+  -->
+  <PropertyGroup>
+    <RootNamespace>Tether.DocReader</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+</Project>

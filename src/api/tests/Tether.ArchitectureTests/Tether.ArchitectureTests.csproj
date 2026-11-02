@@ -12,5 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Tether.Host\Tether.Host.csproj" />
+    <!-- P2-B3 stage A: DocReaderBoundaryTests loads the pure DOCX reader to check its references. Nothing under src/ references it. -->
+    <ProjectReference Include="..\..\src\Tether.DocReader\Tether.DocReader.csproj" />
   </ItemGroup>
 </Project>

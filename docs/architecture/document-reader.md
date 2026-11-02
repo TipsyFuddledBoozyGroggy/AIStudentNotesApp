@@ -318,3 +318,23 @@ Residual accepted risks (with the controls above): kernel or container-runtime e
 
 - Next agents: Lead Architect (conflicts C-1 to C-6, ordering), Product Owner (DR-Q1 to DR-Q6), `backend-engineer` and `devops-engineer` (spike in 4.3, then build), `qa-engineer` (fixture builders and sandbox suite), `legal-compliance-reviewer` (L-17 inventory entry for PdfPig), `vendor-verification-researcher` (Azure per-job sandbox, DR-07), then `security-engineer` review of the built code against this document and contract 5.1.
 - Nothing here changes gate status. Real instructor documents stay out (PO-20l, L-10).
+
+
+## Stage A: built (2026-11-02)
+
+`src/api/src/Tether.DocReader` is a pure library (no third-party package) with `DocxReader.Read(Stream, DocxLimits) -> DocxResult` and 131 unit tests (`tests/Tether.DocReaderTests`) plus 5 architecture boundary tests. It is **not wired** into `UploadIntake`, the jobs or any endpoint: that waits for the sandbox decision (desk item DR-SANDBOX). PDF reading (stage B) waits for the PdfPig licence decision (DR-LICENCE).
+
+Defaults taken: main body only (DR-SCOPE default); ordinary core properties are never parsed, stored or returned (DR-CONTRACT-META option A). Limits are the design's: input 10 MB, 1,000 entries, 20 MB per entry, 50 MB total, expansion ratio 100:1 (checked from 1 MB), path depth 8, XML depth 256, 20,000,000 XML characters per part, 200,000 raw text characters (design conflict C-5).
+
+Lead decisions on the builder's nine notes:
+1. **Design bug fixed:** `MaxCharactersFromEntities = 0` means unlimited in .NET; the reader uses 1024 (a test proves built-in entities do not count). The design text above should read 1024.
+2. Main body only is kept (DR-SCOPE default).
+3. An encrypted DOCX maps to the contract's `unreadable_file`; a distinct student-facing `password_protected` message would need a contract-vocabulary change, so it is left as a UX follow-up, not done now.
+4. Alt text is dropped and counted as informational; it does NOT disable batch approve.
+5. When wired in, `w:bdo` / `w:dir` direction overrides will set `injectionSuspect` (the conservative choice: it only removes the batch-approve shortcut).
+6. A syllabus with an embedded chart (a `word/embeddings/` part) is refused as the design rule says; revisit only if synthetic real exports are wrongly refused.
+7. Lying sizes on .NET 10 produce a truncated part (`InvalidXml`); fixture H02 pins this so a runtime change shows up.
+8. Known limits of hidden-text detection (white text not detected; style-chain vanish toggles simplified to nearest wins, which can only over-drop; hidden text counts toward the text cap; list numbers are not emitted).
+9. **DR-04 still open:** `UploadIntake.Sniff` requires `[Content_Types].xml` as the first entry and would wrongly refuse files from other tools; fix when the pipeline is wired.
+
+Not tested: real Word, Google Docs or LibreOffice exports (none allowed), peak memory under bombs, stack-overflow behaviour (that is what the sandbox is for), fuzzing.

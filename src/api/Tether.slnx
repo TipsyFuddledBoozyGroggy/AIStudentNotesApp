@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Tether.Host/Tether.Host.csproj" />
     <Project Path="src/Tether.SharedKernel/Tether.SharedKernel.csproj" />
+    <Project Path="src/Tether.DocReader/Tether.DocReader.csproj" />
   </Folder>
   <Folder Name="/src/Modules/" />
   <Folder Name="/src/Modules/Courses/">
@@ -29,6 +30,7 @@
     <Project Path="tests/Tether.AiTests/Tether.AiTests.csproj" />
     <Project Path="tests/Tether.ArchitectureTests/Tether.ArchitectureTests.csproj" />
     <Project Path="tests/Tether.ContractTests/Tether.ContractTests.csproj" />
+    <Project Path="tests/Tether.DocReaderTests/Tether.DocReaderTests.csproj" />
     <Project Path="tests/Tether.IntegrationTests/Tether.IntegrationTests.csproj" />
     <Project Path="tests/Tether.SyllabusTests/Tether.SyllabusTests.csproj" />
   </Folder>
