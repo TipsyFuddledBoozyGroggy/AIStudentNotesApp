@@ -87,63 +87,70 @@ internal sealed class ItemService(SyllabusCore core, SyllabusService syllabi, Mo
         if (endTime is not null && time is null) return SyllabusProblem.Invalid("endTime", "conflict");
         if (req.Timezone is not null && !ZoneAllowList.Contains(req.Timezone)) return SyllabusProblem.Invalid("timezone", "not_allowed");
 
-        var now = core.Now();
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-        if (!await core.LockSyllabusAsync(syllabusId, ct)) { await tx.RollbackAsync(ct); return SyllabusProblem.NotFound(); }
-        if (idemKey is not null)
-        {
-            // B1-06: decide the key under the syllabus lock. A simultaneous create with the same key has committed by now (replay it); an
-            // expired record is removed so the new insert cannot hit the unique index.
-            var keyHash = Hashing.Sha256(idemKey);
-            await core.Sql.ExecAsync("DELETE FROM syllabus.idempotency_keys WHERE user_id = @p0 AND method = 'POST' AND route_template = @p1 AND key_hash = @p2 AND expires_at <= @p3",
-                ct, uid, Routes.ItemTemplate, keyHash, now);
-            var winner = await syllabi.LookupKeyAsync(Routes.ItemTemplate, idemKey, ct);
-            if (winner is not null) { await tx.RollbackAsync(ct); return await ReplayItemAsync(http, syllabusId, winner, material, ct); }
-        }
-        var syl = await db.Syllabi.AsNoTracking().FirstAsync(s => s.Id == syllabusId, ct);
-        if (syl.Status is not ("ready" or "partial")) { await tx.RollbackAsync(ct); return SyllabusProblem.InvalidState(); }   // hand entry only into ready/partial (R3-13)
-        var total = await db.Items.CountAsync(i => i.SyllabusId == syllabusId, ct);
-        var students = await db.Items.CountAsync(i => i.SyllabusId == syllabusId && i.Origin == "student", ct);
-        if (total >= core.Options.MaxItems || students >= core.Options.MaxStudentItems) { await tx.RollbackAsync(ct); return SyllabusProblem.InvalidState(); }
+        // F-3: with a key, the key insert references the course and can lose a deadlock to a course purge. The whole attempt (item and key)
+        // rolled back, so the re-run decides the key again under the lock (replays a winner) and creates at most one item.
+        return await core.RetryOnDeadlockAsync(CreateLockedAsync, ct);
 
-        var flags = new List<string>(); var confidence = "probably_right";
-        var zone = req.Timezone ?? syl.DefaultTimezone;
-        if (time is not null && Local.IsInDstGap(date, time.Value, zone)) { flags.Add("dst_ambiguous"); confidence = "please_check"; }
-        var id = Ids.New();
-        var item = new SyllabusItem
+        async Task<IResult> CreateLockedAsync()
         {
-            Id = id, UserId = uid, SyllabusId = syllabusId, CourseId = syl.CourseId, ItemKey = Ids2.KeyOf(syllabusId, id), Origin = "student", Kind = req.Kind,
-            Title = title, Notes = notes, WhenStatus = "resolved", DateLocal = date, EndDateLocal = endDate, TimeLocal = allDay ? null : time, EndTimeLocal = allDay ? null : endTime,
-            AllDay = allDay, Timezone = zone, TimezoneSource = req.Timezone is null ? "course_default" : "student", Derivation = "student_entered",
-            Confidence = confidence, ConfidenceReason = ItemRules.StudentReason, Flags = [.. flags], Edited = false, Decision = "undecided", SyncState = "not_synced",
-            Revision = 1, CreatedAt = now, UpdatedAt = now,
-        };
-        try
-        {
-            db.Items.Add(item);
-            await db.SaveChangesAsync(ct);
+            var now = core.Now();
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            if (!await core.LockSyllabusAsync(syllabusId, ct)) { await tx.RollbackAsync(ct); return SyllabusProblem.NotFound(); }
             if (idemKey is not null)
-                db.IdempotencyKeys.Add(new IdempotencyRecord
-                {
-                    Id = Ids.New(), UserId = uid, CourseId = syl.CourseId, SyllabusId = syllabusId, Method = "POST", RouteTemplate = Routes.ItemTemplate,
-                    KeyHash = Hashing.Sha256(idemKey), Fingerprint = syllabi.Fingerprint(material), ResultKind = "item", ResultId = id, CreatedAt = now, ExpiresAt = now.AddHours(24),
-                });
-            await core.TouchActivityAsync(syllabusId, now, ct);
-            await core.Sql.ExecAsync("UPDATE syllabus.syllabi SET purge_after = NULL WHERE id = @p0 AND user_id = @p1 AND purge_after IS NOT NULL", ct, syllabusId, uid);   // never swept: it holds student work
-            await db.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
+            {
+                // B1-06: decide the key under the syllabus lock. A simultaneous create with the same key has committed by now (replay it); an
+                // expired record is removed so the new insert cannot hit the unique index.
+                var keyHash = Hashing.Sha256(idemKey);
+                await core.Sql.ExecAsync("DELETE FROM syllabus.idempotency_keys WHERE user_id = @p0 AND method = 'POST' AND route_template = @p1 AND key_hash = @p2 AND expires_at <= @p3",
+                    ct, uid, Routes.ItemTemplate, keyHash, now);
+                var winner = await syllabi.LookupKeyAsync(Routes.ItemTemplate, idemKey, ct);
+                if (winner is not null) { await tx.RollbackAsync(ct); return await ReplayItemAsync(http, syllabusId, winner, material, ct); }
+            }
+            var syl = await db.Syllabi.AsNoTracking().FirstAsync(s => s.Id == syllabusId, ct);
+            if (syl.Status is not ("ready" or "partial")) { await tx.RollbackAsync(ct); return SyllabusProblem.InvalidState(); }   // hand entry only into ready/partial (R3-13)
+            var total = await db.Items.CountAsync(i => i.SyllabusId == syllabusId, ct);
+            var students = await db.Items.CountAsync(i => i.SyllabusId == syllabusId && i.Origin == "student", ct);
+            if (total >= core.Options.MaxItems || students >= core.Options.MaxStudentItems) { await tx.RollbackAsync(ct); return SyllabusProblem.InvalidState(); }
+
+            var flags = new List<string>(); var confidence = "probably_right";
+            var zone = req.Timezone ?? syl.DefaultTimezone;
+            if (time is not null && Local.IsInDstGap(date, time.Value, zone)) { flags.Add("dst_ambiguous"); confidence = "please_check"; }
+            var id = Ids.New();
+            var item = new SyllabusItem
+            {
+                Id = id, UserId = uid, SyllabusId = syllabusId, CourseId = syl.CourseId, ItemKey = Ids2.KeyOf(syllabusId, id), Origin = "student", Kind = req.Kind,
+                Title = title, Notes = notes, WhenStatus = "resolved", DateLocal = date, EndDateLocal = endDate, TimeLocal = allDay ? null : time, EndTimeLocal = allDay ? null : endTime,
+                AllDay = allDay, Timezone = zone, TimezoneSource = req.Timezone is null ? "course_default" : "student", Derivation = "student_entered",
+                Confidence = confidence, ConfidenceReason = ItemRules.StudentReason, Flags = [.. flags], Edited = false, Decision = "undecided", SyncState = "not_synced",
+                Revision = 1, CreatedAt = now, UpdatedAt = now,
+            };
+            try
+            {
+                db.Items.Add(item);
+                await db.SaveChangesAsync(ct);
+                if (idemKey is not null)
+                    db.IdempotencyKeys.Add(new IdempotencyRecord
+                    {
+                        Id = Ids.New(), UserId = uid, CourseId = syl.CourseId, SyllabusId = syllabusId, Method = "POST", RouteTemplate = Routes.ItemTemplate,
+                        KeyHash = Hashing.Sha256(idemKey), Fingerprint = syllabi.Fingerprint(material), ResultKind = "item", ResultId = id, CreatedAt = now, ExpiresAt = now.AddHours(24),
+                    });
+                await core.TouchActivityAsync(syllabusId, now, ct);
+                await core.Sql.ExecAsync("UPDATE syllabus.syllabi SET purge_after = NULL WHERE id = @p0 AND user_id = @p1 AND purge_after IS NOT NULL", ct, syllabusId, uid);   // never swept: it holds student work
+                await db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+            }
+            catch (DbUpdateException ex) when (idemKey is not null && ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "ux_idempotency_keys_scope" })
+            {
+                // the same key was committed for ANOTHER syllabus of this user between our check and our insert (the syllabus lock does not cover that)
+                await tx.RollbackAsync(ct); db.ChangeTracker.Clear();
+                var winner = await syllabi.LookupKeyAsync(Routes.ItemTemplate, idemKey, ct);
+                return winner is not null ? await ReplayItemAsync(http, syllabusId, winner, material, ct) : SyllabusProblem.InvalidBare();
+            }
+            var saved = await db.Items.AsNoTracking().FirstAsync(i => i.Id == id, ct);
+            http.Response.Headers.ETag = core.ETags.ForItem(saved);
+            http.Response.Headers.Location = $"/api/v1/syllabi/{Ids2.Syl(syllabusId)}/items/{Ids2.Itm(id)}";
+            return Results.Json(await core.RepresentItemAsync(saved, ct), JsonBody.Out, statusCode: 201);
         }
-        catch (DbUpdateException ex) when (idemKey is not null && ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "ux_idempotency_keys_scope" })
-        {
-            // the same key was committed for ANOTHER syllabus of this user between our check and our insert (the syllabus lock does not cover that)
-            await tx.RollbackAsync(ct); db.ChangeTracker.Clear();
-            var winner = await syllabi.LookupKeyAsync(Routes.ItemTemplate, idemKey, ct);
-            return winner is not null ? await ReplayItemAsync(http, syllabusId, winner, material, ct) : SyllabusProblem.InvalidBare();
-        }
-        var saved = await db.Items.AsNoTracking().FirstAsync(i => i.Id == id, ct);
-        http.Response.Headers.ETag = core.ETags.ForItem(saved);
-        http.Response.Headers.Location = $"/api/v1/syllabi/{Ids2.Syl(syllabusId)}/items/{Ids2.Itm(id)}";
-        return Results.Json(await core.RepresentItemAsync(saved, ct), JsonBody.Out, statusCode: 201);
     }
 
     private async Task<IResult> ReplayItemAsync(HttpContext http, Guid syllabusId, IdemHit hit, string material, CancellationToken ct)

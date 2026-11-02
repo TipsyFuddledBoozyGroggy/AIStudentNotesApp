@@ -91,6 +91,26 @@ internal sealed class SyllabusCore(SyllabusDbContext db, ICurrentUser user, Time
         await Sql.ScalarAsync<int?>("SELECT 1 FROM syllabus.syllabi WHERE id = @p0 AND user_id = @p1 FOR UPDATE", ct, id, Uid) is not null;
 
     /// <summary>
+    /// Lock-order audit F-3: a writer that holds the syllabus row and then inserts a row referencing courses.courses (calendar_events,
+    /// idempotency_keys) can lose a deadlock to a course purge (course row, then cascade to the syllabus row). The victim's whole transaction
+    /// rolled back, so <paramref name="attempt"/> (which must open its own transaction and take the syllabus lock first) is re-run, at most
+    /// three attempts in all, with jitter. A retry after a committed purge finds no syllabus and returns the attempt's own not-found answer.
+    /// The last failure propagates.
+    /// </summary>
+    public async Task<T> RetryOnDeadlockAsync<T>(Func<Task<T>> attempt, CancellationToken ct)
+    {
+        for (var n = 1; ; n++)
+        {
+            try { return await attempt(); }
+            catch (Exception ex) when (n < 3 && Tether.SharedKernel.Persistence.PgErrors.IsDeadlockOrSerialization(ex))
+            {
+                db.ChangeTracker.Clear();
+                await Task.Delay(Random.Shared.Next(20, 120) * n, ct);
+            }
+        }
+    }
+
+    /// <summary>
     /// The retention clock moves ONLY for student writes (edit, decision, sync or remove, add item), in the same transaction as the change.
     /// Never for reads, polls, exports or job progress. canonical_text_purge_at = LEAST(last write + 180 days, created_at + 365 days).
     /// </summary>

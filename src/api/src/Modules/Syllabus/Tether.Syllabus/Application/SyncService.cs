@@ -126,7 +126,7 @@ internal sealed class SyncService(SyllabusCore core, SyllabusService syllabi, Mo
 
     public async Task<IResult> SyncAsync(HttpContext http, Guid syllabusId, string idemKey, SyncRequest req, Dictionary<Guid, int> revs, CancellationToken ct)
     {
-        var db = core.Db; var uid = core.Uid; var o = core.Options;
+        var uid = core.Uid; var o = core.Options;
         var syl0 = await core.FindSyllabusAsync(syllabusId, ct);
         if (syl0 is null) return SyllabusProblem.NotFound();
         var hit = await syllabi.LookupKeyAsync(Routes.SyncTemplate, idemKey, ct);
@@ -142,7 +142,13 @@ internal sealed class SyncService(SyllabusCore core, SyllabusService syllabi, Mo
             return await ReplayAsync(syllabusId, runId, ct) ?? SyllabusProblem.NotFound();
         }
         if (syl0.Status is not ("ready" or "partial")) return SyllabusProblem.InvalidState();
+        // F-3: a lost deadlock against a course purge rolled the whole attempt back (events, run, key); the re-run is the same idempotent upsert.
+        return await core.RetryOnDeadlockAsync(() => SyncLockedAsync(http, syllabusId, idemKey, revs, syl0, material, ct), ct);
+    }
 
+    private async Task<IResult> SyncLockedAsync(HttpContext http, Guid syllabusId, string idemKey, Dictionary<Guid, int> revs, SyllabusDoc syl0, string material, CancellationToken ct)
+    {
+        var db = core.Db; var uid = core.Uid; var o = core.Options;
         var now = core.Now();
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         try
