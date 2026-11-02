@@ -29,7 +29,7 @@ Allowlist by content sniffing, not filename: PDF (text layer), DOCX, plain text 
 
 ### B. Text extraction (no AI)
 - PDF: text-layer extraction with layout awareness (reading order, table rows kept on one line with a cell delimiter). DOCX: paragraph and **table-cell** aware (schedule tables are where most dates live). Both run in a resource-limited, timeout-bound worker (zip bombs, decompression, pathological PDFs).
-- **Hidden content is dropped, not forwarded**: DOCX `w:vanish` runs, tracked-change deletions, comments, document properties/metadata, PDF annotations, off-page text, zero-size or white-on-white text where detectable. Report counts (`hiddenContentRemoved`) so the review screen can say "some hidden text was ignored". This removes the cheapest injection carrier.
+- **Hidden content is dropped, not forwarded**: DOCX `w:vanish` runs, tracked-change deletions, comments, PDF annotations, off-page text, zero-size or white-on-white text where detectable. Document properties/metadata are discarded silently and not counted (PO-20ay). Report counts (`hiddenContentRemoved`) so the review screen can say "some hidden text was ignored". This removes the cheapest injection carrier.
 - The extractor emits a `ExtractorVersion` and per-page character counts.
 
 ### C. Scanned / image-only PDFs: flag, do not OCR, in v1
