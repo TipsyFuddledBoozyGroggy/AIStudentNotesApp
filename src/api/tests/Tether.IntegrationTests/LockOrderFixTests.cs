@@ -46,10 +46,25 @@ internal sealed class OtherSide : IAsyncDisposable
     {
         var waiting = await Rt.WaitAsync(async () => await LockRace.BlockedByAsync(f, victimPid, _conn.ProcessID), 10000);
         if (!waiting) { await _tx.RollbackAsync(); throw new InvalidOperationException("the code under test never waited on the other side"); }
-        await ExecAsync(second);
+        try
+        {
+            await ExecAsync(second);
+        }
+        catch (PostgresException e) when (TolerateLosing && e.SqlState == "40P01")
+        {
+            // PostgreSQL aborts whichever side's 1 s deadlock check runs once the cycle exists. If this side closed the cycle after the code under
+            // test's own check had already run, this side is the victim and the scenario did not happen (runner stall). The test runs it again.
+            LostTheRace = true;
+            await _tx.RollbackAsync();
+            return;
+        }
         foreach (var s in then) await ExecAsync(s);
         await _tx.CommitAsync();
     });
+
+    /// <summary>Set before <see cref="CloseCycleWhenWaiting"/>: being chosen as the deadlock victim is recorded in <see cref="LostTheRace"/> instead of thrown.</summary>
+    public bool TolerateLosing { get; set; }
+    public bool LostTheRace { get; private set; }
 
     private async Task ExecAsync(string sql)
     {
@@ -118,6 +133,15 @@ public class LockOrderLecturesTests(LockOrderFactory f) : LectureTestBase(f), IC
     [Fact]
     public async Task A_stop_chosen_as_the_deadlock_victim_of_a_delete_lock_order_is_retried_and_never_refused()
     {
+        // The victim is whichever side's 1 s deadlock check runs after the cycle closes; a stalled runner can make that the test's side (seen once
+        // in CI). That attempt proves nothing, so it is repeated on a fresh session (at most 4 times).
+        for (var attempt = 1; attempt <= 4; attempt++)
+            if (await StopVictimAttemptAsync()) return;
+        Assert.Fail("the test's own side was the deadlock victim in all 4 attempts");
+    }
+
+    private async Task<bool> StopVictimAttemptAsync()
+    {
         var a = await NewActorAsync();
         var id = (await StartOkAsync(a.Client, await CourseAsync(a.Client))).GetProperty("id").GetString()!;
         Assert.Equal(HttpStatusCode.OK, (await PostAsync(a.Client, $"/sessions/{id}/audio-ticket")).StatusCode);
@@ -125,13 +149,15 @@ public class LockOrderLecturesTests(LockOrderFactory f) : LectureTestBase(f), IC
         Fx.LecturesTrap.Arm(IsTransitionBatch, async cmd =>
         {
             side = await OtherSide.HoldAsync(F, $"select 1 from lectures.lecture_sessions where id = '{id}' for update");
+            side.TolerateLosing = true;
             side.CloseCycleWhenWaiting(F, LockRace.Pid(cmd), $"delete from lectures.audio_tickets where session_id = '{id}'");
         });
         var before = await LockRace.DeadlocksAsync(F);
 
         var res = await PostAsync(a.Client, $"/sessions/{id}/stop");
         Assert.True(Fx.LecturesTrap.Fired, "the race window was not reached");
-        await using (side!) await side!.Done; // the other side was NOT the victim: the Stop was
+        await using (side!) await side!.Done;
+        if (side!.LostTheRace) return false; // the test's side was the victim, not the Stop: run it again
 
         // ADR-019b: Pause and Stop are never refused. A lost deadlock is retried, not a 500.
         Assert.True(res.StatusCode == HttpStatusCode.OK, $"{(int)res.StatusCode} {await res.Content.ReadAsStringAsync()}");
@@ -142,6 +168,7 @@ public class LockOrderLecturesTests(LockOrderFactory f) : LectureTestBase(f), IC
         Assert.Equal(1, await CountAsync("audit_events", $"session_id = '{id}' and action = 'session.stop'"));
         Assert.Equal(2, await CountAsync("session_events", $"session_id = '{id}'"));
         Assert.Equal(0, await CountAsync("audio_tickets", $"session_id = '{id}'"));
+        return true;
     }
 
     // ---------------- F-1: course purge as the deadlock victim ----------------
