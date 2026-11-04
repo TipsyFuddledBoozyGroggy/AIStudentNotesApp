@@ -183,6 +183,7 @@ public class LockOrderLecturesTests(LockOrderFactory f) : LectureTestBase(f), IC
         {
             if (--times > 0) ArmPurgeDeadlock(course, heldSession, sides, times); // the retry's DELETE is trapped again
             var side = await OtherSide.HoldAsync(F, $"select 1 from lectures.lecture_sessions where id = '{heldSession}' for update");
+            side.TolerateLosing = true; // L-VICTIM: the test cannot choose the victim; if this side loses, the attempt is run again on fresh data
             side.CloseCycleWhenWaiting(F, LockRace.Pid(cmd), $"select 1 from courses.courses where id = '{course}' for key share");
             lock (sides) sides.Add(side);
         });
@@ -203,6 +204,13 @@ public class LockOrderLecturesTests(LockOrderFactory f) : LectureTestBase(f), IC
     [Fact]
     public async Task A_purge_chosen_as_the_deadlock_victim_is_retried_returns_204_and_audits_each_session_once()
     {
+        for (var attempt = 0; attempt < 4; attempt++)
+            if (await PurgeVictimAttemptAsync()) return;
+        Assert.Fail("the test's own side was chosen as the deadlock victim in 4 attempts in a row");
+    }
+
+    private async Task<bool> PurgeVictimAttemptAsync()
+    {
         var (a, course, stopped, live) = await CourseWithTwoSessionsAsync();
         var sides = new List<OtherSide>();
         ArmPurgeDeadlock(course, stopped, sides, times: 1);
@@ -211,6 +219,7 @@ public class LockOrderLecturesTests(LockOrderFactory f) : LectureTestBase(f), IC
         var res = await a.Client.DeleteAsync($"/api/v1/courses/{course}?purge=true");
         Assert.True(Fx.CoursesTrap.Fired, "the race window was not reached");
         foreach (var s in sides) await using (s) await s.Done;
+        if (sides.Any(x => x.LostTheRace)) return false;
 
         Assert.True(res.StatusCode == HttpStatusCode.NoContent, $"{(int)res.StatusCode} {await res.Content.ReadAsStringAsync()}");
         await LockRace.AssertDeadlockCountedAsync(F, before);
@@ -219,10 +228,18 @@ public class LockOrderLecturesTests(LockOrderFactory f) : LectureTestBase(f), IC
         Assert.Equal(1, await DeleteAuditsAsync(stopped));
         Assert.Equal(1, await DeleteAuditsAsync(live));
         Assert.Equal(1, await CountAsync("consent_events", $"session_id = '{live}' and kind = 'Stop'"));
+        return true;
     }
 
     [Fact]
     public async Task A_purge_that_keeps_losing_deadlocks_is_409_not_500_and_a_client_retry_does_not_audit_twice()
+    {
+        for (var attempt = 0; attempt < 4; attempt++)
+            if (await KeepsLosingAttemptAsync()) return;
+        Assert.Fail("the test's own side was chosen as the deadlock victim in 4 attempts in a row");
+    }
+
+    private async Task<bool> KeepsLosingAttemptAsync()
     {
         var (a, course, stopped, live) = await CourseWithTwoSessionsAsync();
         var sides = new List<OtherSide>();
@@ -231,6 +248,7 @@ public class LockOrderLecturesTests(LockOrderFactory f) : LectureTestBase(f), IC
 
         var res = await a.Client.DeleteAsync($"/api/v1/courses/{course}?purge=true");
         foreach (var s in sides) await using (s) await s.Done;
+        if (sides.Any(x => x.LostTheRace)) return false;
         Assert.Equal(3, sides.Count);
         await res.AssertProblemAsync(HttpStatusCode.Conflict, "concurrency_conflict");
         await LockRace.AssertDeadlockCountedAsync(F, before, expected: 3);
@@ -247,6 +265,7 @@ public class LockOrderLecturesTests(LockOrderFactory f) : LectureTestBase(f), IC
         Assert.Equal(1, await DeleteAuditsAsync(stopped));
         Assert.Equal(1, await DeleteAuditsAsync(live));
         Assert.Equal(1, await CountAsync("consent_events", $"session_id = '{live}' and kind = 'Stop'"));
+        return true;
     }
 
     // ---------------- F-7: the parent went away between the read and the insert ----------------
