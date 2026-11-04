@@ -188,7 +188,7 @@ Observations (Info, not findings): 42 entries listed at the end (SBV-I23 added 2
 
 ### Before-push check (no open CRITICAL or HIGH)
 
-Run from `/Users/jamie/Dev/AIStudentNotesApp`. Every step must pass; then say the result plainly.
+Run from `<repo>`. Every step must pass; then say the result plainly.
 
 1. See what would be pushed: `git status --short` and `git log origin/main..HEAD --oneline`. Untracked files are not pushed until added; the policy still applies to anything you add.
 2. No unresolved CRITICAL or HIGH in the register tables (this must print nothing):

@@ -261,8 +261,8 @@ search. Everything is mock/demo-backed as before (Demo source and Demo summary l
   Nothing here is evidence that the design helps any student.
 
 ### Demo commands
-1. API (already running for this session): `cd /Users/jamie/Dev/AIStudentNotesApp && docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d api`
-2. Web: `cd /Users/jamie/Dev/AIStudentNotesApp/src/web && npm ci && npm run dev:real` (a dev:real server was already on :3000 during
+1. API (already running for this session): `cd <repo> && docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d api`
+2. Web: `cd <repo>/src/web && npm ci && npm run dev:real` (a dev:real server was already on :3000 during
    this session; if so, skip this step). Open http://localhost:3000/signin and sign in with any `name@school.edu`-style email.
 3. Walk: dashboard -> Preferences (try Dark and Low-stimulation look) -> Ctrl+K "bio" -> course -> Start a lecture -> consent ->
    Start recording (browser asks for the microphone; the transcript is the backend's replayed demo script, not your voice) ->
@@ -371,8 +371,8 @@ host networking, or on a machine where Chromium's fake microphone works.
 | Screens + axe | 144 captures (18 screens x 2 widths x 4 looks) + 32 phone viewport shots = 176 PNGs, **0 violations, 0 exemptions**, no 320px overflow |
 
 ### Demo steps (unchanged commands)
-1. API: `cd /Users/jamie/Dev/AIStudentNotesApp && docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d api`
-2. Web: `cd /Users/jamie/Dev/AIStudentNotesApp/src/web && npm run dev:real` (skip if :3000 is already up), open http://localhost:3000/signin.
+1. API: `cd <repo> && docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d api`
+2. Web: `cd <repo>/src/web && npm run dev:real` (skip if :3000 is already up), open http://localhost:3000/signin.
 3. Dashboard -> Preferences (Dark, Low-stimulation; watch the confirmation line) -> Ctrl+K "bio" -> course -> Start a lecture ->
    consent -> Start recording (the transcript is the backend's replayed demo script) -> Focus -> I lost track (try the top-row
    "Back to lecture") -> Pause/Resume -> Stop -> "Search this lecture".
