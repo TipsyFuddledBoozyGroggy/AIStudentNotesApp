@@ -274,7 +274,7 @@ Other facts relevant to SB-01:
 
 | # | Item | Status |
 |---|---|---|
-| T-1 | Sonnet 5.5 Data Zone (US) availability: Anthropic A8 says Global only; Microsoft A2/A5/A7 list a Data Zone option. A7's Global table lists Sonnet 5.5 and Haiku 5.5 only as version 1. | **CONTRADICTED** |
+| T-1 | Sonnet 5.5 Data Zone (US) availability: Anthropic A8 says Global only; Microsoft A2/A5/A7 list a Data Zone option. A7's Global table lists Sonnet 5.5 and Haiku 5.5 only as version 1. | **CONTRADICTED on the vendor pages; RESOLVED for the PO's account 2026-11-04:** the resource's model list shows version 2 of both models offering GlobalStandard and DataZoneStandard (version 1 Global only), which matches Microsoft A2/A5/A7 (see the CLI evidence section at the end). That the Data Zone is US-only is still UNVERIFIED |
 | T-2 | Thinking `enabled` for Sonnet 5.5/Haiku 5.5: A2 table says Yes; A7 says not supported. | **CONTRADICTED** |
 | T-3 | Where "Hosted on Azure" runs: A8 "Anthropic-operated service running on Azure infrastructure"; A2 "run on Azure infrastructure end-to-end". Not opposed, but they describe the operator differently. Who has operator access to prompts inside Azure is **not** stated. | UNVERIFIED |
 | T-4 | Anthropic says prompts and completions "remain within Azure"; Microsoft says Anthropic personnel review content "on an exceptions-only basis". Compatible, but the flagged-content path leaves Azure to Anthropic's systems (A8) and its retention is unstated. | UNVERIFIED |
