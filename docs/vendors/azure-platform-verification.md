@@ -385,3 +385,16 @@ Grep of the repo (docs, config, code) on 2026-11-01. **No AWS, Bedrock, S3, RDS 
 | Budget | 5_bucks_a_month, $5 USD monthly on the billing account, alerts at $3 and $5, email only, expires 2026-12-31 | OBSERVED |
 
 Nothing was deployed and no terms were accepted. The upgrade to pay-as-you-go (needed before Claude can be deployed) is not done and not authorised; see desk item T-AZ-UPGRADE.
+
+### Read-only Azure CLI check of the PO's account (2026-11-04; PO signed in, only list/show commands, nothing created, accepted or deployed)
+
+| Question | Result | Status |
+|---|---|---|
+| What exists | One resource group and one Foundry resource (kind AIServices, SKU S0, West US 3, provisioned) plus its project, created automatically by the portal on first visit. No deployments. This explains the "two Foundry resources" a reviewer saw: it is one resource and its project | OBSERVED |
+| Sonnet 5.5 / Haiku 5.5 in West US 3 | The resource's model list shows claude-sonnet-5-5 and claude-haiku-5-5. Version 1 offers GlobalStandard only; **version 2 offers GlobalStandard and DataZoneStandard**. So a Data Zone option exists for both models, which settles the A2/A5/A7-versus-A8 contradiction in favour of Microsoft's pages for this account. Whether the Data Zone is the US one for West US 3 is expected but not stated by the command | OBSERVED (Data Zone = US: UNVERIFIED) |
+| Other current Claude models offered | claude-sonnet-5, claude-opus-5, claude-opus-5-5, claude-opus-4-8 (Global and Data Zone, version 2); claude-fable-5-1 is Preview, Global only; claude-sonnet-4-5 is Deprecating | OBSERVED |
+| Quota (West US 3) | Every Claude row, Global and Data Zone, is **0 limit, 0 used**. Matches the documented free-trial value of 0. No Claude can run until the account is pay-as-you-go and quota is granted | OBSERVED |
+| Providers | Microsoft.CognitiveServices and Microsoft.Consumption registered; MachineLearningServices not registered | OBSERVED |
+| Subscription type | The CLI field for the offer was empty; the free-trial status rests on the billing banner (see above) | OBSERVED (banner) |
+
+West US was not queried separately; the PO's stated preference is West US or West US 3 (PO-20bd).
