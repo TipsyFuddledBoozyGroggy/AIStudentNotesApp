@@ -369,3 +369,19 @@ Grep of the repo (docs, config, code) on 2026-11-01. **No AWS, Bedrock, S3, RDS 
 - **G2 Vendor and Claude selection: UNVERIFIED** (unchanged). The candidate set is narrower and better sourced; the Sonnet 5.5 residency conflict, Azure prices, quotas for this subscription, the DPA/Terms text and measured performance are all still missing. No price or capacity is committed.
 - **G5 (production readiness)**: NOT_RUN. Postgres backup/restore and log hardening are documented features, not evidence.
 - L-04 stays NO-GO for real content; L-05 OPEN; L-13 OPEN. Nothing is PASS.
+
+
+## Evidence from the PO's account (2026-11-03, screenshots read locally; images not in the repo)
+
+| Question | What the screens showed | Status |
+|---|---|---|
+| Subscription type | Free trial (billing banner: "Your free credit expires in 30 days. Upgrade to keep going with your account"); subscription Active, role Owner, cost 0.00 | OBSERVED |
+| Claude eligibility | Claude models appear under "Available in my project"; Sonnet 5.5 and Haiku 5.5 are Generally Available, version 2, hosted on Azure, 1000k context, 128k output; fable-5-1 shows "Anthropic infrastructure" | OBSERVED |
+| Deployment types / regions | Model pages show "No deployments found"; the types sit behind the Deploy button, which was not pressed. PO reports seeing West US and West US 3 and prefers them. No screenshot of Sonnet 5.5 deployable there | UNVERIFIED (preference recorded, PO-20bd) |
+| Quota | No Quotas entry or Management center in the Foundry left menu on this account | NOT SEEN (expected: free trial quota is 0) |
+| Price | "View pricing" opens Anthropic's public pricing page. Sonnet 5.5 $2 / $10 per million input / output tokens; Haiku 5.5 $0.10 / $0.50 (prompts up to 100,000 tokens); Foundry bills in Claude Consumption Units at $0.01 each, after use, no prepaid credits | OBSERVED (public list price, not an account quote) |
+| Terms | Banner on model pages: Anthropic is updating its Acceptable Use Policy effective November 12 (2026). No Marketplace terms accepted | NOTE for L-04 |
+| Cost so far | Amount due $0.00; no invoices; no charges this month | OBSERVED |
+| Budget | 5_bucks_a_month, $5 USD monthly on the billing account, alerts at $3 and $5, email only, expires 2026-12-31 | OBSERVED |
+
+Nothing was deployed and no terms were accepted. The upgrade to pay-as-you-go (needed before Claude can be deployed) is not done and not authorised; see desk item T-AZ-UPGRADE.
