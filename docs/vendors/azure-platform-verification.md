@@ -398,3 +398,7 @@ Nothing was deployed and no terms were accepted. The upgrade to pay-as-you-go (n
 | Subscription type | The CLI field for the offer was empty; the free-trial status rests on the billing banner (see above) | OBSERVED (banner) |
 
 West US was not queried separately; the PO's stated preference is West US or West US 3 (PO-20bd).
+
+## Quota re-read after the upgrade (2026-11-05, read-only, West US 3)
+
+Read with the `tether-reader` identity (`az cognitiveservices usage list`). The earlier all-zero quota was a delay after the pay-as-you-go upgrade: `claude-sonnet-5-5` shows limit 80 (GlobalStandard and DataZoneStandard), `claude-haiku-5-5` 80 (Global) and 27 (DataZone), Opus 5.5 40; used 0 on every row. Still 0: `claude-sonnet-4-5` and `claude-fable-5-1`. Quota is a rate limit, not a spending limit, so it is no cost guard (the app's own caps are). Nothing was deployed and no terms were accepted; the Marketplace and Anthropic terms are still unaccepted. Whether the $200 credit (expires 2026-12-03) applies to Claude through Marketplace is UNVERIFIED.

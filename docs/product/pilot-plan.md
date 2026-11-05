@@ -1,6 +1,6 @@
-# Tether pilot plan (staged, plain English) - revision 2
+# Tether pilot plan (staged, plain English) - revision 3
 
-**Status: DRAFT proposal for the Product Owner (PO). Nothing here is approved, built or spent.** It was agreed in outline with the PO in chat; this file writes it down. It is planning only. It is not legal advice and it clears no release gate. Revision 2 dated 2026-11-04. No lawyer, school, clinician or student has reviewed it.
+**Status: DRAFT. The PO has now answered the main questions on the Review Desk (2026-11-04/05, recorded in `docs/DECISIONS.md` PO-20bg onward), but no stage is started, nothing is built for Stage 1, nothing is deployed, no terms are accepted, no quota is requested and nothing is spent.** It is planning only. It is not legal advice and it clears no release gate. Revision 3 dated 2026-11-05 (revision 2: 2026-11-04). No lawyer, school, clinician or student has reviewed it. Answers recorded here are the PO's; they are not approvals of work, and each stage still needs its own written PO go (D4).
 
 **Who this is for:** Tether is a personal, non-commercial tool for the PO's son, who is the only intended user (PO-15, `docs/DECISIONS.md`). Legal questions are kept in `docs/legal/legal-register.md` so they can be revisited if that ever changes.
 
@@ -9,6 +9,42 @@
 **Gate register today (`docs/RELEASE_GATES.md`):** G1 BLOCKED, G2 UNVERIFIED, G3 NOT_RUN (classroom audio part BLOCKED on G1), G4 NOT_RUN, G5 BLOCKED / NOT_VERIFIED. Gates passed: 0 of 5. Stage 3 is BLOCKED. Nothing in this plan may be reported as PASS.
 
 **Azure sign-in for agents (PO-20bf).** Agents now use a **read-only Azure identity (Reader role only)**, with its secret kept outside the repo. Agents do not use the PO's own Owner sign-in. This is the PO's recorded decision; whether the old Owner session is fully gone from this machine, and whether the Foundry keys need regenerating, is still UNVERIFIED (security finding PPR-01, section 9, D17). Nothing in this plan lets an agent deploy, accept terms, create resources or spend.
+
+---
+
+## Changes made in revision 3 (PO answers, 2026-11-04/05)
+
+Source: the PO's stored Review Desk answers and two screenshot reads (below). Each answer is recorded in `docs/DECISIONS.md` (PO-20bg to PO-20bn). Where the plan before this revision had a proposal, the PO's answer replaces it. Where the PO did not answer, the item stays open.
+
+**PO answers merged**
+
+- Governance (P-GOVERN): only the PO decides stage changes, in writing on the Review Desk, one stage at a time. Agents recommend; they never decide (D4 answered; C4 resolved).
+- Where it runs (P-WHERE): Stages 1 and 2 on the PO's own machine only; nothing deployed (D6 answered).
+- Who the user is (P-WHO-IS-USER): the PO's son, 18 or older; a parent holds the accounts (D7 answered; the PO-15 / PO-16 note in 12B item 2 is resolved).
+- Visibility (P-VISIBILITY): only the son sees his notes; he shows the PO what he chooses (D13 answered; C2 partly resolved, see the own-account item).
+- His own yes (P-STUDENT-YES): adopted. Asked once; "not now" is a complete answer (D14 answered).
+- Switch (P-SWITCH): one way. He can turn real AI off in the app; only the pilot setup turns it on (D18 answered; C1 resolved).
+- Lecture notes (P-LECTURE-NOTES): not yet. His own reflections and questions only (D21 answered).
+- Risk handling (P-RISK-ACCEPT): the delete wording is fixed first; the PO makes a dated, named risk acceptance for the rest (D22 answered).
+- Lawyer (P-LAWYER): a short consult first if cheap; otherwise the PO's written risk acceptance. The PO accepts terms himself; no agent does (D23 answered).
+- Own account (P-OWN-ACCOUNT): the text he reads must say plainly that the PC and agents can technically read files; a separate Windows account for him is considered later (D24 answered in part).
+- Conflicts (P-CONFLICTS): the plan's recommendations are used for C1 to C7 (section 12A).
+- Caps (P-CAP): AI **$0.25 per day and $5 per month** (the PO's choice). The speech-minutes cap was not answered: the plan keeps its proposal of 10 minutes per session, 30 minutes per day, 2 hours per month, marked **proposed, PO to confirm** (D1 and D16: AI part answered, speech part open).
+- Foundry resource (P-FOUNDRY-RESOURCE): the PO first chose "delete it now", then corrected it (typed in session, 2026-11-05): "lets not worry about deleting the foundry resource". **In force: keep it for now, no action; revisit if the pilot is dropped** (D25, PO-20bm). Deletion, if ever wanted, needs the PO's own owner login; the agents' Reader identity cannot and must not do it.
+
+**Screenshot reads (Lead read the screenshots; images are not in the repo)**
+
+- Subscription: plan "Azure Plan", role Owner, Costs card "Pay-as-you-go | November", 0 costs, "$200.00 in credit - Expires December 3, 2026" with $200 available. So the upgrade is done and the credit remains until 2026-12-03. **UNVERIFIED: whether the credit applies to Claude bought through Marketplace.** Do not assume it does; plan for real charges against the $5 cap.
+- PO notes: Foundry has no "management center" in the left panel, and "view pricing" links to the Anthropic-side pricing page. This is evidence for the vendor open question (who prices and contracts Claude on this account), not a conclusion (section 11 item 21).
+
+**Removed or replaced**
+
+- The old placeholder for the daily cap amount (D1) and the "numbers are the PO's" wording are replaced by the answered figures.
+- The earlier mention of a "$60 a month" total of default caps stays only as the security finding it came from (PPR-02); it is not a cap.
+- The proposal that the plain-language text say "Nobody but you" unqualified is replaced by the wording in section 9.
+- Open-decision labels for answered items are updated in section 10; remaining open questions are in section 11 and the end of section 10.
+
+**Not changed:** no gate moves; Stage 3 stays BLOCKED by G1; nothing is PASS.
 
 ---
 
@@ -76,7 +112,7 @@ Source reviews: legal (`docs/legal/pilot-plan-review.md`, "L"), UX (`docs/ux/pil
 | 2 | The son uses it on his own study material | His own typed notes and his own practice questions. No audio, no microphone, no real speech. No other person's voice | Claude on Azure only, plus his real (own) text | Touches G2, G3, G4 lightly; passes none |
 | 3 | Live lecture recording | Real lecture audio | Same | **BLOCKED by G1. This plan does not weaken it.** |
 
-Each step needs a written PO "go" before it starts (section 10, D4). In Stage 2 the son's own yes (D14) is a separate decision and his "no" ends it. No step starts because an earlier step "worked".
+Each step needs a written PO "go" on the Review Desk, one stage at a time (section 10, D4; PO-20bg). The PO alone decides. In Stage 2 the son's own yes (D14) is a separate decision, asked once, and his "no" or "not now" ends it. No step starts because an earlier step "worked". As of revision 3 no stage is started.
 
 ---
 
@@ -92,7 +128,7 @@ Each step needs a written PO "go" before it starts (section 10, D4). In Stage 2 
 
 **What the PO decides or does.** Nothing for Stage 0 itself. The decisions in section 10 can be answered whenever the PO is ready.
 
-**Cost.** None from the app. The account is now billing (PO-20be) but nothing is deployed and no Claude terms are accepted, so no usage is expected. The account budget of $5 USD a month sends email only (PO-20bd).
+**Cost.** None from the app. The account is now billing (PO-20be) but nothing is deployed and no Claude terms are accepted, so no usage is expected. The account budget of $5 USD a month sends email only (PO-20bd). The subscription shows a $200 credit expiring 2026-12-03; whether it applies to Claude bought through Marketplace is UNVERIFIED, so plan for real charges.
 
 **Success measures.**
 - The existing automated suites stay green.
@@ -114,15 +150,15 @@ Each step needs a written PO "go" before it starts (section 10, D4). In Stage 2 
 
 ### 3.1 Entry conditions (all must be true)
 
-1. **Agent Azure access is closed (PPR-01, applies now, not only at Stage 1).** Agents use only the read-only identity recorded in PO-20bf. The PO's own Owner sign-in is not cached for agents (`az account show` shows nothing signed in after PO-attended checks). If the Foundry keys could have appeared in any agent session, they are regenerated. Status: identity done (PO-20bf); the rest UNVERIFIED (D17).
-2. **The upgrade is done.** The Azure account is pay-as-you-go (PO-20be). Reason it mattered: Claude on Foundry needs a paid pay-as-you-go subscription; free-trial and credit-only subscriptions are not supported (`azure-platform-verification.md` 1.5; vendor check 2.1). **Quota after upgrade is UNVERIFIED.** The earlier CLI zeros were read on the free trial, where Microsoft's quota page lists 0 for every Claude row; pay-as-you-go default is 40 requests per minute, 40,000 uncached input tokens per minute and 8,000 output tokens per minute (vendor check 2.1). No page says how long reclassification takes. If it still reads 0 after at least a day: re-read the Quota page (reads only), then open an Azure support request. Do not accept terms or deploy "to test it".
-3. **The age decision (D7) is recorded in writing, and F-M1 and F-M9 are answered, before the PO accepts anything.** The terms bind from first electronic consent or first access (legal review, section 3). F-M1: an individual, non-commercial buyer under terms that say "not for consumer use". F-M9: age and minors. F-M2 and F-M4 stay on the Stage 2 list (3.8).
-4. **The PO has read the terms and decided to accept them himself, in person (D3).** "Agree and Proceed" is a separate step from looking at the options, and nothing authorises it yet (PO-20an). The text behind `aka.ms/anthropic_tandc` has not been read by anyone in the repo (`azure-platform-verification.md` 1.6). See the "read first" list in 3.3.
-5. **Spend is capped by the app, not only by Azure email.** The account budget is "$5 USD monthly, alerts at $3 and $5, email only" (PO-20bd), and Azure bills Claude hourly, invoiced monthly in arrears (`azure-platform-verification.md` 1.7). The app must enforce, before every call: (a) a **global daily AI cap across all pools and users** plus a monthly ceiling; (b) a **speech-minutes cap** (per session, per day, per month) stored in the database so it survives a restart. The app today has a per-user and per-pool AI cap but no global daily cap and no speech cap at all (security PPR-02, PPR-03; defaults add up to $60 a month against a $5 budget). **The app-side cap is the only spend control that will actually stop calls.** It is proven by a test across a restart (3.5). Numbers are D16.
+1. **Agent Azure access is closed (PPR-01, applies now, not only at Stage 1).** Agents use only the read-only identity recorded in PO-20bf. The PO's own Owner sign-in is not cached for agents (`az account show` shows nothing signed in after PO-attended checks). If the Foundry keys could have appeared in any agent session, they are regenerated. Status: identity done (PO-20bf); the rest UNVERIFIED (D17). The auto-created Foundry resource is kept for now with no action (PO-20bm); because it stays, regenerating its keys remains a live question. The Reader identity cannot and must not change it.
+2. **The upgrade is done.** The Azure account is pay-as-you-go (PO-20be); the Lead read the PO's screenshots: plan "Azure Plan", role Owner, Pay-as-you-go for November, 0 costs, a $200 credit expiring 2026-12-03 ($200 available). **Whether that credit covers Claude through Marketplace is UNVERIFIED**; assume it does not. Reason it mattered: Claude on Foundry needs a paid pay-as-you-go subscription; free-trial and credit-only subscriptions are not supported (`azure-platform-verification.md` 1.5; vendor check 2.1). **Quota after upgrade is UNVERIFIED.** The earlier CLI zeros were read on the free trial, where Microsoft's quota page lists 0 for every Claude row; pay-as-you-go default is 40 requests per minute, 40,000 uncached input tokens per minute and 8,000 output tokens per minute (vendor check 2.1). No page says how long reclassification takes. If it still reads 0 after at least a day: re-read the Quota page (reads only), then open an Azure support request. Do not accept terms or deploy "to test it".
+3. **The age decision (D7) is recorded, and F-M1 and F-M9 are answered, before the PO accepts anything.** D7 is answered: the user is the PO's son, 18 or older, and a parent holds the accounts (PO-20bi). Re-check his age on the day each stage starts. The terms bind from first electronic consent or first access (legal review, section 3). F-M1 (an individual, non-commercial buyer under terms that say "not for consumer use") is **still open**; F-M9 (age and minors) is answered in effect by D7 but the PO records that he read the age clause. F-M2 and F-M4 stay on the Stage 2 list (3.8).
+4. **The PO has read the terms and decided to accept them himself, in person (D3; PO-20bl: no agent accepts terms).** A short lawyer consult comes first if it is cheap; otherwise the PO writes a risk acceptance (D23). "Agree and Proceed" is a separate step from looking at the options, and nothing authorises it yet (PO-20an). The text behind `aka.ms/anthropic_tandc` has not been read by anyone in the repo (`azure-platform-verification.md` 1.6). See the "read first" list in 3.3.
+5. **Spend is capped by the app, not only by Azure email.** The account budget is "$5 USD monthly, alerts at $3 and $5, email only" (PO-20bd), and Azure bills Claude hourly, invoiced monthly in arrears (`azure-platform-verification.md` 1.7). The app must enforce, before every call: (a) a **global daily AI cap across all pools and users** plus a monthly ceiling; (b) a **speech-minutes cap** (per session, per day, per month) stored in the database so it survives a restart. The app today has a per-user and per-pool AI cap but no global daily cap and no speech cap at all (security PPR-02, PPR-03; defaults add up to $60 a month against a $5 budget). **The app-side cap is the only spend control that will actually stop calls.** It is proven by a test across a restart (3.5). **Numbers (PO-20bk, P-CAP): AI $0.25 per day and $5 per month. Speech: proposed 10 minutes per session, 30 minutes per day, 2 hours per month, PO to confirm (not answered).** The monthly ceiling is the tighter one: 30 days at $0.25 would be $7.50, so the app must refuse at $5 for the month. The app's caps sit at the PO's figures even though a $200 credit may exist; the credit is not assumed to cover Claude.
 6. **Region chosen (D5).** The stated preference is West US or West US 3 (PO-20bd). That authorises nothing. **Sonnet 5.5 Data Zone is contradicted between vendor pages** (Anthropic says Sonnet 5.5 supports only Global Standard; Microsoft's pages list a Data Zone; the account's CLI check also showed one). **The plan does not rely on it.** Haiku 5.5 Data Zone is listed consistently by both vendors; actual portal options for this account are UNVERIFIED. Whether any Data Zone is US-only for this account is UNVERIFIED.
 7. **Choose the hosting version on purpose.** Claude on Foundry has "Hosted on Azure" (v2: prompts and completions remain within Azure; only usage metadata and content flagged by Anthropic's safety systems go to Anthropic) and "Hosted on Anthropic infrastructure" (v1). The plan prefers v2. Microsoft's own pages disagree on whether v2 exists in Global Standard in these regions (vendor check section 0, row 4). Statements like "Claude on Azure" and "data stays in the agreed services" are only clearly true for v2.
-8. **The Speech resource is created and its region noted.** Speech processes data in the region of the resource (`azure-platform-verification.md` 2.2). Whether the existing Foundry resource also serves Speech is UNVERIFIED. The auto-created resource is either used or removed so no idle billable keys remain (D25).
-9. **Only the PO (an adult) holds the Azure subscription and accepts terms** (`stt-vendor-terms-review.md` M-2). MFA on his sign-in and "PO is the only Owner" are UNVERIFIED.
+8. **The Speech resource is created and its region noted.** Speech processes data in the region of the resource (`azure-platform-verification.md` 2.2). Whether the existing Foundry resource also serves Speech is UNVERIFIED. The auto-created Foundry resource is **kept for now, no action; revisit if the pilot is dropped** (PO-20bm). Its keys and any idle billing stay UNVERIFIED (see 3.1 item 1). A new resource, if any, is created only after a written go (D4) and never by an agent.
+9. **Only the PO (an adult, and a parent holding the accounts) holds the Azure subscription and accepts terms** (`stt-vendor-terms-review.md` M-2). MFA on his sign-in and "PO is the only Owner" are UNVERIFIED.
 10. **The Stage 1 safety checklist in 3.1a is met.**
 
 ### 3.1a Security preconditions for Stage 1 (condensed from `docs/security/pilot-plan-review.md`, section 9.1)
@@ -133,7 +169,7 @@ Tags: DONE means code or test was read, not run today. NOT DONE and UNVERIFIED a
 |---|---|---|
 | 1.1 | PPR-01 closed: read-only identity only, no cached Owner session | Identity DONE (PO-20bf); rest UNVERIFIED |
 | 1.2 | MFA on the PO's Azure sign-in; PO sole Owner | UNVERIFIED |
-| 1.3 | PO decisions D1/D16 (caps), D3 (terms), D4 (written go), D5 (region), D7 (age) | NOT DONE (D2 done by PO-20be) |
+| 1.3 | PO decisions D1/D16 (caps), D3 (terms), D4 (written go), D5 (region), D7 (age) | Partly: D2 done (PO-20be); D7, D4 answered; AI caps answered, speech cap proposed only; D3 not done; D5 preference only; no stage "go" given |
 | 1.4 | Key and endpoint in a secret file outside the repo, mounted as a compose secret and read by path | NOT DONE |
 | 1.5 | Secret file names are git-ignored | DONE |
 | 1.6 | gitleaks recognises the Azure key shape (custom rule, proven with a fake key) | UNVERIFIED |
@@ -175,7 +211,7 @@ Tags: DONE means code or test was read, not run today. NOT DONE and UNVERIFIED a
 - **Speech:** diarization (speaker labelling) stays OFF and the Speech SDK's own logging stays off, with a test that the adapter sets them (`stt-vendor-terms-review.md` H-3, M-7).
 - **Logs hold metadata only** (counts, timings, cost), never raw transcript or note text (`CLAUDE.md` invariant 10). B1V-01 (provider-scoped log config re-enables content categories) is fixed first, and the new adapters' log categories get canary tests.
 - **Keys live in one secret file outside the repo**, mounted into the API container as a compose secret file and read by path. Not in `.env` inside the repo (readable by agents and visible to `docker inspect`). Nothing provider-related is ever `NEXT_PUBLIC_`. Rotate after Stage 1, before Stage 2, and at once after any exposure. Azure Key Vault is production only (PO-20ao).
-- **The app runs on the PO's machine only.** No Azure hosting, database or Key Vault is created for this stage (PO-20ao, PO-20ba). The web server is bound to 127.0.0.1 and the son uses the PO's machine itself, not another device on the home network (PPR-04). A **separate pilot compose project, volume, database and non-default password** keeps pilot spend and data out of the dev database that tests and agents share (PPR-05). Where the app runs is D6.
+- **The app runs on the PO's machine only.** No Azure hosting, database or Key Vault is created for this stage (PO-20ao, PO-20ba). The web server is bound to 127.0.0.1 and the son uses the PO's machine itself, not another device on the home network (PPR-04). A **separate pilot compose project, volume, database and non-default password** keeps pilot spend and data out of the dev database that tests and agents share (PPR-05). Where the app runs is answered (D6, PO-20bh): Stages 1 and 2 on the PO's own machine only; nothing deployed.
 - **Agents never read pilot data**, logs or screenshots of it. Claude Code deny rules for the pilot container, volume and secret file are the PO's to set (UNVERIFIED whether any exist).
 - **Public repo hygiene.** No endpoints, Azure resource names, subscription or tenant ids, invoices or screenshots are committed; portal-generated names can contain a person's name.
 
@@ -190,7 +226,7 @@ Tags: DONE means code or test was read, not run today. NOT DONE and UNVERIFIED a
   6. Whether the chosen model counts as a "Covered Model" (a live Anthropic support page listed other models on 2026-11-04; re-read it) and what retention follows.
   7. Whether to ask a lawyer first (D23).
 - Click path, for the PO only: Foundry portal, Discover > Models > a Claude model > Deploy > Custom settings > read the Marketplace terms > choose an industry > **Agree and Proceed**. Alternative: subscribe to the "Claude Platform on Foundry" offer in Azure Marketplace. Permissions needed are in `models-from-partners` (Owner and Contributor include them). Browsing the catalogue does not require acceptance. No agent may click "Agree and Proceed" (PO-20an).
-- Choose the caps (D16), confirm the region (D5), decide what happens to the auto-created resource (D25), decide agent Azure access (D17), give a written "go" for Stage 1 (D4).
+- Confirm the speech-minutes cap (D16; the AI caps are answered), confirm the region (D5), finish agent Azure access checks (D17), give a written "go" for Stage 1 on the Review Desk (D4). Whether to consult a lawyer first is answered as "short consult if cheap, else written risk acceptance" (D23); doing either is still his to do.
 
 ### 3.4 Cost estimate (ESTIMATES; list prices from the vendor docs, read 2026-11-04)
 
@@ -200,7 +236,8 @@ Tags: DONE means code or test was read, not run today. NOT DONE and UNVERIFIED a
 - Data Zone (US) deployments carry a 1.1x multiplier on all token categories, including the over-100k tier. Sonnet 5.5 Data Zone is contradicted between vendor pages, so do not plan on it (3.1 item 6).
 - Billing is in Claude Consumption Units at $0.01 each, after use, hourly metering, invoiced monthly in arrears, no prepaid credits.
 - Cache writes cost more than base input and count toward the per-minute limit; cache reads are cheaper and do not.
-- The price shown to this subscription in the portal is UNVERIFIED and may differ from list.
+- The price shown to this subscription in the portal is UNVERIFIED and may differ from list. The PO's note that "view pricing" leads to the Anthropic-side pricing page suggests price and terms may be set by Anthropic rather than Microsoft (evidence for the open vendor question, not a conclusion).
+- **Credit.** A $200 credit expiring 2026-12-03 exists on the subscription. Whether it applies to Claude through Marketplace is UNVERIFIED. Plan for real charges against the $5 monthly cap.
 
 **Arithmetic example (hypothetical token counts chosen only to show the sums; not measurements).** One test session using 500,000 input tokens and 50,000 output tokens (checked by the vendor researcher; arithmetic correct):
 - Sonnet 5.5: $1.00 + $0.50 = about $1.50 (1.1x: $1.65, which may not be reachable).
@@ -243,7 +280,7 @@ Stop and switch back to mock mode if any of these happen:
 
 ### 3.7 Safety
 
-- **The switch is one-way.** Stop the pilot compose project and start the normal dev stack (no secret file, no stage setting) and the app is back on mock. Nothing in the UI can turn a paid provider on. A runtime "AI off" control is fine because it can only reduce what is allowed. The two commands go into the runbook before Stage 1 (NOT DONE).
+- **The switch is one-way.** Stop the pilot compose project and start the normal dev stack (no secret file, no stage setting) and the app is back on mock. Nothing in the UI can turn a paid provider on. A runtime "AI off" control is fine because it can only reduce what is allowed. PO answer (P-SWITCH, PO-20bj): the son can turn real AI off in the app; only the pilot setup turns it on. The first-use "Turn the AI service on" button therefore records his permission inside a stage the server already allows; it never enables a provider. The two commands go into the runbook before Stage 1 (NOT DONE).
 - Pause and Stop already exist in the lecture flow; the pilot checklist must confirm they close the speech connection and cancel any Claude call in flight (`docs/API_CONTRACTS.md`, line 223).
 - Delete removes Tether's copy. It does **not** recall what a vendor already received, and does not delete anything already exported to Google (PO-15c). For Stage 1 this is harmless because the content is synthetic.
 - Export-all and delete-account are parked until before real use (PO-20ax); they are not needed for synthetic data. They are needed before Stage 2.
@@ -278,18 +315,18 @@ His own material is text he composed in his own words, not copied, pasted, retyp
 
 Allowed: notes he typed in his own words, questions he wrote, practice questions he made himself, his own plans.
 Not allowed: instructor slides, handouts, exams, textbook text, syllabi copied from a school, recordings of anyone, anyone else's writing, retyped or lightly reworded exam or textbook questions, shared or group notes, group-chat or email text, a friend's health or disability details.
-**Open decision (D21):** whether a typed summary of a lecture he attended is allowed. It is the closest thing to lecture content Stage 2 can hold. Recommended default until counsel or the school says otherwise: not allowed; his own reflections and questions only.
+**Decided (D21, PO-20bj): not yet.** A typed summary of a lecture he attended is not allowed. It is the closest thing to lecture content Stage 2 could hold. His own reflections and questions only, until counsel or the school says otherwise and the PO changes this in writing.
 Reasons: copying instructor documents raises copyright and contract questions (L-10; PO-20l); Anthropic's terms make the customer responsible for rights to what it submits (F-M2); Anthropic's Usage Policy bars sharing others' personal information without consent; some courses have honour-code or confidentiality rules (UNVERIFIED for his school). His own sensitive details (his disability, accommodations, health) are his data, but they go to vendors; the warning in section 9 says so.
 
 ### 4.2 Entry conditions
 
 1. Stage 1 exit criteria met and the PO's written "go" (D4).
-2. D7 (age) was recorded before the terms were accepted; if he is under 18, counsel's written view is in hand first (F-M9). If adult, the vendor age rules are not triggered by him as end user (legal inference).
+2. D7 (age) was recorded before the terms were accepted: he is 18 or older (PO-20bi). If that ever turns out wrong, stop and get counsel's written view first (F-M9). If adult, the vendor age rules are not triggered by him as end user (legal inference).
 3. The Stage 2 security checklist (4.2b) is met, including the new typed-notes feature, export-all and delete-account (proven on a seeded account, never on his real notes).
 4. The Google account, if any, is personal, not school-managed (PO-15a, PO-20w). Google sign-in needs its own explicit PO go (D12); Google export is off unless he asks.
-5. How the deferred MEDIUM legal rows (L-07 delete dialog wording, L-08 retention policy, L-14) and security row SEC-PUBLIC are handled is decided and recorded (D22): either wording done first, or a named, dated PO risk acceptance. The severity policy treats MEDIUM as blocking real users.
+5. The deferred MEDIUM rows are handled as the PO decided (D22, PO-20bj): the L-07 delete dialog wording is **fixed first**; for the rest (L-08 retention policy, L-14, security row SEC-PUBLIC) the PO makes a **dated, named risk acceptance**, in writing, before Stage 2. Neither is done yet. The severity policy treats MEDIUM as blocking real users, so this acceptance is required, not optional.
 6. **The plain-language text for him (section 9) is approved by the PO (D8) and shown to him first, before anyone asks him anything.** It is reachable later from Settings ("What happens to my notes"). The data warning comes before the ask.
-7. **Only then, he is asked once (D14).** He has said yes, freely. "Not now" and "No" are complete answers; he is not asked again. His yes can be withdrawn at any time by stopping, with no reason and no questions that day.
+7. **Only then, he is asked once (D14; adopted by the PO, PO-20bg).** He has said yes, freely. "Not now" and "No" are complete answers; he is not asked again. His yes can be withdrawn at any time by stopping, with no reason and no questions that day.
 8. The PO has said, once and plainly: "This is my project, not your work. Using it or not changes nothing between us, and nothing about you is being measured or studied."
 
 ### 4.2a Check before the Stage 2 "go": is it with him or on him (from the UX review, section 7)
@@ -353,8 +390,8 @@ Two pieces are **new work that does not exist in the code today.** Each needs a 
 ### 4.4 What the PO decides or does
 
 - Written go for Stage 2 (D4); confirm his age (D7); approve or edit the section 9 text (D8).
-- Decide who may see his notes (D13; proposed default: no one) and what the PO sees of his activity (D15; proposed: daily cost total and cap state only).
-- Keep or raise the caps (D16).
+- Who may see his notes is answered (D13, PO-20bg): only him; he shows the PO what he chooses. What the PO sees of his activity (D15) uses the plan's recommendation (PO-20bn): daily cost total and cap state only; the PO confirms when approving the text.
+- Keep or change the caps (D16: AI $0.25 per day and $5 per month; speech cap proposed only).
 - Say the one sentence in 4.2 item 8.
 
 ### 4.5 Cost estimate (ESTIMATES)
@@ -391,7 +428,7 @@ Revision 2 removed measures that score his behaviour (days of use, errors counte
 - He can pause or stop any session and delete everything at any time. Deleting in Tether does not remove vendor copies (about 30 days at Anthropic by direct-API figures, longer if held for review) or anything already exported to Google (PO-15c). This is said to him in plain words (section 9).
 - Export-all and delete-account must work before this stage (PO-20ax).
 - Content-free evidence rows (consent, audit, AI usage) stay after a session or course delete and are removed on full account erasure (PO-20aw). These hold no note text. The PO sees daily totals only (D15), not per-session times.
-- Honest limit: the pilot runs in the PO's Windows account, under his Docker, next to agents he runs, with a database password he holds. The PO can technically read every note (PPR-11). "No one, not even the PO" is therefore a family promise, not something the setup enforces, unless the setup changes (D24).
+- Honest limit: the pilot runs in the PO's Windows account, under his Docker, next to agents he runs, with a database password he holds. The PO can technically read every note (PPR-11). "No one, not even the PO" is therefore a family promise, not something the setup enforces, unless the setup changes (D24). PO answer (P-OWN-ACCOUNT, PO-20bn): the text he reads says this plainly; giving him his own Windows account is considered later and is not part of this plan's entry conditions.
 
 ### 4.9 Exit criteria to Stage 3
 
@@ -523,7 +560,9 @@ For the PO to approve or edit (D8). Written by the UX specialist against the pro
 > Delete in Tether removes Tether's copy at once. It cannot reach the copies the AI company already has, or anything you exported to Google.
 >
 > **Who can see your notes**
-> Nobody but you. [D13 answer goes here; if the default holds: "Not your parent either, unless you show them."]
+> Only you can open your notes in Tether. Your parent cannot see them unless you show them. [PO answer D13 applied.]
+>
+> One thing to know: this runs on your parent's computer. The computer, and the AI helper tools your parent uses on it, can technically read the files stored there. The setup does not stop them from looking. [P-OWN-ACCOUNT: required sentence; the PO may reword it, but the point must stay. A separate Windows account for you is being considered later.]
 >
 > **What your parent can see**
 > The daily total of what the service cost, and whether the daily limit was reached. Not your notes, not when you used it, not what you reported.
@@ -548,7 +587,7 @@ For the PO to approve or edit (D8). Written by the UX specialist against the pro
 - Replace "your parent" with whatever he calls the PO; the point is the role.
 - Words deliberately absent: pilot, trial, test, participant, feedback, study (except to deny it), neurodivergent, ADHD, focus, attention, help you, designed for you, safety flag.
 - **Statements that are not safe to publish yet (security and vendor points, kept alongside the UX text; see section 12):**
-  - "Nobody but you" is false of the PO's machine unless the setup changes: the PO and agents on that machine can technically read the notes (PPR-11). Either change the setup (D24) or add a plain sentence saying so.
+  - Resolved by the PO (P-OWN-ACCOUNT): "Nobody but you" is replaced above by wording that says the PO's machine and agents can technically read the notes (PPR-11). The text is still a draft until the PO approves it (D8).
   - "Runs on Microsoft's Azure computers" is clearly true only for the "Hosted on Azure" version (v2); the other version runs on Anthropic's infrastructure (3.1 item 7).
   - Security's working assumption is that Anthropic staff can see flagged content "on an exceptions-only basis" and that flagged content may be kept up to 2 years (direct-API figure); the draft says only "keep it longer".
   - He should be told not to put passwords, health details or other people's personal information in his notes.
@@ -560,35 +599,37 @@ For the PO to approve or edit (D8). Written by the UX specialist against the pro
 
 ## 10. Decisions for the PO
 
-D1 to D13 are this plan's own labels. They are not the G1 decisions named D1, D2, D8, D10 in `RELEASE_GATES.md` (section 12). New in revision 2 are D14 to D25.
+D1 to D13 are this plan's own labels. They are not the G1 decisions named D1, D2, D8, D10 in `RELEASE_GATES.md` (section 12). D14 to D25 were added in revision 2. In revision 3, rows marked ANSWERED carry the PO's Review Desk answer and the `docs/DECISIONS.md` entry; an answer records a choice and authorises no work.
 
 | ID | Decision | Needed by | Repo status |
 |---|---|---|---|
-| D1 | **Daily spend cap amount** (per day, with a separate monthly ceiling). See D16 for the full cap set. The repo gives no amount; PO-20t left it a placeholder. | Before Stage 1 | Open |
+| D1 | **Daily spend cap amount** (per day, with a separate monthly ceiling). See D16. | Before Stage 1 | **ANSWERED: $0.25 per day, $5 per month for AI (PO-20bk).** Speech cap not answered |
 | D2 | Upgrade Azure to pay-as-you-go | Before Stage 1 | **ANSWERED: done (PO-20be).** Quota after upgrade UNVERIFIED |
-| D3 | Accept Marketplace / Anthropic terms himself, after reading them and after D7, F-M1, F-M9 (or choose not to use Claude on Azure) | Before Stage 1 | Not authorised (PO-20an) |
-| D4 | **Who decides stage changes** (proposal: the PO alone, in writing, one stage at a time, for spend and services; agents may recommend but never decide). In Stage 2 the son's own yes (D14) is separate and his no ends it. See conflict C4 | Now | Open |
-| D5 | Region: West US or West US 3 (preference recorded), and Global versus Data Zone. Plan on Haiku 5.5 Data Zone only; do not rely on Sonnet 5.5 Data Zone | Before Stage 1 | Preference only (PO-20bd) |
-| D6 | Where the app runs in Stages 1 and 2 (the PO's machine, or a deployed Azure setup). Plan assumes his machine; no deployment authorised | Before Stage 1 | Open |
-| D7 | **The son's age** (is he 18 or older today, and on the day each stage starts) and whether any vendor age rule applies; also whether the user is the son only or the PO too (PO-15 versus PO-16). **Must be recorded in writing before D3 and before D14** | Before Stage 1 | Repo has conflicting notes (section 12) |
-| D8 | Approve or edit the section 9 text | Before Stage 2 | Draft only |
+| D3 | Accept Marketplace / Anthropic terms himself, after reading them and after D7, F-M1, F-M9 (or choose not to use Claude on Azure) | Before Stage 1 | **Rule ANSWERED (PO accepts himself; no agent does, PO-20bl).** Acceptance itself NOT done, not authorised (PO-20an) |
+| D4 | **Who decides stage changes.** The PO alone, in writing on the Review Desk, one stage at a time. Agents may recommend but never decide. In Stage 2 the son's own yes (D14) is separate and his no ends it | Now | **ANSWERED (PO-20bg).** Conflict C4 resolved. No stage "go" given yet |
+| D5 | Region: West US or West US 3 (preference recorded), and Global versus Data Zone. Plan on Haiku 5.5 Data Zone only; do not rely on Sonnet 5.5 Data Zone | Before Stage 1 | Preference only (PO-20bd); still open |
+| D6 | Where the app runs in Stages 1 and 2 | Before Stage 1 | **ANSWERED: the PO's own machine only; nothing deployed (PO-20bh)** |
+| D7 | **The son's age** and whether the user is the son only or the PO too | Before Stage 1 | **ANSWERED: the son, 18 or older; a parent holds the accounts (PO-20bi).** Re-check on the day each stage starts |
+| D8 | Approve or edit the section 9 text | Before Stage 2 | Draft only; open |
 | D9 | The school-rules check: whether and when the PO reads the school's recording policy and asks the school, instructor, and accessibility office. Not needed for Stages 1 and 2 | Before Stage 3 | Open (PO-20ai) |
 | D10 | Whether a lawyer will ever be consulted for Stage 3, or the PO accepts the risk and records it | Before Stage 3 | Open (PO-20ai) |
 | D11 | Whether to ask Anthropic about zero data retention (their approval, not a setting we control) | Before Stage 2 | Open |
-| D12 | Whether Google sign-in/export is used at all in Stage 2 (separate explicit go) | Before Stage 2 | Not authorised (PO-20an) |
-| D13 | Who may see the son's notes in Stage 2 (default: no one). See D15 and D24 | Before Stage 2 | Open (family decision) |
-| D14 | **The student's own yes.** Asked once, after he has read the section 9 text; "not now" and "no" are complete answers; withdrawable at any time by stopping; never re-asked by the PO. If D7 says adult, D14 is the primary decision for Stage 2 and D4 covers spend and services; if minor, D14 still exists and his no overrides the PO's go | Before Stage 2 | New (revision 2) |
-| D15 | **Usage metadata privacy.** What the PO may see of his activity. Proposal: daily cost total and daily-cap state only; no per-session times, no counts of use, no reports unless he shows them; he sees everything the PO sees, on the same screen | Before Stage 2 | New |
-| D16 | **Caps.** (a) Global daily AI cap across all pools and users; (b) monthly ceiling the app refuses to exceed; (c) speech-minutes cap per session, per day, per month. Numbers are the PO's | Before Stage 1 | New |
-| D17 | **Reader identity and agents' Azure access.** Agents use only the read-only (Reader) identity recorded in PO-20bf, or get no Azure access at all. Confirm the old Owner session is gone and whether keys need regenerating | Now | **Partly answered (PO-20bf).** Rest UNVERIFIED |
-| D18 | **One-way mock switch.** Real to mock only; a paid provider can be turned on only by starting the pilot stack with the secret file, never from the UI | Before Stage 1 | New |
-| D19 | **Who builds the Stage 2 typed-notes feature** (new work: contract, budget pool, storage, delete and export, log canary, security review) | Before Stage 2 build | New |
-| D20 | **Who builds "Report this"** (new work: additive contract, user-scoped table, ownership tests, no-outbound-call test, security review) | Before Stage 2 build | New |
-| D21 | Whether a typed summary of a lecture he attended is allowed in Stage 2 | Before Stage 2 | New |
-| D22 | How the deferred MEDIUM legal rows (L-07, L-08, L-14) and SEC-PUBLIC are handled for Stage 2: wording first, or a named, dated PO risk acceptance | Before Stage 2 | New |
-| D23 | Whether to spend on a short lawyer consult on "an individual buying Claude through Azure Marketplace for a family member's study use", or the PO records the risk himself. This is earlier than, and separate from, D10 | Before D3 | New |
-| D24 | Whether to separate the son's data from the PO's (his own Windows account and a pilot stack only he starts), or to say plainly in the text that the PO's machine and agents can technically read his notes | Before Stage 2 | New |
-| D25 | What happens to the auto-created Foundry resource: use it (if confirmed to be the one used) or remove it, so no idle billable keys remain | Before Stage 1 | New |
+| D12 | Whether Google sign-in/export is used at all in Stage 2 (separate explicit go) | Before Stage 2 | Not authorised (PO-20an); open |
+| D13 | Who may see the son's notes in Stage 2 | Before Stage 2 | **ANSWERED: only him; he shows the PO what he chooses (PO-20bg)** |
+| D14 | **The student's own yes.** Asked once, after he has read the section 9 text; "not now" and "no" are complete answers; withdrawable at any time by stopping; never re-asked by the PO | Before Stage 2 | **ANSWERED: adopted (PO-20bg)** |
+| D15 | **Usage metadata privacy.** What the PO may see of his activity: daily cost total and daily-cap state only; no per-session times, no counts of use, no reports unless he shows them; he sees everything the PO sees, on the same screen | Before Stage 2 | Plan's recommendation applied under P-CONFLICTS (PO-20bn); PO to confirm when approving the text |
+| D16 | **Caps.** (a) Global daily AI cap; (b) monthly ceiling the app refuses to exceed; (c) speech-minutes cap | Before Stage 1 | **(a) $0.25 per day and (b) $5 per month ANSWERED (PO-20bk). (c) proposed 10 min per session, 30 min per day, 2 h per month: PO to confirm** |
+| D17 | **Reader identity and agents' Azure access.** Agents use only the read-only (Reader) identity recorded in PO-20bf. Confirm the old Owner session is gone and whether keys need regenerating | Now | **Partly answered (PO-20bf).** Rest UNVERIFIED. The screenshots show the PO's own Owner role on the subscription, which is his, not an agent's |
+| D18 | **One-way mock switch.** Real to mock only; he can turn real AI off in the app; only the pilot setup turns it on | Before Stage 1 | **ANSWERED (PO-20bj).** Conflict C1 resolved |
+| D19 | **Who builds the Stage 2 typed-notes feature** (new work: contract, budget pool, storage, delete and export, log canary, security review) | Before Stage 2 build | Open; nothing is authorised to be built |
+| D20 | **Who builds "Report this"** (new work: additive contract, user-scoped table, ownership tests, no-outbound-call test, security review) | Before Stage 2 build | Open; nothing is authorised to be built |
+| D21 | Whether a typed summary of a lecture he attended is allowed in Stage 2 | Before Stage 2 | **ANSWERED: not yet; own reflections and questions only (PO-20bj)** |
+| D22 | How the deferred MEDIUM legal rows (L-07, L-08, L-14) and SEC-PUBLIC are handled for Stage 2 | Before Stage 2 | **ANSWERED: fix the delete wording first; dated, named PO risk acceptance for the rest (PO-20bj).** Neither is done |
+| D23 | Lawyer consult on "an individual buying Claude through Azure Marketplace for a family member's study use". Earlier than, and separate from, D10 | Before D3 | **ANSWERED: short consult first if cheap; otherwise the PO's written risk acceptance (PO-20bl).** Neither is done |
+| D24 | Separate the son's data from the PO's, or say plainly that the PO's machine and agents can technically read his notes | Before Stage 2 | **Part ANSWERED: say it plainly in the text; his own Windows account considered later (PO-20bn)** |
+| D25 | What happens to the auto-created Foundry resource | Before Stage 1 | **ANSWERED: keep it for now, no action; revisit if the pilot is dropped (PO-20bm).** Corrects an earlier "delete it now". No pending action |
+
+**Still needing the PO after revision 3:** D5 (region and deployment type), D8 (approve the section 9 text), D9 and D10 (Stage 3 questions), D11 (zero data retention), D12 (Google), D19 and D20 (who builds the new Stage 2 features), the speech cap (D16c), D15 confirmation, F-M1, the actual lawyer consult or written risk acceptance (D23), the dated risk acceptance for D22, and every written stage "go" (D4).
 
 ---
 
@@ -608,12 +649,16 @@ D1 to D13 are this plan's own labels. They are not the G1 decisions named D1, D2
 12. Whether 40 requests per minute and 40,000 input tokens per minute suffice for rolling summaries plus Quick recap.
 13. Recording law, school policy, FERPA applicability and instructor permission. `recording-compliance-gap-report.md` section 3.
 14. Neurodivergent suitability and learning-science effectiveness. `RELEASE_GATES.md` G4.
-15. The son's age (D7).
+15. The son's age: answered as 18 or older (PO-20bi, D7); the PO's own statement, not independently checked; re-check each stage.
 16. The text of the PO decisions named D1, D2, D8, D10 in the G1 row of `RELEASE_GATES.md`: not found (section 12).
 17. What the Usage Policy effective 2026-11-12 changes (secondary coverage only).
 18. Whether an idle Foundry or Speech S0 resource shows $0 in Cost Management by meter after a billing month.
 19. Whether the old Owner Azure session is gone from this machine, whether MFA is on, whether anyone else holds a role, and whether any diagnostic settings ship request content (security 1.2, 1.20).
 20. Whether gitleaks' default rules recognise an Azure key shape.
+21. Who sets Claude's price and terms on this account. The PO's note: Foundry shows no "management center" in its left panel, and "view pricing" leads to the Anthropic-side pricing page, which hints at Anthropic-side price and terms. Evidence only; no conclusion.
+22. Whether the $200 credit (expires 2026-12-03, $200 available) applies to Claude bought through Marketplace. Assume not.
+23. The Foundry resource is kept for now (PO-20bm); whether it has idle billable charges or exposed keys is UNVERIFIED.
+24. The speech-minutes cap (10 min per session, 30 min per day, 2 h per month) is proposed only.
 
 ---
 
@@ -621,21 +666,25 @@ D1 to D13 are this plan's own labels. They are not the G1 decisions named D1, D2
 
 These are for the Lead and the PO. I changed no other file.
 
-### A. Conflicts between the four reviews (both sides kept; the PO decides)
+### A. Conflicts between the four reviews: RESOLVED BY THE PO (P-CONFLICTS, PO-20bn: "use the plan's recommendations")
 
-- **C1. One-way switch versus an on/off control.** Security requires that nothing in the UI can turn a paid provider on (runtime "off" is fine). The UX draft has a first-use button "Turn the AI service on" and a Settings control "Use the AI service: On / Off". Both are kept. A possible reading is that "on" only records his permission within a stage the server already allows, which leaves the one-way rule intact; that is a design choice for the Lead and PO (D18), not made here.
-- **C2. "Nobody but you" versus what the setup can enforce.** The UX text says nobody but him sees his notes, not even his parent unless he shows them. Security (PPR-11) says the PO's machine, Docker, database password and agents mean the PO can technically read every note, so that sentence is untrue unless the setup changes or the text says so. Both kept in section 9; decision D24 (and D13, D15).
-- **C3. A STOP on other people's details versus nobody reading his notes.** Legal wants a Stage 2 STOP when another person's name or details appear in his notes. UX wants STOP conditions to be things he says or does, with nobody inspecting him. No review says how the app could detect others' names without someone reading his notes. Both kept; options include the student himself noticing, an app-side check that sees no content, or the PO accepting the risk. For the PO.
-- **C4. Who decides.** The original plan (and D4) says the PO alone decides stage changes. UX says that if he is an adult, his own yes is the primary Stage 2 decision and the PO's go covers spend and services; if a minor, his no still overrides. Legal and the vendor terms make the PO the contract holder responsible for what is sent. Both kept in D4 and D14; the PO confirms.
-- **C5. Retention and hosting wording in the student text.** UX: the company "keeps what is sent for up to 30 days, then removes it", "runs on Microsoft's Azure computers". Legal, vendor and security: 30 days is a direct-API figure and unverified for Foundry; flagged content may be kept up to 2 years and seen by staff in exceptional cases; the other hosting version runs on Anthropic's infrastructure; a Covered Model list may imply a different retention. Both kept, with the gap marked in section 9.
-- **C6. How much the PO sees.** UX: daily cost totals only, no per-session times. The Stage 1 and Stage 2 measures, the debugging need, and the ledger's per-call rows all produce per-session data. UX Q2 asks whether the PO needs it; if yes, the text must say so. Kept as D15.
-- **C7. Timing of the vendor-terms questions.** Legal: F-M1 and F-M9 and the age before the PO accepts any terms (before Stage 1). The original plan and security's Stage 2 list put them at Stage 1 exit or Stage 2 entry. Revision 2 uses legal's earlier, stricter timing; the later items are kept as re-confirmation. No review objects to the earlier timing, but the PO should know it adds work before the first real call.
+The PO told the Review Desk to use the plan's recommendation for C1 to C7. Each is recorded below with the recommendation now in force. The other side of each conflict is kept in one line for the record. Where a recommendation depends on a later PO answer, that is stated.
+
+- **C1. One-way switch versus an on/off control. Resolved by the PO.** In force: "on" only records his permission inside a stage the server already allows; the server (pilot setup) alone enables a paid provider; he can turn real AI off in the app (D18, PO-20bj). Security's rule (nothing in the UI can turn a paid provider on) stands.
+- **C2. "Nobody but you" versus what the setup can enforce. Resolved by the PO.** In force: the text says plainly that the PC and agents can technically read files (P-OWN-ACCOUNT); a separate Windows account for him is considered later (D24, PO-20bn). UX's unqualified sentence is not used.
+- **C3. A STOP on other people's details versus nobody reading his notes. Resolved by the PO under "use the plan's recommendations", with the plan's own reading:** nobody inspects his notes; the section 9 text tells him not to include other people's details; he is the one who notices and stops, and a STOP is something he does or says. Residual risk (R11) is carried and is covered by the dated risk acceptance in D22. The PO did not give a separate answer for C3 beyond the blanket instruction; if he wants a different mechanism he can say so.
+- **C4. Who decides. Resolved by the PO.** In force: the PO alone decides stage changes, in writing, one stage at a time (D4, PO-20bg). The son's own yes is a separate decision asked once; his "no" or "not now" ends Stage 2 (D14).
+- **C5. Retention and hosting wording in the student text. Resolved by the PO.** In force: the cautious wording (up to 30 days, may be kept longer if held for review; "Microsoft's Azure computers" only if the chosen hosting is the Azure-hosted version, v2). The 30-day figure and the hosting claim remain UNVERIFIED for this account and are checked before the text is approved (D8).
+- **C6. How much the PO sees. Resolved by the PO.** In force: daily cost total and daily-cap state only (D15). If debugging ever needs per-session data, the text is changed first and the PO says so.
+- **C7. Timing of the vendor-terms questions. Resolved by the PO.** In force: legal's earlier, stricter timing. The age (answered, PO-20bi) and F-M1 are settled before the PO accepts any terms; F-M2, F-M3 and F-M4 stay at Stage 1 exit. This adds work before the first real call.
+
+"Resolved by the PO" means the choice is made. It does not mean the underlying legal, vendor or security facts are verified.
 
 ### B. Gaps and contradictions in the repo (carried from revision 1, updated)
 
 1. **Free account versus Claude.** `stt-vendor-terms-review.md` L-5 calls the Azure free account "the safest cost shape"; `azure-platform-verification.md` 1.5 says Claude on Foundry does not work on free-trial subscriptions. The account is now pay-as-you-go (PO-20be). L-5 holds only for Speech F0.
-2. **Who the user is.** PO-16 says Tether will "probably be used only by the Product Owner"; PO-15 says it is for his son. The account holder, the "student" in consent wording and the age question depend on it (D7).
-3. **Son's age.** `legal-register.md` L-09 and PO-20k call the only user an adult; `stt-vendor-terms-review.md` M-2 says age is not in the repo; `anthropic-terms-review.md` F-M9 says he may be under 18. A person starting college can be 17.
+2. **Who the user is.** Resolved by the PO (PO-20bi): the user is his son, 18 or older, and a parent holds the accounts. PO-16's "probably only the Product Owner" is superseded for this plan.
+3. **Son's age.** Answered as 18 or older (PO-20bi). `anthropic-terms-review.md` F-M9 and `stt-vendor-terms-review.md` M-2 predate that answer; the PO's statement is not independently checked.
 4. **Storage direction in older documents.** `anthropic-terms-review.md` still says data is stored "in Google and AWS" and covers direct Anthropic and Bedrock only; PO-20aa/ab replaced that with Azure plus Google Docs. Legal register L-13 still names AWS.
 5. **Sonnet 5.5 Data Zone.** Contradicted between Anthropic's page and Microsoft's pages. The older text in `azure-platform-verification.md` is not fully updated. Unresolved until the real portal (3.1 item 6).
 6. **Thinking setting (T-2)** is contradicted between two Microsoft pages and can only be settled on a real deployment.
@@ -664,7 +713,9 @@ These are for the Lead and the PO. I changed no other file.
 - No clinical, diagnostic, treatment or learning-outcome claim about the son or anyone else (G4 NOT_RUN).
 - No production deployment, and no cloud hosting, database, Key Vault or Blob storage creation (G5 BLOCKED).
 - No spend of any kind without the PO's written decision, including speech use and Claude use. The pay-as-you-go upgrade is done (PO-20be); nothing else is authorised.
-- No acceptance of Marketplace, Anthropic or any other terms by an agent (PO-20an).
+- No acceptance of Marketplace, Anthropic or any other terms by an agent (PO-20an, PO-20bl). The PO's recorded answers (PO-20bg to PO-20bn) are choices, not approvals of work: they do not authorise building Stage 1, deploying, requesting quota, spending, accepting terms, or starting any stage.
+- No deletion or creation of Azure resources by an agent. The Foundry resource is kept for now with no action (PO-20bm); any deletion later is the PO's own action.
+- No assumption that the $200 credit covers Claude through Marketplace.
 - No agent use of the PO's Owner Azure sign-in; agents use only the read-only identity (PO-20bf).
 - No real Google sign-in, Calendar write or Docs export without the PO's separate explicit go (PO-20an).
 - No real school documents (syllabi, exams, slides) and no real syllabus extractor in Stages 1 and 2 (PO-20l, L-10).
