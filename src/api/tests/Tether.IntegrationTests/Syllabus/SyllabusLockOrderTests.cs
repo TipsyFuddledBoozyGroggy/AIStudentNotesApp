@@ -49,6 +49,7 @@ public class SyllabusLockOrderTests(SyllabusLockOrderFactory f) : SyllabusTestBa
         {
             if (!Carries(cmd, scope)) { ArmCourseCycle(match, scope, course, syllabus, purge, sides); return; }
             var side = await OtherSide.HoldAsync(F, $"select 1 from courses.courses where id = '{course}' for update");
+            side.TolerateLosing = true; // L-VICTIM: the test cannot choose the victim; if this side loses, the attempt is run again on fresh data
             side.CloseCycleWhenWaiting(F, LockRace.Pid(cmd), $"select 1 from syllabus.syllabi where id = '{syllabus}' for update",
                 purge ? [$"delete from courses.courses where id = '{course}'"] : []);
             lock (sides) sides.Add(side);
@@ -69,10 +70,19 @@ public class SyllabusLockOrderTests(SyllabusLockOrderFactory f) : SyllabusTestBa
     private Task<long> RowsAsync(string table, Guid user, string extra = "true") =>
         F.ScalarAsync($"select count(*) from syllabus.{table} where user_id = '{user}' and {extra}");
 
-    private static async Task AwaitSidesAsync(List<OtherSide> sides)
+    /// <summary>True when the test's own side was chosen as the deadlock victim (L-VICTIM): the scenario did not happen and must be run again.</summary>
+    private static async Task<bool> AwaitSidesAsync(List<OtherSide> sides)
     {
         Assert.Single(sides); // the race window was reached exactly once
-        foreach (var s in sides) await using (s) await s.Done; // the other side was NOT the victim: the writer was
+        foreach (var s in sides) await using (s) await s.Done;
+        return sides.Any(x => x.LostTheRace);
+    }
+
+    private static async Task RunUntilWriterLosesAsync(Func<Task<bool>> attempt)
+    {
+        for (var i = 0; i < 4; i++)
+            if (await attempt()) return;
+        Assert.Fail("the test's own side was chosen as the deadlock victim in 4 attempts in a row");
     }
 
     private static HttpRequestMessage AddItem(string sid, string key) =>
@@ -81,7 +91,9 @@ public class SyllabusLockOrderTests(SyllabusLockOrderFactory f) : SyllabusTestBa
     // ---------------- calendar sync ----------------
 
     [Fact]
-    public async Task A_sync_chosen_as_the_deadlock_victim_of_a_course_purge_is_retried_and_answers_404_not_500()
+    public Task A_sync_chosen_as_the_deadlock_victim_of_a_course_purge_is_retried_and_answers_404_not_500() => RunUntilWriterLosesAsync(SyncPurgeAttemptAsync);
+
+    private async Task<bool> SyncPurgeAttemptAsync()
     {
         var (a, course, sid, item, rev) = await ApprovedMidtermAsync();
         var sides = new List<OtherSide>();
@@ -89,17 +101,20 @@ public class SyllabusLockOrderTests(SyllabusLockOrderFactory f) : SyllabusTestBa
         var before = await LockRace.DeadlocksAsync(F);
 
         var res = await Sync(a.Client, sid, NewKey(), (item, rev));
-        await AwaitSidesAsync(sides);
+        if (await AwaitSidesAsync(sides)) return false;
 
         await res.AssertProblemAsync(HttpStatusCode.NotFound, "not_found");
         await LockRace.AssertDeadlockCountedAsync(F, before);
         Assert.Equal(0, await F.ScalarAsync($"select count(*) from courses.courses where id = '{course}'"));
         foreach (var t in new[] { "syllabi", "items", "calendar_events", "sync_runs", "idempotency_keys" })
             Assert.Equal(0, await RowsAsync(t, a.UserId));
+        return true;
     }
 
     [Fact]
-    public async Task A_sync_that_loses_a_deadlock_while_the_course_survives_is_retried_once_writes_one_event_and_replays_by_key()
+    public Task A_sync_that_loses_a_deadlock_while_the_course_survives_is_retried_once_writes_one_event_and_replays_by_key() => RunUntilWriterLosesAsync(SyncSurvivesAttemptAsync);
+
+    private async Task<bool> SyncSurvivesAttemptAsync()
     {
         var (a, course, sid, item, rev) = await ApprovedMidtermAsync();
         var sides = new List<OtherSide>();
@@ -108,7 +123,7 @@ public class SyllabusLockOrderTests(SyllabusLockOrderFactory f) : SyllabusTestBa
         var key = NewKey();
 
         var res = await Sync(a.Client, sid, key, (item, rev));
-        await AwaitSidesAsync(sides);
+        if (await AwaitSidesAsync(sides)) return false;
 
         Assert.True(res.StatusCode == HttpStatusCode.OK, $"{(int)res.StatusCode} {await res.Content.ReadAsStringAsync()}");
         var body = await res.BodyAsync();
@@ -127,12 +142,15 @@ public class SyllabusLockOrderTests(SyllabusLockOrderFactory f) : SyllabusTestBa
         Assert.Equal(body.GetProperty("syncId").GetString(), (await again.BodyAsync()).GetProperty("syncId").GetString());
         Assert.Equal(1, await RowsAsync("calendar_events", a.UserId, $"item_id = '{Guid32(item)}'"));
         Assert.Equal(1, await RowsAsync("sync_runs", a.UserId, "kind = 'sync'"));
+        return true;
     }
 
     // ---------------- item create with an Idempotency-Key ----------------
 
     [Fact]
-    public async Task An_item_create_with_a_key_chosen_as_the_deadlock_victim_of_a_course_purge_is_retried_and_answers_404_not_500()
+    public Task An_item_create_with_a_key_chosen_as_the_deadlock_victim_of_a_course_purge_is_retried_and_answers_404_not_500() => RunUntilWriterLosesAsync(ItemPurgeAttemptAsync);
+
+    private async Task<bool> ItemPurgeAttemptAsync()
     {
         var a = await NewActorAsync();
         var course = await CourseAsync(a.Client);
@@ -142,17 +160,20 @@ public class SyllabusLockOrderTests(SyllabusLockOrderFactory f) : SyllabusTestBa
         var before = await LockRace.DeadlocksAsync(F);
 
         var res = await a.Client.SendAsync(AddItem(sid, NewKey()));
-        await AwaitSidesAsync(sides);
+        if (await AwaitSidesAsync(sides)) return false;
 
         await res.AssertProblemAsync(HttpStatusCode.NotFound, "not_found");
         await LockRace.AssertDeadlockCountedAsync(F, before);
         Assert.Equal(0, await F.ScalarAsync($"select count(*) from courses.courses where id = '{course}'"));
         foreach (var t in new[] { "syllabi", "items", "idempotency_keys" })
             Assert.Equal(0, await RowsAsync(t, a.UserId));
+        return true;
     }
 
     [Fact]
-    public async Task An_item_create_with_a_key_that_loses_a_deadlock_while_the_course_survives_creates_one_item_and_replays_by_key()
+    public Task An_item_create_with_a_key_that_loses_a_deadlock_while_the_course_survives_creates_one_item_and_replays_by_key() => RunUntilWriterLosesAsync(ItemSurvivesAttemptAsync);
+
+    private async Task<bool> ItemSurvivesAttemptAsync()
     {
         var a = await NewActorAsync();
         var course = await CourseAsync(a.Client);
@@ -163,7 +184,7 @@ public class SyllabusLockOrderTests(SyllabusLockOrderFactory f) : SyllabusTestBa
         var key = NewKey();
 
         var res = await a.Client.SendAsync(AddItem(sid, key));
-        await AwaitSidesAsync(sides);
+        if (await AwaitSidesAsync(sides)) return false;
 
         Assert.True(res.StatusCode == HttpStatusCode.Created, $"{(int)res.StatusCode} {await res.Content.ReadAsStringAsync()}");
         var id = (await res.BodyAsync()).GetProperty("id").GetString()!;
@@ -176,5 +197,6 @@ public class SyllabusLockOrderTests(SyllabusLockOrderFactory f) : SyllabusTestBa
         Assert.Equal("true", again.Headers.TryGetValues("Idempotency-Replayed", out var v) ? v.Single() : null);
         Assert.Equal(id, (await again.BodyAsync()).GetProperty("id").GetString());
         Assert.Equal(1, await RowsAsync("items", a.UserId, "origin = 'student'"));
+        return true;
     }
 }

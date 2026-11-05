@@ -306,6 +306,13 @@ public class LockOrderSummaryAppendTests(NotesPressRaceFactory f) : NotesTestBas
     [Fact]
     public async Task A_final_append_chosen_as_the_deadlock_victim_of_a_session_delete_is_retried_and_finds_the_press_gone()
     {
+        for (var attempt = 0; attempt < 4; attempt++)
+            if (await FinalAppendAttemptAsync()) return;
+        Assert.Fail("the test's own side was chosen as the deadlock victim in 4 attempts in a row"); // L-VICTIM
+    }
+
+    private async Task<bool> FinalAppendAttemptAsync()
+    {
         var (a, id) = await StoppedSessionAsync(finals: 0);
         var press = Guid.NewGuid();
         await InsertPressAsync(id, a.UserId, press);
@@ -319,6 +326,7 @@ public class LockOrderSummaryAppendTests(NotesPressRaceFactory f) : NotesTestBas
         {
             if (!cmd.Parameters.Cast<System.Data.Common.DbParameter>().Any(p => p.Value is Guid g && g == session)) { Arm(); return; }
             side = await OtherSide.HoldAsync(F, $"select 1 from lectures.lecture_sessions where id = '{id}' for update");
+            side.TolerateLosing = true; // L-VICTIM
             side.CloseCycleWhenWaiting(F, LockRace.Pid(cmd), $"select 1 from ai.lecture_notes where id = '{press}' for update",
                 $"delete from lectures.lecture_sessions where id = '{id}'");
         });
@@ -337,11 +345,13 @@ public class LockOrderSummaryAppendTests(NotesPressRaceFactory f) : NotesTestBas
         }
         Assert.True(trap.Fired, "the race window was not reached");
         await using (side!) await side!.Done;
+        if (side!.LostTheRace) return false; // the test's side was the victim, not the append: run it again on fresh data
 
         Assert.Equal(AppendResult.PressGone, result); // the retry re-took the press lock after the delete committed: nothing stored
         await LockRace.AssertDeadlockCountedAsync(F, before);
         Assert.Equal(0, await F.ScalarAsync($"select count(*) from ai.summary_revisions where session_id = '{id}'"));
         Assert.Equal(0, await F.ScalarAsync($"select count(*) from lectures.lecture_sessions where id = '{id}'"));
+        return true;
     }
 }
 
@@ -367,6 +377,13 @@ public class LockOrderReserveTests(ReserveTrapFactory f) : AiBudgetTestBase(f), 
     [Fact]
     public async Task A_reservation_chosen_as_a_deadlock_victim_is_retried_once_and_does_not_open_the_breaker()
     {
+        for (var attempt = 0; attempt < 4; attempt++)
+            if (await ReservationAttemptAsync()) return;
+        Assert.Fail("the test's own side was chosen as the deadlock victim in 4 attempts in a row"); // L-VICTIM
+    }
+
+    private async Task<bool> ReservationAttemptAsync()
+    {
         var a = await NewActorAsync();
         var period = F.Clock.GetUtcNow().UtcDateTime.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture);
         await F.ExecAsync($"insert into ai.global_spend (period, pool, spent_micros, updated_at) values ('{period}', 'lecture', 0, now()) on conflict do nothing");
@@ -377,6 +394,7 @@ public class LockOrderReserveTests(ReserveTrapFactory f) : AiBudgetTestBase(f), 
         trap.Arm(IsReserveUpsert, async cmd =>
         {
             side = await OtherSide.HoldAsync(F, $"update ai.global_spend set updated_at = now() where period = '{period}' and pool = 'lecture'");
+            side.TolerateLosing = true; // L-VICTIM
             side.CloseCycleWhenWaiting(F, LockRace.Pid(cmd), $"select pg_advisory_xact_lock(hashtextextended('ai-budget:{a.UserId:N}', 0))");
         });
         var before = await LockRace.DeadlocksAsync(F);
@@ -384,6 +402,7 @@ public class LockOrderReserveTests(ReserveTrapFactory f) : AiBudgetTestBase(f), 
         var outcome = await RunGatewayAsync(a);
         Assert.True(trap.Fired, "the race window was not reached");
         await using (side!) await side!.Done;
+        if (side!.LostTheRace) return false; // the test's side was the victim, not the reservation: run it again
 
         Assert.True(outcome.Ok, outcome.Failure);
         await LockRace.AssertDeadlockCountedAsync(F, before);
@@ -391,6 +410,7 @@ public class LockOrderReserveTests(ReserveTrapFactory f) : AiBudgetTestBase(f), 
         Assert.False(health.IsOpen, "one transient deadlock opened the live breaker");
         Assert.False(health.IsNotesOpen, "one transient deadlock opened the notes breaker");
         Assert.Equal(0, await F.ScalarAsync($"select count(*) from ai.ai_usage where user_id = '{a.UserId}' and outcome = 'reserved'"));
+        return true;
     }
 }
 
