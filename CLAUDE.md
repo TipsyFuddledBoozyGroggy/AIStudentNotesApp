@@ -31,6 +31,8 @@ Build a neurodivergent-friendly college academic assistant. Prioritize the real 
 | CI/security scanning, monitoring, spending and backup/restore readiness audit | `production-readiness-auditor` |
 | Audit agent definitions after an incident; propose project-specific refinements (never edits agents itself) | `agent-refiner` |
 
+Tie-breaks: vendor terms/DPA legal reading -> `legal-compliance-reviewer`; vendor facts, prices, quotas and read-only Azure checks -> `vendor-verification-researcher`; CI/workflow authoring -> `devops-engineer`, independent audit of it -> `production-readiness-auditor`; automated a11y in CI -> `qa-engineer`, manual AT/device -> `device-accessibility-validation`; study design with real people -> `human-research-coordinator`, pedagogy content -> `learning-science`. Questions for the PO go to the Lead, who posts them on the Review Desk; no subagent does.
+
 ## Recommended technical stack
 - Frontend: Next.js / React / TypeScript, accessible UI, mobile responsive.
 - Backend: ASP.NET Core Web API in C#, explicit domain and service boundaries.
@@ -87,7 +89,7 @@ docs/data/        data model and migrations
 ```
 
 ## First instruction for a new session
-Before generating broad implementation, examine repository state and propose a narrow **working MVP vertical-slice plan** listing dependencies, owners, acceptance tests and open decisions. Use relevant subagents for review. Implement in verifiable increments. Clearly label proposals vs code actually executed.
+Read docs/PROGRESS.md, docs/RELEASE_GATES.md and docs/DECISIONS.md, run git status, then continue the active slice. The MVP slice is built; do not re-plan it. Clearly label proposals vs code actually executed.
 
 
 ## Explicit assurance gates — read before any real-world testing or deployment
@@ -102,7 +104,7 @@ These five new subagents **organize evidence and coordinate human verification**
 | Production CI, scanning, observability, backups | **NOT VERIFIED / NO DEPLOYMENT CLAIM** | `production-readiness-auditor`, `devops-engineer`, `security-engineer`, `qa-engineer` | Actual CI run records, CodeQL/dependency/container scan results, deployed telemetry, cost guardrails, and observed restore drill |
 
 ### Immediate orchestration sequence
-1. Ask all five assurance agents for gap reports using *this repo*, including dates, links, human tasks and status; assign file-disjoint documentation work.
+1. ~~Ask all five assurance agents for gap reports~~ Done (substitute reports exist; see "Open reconciliation" in docs/RELEASE_GATES.md). Re-run them as the real agents only when asked.
 2. Continue safe local/synthetic-audio development in parallel, clearly separated from live classroom recording.
 3. Obtain Product Owner authorization before spending, external permissions, participant recruitment, real lecture audio, cloud deployment or production data actions.
 4. Do not mark a gate `PASS` from a plan, checklist, mock, AI synthesis or local dry run. Attach evidence and an accountable reviewer to each gate decision.

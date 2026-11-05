@@ -1,6 +1,6 @@
-# E8: proposed CLAUDE.md diff (NOT APPLIED)
+# E8: CLAUDE.md diff (APPLIED 2026-11-05 after PO approval, PO-20bw)
 
-Status: PROPOSED, for the Product Owner to see before the Lead applies anything. `CLAUDE.md` has not been edited. Source: `docs/agents/refinements-2026-11-05.md`, E8. Diff generated against `CLAUDE.md` at HEAD ecb929d.
+Status: APPLIED. The PO approved this diff in session on 2026-11-05 (PO-20bw); the Lead applied it to `CLAUDE.md`. Source: `docs/agents/refinements-2026-11-05.md`, E8. Diff generated against `CLAUDE.md` at HEAD ecb929d.
 
 ## Plain-English summary
 
