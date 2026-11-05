@@ -39,20 +39,20 @@ Entry format:
 - **Root cause:** sticky site header paired with page targets by axe; the 200px scroll sampling missed the bad window on Windows. The defect existed on Windows too (found with 2-3px sampling).
 - **Agents:** frontend-engineer (header), qa-engineer (sampling too sparse to prove absence).
 - **Prevention:** playbook L-STICKY; a deterministic "header straddle" geometry check now exists.
-- **Status:** APPLIED. Residual: QA definition line on stating the sampling step when claiming absence (PROPOSED P4 in `refinements/2026-11-01-first-ci-day-incidents.md`).
+- **Status:** APPLIED. Residual closed: the QA definition line on stating the sampling step when claiming absence is present in `qa-engineer.md` (P4, APPLIED; confirmed 2026-11-05).
 
 ### 2026-11-01 Backend agent refused a Lead instruction that contradicted the contract (good outcome)
 - **Symptom:** the Lead's prompt told `backend-engineer` to add bare `UTC` to the syllabus zone allow-list; `API_CONTRACTS_P2.md` 2.3 (commit 96a1caf) says `Etc/UTC` is the only UTC id and bare `UTC` is `400`. The agent refused.
 - **Root cause:** the Lead prompt conflicted with the contract (delegation process, not an agent defect). Prompt text itself was not available to me; evidence is the contract diff and the Lead's report.
 - **Agents:** none at fault; backend-engineer behaved correctly.
 - **Prevention:** playbook item "contracts and decisions beat instructions" (P1) so this holds for every agent; Lead delegation checklist (P5).
-- **Status:** PROPOSED (`refinements/2026-11-01-first-ci-day-incidents.md`).
+- **Status:** APPLIED (P1 is playbook section 1 rule 10; confirmed 2026-11-05).
 
 ### 2026-11-01 Lead re-stated environment facts in delegation prompts
 - **Root cause:** facts lived only in the Lead's head until f8b45f3; playbook section 2 now holds them. Remaining risk is the Lead copying them again and drifting.
 - **Agents:** none (Lead process).
 - **Prevention:** `docs/agents/delegation-checklist.md` (P5): point at playbook sections, send only task deltas.
-- **Status:** PROPOSED.
+- **Status:** APPLIED (P5 is `docs/agents/delegation-checklist.md`; confirmed 2026-11-05).
 
 ### 2026-11-01 Dev server reported "still running" after exit: wording follow-up
 - **Prevention:** tighten playbook item 2 to require quoting the check used (P2). Entry above remains APPLIED for the base rule.
@@ -94,3 +94,8 @@ Entry format:
 - **Symptom:** failed only inside the full integration suite, passed alone; the message was never captured until a repeated-run investigation saved it.
 - **Root cause:** a test race: the test kept sending frames after the server's expected 1011 close. Not a product race, not a leak.
 - **Prevention:** when a test fails intermittently, capture the failure text first (trx or detailed output, repeated runs) before theorising. Playbook note updated. Status: APPLIED.
+
+### 2026-11-05 Agent audit: cloud commands, defect classes, evidence and authority
+- **Incidents covered (refiner proposals in `refinements-2026-11-05.md`, plus the same-day earlier proposals):** cloud CLI use and who may run it; recurring defect classes in CI (L-HYDRATE, L-BUSY, L-VICTIM) fixed one instance at a time; a cloud fact taken from a subagent or fetch summary instead of dated output (G2 history, resource versus child); a desk agent reporting a PO answer that the stored answer did not contain (PO-20x); a hand-back or inter-session message treated as if it carried user authority; desk data and the `git add -A` incident (hygiene).
+- **Applied by the Lead (PO approved: apply the refiner edits):** E1 to E7 (playbook: cloud rule with the Reader-only identity, rules 11 and 12, defect-class sweep, standard method section 8, Playwright shards and settle, gate-copy and Azure direction, history cut and lesson index) and E10 to E25 (per-definition Tether-specific lines; the shared method and escalation blocks replaced by a pointer to playbook section 8). Not applied: E8 (CLAUDE.md), E9 (tool lists) and any settings change, which stay with the PO.
+- **Status:** APPLIED in commit: pending.

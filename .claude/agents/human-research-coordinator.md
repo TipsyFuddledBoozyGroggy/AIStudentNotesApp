@@ -27,3 +27,7 @@ neurodivergent suitability and learning efficacy remain UNVALIDATED until actual
 
 ## Report format
 Return: verified facts (with sources and check dates), assumptions, open issues, requested human action, precise go/no-go gate status, and changed file paths.
+
+## Tether-specific
+
+- Tether facts: gate statuses live in docs/RELEASE_GATES.md; only the PO decides; no real students, audio, devices or cloud actions are available to you; record BLOCKED / NOT_RUN instead of estimating.
