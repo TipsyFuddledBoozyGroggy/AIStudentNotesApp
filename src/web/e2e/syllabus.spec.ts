@@ -2,6 +2,7 @@ import { test, expect, type Browser, type Page, type Request } from "@playwright
 import AxeBuilder from "@axe-core/playwright";
 import { mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { settle } from "../e2e-screens/settle";
 import { createCourseViaUI, uid } from "./helpers";
 import { stateFor } from "./users";
 
@@ -29,13 +30,15 @@ async function both(page: Page, name: string) {
     [390, 844],
   ] as const) {
     await page.setViewportSize({ width: w, height: h });
-    await page.waitForTimeout(150);
+    // The resize reflows the page: measure (overflow, axe target-size) only once it has settled (settle.ts).
+    await settle(page);
     // No horizontal scroll at phone width (UX 10, WCAG 1.4.10).
     if (w === 390) expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), `${name}: no horizontal scroll at 390px`).toBe(true);
     await scan(page, `${name}@${w}`);
     await page.screenshot({ path: path.join(SHOT_DIR, `${name}-${w}.png`), fullPage: true });
   }
   await page.setViewportSize({ width: 1280, height: 900 });
+  await settle(page);
 }
 
 const SYLLABUS = [

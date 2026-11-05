@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { settle } from "../e2e-screens/settle";
 
 const FIXTURES = [
   "consent",
@@ -35,7 +36,8 @@ for (const id of ["consent", "live", "paused", "disconnected", "mismatch"]) {
   test(`UX 2 AC6 / 1 AC6: no horizontal scroll at 320px: ${id}`, async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
     await page.goto(`/dev/lecture-harness/${id}`);
-    await page.waitForTimeout(500);
+    await expect(page.getByText(/^Fixture:/)).toBeVisible();
+    await settle(page);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(0);
   });
@@ -46,6 +48,7 @@ test("UX 2 AC6: status bar is visible at 320px and not clipped", async ({ page }
   await page.goto("/dev/lecture-harness/live");
   const bar = page.locator("[data-lecture-status-bar]");
   await expect(bar).toBeVisible();
+  await settle(page);
   const box = await bar.boundingBox();
   expect(box!.x).toBeGreaterThanOrEqual(-1);
   expect(box!.x + box!.width).toBeLessThanOrEqual(321);
@@ -56,6 +59,7 @@ test("UX 2 AC2: a partial replaced by its final does not move lines above it", a
   await page.goto("/dev/lecture-harness/live");
   const first = page.locator('[data-segment-id="seg_1"]');
   await expect(first).toBeVisible();
+  await settle(page); // hydrated before the Step clicks (L-HYDRATE), layout settled before the first offsetTop read
   const offsetTop = () => first.evaluate((el) => (el as HTMLElement).offsetTop);
   const step = page.getByRole("button", { name: /Step next event/ });
   await step.click(); // partial arrives

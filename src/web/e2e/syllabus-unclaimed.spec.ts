@@ -2,6 +2,7 @@ import { test, expect, type Page, type Request } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
+import { settle } from "../e2e-screens/settle";
 import { createCourseViaUI, uid } from "./helpers";
 import { stateFor } from "./users";
 
@@ -29,12 +30,14 @@ async function both(page: Page, name: string) {
     [390, 844],
   ] as const) {
     await page.setViewportSize({ width: w, height: h });
-    await page.waitForTimeout(150);
+    // The resize reflows the page: measure (overflow, axe target-size) only once it has settled (settle.ts).
+    await settle(page);
     if (w === 390) expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), `${name}: no horizontal scroll at 390px`).toBe(true);
     await scan(page, `${name}@${w}`);
     await page.screenshot({ path: path.join(SHOT_DIR, `${name}-${w}.png`), fullPage: true });
   }
   await page.setViewportSize({ width: 1280, height: 900 });
+  await settle(page); // the 1280 geometry check below reads boxes right after this resize
 }
 
 const MONTHS = ["Sep", "Oct", "Nov"];
@@ -114,8 +117,10 @@ test("dates we noticed: 200 at the cap through the real API; see, page, hide, ad
   await expect(rows.nth(175).getByRole("button", { name: /^Add as item: / })).toBeFocused();
   await page.screenshot({ path: path.join(SHOT_DIR, "u3-noticed-200-1280.png"), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
+  await settle(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "200 rows: no horizontal scroll at 390px").toBe(true);
   await page.setViewportSize({ width: 1280, height: 900 });
+  await settle(page);
 
   // Hide row 2: the same control becomes Undo and keeps focus; the head count drops (spec 4.5).
   const second = rows.nth(1);

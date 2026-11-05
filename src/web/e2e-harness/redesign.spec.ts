@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { settle } from "../e2e-screens/settle";
 
 // Redesign checks (design-direction slices 4-5) on the dev-only harness: fake microphone, fake AI, no API. These stand in
 // for e2e/lecture.spec.ts's phone check while getUserMedia cannot run in this machine's automation browser
@@ -12,9 +13,11 @@ const setPrefs = (p: Page, prefs: Record<string, unknown>) =>
 test("phone: Quick recap dock stays in view while the page scrolls; skip link reaches it; 44px+ targets", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto("/dev/lecture-harness/live-quick-recap");
+  await settle(page);
   await expect(usual(page)).toBeInViewport();
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   await expect(usual(page)).toBeInViewport();
+  await settle(page);
   for (const b of await page.getByRole("button", { name: /recap of the last \d+ minutes$/ }).all()) {
     const box = (await b.boundingBox())!;
     expect(box.height).toBeGreaterThanOrEqual(56);
@@ -27,8 +30,10 @@ test("phone: Quick recap dock stays in view while the page scrolls; skip link re
 test("phone: the newest transcript line is not hidden behind the dock once the transcript is in view", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/dev/lecture-harness/live-quick-recap");
+  await settle(page);
   const log = page.getByRole("log", { name: "Transcript lines" });
   await log.scrollIntoViewIfNeeded();
+  await settle(page);
   const logBox = (await log.boundingBox())!;
   const dockBox = (await page.locator("#lecture-quick-recap").boundingBox())!;
   const bar = (await page.locator("[data-lecture-status-bar]").boundingBox())!;
@@ -40,9 +45,11 @@ test("a cited line or focused control is never covered by the sticky bar or dock
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto("/dev/lecture-harness/live-quick-recap");
   const hold = page.getByRole("button", { name: "Pause updates" });
+  await settle(page); // hydrated before the click (L-HYDRATE)
   // On phones the TL;DR is collapsed; open it, then tab to a control low on the page.
   await page.getByRole("button", { name: "More of the TL;DR" }).click();
   await hold.focus();
+  await settle(page);
   const box = (await hold.boundingBox())!;
   const bar = (await page.locator("[data-lecture-status-bar]").boundingBox())!;
   const dock = (await page.locator("#lecture-quick-recap").boundingBox())!;
@@ -85,6 +92,7 @@ test("the live screen has exactly one h1 and the recording pill is visible at 32
     await page.setViewportSize({ width: 320, height: 640 });
     await page.goto("/dev/lecture-harness/live-quick-recap");
     await expect(page.getByTestId("state-label")).toBeInViewport();
+    await settle(page, look);
     expect(await page.locator("h1").count()).toBe(1);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(0);
@@ -111,9 +119,11 @@ test("Low-stimulation look: no transitions or shadows under the lecture root; re
 test("desktop 1280: the recap result is a sheet above the transcript; first line and TL;DR stay in view; Close recap returns to the transcript", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/dev/lecture-harness/live-quick-recap");
+  await settle(page); // hydrated before the click (L-HYDRATE)
   await usual(page).click();
   const result = page.getByTestId("catchup-result");
   await expect(result.getByRole("heading", { level: 2, name: "Here is what was said" })).toBeFocused();
+  await settle(page);
   const [rb, tb, qb] = await Promise.all([result.boundingBox(), page.locator(".transcript-panel").boundingBox(), page.locator("#lecture-quick-recap").boundingBox()]);
   expect(Math.abs(rb!.x - tb!.x)).toBeLessThanOrEqual(1); // the same column as the transcript sheet
   expect(Math.abs(rb!.width - tb!.width)).toBeLessThanOrEqual(1);
@@ -143,9 +153,11 @@ test("phone 390: the recap result is the bottom sheet (unchanged mechanics); at 
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const page = await ctx.newPage();
   await page.goto("/dev/lecture-harness/live-quick-recap");
+  await settle(page); // hydrated before the click (L-HYDRATE)
   await usual(page).click();
   const result = page.getByTestId("catchup-result");
   await expect(result.getByRole("heading", { level: 3, name: "Here is what was said" })).toBeFocused();
+  await settle(page);
   expect(await page.locator("#lecture-quick-recap [data-testid=catchup-result]").count()).toBe(1); // inside the dock
   // With the sheet open the page keeps 60dvh of scroll room, so the student can bring the lines they were reading up
   // under the bar: park the first line there, then count what sits between the bar and the sheet.
@@ -157,6 +169,7 @@ test("phone 390: the recap result is the bottom sheet (unchanged mechanics); at 
       window.scrollBy(0, line.getBoundingClientRect().top - bar.getBoundingClientRect().bottom - 8);
     });
   }
+  await settle(page);
   const dock = (await page.locator("#lecture-quick-recap").boundingBox())!;
   const bar = (await page.locator("[data-lecture-status-bar]").boundingBox())!;
   const lines = await page.locator(".transcript-line").evaluateAll((els) => els.map((e) => ({ top: e.getBoundingClientRect().top, bottom: e.getBoundingClientRect().bottom })));

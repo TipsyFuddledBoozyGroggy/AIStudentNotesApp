@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { contrastRatio } from "../src/lib/design/contrast";
 import { GLASS } from "../src/lib/design/tokens";
+import { settle } from "./settle";
 
 // Redesign-round2 slice 7 (= themes T3 Gamer + T4 Glass) in a real browser (headless Chromium, the clean `npm run dev:real`
 // on :3000; lecture states from the dev-only harness: synthetic data, no microphone). What it proves, by computed style:
@@ -62,8 +63,16 @@ async function open(browser: Browser, url: string, o: OpenOpts = {}): Promise<{ 
   await page.goto(`${ORIGIN}${url}`);
   return { page, context };
 }
-const fixture = (p: Page) => expect(p.getByText(/^Fixture:/)).toBeVisible();
-const today = (p: Page) => expect(p.getByRole("heading", { name: "Your courses" })).toBeVisible();
+// Each ready check also waits for hydration and a settled layout (settle.ts) before the caller clicks or measures
+// (L-HYDRATE; the unsettled-measurement class of CI run 41966230539).
+const fixture = async (p: Page) => {
+  await expect(p.getByText(/^Fixture:/)).toBeVisible();
+  await settle(p);
+};
+const today = async (p: Page) => {
+  await expect(p.getByRole("heading", { name: "Your courses" })).toBeVisible();
+  await settle(p);
+};
 const css = (page: Page, selector: string, prop: string) => page.locator(selector).first().evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
 const pageDeco = (page: Page) => page.evaluate(() => getComputedStyle(document.body, "::before").backgroundImage);
 const header = (page: Page) =>
@@ -101,6 +110,7 @@ test("Preferences: Grid texture and Solid surfaces apply at once, persist with n
   // page-wide count includes Next's route announcer in its shadow root, which Playwright's CSS engine pierces.)
   expect(await panel.locator('[aria-live],[role="status"],[role="alert"],[role="log"]').count()).toBe(1);
   expect(await page.locator('[aria-live],[role="status"],[role="alert"],[role="log"]').count()).toBe(liveBefore);
+  await settle(page);
   const gb = (await grid.boundingBox())!;
   expect(gb.height).toBeGreaterThanOrEqual(44);
 

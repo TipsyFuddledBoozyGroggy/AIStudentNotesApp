@@ -222,6 +222,7 @@ test("Paper, 7 widths: shell pages share edges, one column start per template, 4
     {
       const { page, close } = await open(browser, "/", width, { auth: true });
       await expect(page.getByRole("heading", { name: "Your courses" })).toBeVisible();
+      await settle(page);
       report.push(...(await shellChecks(page, width, "dashboard", { authed: true, template: "desk" })).map((s) => `dashboard@${width} ${s}`));
       // (7) heading + action share a baseline (when the row has not wrapped, which it does at 320).
       await sameBaseline(page, "Your courses", "Add a course", `dashboard@${width}`);
@@ -237,6 +238,7 @@ test("Paper, 7 widths: shell pages share edges, one column start per template, 4
     {
       const { page, close } = await open(browser, "/courses", width, { auth: true });
       await expect(page.getByRole("heading", { name: "All courses" })).toBeVisible();
+      await settle(page);
       report.push(...(await shellChecks(page, width, "courses", { authed: true, template: "desk" })).map((s) => `courses@${width} ${s}`));
       await sameBaseline(page, "All courses", "Add a course", `courses@${width}`);
       await close();
@@ -244,6 +246,7 @@ test("Paper, 7 widths: shell pages share edges, one column start per template, 4
     {
       const { page, close } = await open(browser, `/courses/${ctx.courseId}`, width, { auth: true });
       await expect(page.getByRole("heading", { level: 1, name: "Biology 101" })).toBeVisible();
+      await settle(page);
       report.push(...(await shellChecks(page, width, "course-detail", { authed: true, template: "desk" })).map((s) => `course-detail@${width} ${s}`));
       await expect(page.getByRole("link", { name: "Add your syllabus" })).toBeVisible();
       await marginChecks(page, width, "course-detail");
@@ -255,6 +258,7 @@ test("Paper, 7 widths: shell pages share edges, one column start per template, 4
       const { page, close } = await open(browser, `/courses/${ctx.syllabusCourseId}/syllabus`, width, { auth: true });
       await expect(page.getByRole("heading", { level: 1, name: "Review your syllabus items" })).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText(/^We found \d+ items\./)).toBeVisible();
+      await settle(page);
       report.push(...(await shellChecks(page, width, "syllabus-review", { authed: true, template: "desk" })).map((s) => `syllabus-review@${width} ${s}`));
       const colX = (await box(column(page))).x;
       const title = await ink(page.locator("main li.item-row h3").first());
@@ -282,12 +286,14 @@ test("Paper, 7 widths: shell pages share edges, one column start per template, 4
     {
       const { page, close } = await open(browser, "/courses/new", width, { auth: true });
       await expect(page.getByLabel(/Course name/)).toBeVisible();
+      await settle(page);
       report.push(...(await shellChecks(page, width, "course-new", { authed: true, template: "sheet" })).map((s) => `course-new@${width} ${s}`));
       await close();
     }
     {
       const { page, close } = await open(browser, "/signin", width);
       await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+      await settle(page);
       report.push(...(await shellChecks(page, width, "signin", { authed: false, template: "auth" })).map((s) => `signin@${width} ${s}`));
       await close();
     }
@@ -303,6 +309,11 @@ test("Paper, 7 widths: lecture bar 56px with 44px pill and controls, columns sha
     for (const focus of [false, true]) {
       const { page, close } = await open(browser, "/dev/lecture-harness/live-quick-recap", width, { prefs: focus ? { focusMode: true } : {} });
       await expect(page.getByText(/^Fixture:/)).toBeVisible();
+      // CI run 41966230539 (Linux): the bar measured 137px at 390, the "Not connected" layout (slice 8b's disconnected@390
+      // is 137 too), while the diagnostic read a moment later found "Connected" and two rows. The box was taken before the
+      // fixture had hydrated and connected. Wait for the connected state, then for a settled layout (settle.ts), first.
+      await expect(page.getByTestId("connection")).toHaveText("Connected");
+      await settle(page, { focusMode: focus });
       const problems: string[] = [];
       const bar = page.locator("[data-lecture-status-bar]");
       const barInner = bar.locator("> div");
@@ -449,6 +460,7 @@ test("slice 8a: Make notes block and Ready sheet geometry; the Ready sheet equal
     for (const fixture of ["stopped", "stopped-notes-ready"] as const) {
       const { page, close } = await open(browser, `/dev/lecture-harness/${fixture}`, width);
       await expect(page.locator("#lecture-notes")).toBeVisible();
+      await settle(page);
       const problems: string[] = [];
       const notes = await box(page.locator("#lecture-notes"));
       const sheet = await box(page.locator(".transcript-panel"));
@@ -484,6 +496,7 @@ test("slice 8a: Make notes block and Ready sheet geometry; the Ready sheet equal
     const measure = async (prefs: Record<string, unknown>) => {
       const { page, close } = await open(browser, "/dev/lecture-harness/stopped-notes-ready", width, { prefs });
       await expect(page.locator("#lecture-notes")).toBeVisible();
+      await settle(page, prefs);
       const r = await landmark(page.locator("#lecture-notes"));
       const faces = await page.evaluate(() => {
         const h3 = getComputedStyle(document.querySelector("#lecture-notes h3")!);
@@ -530,9 +543,11 @@ test("slice 8c: Calendar step rail from 1280: 20rem sticky track, shared edges, 
       const { page, close } = await open(browser, `/courses/${ctx.syllabusCourseId}/syllabus`, width, { auth: true });
       await expect(page.getByRole("heading", { level: 1, name: "Review your syllabus items" })).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText(/^We found \d+ items\./)).toBeVisible();
+      await settle(page);
       if (allOpen) {
         await page.getByRole("button", { name: "Expand all" }).click();
         await expect(page.getByRole("button", { name: "Collapse all" })).toBeVisible();
+        await settle(page);
       }
       const where = `syllabus-review@${width}${allOpen ? " all open" : ""}`;
       const problems: string[] = [];
@@ -741,6 +756,7 @@ test("ui-kit: 44px targets, visible focus ring on every primitive, primitives on
     for (const skin of SKINS) {
       const { page, close } = await open(browser, "/dev/ui-kit", width, { prefs: { skin, theme: "light" } });
       await expect(page.getByRole("heading", { level: 1, name: /UI kit/ })).toBeVisible();
+      await settle(page, { skin, theme: "light" });
       const problems: string[] = [];
       for (const c of await controls(page)) {
         const min = c.kind === "link" ? 24 : 44;

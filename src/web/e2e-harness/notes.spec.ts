@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { settle } from "../e2e-screens/settle";
 
 // Slice 8a (PO-18d option B; docs/ux/make-notes-rail-demo-notice.md 1.9): the Notes block after Stop on the dev-only harness
 // (fake AI stand-in with source "mock", no API, synthetic data). Geometry, focus, the status region and axe in a real browser.
@@ -10,6 +11,8 @@ async function open(page: Page, id: string) {
   await page.goto(`/dev/lecture-harness/${id}`);
   await expect(page.getByText(/^Fixture:/)).toBeVisible();
   await expect(page.locator("#lecture-notes")).toBeVisible();
+  // Hydrated, faces loaded, boxes stable before any click or measurement (L-HYDRATE, settle.ts).
+  await settle(page);
 }
 
 const statusText = (page: Page) => page.locator('[data-region="status"]').textContent();

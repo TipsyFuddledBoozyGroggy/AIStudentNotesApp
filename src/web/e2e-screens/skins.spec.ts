@@ -1,6 +1,7 @@
 import { expect, request, test, type Browser, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
+import { settle } from "./settle";
 
 // Redesign-round2 slice 5 (= themes T2) in a real browser: the Preferences side panel and the Theme picker (applies at
 // once, persists, no flash on reload, page stays visible at 1280, no sideways scroll at 320), and the Portal / Calm
@@ -28,6 +29,8 @@ async function open(browser: Browser, width: number, prefs: Record<string, unkno
   if (prefs) await page.addInitScript((p) => window.localStorage.getItem("tether.prefs.v1") ?? window.localStorage.setItem("tether.prefs.v1", JSON.stringify(p)), prefs);
   await page.goto(`${ORIGIN}/`);
   await expect(page.getByRole("heading", { name: "Your courses" })).toBeVisible();
+  // Hydrated, prefs applied, faces loaded, boxes stable before any click or measurement (L-HYDRATE, settle.ts).
+  await settle(page, prefs ?? {});
   return { page, context };
 }
 const css = (page: Page, selector: string, prop: string) => page.locator(selector).first().evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
@@ -38,6 +41,7 @@ test("Preferences side panel from 1024: theme applies at once, persists with no 
   await opener.click();
   const panel = page.getByRole("region", { name: "Preferences" });
   await expect(panel.getByRole("heading", { name: "Preferences" })).toBeFocused();
+  await settle(page); // the page reflows beside the panel
   const box = (await panel.boundingBox())!;
   // Right edge = the viewport edge less the stable scrollbar gutter (scrollbar-gutter: stable reserves it; headless
   // Chromium hides the bar itself, slice 1 record), so at most 15px short of 1280.
@@ -75,6 +79,7 @@ test("Preferences side panel from 1024: theme applies at once, persists with no 
   await expect(page.getByRole("heading", { name: "Your courses" })).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as { __skinAtBody: string[] }).__skinAtBody)).toEqual(["calm"]);
   await expect(page.locator("html")).toHaveAttribute("data-skin", "calm");
+  await settle(page, { skin: "calm" }); // hydrated before the Preferences click below (L-HYDRATE)
 
   // Escape closes and returns focus; the page takes its full width back.
   await page.getByRole("button", { name: "Preferences" }).click();
@@ -91,6 +96,8 @@ test("Preferences below 1024 stays in the page flow; at 320 nothing scrolls side
     const { page, context } = await open(browser, width, { theme: "light", skin: "calm" });
     await page.getByRole("button", { name: "Preferences" }).click();
     const panel = page.getByRole("region", { name: "Preferences" });
+    await expect(panel).toBeVisible();
+    await settle(page);
     expect(await css(page, "#preferences", "position")).toBe("static");
     for (const card of await panel.getByRole("radio").all()) {
       const b = (await card.boundingBox())!;
@@ -99,6 +106,7 @@ test("Preferences below 1024 stays in the page flow; at 320 nothing scrolls side
     }
     if (width === 390) {
       await page.setViewportSize({ width: 320, height: 640 });
+      await settle(page);
       expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
     }
     await context.close();

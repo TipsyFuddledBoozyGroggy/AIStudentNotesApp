@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, request, test, type Browser, type Page } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { settle } from "./settle";
 
 const ORIGIN = "http://localhost:3000";
 const OUT = path.join(__dirname, "..", "test-results", "redesign-screens");
@@ -214,6 +215,8 @@ async function shoot(browser: Browser, s: Screen, look: AnyLook, width: number) 
     return !!el && Object.keys(el).some((k) => k.startsWith("__reactFiber") || k.startsWith("__reactProps"));
   }, undefined, { timeout: 15_000 });
   if (s.act) await s.act(page);
+  // axe's target-size and the reflow check below read geometry: settled layout first (settle.ts).
+  await settle(page);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(400);
   await page.screenshot({ path: path.join(OUT, `${s.name}--${width}--${look}.png`), fullPage: true });
@@ -232,6 +235,7 @@ async function shoot(browser: Browser, s: Screen, look: AnyLook, width: number) 
   // 320 CSS px reflow (SC 1.4.10): no horizontal page scroll.
   if (width < 600) {
     await page.setViewportSize({ width: 320, height: 640 });
+    await settle(page);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     if (overflow > 0) r.violations.push({ id: "reflow-320", impact: "serious", nodes: [{ target: [`overflow ${overflow}px`] }] } as unknown as (typeof r.violations)[number]);
   }

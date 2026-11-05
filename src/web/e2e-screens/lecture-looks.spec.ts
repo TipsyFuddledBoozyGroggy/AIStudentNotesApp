@@ -578,7 +578,8 @@ test("slice 8: the transcript row height does not depend on the timestamp's face
           problems.push(`${where} ${v.name}: ${applied}`);
           continue;
         }
-        await page.waitForTimeout(50);
+        // The injected face reflows every row: wait for that layout to settle before measuring it (settle.ts).
+        await settle(page, { focusMode: false, ...look.prefs, ...(s.prefs ?? {}) });
         const got = await measure();
         got.forEach((r, i) => {
           if (Math.abs(r.h - r.words) > 0.5) problems.push(`${where} ${v.name}: row ${i} ${r.h}px vs its words ${r.words}px`);

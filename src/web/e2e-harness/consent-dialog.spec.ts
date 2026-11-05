@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { settle } from "../e2e-screens/settle";
 
 // Teacher-permission consent dialog (PO-16; wording is DRAFT, gate G1 BLOCKED). Dev harness only: FakeMicSource and a
 // fake backend, so no API, no login and no real microphone or audio is involved.
@@ -27,6 +28,7 @@ async function openFixture(page: Page, id: string) {
   await page.goto(`/dev/lecture-harness/${id}`);
   await expect(page.getByText(/^Fixture:/)).toBeVisible();
   await expect(startButton(page)).toBeVisible();
+  await settle(page); // hydrated before the Start click (L-HYDRATE), layout settled before any measurement
 }
 
 test("axe (WCAG 2.2 AA tags, incl. colour contrast) has no violations with the dialog open", async ({ page }) => {
@@ -106,6 +108,7 @@ test("320px: the dialog fits with no horizontal scroll and both buttons can be r
   await startButton(page).click();
   const d = dialog(page);
   await expect(d).toBeVisible();
+  await settle(page);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
   const box = await d.boundingBox();

@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { settle } from "../e2e-screens/settle";
 
 // PO-19 (docs/ux/stop-redirect.md section 6, harness criteria 11 and 12) on the dev-only harness: the `live` fixture renders
 // as the live route (link + move notice; the harness has no router, so "Open the lecture's page" is recorded in the
@@ -15,6 +16,7 @@ async function openLive(page: Page, width: number, prefs: Record<string, unknown
   await page.goto("/dev/lecture-harness/live");
   await expect(page.getByText(/^Fixture:/)).toBeVisible();
   await expect(page.getByTestId("state-label")).toHaveText("Recording");
+  await settle(page, prefs); // hydrated before the Stop click (L-HYDRATE)
 }
 
 /** Stop in the bar, confirm, wait for the notice; returns it. */
@@ -24,6 +26,7 @@ async function stopToNotice(page: Page) {
   const dlg = page.getByRole("dialog", DIALOG);
   await expect(dlg).toBeVisible();
   await expect(page.getByTestId("state-label")).toHaveText("Stopped");
+  await settle(page); // the notice and the Stopped page behind it laid out before anything measures them
   return dlg;
 }
 

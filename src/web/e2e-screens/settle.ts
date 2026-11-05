@@ -10,7 +10,10 @@ import type { Page } from "@playwright/test";
  *  3. Every face the page's text actually uses is loaded. `document.fonts.ready` alone is not enough: the heading faces
  *     use preload:false, so straight after navigation they are not requested yet and `ready` resolves at once; each
  *     distinct computed font is loaded explicitly here (a no-op when it already is).
- *  4. Two frames apart, the boxes of the main landmarks are identical (late swaps or re-renders settle first).
+ *  4. Two frames apart, the boxes of the main landmarks (and of any open dialog) are identical (late swaps or re-renders
+ *     settle first).
+ * Call it after the page's ready check and again after any action that changes layout (click, resize, scroll, injected
+ * style), before the next measurement (CI run 41966230539: the lecture bar measured in its pre-connect layout).
  */
 export async function settle(page: Page, prefs: Record<string, unknown> = {}, timeout = 15_000): Promise<void> {
   await page.waitForFunction(
@@ -50,7 +53,7 @@ export async function settle(page: Page, prefs: Record<string, unknown> = {}, ti
           requestAnimationFrame(() =>
             requestAnimationFrame(() =>
               resolve(
-                Array.from(document.querySelectorAll("main, [data-layout], .transcript-panel, .transcript-line, #lecture-quick-recap, #lecture-tldr, #lecture-notes, [data-lecture-status-bar], .notice-slot > *"))
+                Array.from(document.querySelectorAll("main, [data-layout], .transcript-panel, .transcript-line, #lecture-quick-recap, #lecture-tldr, #lecture-notes, [data-lecture-status-bar], .notice-slot > *, dialog[open], [role=dialog]"))
                   .map((e) => {
                     const r = e.getBoundingClientRect();
                     return `${r.x},${r.y},${r.width},${r.height}`;
