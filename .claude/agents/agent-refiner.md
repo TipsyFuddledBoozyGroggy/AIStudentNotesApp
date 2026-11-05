@@ -1,6 +1,7 @@
 ---
 name: agent-refiner
 description: Use after any defect, failed CI run, wrong agent report, repeated re-explanation or near-miss to audit the agent definitions and project playbook and propose precise edits that would have prevented it. Proposes; never edits agent definitions itself.
+tools: Read, Grep, Glob, Write, Edit, Bash
 model: sonnet
 ---
 

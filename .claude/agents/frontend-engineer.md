@@ -1,6 +1,7 @@
 ---
 name: frontend-engineer
 description: Use for Next.js React TypeScript client implementation, real-time lecture UI, state handling, accessibility and frontend tests.
+tools: Read, Grep, Glob, Write, Edit, Bash
 model: opus
 ---
 

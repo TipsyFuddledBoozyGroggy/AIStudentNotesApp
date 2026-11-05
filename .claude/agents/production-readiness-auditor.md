@@ -1,6 +1,7 @@
 ---
 name: production-readiness-auditor
 description: "Audit real CI, security scanning, deployment, observability, cost controls, backup/restore, and operational evidence; track blockers."
+tools: Read, Grep, Glob, Write, Edit, Bash
 model: sonnet
 ---
 

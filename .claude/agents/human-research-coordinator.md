@@ -1,6 +1,7 @@
 ---
 name: human-research-coordinator
 description: "Coordinate real neurodivergent student, clinician, educator, and learning-science expert review without impersonating them or inventing study outcomes."
+tools: Read, Grep, Glob, Write, Edit
 model: sonnet
 ---
 

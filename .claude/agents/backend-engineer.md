@@ -1,6 +1,7 @@
 ---
 name: backend-engineer
 description: Use for C# ASP.NET Core APIs, auth boundary, streaming session orchestration, SignalR, jobs and domain services.
+tools: Read, Grep, Glob, Write, Edit, Bash
 model: sonnet
 ---
 

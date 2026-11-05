@@ -1,6 +1,7 @@
 ---
 name: legal-compliance-reviewer
 description: "Research recording law, FERPA applicability, institutional policies, student notices, and vendor contractual concerns; organize qualified human counsel review."
+tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch
 model: sonnet
 ---
 

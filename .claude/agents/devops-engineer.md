@@ -1,6 +1,7 @@
 ---
 name: devops-engineer
 description: Use for local containers, deployment pipelines, secret management, monitoring, cost controls, resilience and release operations.
+tools: Read, Grep, Glob, Write, Edit, Bash
 model: sonnet
 ---
 

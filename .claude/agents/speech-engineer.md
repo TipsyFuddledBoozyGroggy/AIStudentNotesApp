@@ -1,6 +1,7 @@
 ---
 name: speech-engineer
 description: Use for browser microphone streaming, speech-to-text provider interface, diarization, timecodes, reconnection and lecture audio quality.
+tools: Read, Grep, Glob, Write, Edit, Bash
 model: sonnet
 ---
 

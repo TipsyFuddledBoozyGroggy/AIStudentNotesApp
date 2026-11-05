@@ -1,6 +1,7 @@
 ---
 name: ai-agent-engineer
 description: Use for Anthropic Claude integration, tool calling, contextual tutoring, retrieval, live TL;DR prompting and AI evaluation.
+tools: Read, Grep, Glob, Write, Edit, Bash
 model: sonnet
 ---
 

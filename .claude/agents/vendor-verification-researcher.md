@@ -1,6 +1,7 @@
 ---
 name: vendor-verification-researcher
 description: "Verify primary-source documentation for speech providers and Anthropic API models, costs, limits, capabilities, data handling, and compatibility."
+tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch
 model: sonnet
 ---
 

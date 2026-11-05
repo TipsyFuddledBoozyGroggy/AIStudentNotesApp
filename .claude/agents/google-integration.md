@@ -1,6 +1,7 @@
 ---
 name: google-integration
 description: Use for Google OAuth 2.0, Google Docs/Drive import-export, Calendar synchronization, scopes, reminders and API failure handling.
+tools: Read, Grep, Glob, Write, Edit, Bash
 model: sonnet
 ---
 
