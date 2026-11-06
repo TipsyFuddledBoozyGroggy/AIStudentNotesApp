@@ -24,7 +24,7 @@
   ],
   "properties": {
     "exportId": {
-      "$ref": "docs-common.schema.json#/$defs/id"
+      "$ref": "docs-common.schema.json#/$defs/exportId"
     },
     "sessionId": {
       "$ref": "docs-common.schema.json#/$defs/sessionId"

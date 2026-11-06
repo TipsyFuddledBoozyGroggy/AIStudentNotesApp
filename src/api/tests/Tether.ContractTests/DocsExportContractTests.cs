@@ -100,8 +100,8 @@ public sealed class DocsExportContractTests
         Assert.All(names, n => Assert.StartsWith("docs-", n));
         foreach (var n in names)
             Assert.Equal($"https://schemas.tether.invalid/docs.export.v1/{n}.schema.json", Schema(n)["$id"]!.GetValue<string>());
-        Assert.Equal(20, Directory.GetFiles(Path.Combine(FixtureDir, "valid"), "*.json").Length);
-        Assert.Equal(42, Directory.GetFiles(Path.Combine(FixtureDir, "invalid"), "*.json").Length);
+        Assert.Equal(21, Directory.GetFiles(Path.Combine(FixtureDir, "valid"), "*.json").Length);
+        Assert.Equal(49, Directory.GetFiles(Path.Combine(FixtureDir, "invalid"), "*.json").Length);
     }
 
     [Fact]
@@ -166,6 +166,7 @@ public sealed class DocsExportContractTests
         var schema = Defs()["errorCode"]!["enum"]!.AsArray().Select(n => n!.GetValue<string>()).ToHashSet();
         Assert.Equal(documented.Order().ToList(), schema.Order().ToList());
         Assert.Contains("retry_limit_reached", schema);
+        Assert.Contains("unsupported_media_type", schema);
         Assert.Contains("export_in_progress", schema);   // reserved for a real provider, never emitted by the demo
     }
 

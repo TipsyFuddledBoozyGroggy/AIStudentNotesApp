@@ -3,7 +3,7 @@
   "contentDigest": "cd_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
   "mode": "create_another",
   "expectedExistingVersion": 2,
-  "expectedExistingDocId": "ddc_0192f0a1b2c34d5e8f9a0b1c2d3e4f77",
+  "expectedExistingDocId": "ddc_0192f0a1-b2c3-4d5e-8f9a-0b1c2d3e4f77",
   "confirm": {
     "provider": "demo_docs",
     "acknowledgedDemo": true

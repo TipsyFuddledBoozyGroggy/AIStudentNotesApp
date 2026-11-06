@@ -42,7 +42,7 @@
           "type": "null"
         },
         {
-          "$ref": "docs-common.schema.json#/$defs/id"
+          "$ref": "docs-common.schema.json#/$defs/docId"
         }
       ]
     },

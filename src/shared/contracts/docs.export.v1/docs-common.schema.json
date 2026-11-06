@@ -5,7 +5,7 @@
   "description": "DRAFT, mock-only (Demo Doc). Not frozen until the Lead freezes it. Additive changes only once frozen. id, timestamp, idempotencyKey are byte-identical to syllabus.v1 (a contract test should enforce it). Nothing here can carry a token, a Google URL other than the one allowlisted docs.google.com document form, transcript text or a segment id.",
   "$defs": {
     "id": {
-      "description": "Opaque server-assigned id, one canonical form (see syllabus-common id). Prefixes used here: dxp_ (export), ddc_ (Demo Doc). Clients must not parse ids.",
+      "description": "Opaque server-assigned id, one canonical form (see syllabus-common id). Prefixes used here: dxp_ (export), ddc_ (Demo Doc). Clients must not parse ids. Kept byte-identical to syllabus-common (a contract test enforces it); the docs-specific ids use the stricter exportId, docId and sessionId definitions.",
       "type": "string",
       "minLength": 1,
       "maxLength": 64,
@@ -15,6 +15,16 @@
       "description": "Lecture session id: canonical lowercase hyphenated GUID (Guid.ToString D), the form lecture routes bind as {id:guid}. Upper case, braces and urn forms are 400 before any lookup (DXD-12).",
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+    },
+    "exportId": {
+      "description": "Export id: 'dxp_' + a lowercase HYPHENATED GUID (Guid.ToString D). The unhyphenated 32-hex form is a non-canonical alias and is rejected 400 (API_CONTRACTS_P2 section 2.1).",
+      "type": "string",
+      "pattern": "^dxp_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+    },
+    "docId": {
+      "description": "Demo Doc id: 'ddc_' + a lowercase HYPHENATED GUID. The unhyphenated 32-hex form is rejected 400.",
+      "type": "string",
+      "pattern": "^ddc_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
     },
     "timestamp": {
       "description": "RFC 3339 with offset. Instants only.",
@@ -182,7 +192,7 @@
           ],
           "properties": {
             "docId": {
-              "$ref": "#/$defs/id"
+              "$ref": "#/$defs/docId"
             },
             "provider": {
               "$ref": "#/$defs/provider"
@@ -200,7 +210,7 @@
             },
             "openPath": {
               "type": "string",
-              "pattern": "^/demo-docs/ddc_[a-z0-9]+(?:-[a-z0-9]+)*(?![\\s\\S])"
+              "pattern": "^/demo-docs/ddc_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
             },
             "openUrl": {
               "type": "null"
@@ -221,7 +231,7 @@
           ],
           "properties": {
             "docId": {
-              "$ref": "#/$defs/id"
+              "$ref": "#/$defs/docId"
             },
             "provider": {
               "$ref": "#/$defs/provider"
@@ -261,7 +271,7 @@
       ]
     },
     "errorCode": {
-      "description": "ProblemDetails codes. lecture.v1 codes keep their meaning. Docs additions: too_large (413 body cap), retry_limit_reached (409). export_in_progress (409) is RESERVED for a real provider: the demo write is one transaction serialised by an advisory lock, so the demo never emits it.",
+      "description": "ProblemDetails codes. lecture.v1 codes keep their meaning. Docs additions: too_large (413 body cap), unsupported_media_type (415 wrong or missing Content-Type), retry_limit_reached (409). export_in_progress (409) is RESERVED for a real provider: the demo write is one transaction serialised by an advisory lock, so the demo never emits it.",
       "type": "string",
       "enum": [
         "validation_failed",
@@ -273,6 +283,7 @@
         "rate_limited",
         "provider_unavailable",
         "too_large",
+        "unsupported_media_type",
         "export_in_progress",
         "retry_limit_reached"
       ]

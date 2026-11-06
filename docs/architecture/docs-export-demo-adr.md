@@ -156,4 +156,4 @@ Nothing in this section has been built, run or verified. Google facts are UNVERI
 
 Applied: Q-A single transaction for the demo; Q-B a narrow Docs-only `IDocsSessionSource` port carrying title and zone (`SessionInfo` unchanged, DXD-17), no new allow-list edge, course name left out of the title; Q-C fault guard set `Development|Test`, Ai and Transcript untouched; Q1 freeze as mock-only after the first green run; Q2 `provider` const; Q3 student Demo Doc delete included; Q4 no editable title; Q5 Development-only header; Q6 notes sheet only; Q7 Final summary included.
 
-Still open: Q8 audit retention (PO-20ca/L-14). Backend to confirm whether a session stores a time zone. Nice-to-haves from the review not applied as requirements: listing `create_another` leftovers in the state read (the Q3 delete reaches them through export records for now).
+Still open: Q8 audit retention (PO-20ca/L-14). No session time zone is stored (backend confirmed): the demo title carries the UTC date labelled UTC. Nice-to-haves from the review not applied as requirements: listing `create_another` leftovers in the state read (the Q3 delete reaches them through export records for now).

@@ -12,7 +12,6 @@ internal sealed class DocsProblem(int status, string code, int? retryAfterSecond
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
     public const string TypeBase = "https://errors.tether.invalid/";
-    private const string MediaTypeText = "validation_failed:media";
 
     private static readonly Dictionary<string, (string Title, string Detail)> Fixed = new()
     {
@@ -26,8 +25,7 @@ internal sealed class DocsProblem(int status, string code, int? retryAfterSecond
         ["provider_unavailable"] = ("Service unavailable.", "A required service is temporarily unavailable."),
         ["too_large"] = ("The request was too large.", "The request was too large."),
         ["retry_limit_reached"] = ("Too many attempts.", "Too many attempts. Start again."),
-        // 415 has no code of its own in docs-problem#/code (contract gap, reported to the Lead): same wire code as 400, neutral fixed wording.
-        [MediaTypeText] = ("Unsupported media type.", "The content type of the request is not supported."),
+        ["unsupported_media_type"] = ("Unsupported media type.", "The content type of the request is not supported."),
     };
 
     public int Status => status;
@@ -66,7 +64,7 @@ internal sealed class DocsProblem(int status, string code, int? retryAfterSecond
     public static IResult RetryLimit() => new DocsProblem(409, "retry_limit_reached");
     public static IResult PreconditionFailed() => new DocsProblem(412, "precondition_failed");
     public static IResult TooLarge() => new DocsProblem(413, "too_large");
-    public static IResult UnsupportedMediaType() => new DocsProblem(415, "validation_failed", textKey: MediaTypeText);
+    public static IResult UnsupportedMediaType() => new DocsProblem(415, "unsupported_media_type");
     public static IResult Unavailable() => new DocsProblem(503, "provider_unavailable", retryAfterSeconds: 5);
     public static IResult Csrf() => new DocsProblem(403, "csrf_failed");
 

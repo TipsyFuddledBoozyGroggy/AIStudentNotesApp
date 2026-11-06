@@ -5,14 +5,38 @@
   "description": "GET /demo-docs/{docId}. Read-only view of the stand-in document the demo provider keeps in our own database for the owner. Same blocks as the preview showed. 404 for a foreign, missing or deleted doc. Exists only for the demo provider; a real provider's document is opened at its own address (docRef.openUrl).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["docId", "provider", "demoDoc", "document", "version", "createdAt", "updatedAt"],
+  "required": [
+    "docId",
+    "provider",
+    "demoDoc",
+    "document",
+    "version",
+    "createdAt",
+    "updatedAt"
+  ],
   "properties": {
-    "docId": { "$ref": "docs-common.schema.json#/$defs/id" },
-    "provider": { "$ref": "docs-common.schema.json#/$defs/provider" },
-    "demoDoc": { "const": true },
-    "document": { "$ref": "docs-common.schema.json#/$defs/document" },
-    "version": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
-    "createdAt": { "$ref": "docs-common.schema.json#/$defs/timestamp" },
-    "updatedAt": { "$ref": "docs-common.schema.json#/$defs/timestamp" }
+    "docId": {
+      "$ref": "docs-common.schema.json#/$defs/docId"
+    },
+    "provider": {
+      "$ref": "docs-common.schema.json#/$defs/provider"
+    },
+    "demoDoc": {
+      "const": true
+    },
+    "document": {
+      "$ref": "docs-common.schema.json#/$defs/document"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "createdAt": {
+      "$ref": "docs-common.schema.json#/$defs/timestamp"
+    },
+    "updatedAt": {
+      "$ref": "docs-common.schema.json#/$defs/timestamp"
+    }
   }
 }

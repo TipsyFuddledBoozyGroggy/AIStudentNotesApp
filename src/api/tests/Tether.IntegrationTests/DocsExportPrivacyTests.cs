@@ -75,7 +75,7 @@ public class DocsExportPrivacyTests(DocsCanaryFactory factory) : DocsExportTestB
         await (await a.Client.SendAsync(WithSecrets(big))).AssertProblemAsync(HttpStatusCode.RequestEntityTooLarge, "too_large");
         var text = Req(HttpMethod.Post, $"/sessions/{sid}/docs-export{q}", null, NewKey());
         text.Content = new StringContent(BulletCanary, Encoding.UTF8, "text/plain");
-        Assert.Equal(HttpStatusCode.UnsupportedMediaType, (await a.Client.SendAsync(WithSecrets(text))).StatusCode);
+        await (await a.Client.SendAsync(WithSecrets(text))).AssertProblemAsync(HttpStatusCode.UnsupportedMediaType, "unsupported_media_type");
         var key = NewKey();
         var failed = await OkRecordAsync(await a.Client.SendAsync(WithSecrets(Req(HttpMethod.Post, $"/sessions/{sid}/docs-export{q}", body, key, "unavailable"))));
         Assert.Equal("failed", failed.GetProperty("status").GetString());
@@ -220,7 +220,7 @@ public class DocsExportLimitsTests(DocsLimitsFactory factory) : DocsExportTestBa
         var wrong = Req(HttpMethod.Post, $"/sessions/{l.SessionId}/docs-export/preview");
         wrong.Content = new StringContent("{}", Encoding.UTF8, "text/plain");
         var res = await l.A.Client.SendAsync(wrong);
-        Assert.Equal(HttpStatusCode.UnsupportedMediaType, res.StatusCode);
+        await res.AssertProblemAsync(HttpStatusCode.UnsupportedMediaType, "unsupported_media_type");
         DocsSchemas.AssertValid("docs-problem", await res.BodyAsync());
 
         var bob = await NewActorAsync();

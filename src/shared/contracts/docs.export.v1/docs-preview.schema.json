@@ -111,7 +111,7 @@
           ],
           "properties": {
             "exportId": {
-              "$ref": "docs-common.schema.json#/$defs/id"
+              "$ref": "docs-common.schema.json#/$defs/exportId"
             },
             "docRef": {
               "$ref": "docs-common.schema.json#/$defs/docRef"

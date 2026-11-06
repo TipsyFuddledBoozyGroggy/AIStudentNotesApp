@@ -1,0 +1,8 @@
+{
+  "type": "https://errors.tether.invalid/unsupported_media_type",
+  "title": "Unsupported media type.",
+  "status": 415,
+  "code": "unsupported_media_type",
+  "traceId": "00-abc123",
+  "detail": "The content type of the request is not supported."
+}

@@ -5,12 +5,12 @@ JSON Schema (draft 2020-12) for `docs/API_CONTRACTS_DOCS_EXPORT.md`: preview and
 ```
 *.schema.json                 8 schemas, $id https://schemas.tether.invalid/docs.export.v1/{name}.schema.json
 docs-common.schema.json       shared $defs (id, timestamp, idempotencyKey are the same patterns as syllabus-common)
-fixtures/valid/               must validate    {schema}--{case}.json   (20)
-fixtures/invalid/             must be rejected {schema}--{case}.json   (42, each one mutation of a valid fixture)
+fixtures/valid/               must validate    {schema}--{case}.json   (21)
+fixtures/invalid/             must be rejected {schema}--{case}.json   (49, each one mutation of a valid fixture)
 ```
 
 Same strictness as the other contracts: `additionalProperties: false` on every object, end anchor `(?![\s\S])`. Cross-file `$ref`s are relative; register every file in this folder before use. Fixtures live here, not in `../fixtures/`, so `ContractFixtureTests` (which registers only lecture.v1 and syllabus.v1) is not affected; add a `DocsExportContractTests` file like `CalendarContractTests`.
 
 Semantic rules JSON Schema cannot express (digest recomputation, mode versus existing document, block cap, TextPolicy, error-code table equals schema) are listed in section 9 of the contract document and are not yet tested.
 
-Checked 2026-11-06 with ajv 2020 (strict off; `date-time` format not checked, patterns are): 20 valid pass, 42 invalid rejected, after the security-review changes (expectedExistingDocId, notesTruncated, GUID session ids). No .NET test has been run.
+Checked 2026-11-06 with ajv 2020 (strict off; `date-time` format not checked, patterns are): 21 valid pass, 49 invalid rejected, after the security-review and backend-feedback changes (hyphenated dxp_/ddc_ ids, unsupported_media_type). No .NET test has been run.

@@ -74,12 +74,7 @@ public class RequestAndTextTests
     public static IEnumerable<object[]> ValidPreview() => Files("valid", "docs-preview-request");
     public static IEnumerable<object[]> InvalidPreview() => Files("invalid", "docs-preview-request");
 
-    /// <summary>
-    /// The contract's fixtures write document ids as ddc_ + 32 hex digits, but the id rule they inherit from syllabus-common (R2-05) calls a missing hyphen an alias
-    /// and refuses it. The server emits and accepts only the hyphenated GUID form, so the fixtures are normalised to it before parsing (reported to the Lead).
-    /// </summary>
-    private static byte[] Fixture(string kind, string file) => Encoding.UTF8.GetBytes(System.Text.RegularExpressions.Regex.Replace(
-        File.ReadAllText(Path.Combine(FixtureDir(), kind, file)), "ddc_([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})", "ddc_$1-$2-$3-$4-$5"));
+    private static byte[] Fixture(string kind, string file) => File.ReadAllBytes(Path.Combine(FixtureDir(), kind, file));
 
     [Theory, MemberData(nameof(ValidConfirm))]
     public void Every_valid_confirm_fixture_parses(string file)

@@ -1,0 +1,48 @@
+{
+  "docId": "ddc_0192f0a1b2c34d5e8f9a0b1c2d3e4f77",
+  "provider": "demo_docs",
+  "demoDoc": true,
+  "document": {
+    "title": "Cell division - Nov 5",
+    "blocks": [
+      {
+        "kind": "heading",
+        "level": 1,
+        "text": "Cell division - Nov 5"
+      },
+      {
+        "kind": "heading",
+        "level": 2,
+        "text": "Mitosis has four phases"
+      },
+      {
+        "kind": "bullet",
+        "text": "Mitosis has four phases.",
+        "citations": [
+          {
+            "startMs": 2000
+          }
+        ]
+      },
+      {
+        "kind": "bullet",
+        "text": "Prophase comes first.",
+        "citations": [
+          {
+            "startMs": 4000
+          },
+          {
+            "startMs": 6000
+          }
+        ]
+      },
+      {
+        "kind": "paragraph",
+        "text": "Made by Tether from your lecture notes. Test routine, not an AI model: treat as estimates and check them against the transcript."
+      }
+    ]
+  },
+  "version": 1,
+  "createdAt": "2026-11-06T10:00:05Z",
+  "updatedAt": "2026-11-06T10:00:05Z"
+}
