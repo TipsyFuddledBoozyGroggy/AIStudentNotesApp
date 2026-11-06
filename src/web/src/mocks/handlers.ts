@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 import * as db from "./db";
 import { finalSummaryFor, notesHandlers } from "./notesHandlers";
 import { syllabusHandlers } from "./syllabusHandlers";
+import { docsHandlers } from "./docsHandlers";
 
 // Wildcard host so handlers match both relative (browser) and absolute (tests) URLs.
 const P = "*/api/v1";
@@ -132,4 +133,7 @@ export const handlers = [
 
   // syllabus.v1 (Phase 2, mock calendar only): see syllabusHandlers.ts for scenarios.
   ...syllabusHandlers,
+
+  // docs.export.v1 (item 3, Demo Doc mock only): see docsHandlers.ts.
+  ...docsHandlers,
 ];

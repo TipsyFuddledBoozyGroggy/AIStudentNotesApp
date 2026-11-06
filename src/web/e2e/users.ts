@@ -32,6 +32,10 @@ export const USERS = {
   deleter: `e2e-delete-${id}@dev.local`,
   // Finish-backlog item 2, Export notes / Copy notes: its own user, because a user may have only one pending notes press.
   notesExport: `e2e-notes-export-${id}@dev.local`,
+  // Finish-backlog item 3, Save to a Demo Doc: its own user (one pending notes press per user), and a second user that
+  // must not be able to open the first one's Demo Doc (F23).
+  docsExport: `e2e-docs-export-${id}@dev.local`,
+  docsOther: `e2e-docs-other-${id}@dev.local`,
 } as const;
 export const authFile = (email: string) => path.join(AUTH_DIR, `${email}.json`);
 export const stateFor = (k: keyof typeof USERS) => authFile(USERS[k]);

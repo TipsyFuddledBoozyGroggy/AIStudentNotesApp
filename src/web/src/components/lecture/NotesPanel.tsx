@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { DocsExportEntry } from "../docs/DocsExportEntry";
 import { copyText, downloadTextFile } from "@/lib/download";
 import { PlainText, type Citation, type LectureNotes, type SummaryRevisionPayload } from "@/lib/lecture";
 import { useAnnouncer } from "./Announcer";
@@ -147,6 +148,8 @@ function ReadySheet({
         ))}
       </div>
       {notes.sections.length > 0 ? <NotesExport notes={notes} summary={summary} info={info} /> : null}
+      {/* Finish-backlog item 3: Save to a Demo Doc (mock only; components/docs). Renders nothing off a lecture's own page. */}
+      <DocsExportEntry notes={notes} />
     </>
   );
 }

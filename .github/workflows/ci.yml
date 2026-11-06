@@ -267,7 +267,7 @@ jobs:
   # no spec can see another shard's data. Inside a shard everything is still SERIAL (--workers=1, one process per
   # screens spec). The API gets the same relaxed dev-only limits docker-compose.dev.yml uses.
   #   flows-a:   e2e/courses, syllabus, syllabus-utc, syllabus-unclaimed (reuse config; global setup creates only its users)
-  #   flows-b:   e2e/lecture, notes, reopen, stop-move, delete, notes-export (reuse config)
+  #   flows-b:   e2e/lecture, notes, reopen, stop-move, delete, notes-export, docs-export (reuse config)
   #   screens-a: e2e-screens/screens, skins                   (screens config; each spec logs in its own user)
   #   screens-b: e2e-screens/geometry, gamer-glass, lecture-looks
   # Every spec file under e2e/ and e2e-screens/ must be named in exactly one shard (checked by the first step).
@@ -289,8 +289,8 @@ jobs:
             users: "alice,bob,empty,signout,lostSession,keyboard,reload,axe,axeEmpty,sylMain,sylOther,sylHostile,sylUpload,sylUtc"
             screens_specs: ""
           - shard: flows-b
-            reuse_specs: "e2e/lecture.spec.ts e2e/notes.spec.ts e2e/reopen.spec.ts e2e/stop-move.spec.ts e2e/delete.spec.ts e2e/notes-export.spec.ts"
-            users: "alice,bob,notes,reopen,stopmove,deleter,notesExport"
+            reuse_specs: "e2e/lecture.spec.ts e2e/notes.spec.ts e2e/reopen.spec.ts e2e/stop-move.spec.ts e2e/delete.spec.ts e2e/notes-export.spec.ts e2e/docs-export.spec.ts"
+            users: "alice,bob,notes,reopen,stopmove,deleter,notesExport,docsExport,docsOther"
             screens_specs: ""
           - shard: screens-a
             reuse_specs: ""
@@ -377,6 +377,12 @@ jobs:
           RateLimiting__AudioTicketPermitPerMinute: "600"
           RateLimiting__WritePermitPerMinute: "300"
           RateLimiting__ApiPermitPerMinute: "1200"
+          # Same as docker-compose.dev.yml (item 3, docs.export.v1): the Demo Doc routes have their own buckets (10 confirms and 60 reads per minute by default).
+          RateLimiting__DocsWritePermitPerMinute: "120"
+          RateLimiting__DocsReadPermitPerMinute: "600"
+          # Same as docker-compose.dev.yml (item 3, DXD-07): e2e/docs-export.spec.ts forces one Demo Doc provider failure with the X-Demo-Docs-Fault header.
+          # Development only: the Docs module refuses to start with ANY Docs:Demo:Faults:* key outside Development and Test.
+          Docs__Demo__Faults__Enabled: "true"
           # CI only (PO-20ah): relaxed join limits; production defaults (10 and 30 per minute) stay in code.
           Realtime__JoinPermitPerMinute: "300"
           Realtime__JoinPermitPerUserPerMinute: "600"
