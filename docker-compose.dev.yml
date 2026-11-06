@@ -36,6 +36,12 @@ services:
       RateLimiting__AudioTicketPermitPerMinute: "600"
       RateLimiting__WritePermitPerMinute: "300"
       RateLimiting__ApiPermitPerMinute: "1200"
+      # Dev only (item 3, docs.export.v1): the Demo Doc routes have their own buckets (10 confirms and 60 reads per minute by default); the serial E2E needs more.
+      RateLimiting__DocsWritePermitPerMinute: "120"
+      RateLimiting__DocsReadPermitPerMinute: "600"
+      # Dev only (item 3, DXD-07): lets the E2E force a Demo Doc provider failure with the X-Demo-Docs-Fault request header. The Docs module refuses to start
+      # with ANY Docs:Demo:Faults:* key outside Development and Test, so this line must never reach a shared or production compose file.
+      Docs__Demo__Faults__Enabled: "true"
       # Dev only (PO-20ah): the live-session join limits keep their production defaults (10 and 30 per minute) in code.
       Realtime__JoinPermitPerMinute: "300"
       Realtime__JoinPermitPerUserPerMinute: "600"

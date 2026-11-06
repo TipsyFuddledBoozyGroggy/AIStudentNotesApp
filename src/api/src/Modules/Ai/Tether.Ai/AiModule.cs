@@ -47,6 +47,7 @@ public static class AiModule
         services.AddScoped<Notes.NotesPressProbe>();
         services.AddScoped<Notes.NotesService>();
         services.AddScoped<ISummaryJoinSource, SummaryJoinSource>();
+        services.AddScoped<Tether.Ai.Contracts.INotesSnapshotReader, Notes.NotesSnapshotReader>(); // read-only, user-bound notes view for the Docs export
 
         services.AddSingleton<AiHealth>();
         services.AddSingleton<SessionCutoff>();

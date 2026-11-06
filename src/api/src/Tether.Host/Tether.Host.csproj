@@ -10,5 +10,6 @@
     <ProjectReference Include="..\Modules\Transcript\Tether.Transcript\Tether.Transcript.csproj" />
     <ProjectReference Include="..\Modules\Ai\Tether.Ai\Tether.Ai.csproj" />
     <ProjectReference Include="..\Modules\Syllabus\Tether.Syllabus\Tether.Syllabus.csproj" />
+    <ProjectReference Include="..\Modules\Docs\Tether.Docs\Tether.Docs.csproj" />
   </ItemGroup>
 </Project>

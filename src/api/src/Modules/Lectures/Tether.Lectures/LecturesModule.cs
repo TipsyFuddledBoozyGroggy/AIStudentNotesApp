@@ -40,6 +40,7 @@ public static class LecturesModule
         builder.Services.AddScoped<ISessionEventReader>(sp => sp.GetRequiredService<SessionPortsService>());
         builder.Services.AddScoped<ISessionSequencer>(sp => sp.GetRequiredService<SessionPortsService>());
         builder.Services.AddScoped<ISessionAuditLog, SessionAuditLog>();
+        builder.Services.AddScoped<IDocsSessionSource, DocsSessionSource>(); // Docs export: title, state and start of the ambient user's lecture (DXD-17)
         builder.Services.AddScoped<SessionLifecycleJob>();
         var jobSeconds = Math.Max(1, builder.Configuration.GetValue("Lectures:LifecycleJobSeconds", 30));
         builder.Services.AddHostedService(sp => new SessionLifecycleService(

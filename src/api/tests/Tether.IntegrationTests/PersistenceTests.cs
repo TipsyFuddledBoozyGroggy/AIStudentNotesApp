@@ -167,6 +167,9 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         var ai = scope.ServiceProvider.GetRequiredService<Tether.Ai.Persistence.AiDbContext>();
         var syllabus = scope.ServiceProvider.GetRequiredService<SyllabusDbContext>();
+        var docs = scope.ServiceProvider.GetRequiredService<Tether.Docs.Persistence.DocsDbContext>();
+        await MigrateWithRetryAsync(docs, "0"); // Docs references Lectures and Identity: it goes first on the way down
+        Assert.Empty(await docs.Database.GetAppliedMigrationsAsync());
         await MigrateWithRetryAsync(syllabus, "0"); // Syllabus references Courses and Identity: it goes first on the way down
         Assert.Empty(await syllabus.Database.GetAppliedMigrationsAsync());
         await MigrateWithRetryAsync(ai, "0");
@@ -188,6 +191,8 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Empty(await ai.Database.GetPendingMigrationsAsync());
         await MigrateWithRetryAsync(syllabus, null);
         Assert.Empty(await syllabus.Database.GetPendingMigrationsAsync());
+        await MigrateWithRetryAsync(docs, null);
+        Assert.Empty(await docs.Database.GetPendingMigrationsAsync());
         Assert.Empty(await courses.Database.GetPendingMigrationsAsync());
         Assert.Empty(await identity.Database.GetPendingMigrationsAsync());
     }
@@ -224,6 +229,10 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
             ("fk_calendar_events_course_user", "syllabus", "courses", "c"),
             ("fk_catch_ups_session_user", "ai", "lectures", "c"),
             ("fk_courses_user_id", "courses", "identity", "c"),
+            ("fk_demo_docs_session_user", "docs", "lectures", "c"), // item 3 (D001): the Demo Doc export, composite (session_id, user_id), cascade with the lecture
+            ("fk_doc_exports_session_user", "docs", "lectures", "c"),
+            ("fk_doc_targets_session_user", "docs", "lectures", "c"),
+            ("fk_docs_audit_events_user", "docs", "identity", "c"), // content-free audit, removed by account erasure (PO-20aw)
             ("fk_idempotency_keys_course_user", "syllabus", "courses", "c"),
             ("fk_idempotency_keys_user", "syllabus", "identity", "c"),
             ("fk_lecture_notes_session_user", "ai", "lectures", "c"), // PO-18d (A005): notes after Stop, composite, cascade with the session
@@ -269,8 +278,10 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var transcript = scope.ServiceProvider.GetRequiredService<Tether.Transcript.Persistence.TranscriptDbContext>();
         var ai2 = scope.ServiceProvider.GetRequiredService<Tether.Ai.Persistence.AiDbContext>();
         var syllabus2 = scope.ServiceProvider.GetRequiredService<SyllabusDbContext>();
+        var docs2 = scope.ServiceProvider.GetRequiredService<Tether.Docs.Persistence.DocsDbContext>();
         try
         {
+            await MigrateWithRetryAsync(docs2, "0");   // first: its FKs reference lectures.lecture_sessions and identity.users
             await MigrateWithRetryAsync(syllabus2, "0");
             await MigrateWithRetryAsync(ai2, "0");
             await MigrateWithRetryAsync(transcript, "0");
@@ -278,7 +289,7 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
             await MigrateWithRetryAsync(courses, "0");
             await MigrateWithRetryAsync(identity, "0");
             Assert.Equal(0, await factory.ScalarAsync(
-                "select count(*) from pg_tables where schemaname in ('identity','courses','lectures','transcript','ai','syllabus') and tablename <> '__ef_migrations_history'"));
+                "select count(*) from pg_tables where schemaname in ('identity','courses','lectures','transcript','ai','syllabus','docs') and tablename <> '__ef_migrations_history'"));
         }
         finally
         {
@@ -288,6 +299,7 @@ public class PersistenceTests(ApiFactory factory) : IClassFixture<ApiFactory>
             await MigrateWithRetryAsync(transcript, null);
             await MigrateWithRetryAsync(ai2, null);
             await MigrateWithRetryAsync(syllabus2, null);
+            await MigrateWithRetryAsync(docs2, null);
         }
     }
 }

@@ -66,6 +66,9 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // Syllabus routes have their own buckets (API_CONTRACTS_P2 section 11); the shared fixture lifts them like the general ones.
         foreach (var k in new[] { "SyllabusWritePermitPerMinute", "SyllabusReadPermitPerMinute", "SyllabusSyncPerSyllabusPerMinute", "SyllabusSyncPerUserPerMinute", "SyllabusBatchPerUserPerMinute", "SyllabusExportPerUserPerMinute" })
             builder.UseSetting("RateLimiting:" + k, "100000");
+        // Docs export routes have their own buckets (docs.export.v1 section 4.1, DXD-03); lifted like the others. The rate tests put the real values back.
+        foreach (var k in new[] { "DocsReadPermitPerMinute", "DocsWritePermitPerMinute" })
+            builder.UseSetting("RateLimiting:" + k, "100000");
         builder.UseSetting("Syllabus:Worker:PollMilliseconds", "40");
         foreach (var (k, v) in Settings) builder.UseSetting(k, v);
         builder.ConfigureTestServices(s =>

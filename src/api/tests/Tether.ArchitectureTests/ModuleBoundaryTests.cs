@@ -6,6 +6,9 @@ using Tether.Lectures;
 using Tether.Lectures.Contracts;
 using Tether.Transcript;
 using Tether.Ai;
+using Tether.Ai.Contracts;
+using Tether.Docs;
+using Tether.Docs.Contracts;
 using Tether.Syllabus;
 using Tether.SharedKernel;
 
@@ -28,8 +31,11 @@ public class ModuleBoundaryTests
     private static readonly Assembly Transcript = typeof(TranscriptModule).Assembly;
     private static readonly Assembly Ai = typeof(AiModule).Assembly;
     private static readonly Assembly Syllabus = typeof(SyllabusModule).Assembly;
+    private static readonly Assembly Docs = typeof(DocsModule).Assembly;
+    private static readonly Assembly DocsContracts = typeof(IDocsProvider).Assembly;
+    private static readonly Assembly AiContracts = typeof(INotesSnapshotReader).Assembly;
 
-    private static readonly string[] ModuleImplementations = ["Tether.Identity", "Tether.Courses", "Tether.Lectures", "Tether.Transcript", "Tether.Ai", "Tether.Syllabus"];
+    private static readonly string[] ModuleImplementations = ["Tether.Identity", "Tether.Courses", "Tether.Lectures", "Tether.Transcript", "Tether.Ai", "Tether.Syllabus", "Tether.Docs"];
 
     private static IEnumerable<string> ProjectRefs(Assembly a) =>
         a.GetReferencedAssemblies().Select(r => r.Name!).Where(n => n.StartsWith("Tether.", StringComparison.Ordinal));
@@ -37,7 +43,7 @@ public class ModuleBoundaryTests
     [Fact]
     public void Module_implementations_do_not_reference_other_module_implementations()
     {
-        foreach (var asm in new[] { Identity, Courses, Lectures, Transcript, Ai, Syllabus })
+        foreach (var asm in new[] { Identity, Courses, Lectures, Transcript, Ai, Syllabus, Docs })
         {
             var self = asm.GetName().Name!;
             var illegal = ProjectRefs(asm).Where(n => ModuleImplementations.Contains(n) && n != self).ToList();
@@ -54,11 +60,13 @@ public class ModuleBoundaryTests
             ["Tether.Courses"] = ["Tether.SharedKernel", "Tether.Courses.Contracts"],
             ["Tether.Lectures"] = ["Tether.SharedKernel", "Tether.Courses.Contracts", "Tether.Lectures.Contracts"],
             ["Tether.Transcript"] = ["Tether.SharedKernel", "Tether.Lectures.Contracts", "Tether.Transcript.Contracts"],
-            ["Tether.Ai"] = ["Tether.SharedKernel", "Tether.Lectures.Contracts", "Tether.Transcript.Contracts"],
+            ["Tether.Ai"] = ["Tether.SharedKernel", "Tether.Lectures.Contracts", "Tether.Transcript.Contracts", "Tether.Ai.Contracts"], // item 3: implements INotesSnapshotReader (DXD-08)
             // P2-B1: Syllabus needs only course ownership (ICourseOwnership). The AI document seam, when it arrives, comes through an Ai contract.
             ["Tether.Syllabus"] = ["Tether.SharedKernel", "Tether.Courses.Contracts"],
+            // item 3 (DXD-08): Docs reads the lecture facts, the read-only notes snapshot and its own contract. NOT Courses.Contracts (the course name stays out of the title) and never the AI implementation.
+            ["Tether.Docs"] = ["Tether.SharedKernel", "Tether.Lectures.Contracts", "Tether.Ai.Contracts", "Tether.Docs.Contracts"],
         };
-        foreach (var asm in new[] { Identity, Courses, Lectures, Transcript, Ai, Syllabus })
+        foreach (var asm in new[] { Identity, Courses, Lectures, Transcript, Ai, Syllabus, Docs })
         {
             var self = asm.GetName().Name!;
             var extra = ProjectRefs(asm).Except(allowed[self]).ToList();
@@ -69,7 +77,7 @@ public class ModuleBoundaryTests
     [Fact]
     public void Contracts_and_shared_kernel_do_not_depend_on_any_module_implementation_or_host()
     {
-        foreach (var asm in new[] { CoursesContracts, LecturesContracts, SharedKernel })
+        foreach (var asm in new[] { CoursesContracts, LecturesContracts, SharedKernel, AiContracts, DocsContracts })
         {
             var bad = ProjectRefs(asm).Where(n => ModuleImplementations.Contains(n) || n.EndsWith(".Host")).ToList();
             Assert.True(bad.Count == 0, $"{asm.GetName().Name} references: {string.Join(", ", bad)}");
@@ -84,9 +92,14 @@ public class ModuleBoundaryTests
         AssertPublicSurface(Lectures, "LecturesModule");
         AssertPublicSurface(Transcript, "TranscriptModule");
         AssertPublicSurface(Syllabus, "SyllabusModule");
+        AssertPublicSurface(Docs, "DocsModule");
+        // DXD-08: the two new contract assemblies are pinned to exactly these types (the snapshot record family, and the provider port with its value types)
+        AssertPublicSurface(AiContracts, "INotesSnapshotReader", "NotesSnapshot", "NotesSnapshotSection", "NotesSnapshotBullet", "FinalSummarySnapshot");
+        AssertPublicSurface(DocsContracts, "IDocsProvider", "DocsWriteRequest", "DocumentModel", "DocBlock", "DocRef", "ProviderFailure", "ProviderResult", "ProviderResult`1");
         AssertPublicSurface(LecturesContracts, "IAudioTicketConsumer", "LectureState", "SessionInfo", "SessionStateRecord", "SessionStateChange",
             "ISessionDirectory", "ISessionEventReader", "ISessionSequencer", "ISessionLifecycleObserver", "ISessionActivity", "IDemoSourceIndicator",
-            "ISessionAuditLog"); // PO-18d: content-free audit of the notes press, written by the AI module
+            "ISessionAuditLog", // PO-18d: content-free audit of the notes press, written by the AI module
+            "IDocsSessionSource", "DocsSessionFacts"); // item 3 (DXD-17): the Docs-only port; SessionInfo is NOT changed
     }
 
     private static void AssertPublicSurface(Assembly asm, params string[] allowed)
@@ -110,6 +123,7 @@ public class ModuleBoundaryTests
         Assert.Contains("Tether.Lectures", refs);
         Assert.Contains("Tether.Transcript", refs);
         Assert.Contains("Tether.Syllabus", refs);
+        Assert.Contains("Tether.Docs", refs);
     }
 
     [Fact]
@@ -216,7 +230,7 @@ public class OwnershipConventionTests
     [Fact]
     public void Every_entity_in_Courses_and_Lectures_domain_namespaces_is_user_owned()
     {
-        foreach (var asm in new[] { typeof(CoursesModule).Assembly, typeof(LecturesModule).Assembly, typeof(TranscriptModule).Assembly, typeof(SyllabusModule).Assembly })
+        foreach (var asm in new[] { typeof(CoursesModule).Assembly, typeof(LecturesModule).Assembly, typeof(TranscriptModule).Assembly, typeof(SyllabusModule).Assembly, typeof(DocsModule).Assembly })
         {
             var entities = asm.GetTypes()
                 .Where(t => t.IsClass && !t.IsAbstract && !t.IsNested && !t.Name.StartsWith('<')

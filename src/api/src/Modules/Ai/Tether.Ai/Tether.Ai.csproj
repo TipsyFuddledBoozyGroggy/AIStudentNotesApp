@@ -4,6 +4,7 @@
     <ProjectReference Include="..\..\..\Tether.SharedKernel\Tether.SharedKernel.csproj" />
     <ProjectReference Include="..\..\Lectures\Tether.Lectures.Contracts\Tether.Lectures.Contracts.csproj" />
     <ProjectReference Include="..\..\Transcript\Tether.Transcript.Contracts\Tether.Transcript.Contracts.csproj" />
+    <ProjectReference Include="..\Tether.Ai.Contracts\Tether.Ai.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Tether.IntegrationTests" />

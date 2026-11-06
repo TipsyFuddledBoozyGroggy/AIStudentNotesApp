@@ -76,3 +76,24 @@ public interface IDemoSourceIndicator
 {
     bool IsDemoSource { get; }
 }
+
+/// <summary>
+/// The facts the Docs export needs about a lecture, and nothing else. <c>SessionInfo</c> is deliberately NOT changed: it is read by the AI module,
+/// which must never see a title (DXD-17). <see cref="TimeZone"/> is null because the session does not store a zone today; the Docs title then
+/// carries the UTC date labelled UTC.
+/// </summary>
+public sealed record DocsSessionFacts(Guid SessionId, LectureState State, DateTimeOffset StartedAt, string? Title, string? TimeZone);
+
+/// <summary>
+/// Docs-only port (docs/architecture/docs-export-demo-adr.md section 4). Both methods act for the AMBIENT user and have no <c>userId</c>
+/// parameter: another user's session and a missing one are both null. <see cref="LockAndReadAsync"/> is the FIRST lock of every Docs writer:
+/// it takes the session row <c>FOR KEY SHARE</c> on the caller's transaction (lock order, L-LOCKORDER); null means the session is gone.
+/// </summary>
+public interface IDocsSessionSource
+{
+    /// <summary>No lock; for preview and state reads.</summary>
+    Task<DocsSessionFacts?> ReadAsync(Guid sessionId, CancellationToken ct = default);
+
+    /// <summary>Locks the session row <c>FOR KEY SHARE</c> inside <paramref name="transaction"/> and returns its facts, or null if it is gone.</summary>
+    Task<DocsSessionFacts?> LockAndReadAsync(DbTransaction transaction, Guid sessionId, CancellationToken ct = default);
+}

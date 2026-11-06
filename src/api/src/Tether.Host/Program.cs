@@ -8,6 +8,7 @@ using Tether.Host;
 using Tether.Identity;
 using Tether.Lectures;
 using Tether.Syllabus;
+using Tether.Docs;
 using Tether.SharedKernel;
 using Tether.SharedKernel.Http;
 using Tether.SharedKernel.Persistence;
@@ -52,6 +53,7 @@ builder.AddLecturesModule();
 builder.AddTranscriptModule();
 builder.AddAiModule(); // mock provider only; refuses to start with anything else
 builder.AddSyllabusModule(); // mock extractor and mock calendar only; refuses to start with anything else
+builder.AddDocsModule(); // Demo Doc export (mock only); refuses to start with any other provider
 
 var allowedOrigins = builder.Configuration.GetSection("Security:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddSingleton(new OriginPolicy(allowedOrigins));
@@ -225,6 +227,7 @@ api.MapLecturesEndpoints();
 api.MapTranscriptEndpoints();
 api.MapAiEndpoints();
 api.MapSyllabusEndpoints();
+api.MapDocsEndpoints();
 app.MapRealtimeEndpoints();
 
 if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
@@ -235,6 +238,7 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Databas
     await app.Services.MigrateTranscriptAsync(); // after Lectures: FKs to lectures.lecture_sessions
     await app.Services.MigrateAiAsync(); // after Lectures and Identity: FKs to lectures.lecture_sessions and identity.users
     await app.Services.MigrateSyllabusAsync(); // after Identity and Courses: FKs to courses.courses and identity.users
+    await app.Services.MigrateDocsAsync(); // after Identity and Lectures: FKs to lectures.lecture_sessions and identity.users
     await app.Services.SeedDevUsersAsync(); // no-op unless Development and dev login enabled
 }
 

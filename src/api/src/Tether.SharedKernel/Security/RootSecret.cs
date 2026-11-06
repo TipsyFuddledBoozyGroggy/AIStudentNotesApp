@@ -19,6 +19,8 @@ public sealed class DerivedKeys
         public const string Idempotency = "idempotency.v1";
         public const string SyllabusAudit = "syllabus-audit.v1";
         public const string OAuthState = "oauth-state.v1";
+        /// <summary>Docs export content digest (DXD-06). Never shared with the idempotency or audit keys.</summary>
+        public const string DocsContentDigest = "docs-content-digest.v1";
     }
 
     private readonly byte[] _root;
