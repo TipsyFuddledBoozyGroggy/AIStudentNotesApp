@@ -3,6 +3,7 @@
   "contentDigest": "cd_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
   "mode": "create",
   "expectedExistingVersion": null,
+  "expectedExistingDocId": null,
   "confirm": {
     "provider": "google_docs",
     "acknowledgedDemo": true

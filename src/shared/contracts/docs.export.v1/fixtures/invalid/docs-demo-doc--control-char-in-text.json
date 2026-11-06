@@ -3,12 +3,12 @@
   "provider": "demo_docs",
   "demoDoc": true,
   "document": {
-    "title": "Biology 101 - Cell division - Nov 5",
+    "title": "Cell division - Nov 5",
     "blocks": [
       {
         "kind": "heading",
         "level": 1,
-        "text": "Biology 101 - Cell division - Nov 5"
+        "text": "Cell division - Nov 5"
       },
       {
         "kind": "heading",

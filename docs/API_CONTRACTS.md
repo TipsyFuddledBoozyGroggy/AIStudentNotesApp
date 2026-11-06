@@ -36,7 +36,7 @@ Errors, `Idempotency-Key`, ETag and `If-Match` follow `backend-foundation.md` §
 | GET | `/sessions/{id}/catch-ups/{catchUpId}` | | 200 `CatchUp` (poll fallback) | 404 |
 | POST | `/sessions/{id}/notes` | `{}` + `Idempotency-Key` (required) | 202 `Notes` (new press) or 200 `Notes` (shared or replayed); see section 17 | 400, 401, 403 `csrf_failed`, 404, 409 unless `Stopped`, 415, 429 |
 | GET | `/sessions/{id}/notes` | | 200 `Notes` (after Stopped) | 404, 409 until generated |
-| POST | `/sessions/{id}/export/doc` | `{}` + `Idempotency-Key` | 202 `{exportId}`; M2 uses a mock exporter, real Google is M3 | 409, 404 |
+| POST | `/sessions/{id}/export/doc` | SUPERSEDED: see `docs/API_CONTRACTS_DOCS_EXPORT.md` (docs.export.v1, Demo Doc mock; real Google is not built) | n/a | n/a |
 
 `Session`: `{id, courseId, title, state: "Active"|"Paused"|"Stopped"|"Failed", startedAt, stoppedAt?, lastSeq, consent:{textVersion, acknowledgedAt}, etag}`.
 State machine: `Active <-> Paused -> Stopped`; `Failed` only by server (abandoned, 10 min no heartbeat). Paused accepts no audio and produces no transcript. The consent record (ADR-015) is written in the same transaction as the session.

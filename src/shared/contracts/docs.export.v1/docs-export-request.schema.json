@@ -2,36 +2,97 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.tether.invalid/docs.export.v1/docs-export-request.schema.json",
   "title": "docs export request (confirm)",
-  "description": "POST /sessions/{id}/docs-export. Idempotency-Key REQUIRED. The explicit confirm. provider is fixed to demo_docs: nothing real can be expressed. contentDigest must equal the digest of the content the server would write now (else 412 precondition_failed, nothing written). expectedExistingVersion is the version of the existing document the student saw in the preview, or null if the preview showed none (mismatch: 412). mode must be one the preview listed. The client sends no text, title or document.",
+  "description": "POST /sessions/{id}/docs-export. Idempotency-Key REQUIRED. The explicit confirm. provider is fixed to demo_docs: nothing real can be expressed. contentDigest must equal the digest of the content the server would write now (else 412 precondition_failed, nothing written). expectedExistingDocId and expectedExistingVersion are the id and version of the existing document the student saw in the preview, both null if the preview showed none (any mismatch: 412). mode must be one the preview listed. The client sends no text, title or document.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["notesId", "contentDigest", "mode", "expectedExistingVersion", "confirm"],
+  "required": [
+    "notesId",
+    "contentDigest",
+    "mode",
+    "expectedExistingVersion",
+    "expectedExistingDocId",
+    "confirm"
+  ],
   "properties": {
-    "notesId": { "$ref": "docs-common.schema.json#/$defs/notesId" },
-    "contentDigest": { "$ref": "docs-common.schema.json#/$defs/contentDigest" },
-    "mode": { "$ref": "docs-common.schema.json#/$defs/mode" },
+    "notesId": {
+      "$ref": "docs-common.schema.json#/$defs/notesId"
+    },
+    "contentDigest": {
+      "$ref": "docs-common.schema.json#/$defs/contentDigest"
+    },
+    "mode": {
+      "$ref": "docs-common.schema.json#/$defs/mode"
+    },
     "expectedExistingVersion": {
       "oneOf": [
-        { "type": "null" },
-        { "type": "integer", "minimum": 1, "maximum": 2147483647 }
+        {
+          "type": "null"
+        },
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        }
+      ]
+    },
+    "expectedExistingDocId": {
+      "description": "Id of the existing document the student saw in the preview, or null if none (DXD-05). Binds the confirm to the document, not only to its version. Mismatch with the current document: 412.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "docs-common.schema.json#/$defs/id"
+        }
       ]
     },
     "confirm": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["provider", "acknowledgedDemo"],
+      "required": [
+        "provider",
+        "acknowledgedDemo"
+      ],
       "properties": {
-        "provider": { "$ref": "docs-common.schema.json#/$defs/provider" },
-        "acknowledgedDemo": { "const": true }
+        "provider": {
+          "$ref": "docs-common.schema.json#/$defs/provider"
+        },
+        "acknowledgedDemo": {
+          "const": true
+        }
       }
     }
   },
   "allOf": [
     {
       "description": "create goes with no existing document; update and create_another need one.",
-      "if": { "properties": { "mode": { "const": "create" } } },
-      "then": { "properties": { "expectedExistingVersion": { "type": "null" } } },
-      "else": { "properties": { "expectedExistingVersion": { "type": "integer" } } }
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "create"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "expectedExistingVersion": {
+            "type": "null"
+          },
+          "expectedExistingDocId": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "expectedExistingVersion": {
+            "type": "integer"
+          },
+          "expectedExistingDocId": {
+            "type": "string"
+          }
+        }
+      }
     }
   ]
 }

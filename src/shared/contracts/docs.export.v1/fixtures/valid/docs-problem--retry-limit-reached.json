@@ -1,0 +1,8 @@
+{
+  "type": "https://errors.tether.invalid/retry_limit_reached",
+  "title": "Too many attempts. Start again.",
+  "status": 409,
+  "code": "retry_limit_reached",
+  "traceId": "00-abc123",
+  "detail": "Too many attempts. Start again."
+}

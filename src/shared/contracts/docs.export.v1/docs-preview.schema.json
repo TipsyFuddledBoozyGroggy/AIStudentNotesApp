@@ -9,6 +9,7 @@
     "previewOnly",
     "sessionId",
     "notesId",
+    "notesTruncated",
     "notesSource",
     "destination",
     "document",
@@ -21,48 +22,106 @@
     "generatedAt"
   ],
   "properties": {
-    "previewOnly": { "const": true },
-    "sessionId": { "$ref": "docs-common.schema.json#/$defs/id" },
-    "notesId": { "$ref": "docs-common.schema.json#/$defs/notesId" },
+    "previewOnly": {
+      "const": true
+    },
+    "sessionId": {
+      "$ref": "docs-common.schema.json#/$defs/sessionId"
+    },
+    "notesId": {
+      "$ref": "docs-common.schema.json#/$defs/notesId"
+    },
     "notesSource": {
       "description": "Carried from the notes: mock = test routine, not an AI model; model = a real provider. The UI keeps the estimate wording.",
       "type": "string",
-      "enum": ["mock", "model"]
+      "enum": [
+        "mock",
+        "model"
+      ]
+    },
+    "notesTruncated": {
+      "description": "Carried from the notes (lecture.v1 notes.truncated). When true the builder adds a closing paragraph saying where the notes stop, as the Markdown export does (DXD-13, L-DROP).",
+      "type": "boolean"
     },
     "destination": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["provider", "label", "isDemo"],
+      "required": [
+        "provider",
+        "label",
+        "isDemo"
+      ],
       "properties": {
-        "provider": { "$ref": "docs-common.schema.json#/$defs/provider" },
-        "label": { "type": "string", "minLength": 1, "maxLength": 40 },
-        "isDemo": { "const": true }
+        "provider": {
+          "$ref": "docs-common.schema.json#/$defs/provider"
+        },
+        "label": {
+          "const": "Demo Doc"
+        },
+        "isDemo": {
+          "const": true
+        }
       }
     },
-    "document": { "$ref": "docs-common.schema.json#/$defs/document" },
+    "document": {
+      "$ref": "docs-common.schema.json#/$defs/document"
+    },
     "counts": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["sections", "bullets", "citations"],
+      "required": [
+        "sections",
+        "bullets",
+        "citations"
+      ],
       "properties": {
-        "sections": { "type": "integer", "minimum": 0, "maximum": 400 },
-        "bullets": { "type": "integer", "minimum": 0, "maximum": 400 },
-        "citations": { "type": "integer", "minimum": 0, "maximum": 3200 }
+        "sections": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 400
+        },
+        "bullets": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 400
+        },
+        "citations": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3200
+        }
       }
     },
-    "contentDigest": { "$ref": "docs-common.schema.json#/$defs/contentDigest" },
+    "contentDigest": {
+      "$ref": "docs-common.schema.json#/$defs/contentDigest"
+    },
     "existing": {
       "oneOf": [
-        { "type": "null" },
+        {
+          "type": "null"
+        },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["exportId", "docRef", "lastExportedAt", "upToDate"],
+          "required": [
+            "exportId",
+            "docRef",
+            "lastExportedAt",
+            "upToDate"
+          ],
           "properties": {
-            "exportId": { "$ref": "docs-common.schema.json#/$defs/id" },
-            "docRef": { "$ref": "docs-common.schema.json#/$defs/docRef" },
-            "lastExportedAt": { "$ref": "docs-common.schema.json#/$defs/timestamp" },
-            "upToDate": { "type": "boolean" }
+            "exportId": {
+              "$ref": "docs-common.schema.json#/$defs/id"
+            },
+            "docRef": {
+              "$ref": "docs-common.schema.json#/$defs/docRef"
+            },
+            "lastExportedAt": {
+              "$ref": "docs-common.schema.json#/$defs/timestamp"
+            },
+            "upToDate": {
+              "type": "boolean"
+            }
           }
         }
       ]
@@ -71,16 +130,30 @@
       "type": "array",
       "maxItems": 2,
       "uniqueItems": true,
-      "items": { "$ref": "docs-common.schema.json#/$defs/mode" }
+      "items": {
+        "$ref": "docs-common.schema.json#/$defs/mode"
+      }
     },
-    "canWrite": { "type": "boolean" },
+    "canWrite": {
+      "type": "boolean"
+    },
     "blockedReason": {
       "description": "Non-null only when canWrite is false for a reason other than an error: too_large (over 400 blocks; nothing is cut), nothing_to_export (no bullets).",
       "oneOf": [
-        { "type": "null" },
-        { "type": "string", "enum": ["too_large", "nothing_to_export"] }
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "enum": [
+            "too_large",
+            "nothing_to_export"
+          ]
+        }
       ]
     },
-    "generatedAt": { "$ref": "docs-common.schema.json#/$defs/timestamp" }
+    "generatedAt": {
+      "$ref": "docs-common.schema.json#/$defs/timestamp"
+    }
   }
 }

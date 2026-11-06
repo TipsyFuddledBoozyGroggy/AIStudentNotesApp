@@ -1,0 +1,11 @@
+{
+  "notesId": "nt_0192f0a1b2c34d5e8f9a0b1c2d3e4f52",
+  "contentDigest": "cd_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "mode": "create",
+  "expectedExistingVersion": null,
+  "expectedExistingDocId": "ddc_0192f0a1b2c34d5e8f9a0b1c2d3e4f77",
+  "confirm": {
+    "provider": "demo_docs",
+    "acknowledgedDemo": true
+  }
+}

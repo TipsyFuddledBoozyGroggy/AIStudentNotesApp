@@ -3,6 +3,7 @@
   "contentDigest": "cd_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
   "mode": "overwrite",
   "expectedExistingVersion": null,
+  "expectedExistingDocId": null,
   "confirm": {
     "provider": "demo_docs",
     "acknowledgedDemo": true

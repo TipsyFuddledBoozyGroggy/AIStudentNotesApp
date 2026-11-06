@@ -3,17 +3,18 @@
   "contentDigest": "cd_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
   "mode": "create",
   "expectedExistingVersion": null,
+  "expectedExistingDocId": null,
   "confirm": {
     "provider": "demo_docs",
     "acknowledgedDemo": true
   },
   "document": {
-    "title": "Biology 101 - Cell division - Nov 5",
+    "title": "Cell division - Nov 5",
     "blocks": [
       {
         "kind": "heading",
         "level": 1,
-        "text": "Biology 101 - Cell division - Nov 5"
+        "text": "Cell division - Nov 5"
       },
       {
         "kind": "heading",

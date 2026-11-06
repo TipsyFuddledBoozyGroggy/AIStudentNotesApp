@@ -11,6 +11,11 @@
       "maxLength": 64,
       "pattern": "^(?:[a-z]{3}_)?[a-z0-9]+(?:-[a-z0-9]+)*(?![\\s\\S])"
     },
+    "sessionId": {
+      "description": "Lecture session id: canonical lowercase hyphenated GUID (Guid.ToString D), the form lecture routes bind as {id:guid}. Upper case, braces and urn forms are 400 before any lookup (DXD-12).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+    },
     "timestamp": {
       "description": "RFC 3339 with offset. Instants only.",
       "type": "string",
@@ -28,14 +33,16 @@
       "pattern": "^nt_[0-9a-f]{32}(?![\\s\\S])"
     },
     "contentDigest": {
-      "description": "Opaque. 'cd_' + first 43 chars of base64url(HMAC-SHA-256(server key, canonical JSON of {v, notesId, title, blocks})). HMAC, never a plain hash, so a stored digest cannot be used to test a guessed text. It binds a confirm to exactly the content previewed.",
+      "description": "Opaque. 'cd_' + first 43 chars of base64url(HMAC-SHA-256(K, label LF sessionId LF canonical JSON of {v:1, notesId, title, blocks})). K is derived by HKDF from the root secret with the NEW label docs-content-digest.v1 (add it to DerivedKeys.Labels); the idempotency and audit keys are never reused; label is the literal docs-content-digest.v1. Canonical JSON: UTF-8, no whitespace, members in the order the schemas list them, strings NFC with only the quote, backslash and u00XX control escapes, integers in decimal. HMAC, never a plain hash. An equality check on content only, never proof of authorization. A root-secret rotation makes stored digests stale (upToDate turns false once; accepted).",
       "type": "string",
       "pattern": "^cd_[A-Za-z0-9_-]{43}(?![\\s\\S])"
     },
     "provider": {
       "description": "demo_docs only in v1. Widening this enum to add google_docs is the single wire change a real provider needs (ADR section 9); it is NOT authorised and NOT built.",
       "type": "string",
-      "enum": ["demo_docs"]
+      "enum": [
+        "demo_docs"
+      ]
     },
     "ms": {
       "type": "integer",
@@ -60,9 +67,13 @@
       "description": "A time in the lecture only. No segmentId and no transcript text leave the app (same rule as the Markdown export, item 2).",
       "type": "object",
       "additionalProperties": false,
-      "required": ["startMs"],
+      "required": [
+        "startMs"
+      ],
       "properties": {
-        "startMs": { "$ref": "#/$defs/ms" }
+        "startMs": {
+          "$ref": "#/$defs/ms"
+        }
       }
     },
     "block": {
@@ -70,35 +81,64 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind", "level", "text"],
+          "required": [
+            "kind",
+            "level",
+            "text"
+          ],
           "properties": {
-            "kind": { "const": "heading" },
-            "level": { "type": "integer", "minimum": 1, "maximum": 2 },
-            "text": { "$ref": "#/$defs/blockText" }
-          }
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["kind", "text", "citations"],
-          "properties": {
-            "kind": { "const": "bullet" },
-            "text": { "$ref": "#/$defs/blockText" },
-            "citations": {
-              "type": "array",
-              "minItems": 1,
-              "maxItems": 8,
-              "items": { "$ref": "#/$defs/citation" }
+            "kind": {
+              "const": "heading"
+            },
+            "level": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2
+            },
+            "text": {
+              "$ref": "#/$defs/blockText"
             }
           }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind", "text"],
+          "required": [
+            "kind",
+            "text",
+            "citations"
+          ],
           "properties": {
-            "kind": { "const": "paragraph" },
-            "text": { "$ref": "#/$defs/blockText" }
+            "kind": {
+              "const": "bullet"
+            },
+            "text": {
+              "$ref": "#/$defs/blockText"
+            },
+            "citations": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "items": {
+                "$ref": "#/$defs/citation"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "text"
+          ],
+          "properties": {
+            "kind": {
+              "const": "paragraph"
+            },
+            "text": {
+              "$ref": "#/$defs/blockText"
+            }
           }
         }
       ]
@@ -107,14 +147,21 @@
       "description": "What would be (preview) or was (Demo Doc) written. Max 400 blocks. Over the cap the preview says canWrite=false/too_large; blocks are never silently dropped.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["title", "blocks"],
+      "required": [
+        "title",
+        "blocks"
+      ],
       "properties": {
-        "title": { "$ref": "#/$defs/docTitle" },
+        "title": {
+          "$ref": "#/$defs/docTitle"
+        },
         "blocks": {
           "type": "array",
           "minItems": 1,
           "maxItems": 400,
-          "items": { "$ref": "#/$defs/block" }
+          "items": {
+            "$ref": "#/$defs/block"
+          }
         }
       }
     },
@@ -124,29 +171,82 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["docId", "provider", "label", "version", "openKind", "openPath", "openUrl"],
+          "required": [
+            "docId",
+            "provider",
+            "label",
+            "version",
+            "openKind",
+            "openPath",
+            "openUrl"
+          ],
           "properties": {
-            "docId": { "$ref": "#/$defs/id" },
-            "provider": { "$ref": "#/$defs/provider" },
-            "label": { "type": "string", "minLength": 1, "maxLength": 40 },
-            "version": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
-            "openKind": { "const": "in_app" },
-            "openPath": { "type": "string", "pattern": "^/demo-docs/ddc_[a-z0-9]+(?:-[a-z0-9]+)*(?![\\s\\S])" },
-            "openUrl": { "type": "null" }
+            "docId": {
+              "$ref": "#/$defs/id"
+            },
+            "provider": {
+              "$ref": "#/$defs/provider"
+            },
+            "label": {
+              "const": "Demo Doc"
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647
+            },
+            "openKind": {
+              "const": "in_app"
+            },
+            "openPath": {
+              "type": "string",
+              "pattern": "^/demo-docs/ddc_[a-z0-9]+(?:-[a-z0-9]+)*(?![\\s\\S])"
+            },
+            "openUrl": {
+              "type": "null"
+            }
           }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["docId", "provider", "label", "version", "openKind", "openPath", "openUrl"],
+          "required": [
+            "docId",
+            "provider",
+            "label",
+            "version",
+            "openKind",
+            "openPath",
+            "openUrl"
+          ],
           "properties": {
-            "docId": { "$ref": "#/$defs/id" },
-            "provider": { "$ref": "#/$defs/provider" },
-            "label": { "type": "string", "minLength": 1, "maxLength": 40 },
-            "version": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
-            "openKind": { "const": "external" },
-            "openPath": { "type": "null" },
-            "openUrl": { "type": "string", "pattern": "^https://docs\\.google\\.com/document/d/[A-Za-z0-9_-]{10,100}/edit(?![\\s\\S])" }
+            "docId": {
+              "$ref": "#/$defs/id"
+            },
+            "provider": {
+              "$ref": "#/$defs/provider"
+            },
+            "label": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "pattern": "^[A-Za-z0-9 .-]+(?![\\s\\S])"
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647
+            },
+            "openKind": {
+              "const": "external"
+            },
+            "openPath": {
+              "type": "null"
+            },
+            "openUrl": {
+              "type": "string",
+              "pattern": "^https://docs\\.google\\.com/document/d/[A-Za-z0-9_-]{10,100}/edit(?![\\s\\S])"
+            }
           }
         }
       ]
@@ -154,10 +254,14 @@
     "mode": {
       "description": "create: no document exists for this lecture yet. update: replace the content of the document this app made for this lecture (version+1). create_another: leave the earlier document alone and make a second one. The server only accepts the modes the latest preview listed in actions.",
       "type": "string",
-      "enum": ["create", "update", "create_another"]
+      "enum": [
+        "create",
+        "update",
+        "create_another"
+      ]
     },
     "errorCode": {
-      "description": "ProblemDetails codes. lecture.v1 codes keep their meaning. Docs additions: export_in_progress (409), retry_limit_reached (409), too_large (413 body cap).",
+      "description": "ProblemDetails codes. lecture.v1 codes keep their meaning. Docs additions: too_large (413 body cap), retry_limit_reached (409). export_in_progress (409) is RESERVED for a real provider: the demo write is one transaction serialised by an advisory lock, so the demo never emits it.",
       "type": "string",
       "enum": [
         "validation_failed",
