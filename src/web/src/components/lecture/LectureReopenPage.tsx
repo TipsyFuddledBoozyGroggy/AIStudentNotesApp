@@ -53,6 +53,26 @@ export function LectureReopenPage() {
   const session = state.s === "ready" ? state.session : null;
   const runtime = useMemo(() => (session ? createRealRuntime({ api }, session) : null), [session]);
 
+  // Finish-backlog item 2: the course's name for the notes file's "Course:" line, read with the existing GET /courses/{id}.
+  // A failure only leaves that line out; nothing else on the page waits for it.
+  const courseId = session?.courseId ?? null;
+  const [courseName, setCourseName] = useState<string | null>(null);
+  useEffect(() => {
+    if (!courseId) return;
+    let cancelled = false;
+    Promise.resolve()
+      .then(() => api.getCourse(courseId))
+      .then((c) => !cancelled && setCourseName(c.name))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId]);
+  const notesExport = useMemo(
+    () => (session ? { lectureTitle: session.title, courseName, startedAt: session.startedAt ?? null } : undefined),
+    [session, courseName],
+  );
+
   if (state.s === "loading")
     return (
       <p role="status" className="text-muted">
@@ -77,6 +97,7 @@ export function LectureReopenPage() {
         mic={mic}
         courseName={session.title ?? undefined}
         arrivedFromStop={arrivedFromStop}
+        notesExport={notesExport}
         onBackToCourse={() => router.push(`/courses/${encodeURIComponent(session.courseId)}`)}
         deletion={{
           sessionId: session.id,

@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { copyText, downloadTextFile } from "@/lib/download";
 import { PlainText, type Citation, type LectureNotes, type SummaryRevisionPayload } from "@/lib/lecture";
-import { NOTES_COPY as C } from "./copy";
+import { useAnnouncer } from "./Announcer";
+import { NOTES_COPY as C, NOTES_EXPORT_COPY as X } from "./copy";
 import { formatMs } from "./format";
+import { buildNotesMarkdown, notesFileName, type NotesExportInfo } from "./notesExport";
 import type { LectureAi } from "./ports";
 import { DemoNotesTag } from "./QuickRecapPanel";
 import { canPressAgain, useNotes } from "./useNotes";
@@ -15,6 +18,68 @@ export interface NotesPanelProps {
   /** Feeds a fetched Final summary revision into the reducer (the same path a hub summary.revision takes). */
   onSummary(payload: SummaryRevisionPayload): void;
   onCite(segmentId: string): void;
+  /** Title, course and start time for Export notes / Copy notes. Absent: the file has the untitled heading and no date. */
+  exportInfo?: NotesExportInfo;
+}
+
+const NO_INFO: NotesExportInfo = { lectureTitle: null, courseName: null, startedAt: null };
+
+type ExportResult = null | "saved" | "copied" | "saveFailed" | "copyFailed";
+
+/**
+ * Export notes / Copy notes (finish-backlog item 2). Both act on the student's own press only and use what is already on
+ * the client: no request, no transcript beyond the notes. The result is said once through the existing status region (no
+ * new live region) and shown as plain text; a press that did not work moves focus to its note (the ActionProblem pattern).
+ */
+function NotesExport({ notes, summary, info }: { notes: LectureNotes; summary: SummaryRevisionPayload | null; info: NotesExportInfo }) {
+  const announcer = useAnnouncer();
+  const [result, setResult] = useState<ExportResult>(null);
+  const [seq, setSeq] = useState(0);
+  const problemRef = useRef<HTMLParagraphElement>(null);
+  const failed = result === "saveFailed" || result === "copyFailed";
+  useEffect(() => {
+    if (failed) problemRef.current?.focus();
+  }, [failed, seq]);
+
+  const text = () => buildNotesMarkdown({ notes, summary, ...info });
+  const done = (r: Exclude<ExportResult, null>) => {
+    setResult(r);
+    setSeq((n) => n + 1);
+    if (r === "saved" || r === "copied") announcer.status(X[r]);
+  };
+  const save = () => {
+    const t = text();
+    done(t !== null && downloadTextFile(t, notesFileName(info.lectureTitle, info.startedAt), "text/markdown;charset=utf-8") ? "saved" : "saveFailed");
+  };
+  const copy = async () => {
+    const t = text();
+    done(t !== null && (await copyText(t)) ? "copied" : "copyFailed");
+  };
+
+  return (
+    <div className="mt-8" data-testid="notes-export">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <button type="button" className="btn-secondary" aria-describedby="notes-export-help" onClick={save}>
+          {X.exportButton}
+        </button>
+        <button type="button" className="btn-tertiary" aria-describedby="notes-export-help" onClick={() => void copy()}>
+          {X.copyButton}
+        </button>
+      </div>
+      <p id="notes-export-help" className="help mt-2 max-w-prose">
+        {X.help}
+      </p>
+      {failed ? (
+        <p ref={problemRef} tabIndex={-1} data-testid="notes-export-problem" className="note note-notice mt-3 max-w-prose">
+          {X[result]}
+        </p>
+      ) : result ? (
+        <p data-testid="notes-export-result" className="mt-2 max-w-prose text-sm text-muted">
+          {X[result]}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 /** Citation time as a link into the transcript (the recap's pattern and name). */
@@ -26,7 +91,17 @@ function Cite({ c, onCite }: { c: Citation; onCite(segmentId: string): void }) {
   );
 }
 
-function ReadySheet({ notes, onCite }: { notes: LectureNotes; onCite(segmentId: string): void }) {
+function ReadySheet({
+  notes,
+  onCite,
+  summary,
+  info,
+}: {
+  notes: LectureNotes;
+  onCite(segmentId: string): void;
+  summary: SummaryRevisionPayload | null;
+  info: NotesExportInfo;
+}) {
   const to = formatMs(notes.coveredToMs ?? 0);
   return (
     <>
@@ -71,6 +146,7 @@ function ReadySheet({ notes, onCite }: { notes: LectureNotes; onCite(segmentId: 
           </div>
         ))}
       </div>
+      {notes.sections.length > 0 ? <NotesExport notes={notes} summary={summary} info={info} /> : null}
     </>
   );
 }
@@ -81,7 +157,7 @@ function ReadySheet({ notes, onCite }: { notes: LectureNotes; onCite(segmentId: 
  * "What is sent?". Pending: one sentence. Ready: a lecture sheet with cited bullets. Nothing here is automatic: the only
  * POST is the click handler of "Make notes". Adds no live region: announcements use the existing status region.
  */
-export function NotesPanel({ ai, summary, onSummary, onCite }: NotesPanelProps) {
+export function NotesPanel({ ai, summary, onSummary, onCite, exportInfo = NO_INFO }: NotesPanelProps) {
   const n = useNotes(ai);
   const [whatOpen, setWhatOpen] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -145,7 +221,7 @@ export function NotesPanel({ ai, summary, onSummary, onCite }: NotesPanelProps) 
         </div>
         {ready && notes ? (
           <div key="ready" className="sheet-body">
-            <ReadySheet notes={notes} onCite={onCite} />
+            <ReadySheet notes={notes} onCite={onCite} summary={summary} info={exportInfo} />
           </div>
         ) : (
           <div key="block">

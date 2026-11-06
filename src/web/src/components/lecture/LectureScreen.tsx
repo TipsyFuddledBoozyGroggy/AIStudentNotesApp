@@ -22,6 +22,7 @@ import {
   type PausedVariant,
 } from "./Notices";
 import { NotesPanel } from "./NotesPanel";
+import type { NotesExportInfo } from "./notesExport";
 import type { LectureRuntime } from "./ports";
 import { usePrefs } from "../PrefsProvider";
 import { loadStopMove, saveStopMove, useLectureSettings, type LectureSettings } from "./settings";
@@ -62,6 +63,8 @@ export interface LectureScreenProps {
    * Stopped or Failed (never Active or Paused), with no fatal state, and not in focus mode. Absent: no delete control.
    */
   deletion?: LectureDeletion;
+  /** Finish-backlog item 2: title, course and start time for the notes file (Export notes / Copy notes). */
+  notesExport?: NotesExportInfo;
 }
 
 /** A Stopped reason the student's own Stop produces (system reasons never open the move notice). */
@@ -329,7 +332,7 @@ export function LectureScreen(props: LectureScreenProps) {
               fatal state), first in the transcript column before the search tools. It places itself on the grid: the
               block on the transcript track, the Ready sheet across the margin and transcript tracks like the recap sheet. */}
           {stopped && serverState === "Stopped" && s.fatal === null && props.runtime.ai ? (
-            <NotesPanel ai={props.runtime.ai} summary={s.lecture.summary} onSummary={s.ingestSummary} onCite={onCite} />
+            <NotesPanel ai={props.runtime.ai} summary={s.lecture.summary} onSummary={s.ingestSummary} onCite={onCite} exportInfo={props.notesExport} />
           ) : null}
           {stopped ? (
             // Review tools (design-direction slice 8, narrow): only once the lecture has ended, so nothing moves during it.

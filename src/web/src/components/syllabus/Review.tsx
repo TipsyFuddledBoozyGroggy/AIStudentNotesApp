@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { downloadTextFile } from "@/lib/download";
 import type { SyllabusApi } from "@/lib/syllabus/client";
 import { batchEligible, clearItems, syncCandidates } from "@/lib/syllabus/eligibility";
 import { weekRangeLabel } from "@/lib/syllabus/format";
@@ -54,25 +55,6 @@ function defaultOpen(items: SyllabusItem[], by: GroupBy): Set<string> {
 
 function pages(list: number[]): string {
   return list.map((p) => `page ${p}`).join(", ");
-}
-
-/** Saves the export as a file. Never rendered; the browser's download keeps it out of the page. */
-function download(text: string, name: string): boolean {
-  try {
-    if (typeof URL.createObjectURL !== "function") return false;
-    const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    a.rel = "noopener";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /**
@@ -294,7 +276,8 @@ export function Review({ api, syllabus, courseId, onDeleted, onAddAnother, onSho
     setDataProblem(null);
     try {
       const text = await api.exportSyllabus(syllabus.id);
-      if (!download(text, X.fileName)) throw new Error("download unavailable");
+      // Saved through the browser's download, never rendered (lib/download.ts, shared with the notes export).
+      if (!downloadTextFile(text, X.fileName, "application/json")) throw new Error("download unavailable");
       announcer.status(X.done);
     } catch (e) {
       setDataProblem({ what: "export", kind: problemKind(e) });

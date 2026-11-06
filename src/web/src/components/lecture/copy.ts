@@ -263,6 +263,37 @@ export const NOTES_COPY = {
   },
 } as const;
 
+/**
+ * Export notes / Copy notes (finish-backlog item 2, PO-20cc). DRAFT wording: new copy, not yet reviewed by the
+ * neurodivergent-ux-specialist. Not consent, recording or Demo-source text (G1): the mock line reuses the existing Demo
+ * notes wording (NOTES_COPY.demoTag + DEMO_SUMMARY_COPY.note) word for word. `file` is the text inside the Markdown file.
+ */
+export const NOTES_EXPORT_COPY = {
+  exportButton: "Export notes",
+  copyButton: "Copy notes",
+  help: "Export notes saves them as a Markdown file on this device, with their times. Copy notes puts the same text on your clipboard. Nothing is sent anywhere.",
+  saved: "Your notes file is ready.",
+  copied: "Notes copied. You can paste them where you like.",
+  saveFailed: "This browser did not save the file. You can use Copy notes instead.",
+  copyFailed: "This browser did not allow copying. You can use Export notes instead.",
+  file: {
+    untitled: "Lecture notes",
+    course: (name: string) => `Course: ${name}`,
+    date: (when: string) => `Lecture date: ${when}`,
+    covers: (from: string, to: string) => `Notes cover ${from} to ${to} of the transcript.`,
+    truncated: (to: string) => `These notes stop at ${to}. The lecture ran longer than the notes can cover.`,
+    mock: "Demo notes: Made by a test routine, not an AI model. Treat them as estimates and check them against the transcript.",
+    model: "AI-estimated notes: written by an AI model from the transcript. They may be wrong, so check them against the transcript.",
+    local: "This file was made on your device from the notes on screen. Nothing was sent anywhere.",
+    times: "The time after each point shows where it is in the transcript.",
+    summaryHeading: "Final summary",
+    summaryTimes: (times: string) => `Transcript times: ${times}`,
+    summaryNotMade: "No final summary was made for this lecture.",
+    summaryNotLoaded: "The final summary could not be loaded, so it is not in this file.",
+    notesHeading: "Notes",
+  },
+} as const;
+
 /** NOTES_COPY keys whose text is DRAFT disclosure wording (G1); each must end in the visible "(Draft wording.)" suffix. */
 export const NOTES_DRAFT_KEYS = ["intro", "whatIsSentBody"] as const;
 

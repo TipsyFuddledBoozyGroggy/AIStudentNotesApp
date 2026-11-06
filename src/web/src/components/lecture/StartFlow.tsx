@@ -111,6 +111,8 @@ function StartFlowInner({ courseId, courseName, backend, mic, onBackToCourse, at
           openPageHref={`/lectures/${encodeURIComponent(phase.runtime.sessionId)}`}
           onOpenPage={onOpenLecture ? () => onOpenLecture(phase.runtime.sessionId) : undefined}
           userId={userId}
+          // Finish-backlog item 2: the live route knows the course only (no title, start time not returned to this flow).
+          notesExport={{ lectureTitle: null, courseName, startedAt: null }}
         />
       );
   }

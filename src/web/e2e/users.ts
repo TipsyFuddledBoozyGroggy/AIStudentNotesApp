@@ -30,6 +30,8 @@ export const USERS = {
   stopmove: `e2e-stopmove-${id}@dev.local`,
   // PO-20by delete a lecture / delete a course: its own user, so the courses it deletes are never another spec's.
   deleter: `e2e-delete-${id}@dev.local`,
+  // Finish-backlog item 2, Export notes / Copy notes: its own user, because a user may have only one pending notes press.
+  notesExport: `e2e-notes-export-${id}@dev.local`,
 } as const;
 export const authFile = (email: string) => path.join(AUTH_DIR, `${email}.json`);
 export const stateFor = (k: keyof typeof USERS) => authFile(USERS[k]);
