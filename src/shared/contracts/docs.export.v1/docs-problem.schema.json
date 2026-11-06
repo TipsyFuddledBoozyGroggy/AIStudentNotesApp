@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/docs.export.v1/docs-problem.schema.json",
+  "title": "docs export problem",
+  "description": "RFC 9457 ProblemDetails as in backend-foundation.md section 5 with the docs code additions. detail is a fixed string per code, never exception text, provider text, a title or notes text.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "title", "status", "code", "traceId"],
+  "properties": {
+    "type": { "type": "string", "pattern": "^https://errors\\.tether\\.invalid/[a-z_]+(?![\\s\\S])" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "status": { "type": "integer", "minimum": 400, "maximum": 599 },
+    "detail": { "type": "string", "maxLength": 200, "pattern": "^[^\\u0000-\\u001f]*(?![\\s\\S])" },
+    "instance": { "type": "string", "maxLength": 256 },
+    "code": { "$ref": "docs-common.schema.json#/$defs/errorCode" },
+    "traceId": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "errors": {
+      "type": "object",
+      "maxProperties": 20,
+      "propertyNames": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_.\\[\\]-]{0,63}(?![\\s\\S])" },
+      "additionalProperties": {
+        "type": "array",
+        "maxItems": 10,
+        "items": { "type": "string", "maxLength": 200 }
+      }
+    },
+    "retryAfterSeconds": { "type": "integer", "minimum": 1 }
+  }
+}

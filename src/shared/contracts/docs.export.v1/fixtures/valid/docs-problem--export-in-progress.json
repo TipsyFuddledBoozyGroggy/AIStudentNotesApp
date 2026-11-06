@@ -1,0 +1,9 @@
+{
+  "type": "https://errors.tether.invalid/export_in_progress",
+  "title": "An export is already running.",
+  "status": 409,
+  "code": "export_in_progress",
+  "traceId": "00-abc123",
+  "detail": "The resource has changed. Reload and try again.",
+  "retryAfterSeconds": 3
+}

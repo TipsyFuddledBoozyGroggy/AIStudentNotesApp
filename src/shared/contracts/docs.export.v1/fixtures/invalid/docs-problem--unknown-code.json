@@ -1,0 +1,8 @@
+{
+  "type": "https://errors.tether.invalid/precondition_failed",
+  "title": "The resource has changed. Reload and try again.",
+  "status": 412,
+  "code": "reconnect_required",
+  "traceId": "00-abc123",
+  "detail": "The resource has changed. Reload and try again."
+}

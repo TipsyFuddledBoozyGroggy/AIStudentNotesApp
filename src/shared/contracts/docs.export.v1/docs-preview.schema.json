@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/docs.export.v1/docs-preview.schema.json",
+  "title": "docs export preview",
+  "description": "200 from the preview route. Exactly what a confirm would write, built on the server from the stored notes (and Final summary revision, when this press made it) of the authenticated user. previewOnly is always true: the route wrote nothing, called no provider and no AI. contentDigest is what the confirm must echo; if the content changed since, the confirm is 412 precondition_failed and the student sees a fresh preview. actions lists the modes the confirm will accept: [create] when no document exists for this lecture, [update, create_another] when one does, [] when canWrite is false or the existing document already matches (existing.upToDate).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "previewOnly",
+    "sessionId",
+    "notesId",
+    "notesSource",
+    "destination",
+    "document",
+    "counts",
+    "contentDigest",
+    "existing",
+    "actions",
+    "canWrite",
+    "blockedReason",
+    "generatedAt"
+  ],
+  "properties": {
+    "previewOnly": { "const": true },
+    "sessionId": { "$ref": "docs-common.schema.json#/$defs/id" },
+    "notesId": { "$ref": "docs-common.schema.json#/$defs/notesId" },
+    "notesSource": {
+      "description": "Carried from the notes: mock = test routine, not an AI model; model = a real provider. The UI keeps the estimate wording.",
+      "type": "string",
+      "enum": ["mock", "model"]
+    },
+    "destination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "label", "isDemo"],
+      "properties": {
+        "provider": { "$ref": "docs-common.schema.json#/$defs/provider" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "isDemo": { "const": true }
+      }
+    },
+    "document": { "$ref": "docs-common.schema.json#/$defs/document" },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sections", "bullets", "citations"],
+      "properties": {
+        "sections": { "type": "integer", "minimum": 0, "maximum": 400 },
+        "bullets": { "type": "integer", "minimum": 0, "maximum": 400 },
+        "citations": { "type": "integer", "minimum": 0, "maximum": 3200 }
+      }
+    },
+    "contentDigest": { "$ref": "docs-common.schema.json#/$defs/contentDigest" },
+    "existing": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["exportId", "docRef", "lastExportedAt", "upToDate"],
+          "properties": {
+            "exportId": { "$ref": "docs-common.schema.json#/$defs/id" },
+            "docRef": { "$ref": "docs-common.schema.json#/$defs/docRef" },
+            "lastExportedAt": { "$ref": "docs-common.schema.json#/$defs/timestamp" },
+            "upToDate": { "type": "boolean" }
+          }
+        }
+      ]
+    },
+    "actions": {
+      "type": "array",
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": { "$ref": "docs-common.schema.json#/$defs/mode" }
+    },
+    "canWrite": { "type": "boolean" },
+    "blockedReason": {
+      "description": "Non-null only when canWrite is false for a reason other than an error: too_large (over 400 blocks; nothing is cut), nothing_to_export (no bullets).",
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "enum": ["too_large", "nothing_to_export"] }
+      ]
+    },
+    "generatedAt": { "$ref": "docs-common.schema.json#/$defs/timestamp" }
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/docs.export.v1/docs-export-record.schema.json",
+  "title": "docs export record",
+  "description": "200 for every provider outcome of POST /sessions/{id}/docs-export (success AND provider failure), and the shape of lastExport in docs-state. A replay of the same Idempotency-Key after success returns this body as first produced with Idempotency-Replayed: true. After a failed attempt the same key may be sent again with the same body: it re-attempts the write (nothing was written, so it cannot duplicate) and attempt increases, up to 5. outcome: created (new document), updated (same document, version+1), unchanged (content already matched; nothing written), failed. Carries ids, counts, codes and times only: no title, no text, no digest of text beyond the opaque contentDigest, no token.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "exportId",
+    "sessionId",
+    "notesId",
+    "provider",
+    "demoDoc",
+    "mode",
+    "status",
+    "outcome",
+    "contentDigest",
+    "docRef",
+    "attempt",
+    "createdAt",
+    "completedAt",
+    "error",
+    "retry"
+  ],
+  "properties": {
+    "exportId": { "$ref": "docs-common.schema.json#/$defs/id" },
+    "sessionId": { "$ref": "docs-common.schema.json#/$defs/id" },
+    "notesId": { "$ref": "docs-common.schema.json#/$defs/notesId" },
+    "provider": { "$ref": "docs-common.schema.json#/$defs/provider" },
+    "demoDoc": { "const": true },
+    "mode": { "$ref": "docs-common.schema.json#/$defs/mode" },
+    "status": { "type": "string", "enum": ["succeeded", "failed"] },
+    "outcome": { "type": "string", "enum": ["created", "updated", "unchanged", "failed"] },
+    "contentDigest": { "$ref": "docs-common.schema.json#/$defs/contentDigest" },
+    "docRef": {
+      "description": "The document this export wrote or matched. null only for a failed first attempt (nothing exists). For a failed update it is the existing document at its unchanged version.",
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "docs-common.schema.json#/$defs/docRef" }
+      ]
+    },
+    "attempt": { "type": "integer", "minimum": 1, "maximum": 5 },
+    "createdAt": { "$ref": "docs-common.schema.json#/$defs/timestamp" },
+    "completedAt": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "docs-common.schema.json#/$defs/timestamp" }
+      ]
+    },
+    "error": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "retryable", "retryAfterSeconds"],
+          "properties": {
+            "code": { "$ref": "docs-common.schema.json#/$defs/recordErrorCode" },
+            "retryable": { "type": "boolean" },
+            "retryAfterSeconds": {
+              "oneOf": [
+                { "type": "null" },
+                { "type": "integer", "minimum": 1, "maximum": 3600 }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "retry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed", "attemptsLeft"],
+      "properties": {
+        "allowed": { "type": "boolean" },
+        "attemptsLeft": { "type": "integer", "minimum": 0, "maximum": 4 }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "failed" } } },
+      "then": {
+        "properties": {
+          "outcome": { "const": "failed" },
+          "error": { "type": "object" },
+          "completedAt": { "$ref": "docs-common.schema.json#/$defs/timestamp" }
+        }
+      },
+      "else": {
+        "properties": {
+          "outcome": { "enum": ["created", "updated", "unchanged"] },
+          "error": { "type": "null" },
+          "docRef": { "type": "object" },
+          "retry": { "properties": { "allowed": { "const": false } } }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/docs.export.v1/docs-state.schema.json",
+  "title": "docs export state",
+  "description": "GET /sessions/{id}/docs-export. What the lecture page needs on load: the document this app currently keeps for the lecture (if any) and the newest attempt (if any). Both null before any export. 404 for a foreign or missing session.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sessionId", "target", "lastExport"],
+  "properties": {
+    "sessionId": { "$ref": "docs-common.schema.json#/$defs/id" },
+    "target": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "docs-common.schema.json#/$defs/docRef" }
+      ]
+    },
+    "lastExport": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "docs-export-record.schema.json" }
+      ]
+    }
+  }
+}

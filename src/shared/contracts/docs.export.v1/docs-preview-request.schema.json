@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/docs.export.v1/docs-preview-request.schema.json",
+  "title": "docs export preview request",
+  "description": "POST /sessions/{id}/docs-export/preview. No Idempotency-Key (a preview writes nothing and may be repeated). The client names the notes it is looking at; it never sends notes text, a title or a document.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["notesId"],
+  "properties": {
+    "notesId": { "$ref": "docs-common.schema.json#/$defs/notesId" }
+  }
+}

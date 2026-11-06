@@ -1,0 +1,29 @@
+{
+  "exportId": "dxp_0192f0a1b2c34d5e8f9a0b1c2d3e4f88",
+  "sessionId": "ses_0192f0a1b2c34d5e8f9a0b1c2d3e4f01",
+  "notesId": "nt_0192f0a1b2c34d5e8f9a0b1c2d3e4f52",
+  "provider": "demo_docs",
+  "demoDoc": true,
+  "mode": "create",
+  "status": "succeeded",
+  "outcome": "created",
+  "contentDigest": "cd_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "docRef": {
+    "docId": "ddc_0192f0a1b2c34d5e8f9a0b1c2d3e4f77",
+    "provider": "demo_docs",
+    "label": "Demo Doc",
+    "version": 1,
+    "openKind": "in_app",
+    "openPath": "/demo-docs/ddc_0192f0a1b2c34d5e8f9a0b1c2d3e4f77",
+    "openUrl": null
+  },
+  "attempt": 1,
+  "createdAt": "2026-11-06T10:00:05Z",
+  "completedAt": "2026-11-06T10:00:05.400Z",
+  "error": null,
+  "retry": {
+    "allowed": false,
+    "attemptsLeft": 4
+  },
+  "title": "Biology"
+}
