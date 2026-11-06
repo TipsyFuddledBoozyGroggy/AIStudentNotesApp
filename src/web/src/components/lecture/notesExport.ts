@@ -38,14 +38,28 @@ function oneLine(s: string): string {
     .trim();
 }
 
+/** A host name after the escapes above (letters, digits, hyphens, dots); its dots get escaped too. */
+const HOST = String.raw`[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*`;
+const escDots = (host: string) => host.replace(/\./g, "\\.");
+
 /**
  * Untrusted text as inline Markdown that renders as itself. Backslash-escapes the characters that start emphasis, code,
  * links, images, raw HTML, tables, strikethrough or headings, an entity-looking `&`, and a line-leading list or rule marker.
+ *
+ * It also breaks the GFM autolink literals (DXB-01), which need no markup at all: the `:` of a `scheme://` URL, the dot
+ * after a word-initial `www`, and the `@` of an e-mail address are escaped, and so are the dots of the host that follows,
+ * so a renderer that links bare host names (markdown-it's fuzzy linkify) does not find one either. Each escape renders as
+ * the same character, so the text reads unchanged. A bare host name in ordinary prose ("example.com") is left alone: GFM
+ * does not link it. The escapes break the literal for parsers that tokenise escapes separately (cmark-gfm, micromark,
+ * markdown-it); a viewer that merges text before linking could still link, and no such viewer is tested here.
  */
 export function mdText(s: string): string {
   return oneLine(s)
     .replace(/[\\`*_[\]<>|~#]/g, "\\$&")
     .replace(/&(?=#?[A-Za-z0-9]+;)/g, "\\&")
+    .replace(new RegExp(String.raw`\b([A-Za-z][A-Za-z0-9+.-]*):\/\/(${HOST})?`, "g"), (_m, scheme: string, host = "") => `${scheme}\\://${escDots(host)}`)
+    .replace(new RegExp(String.raw`(^|[^A-Za-z0-9])(www)\.(${HOST})?`, "gi"), (_m, pre: string, www: string, host = "") => `${pre}${www}\\.${escDots(host)}`)
+    .replace(new RegExp(String.raw`([A-Za-z0-9._+-])@(${HOST})?`, "g"), (_m, last: string, host = "") => `${last}\\@${escDots(host)}`)
     .replace(/^([-+=])/, "\\$1")
     .replace(/^(\d+)([.)])/, "$1\\$2");
 }

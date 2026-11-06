@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api as defaultApi, type ApiClient } from "@/lib/api";
 import { LECTURE_DELETE_COPY as C } from "../deleteCopy";
 import { runDelete } from "../deleteFlow";
@@ -19,13 +19,22 @@ export interface LectureDeletion {
  * toolbar and the shared destructive ConfirmDialog (Keep it is filled and focused; Escape keeps; the page behind is inert;
  * focus returns to this button on Keep). The caller renders it only once the server says Stopped or Failed, never while
  * the lecture is Active or Paused, and not in focus mode. A failure keeps the dialog open with one line in its description
- * and says it once through the existing announcer (no new live region); focus stays on the confirm button.
+ * and says it once through the existing announcer (no new live region); focus moves to that line (UX review
+ * docs/ux/demo-doc-and-export-ux-review.md section 7.3, which amends delete-wording-draft 6.3 "focus stays on the confirm
+ * button").
  */
 export function LectureDelete({ sessionId, onDeleted, api = defaultApi }: LectureDeletion) {
   const announcer = useAnnouncer();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const problemRef = useRef<HTMLParagraphElement>(null);
+
+  // The problem line takes focus when it appears, so it is read even where the status region is not heard (UX review
+  // section 7.3, S3); Tab from it reaches the dialog's buttons.
+  useEffect(() => {
+    if (problem) problemRef.current?.focus();
+  }, [problem]);
 
   async function confirm() {
     if (busy) return;
@@ -71,7 +80,7 @@ export function LectureDelete({ sessionId, onDeleted, api = defaultApi }: Lectur
         <p>{C.cannot}</p>
         <p>{C.kept}</p>
         {problem ? (
-          <p data-delete-problem className="font-semibold text-ink">
+          <p ref={problemRef} tabIndex={-1} data-delete-problem className="font-semibold text-ink">
             {problem}
           </p>
         ) : null}

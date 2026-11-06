@@ -148,7 +148,8 @@ describe("buildNotesMarkdown", () => {
       },
     });
     const lines = t.split("\n");
-    expect(lines[0]).toBe("# \\# \\<script\\>alert(1)\\</script\\> \\[x\\](javascript:alert(1)) !\\[i\\](http://e/x.png) \\#\\# injected");
+    // The image URL is also broken as an autolink literal (DXB-01): "http\:" renders as "http:" but starts no link.
+    expect(lines[0]).toBe("# \\# \\<script\\>alert(1)\\</script\\> \\[x\\](javascript:alert(1)) !\\[i\\](http\\://e/x.png) \\#\\# injected");
     expect(lines).toContain("- Course: Bio \\| 101 \\*core\\* \\_a\\_ \\`b\\` \\~c\\~ \\&amp;");
     expect(lines).toContain("### 1\\. Intro ---");
     expect(lines).toContain("- \\- nested line \\<img src=x onerror=alert(1)\\> \\\\ end (00:00)");
@@ -178,6 +179,55 @@ describe("mdText", () => {
     ["a leading ordered-list marker is escaped", "2) second", "2\\) second"],
   ])("%s", (_n, inText, out) => {
     expect(mdText(inText)).toBe(out);
+  });
+});
+
+describe("mdText breaks GFM autolink literals (DXB-01)", () => {
+  // What a CommonMark viewer shows for backslash escapes of ASCII punctuation: the character itself.
+  const shown = (md: string) => md.replace(/\\([!-/:-@[-`{-~])/g, "$1");
+  // GFM 0.29 autolink literals (spec 6.9), read on the raw Markdown: an escaped character is not part of a literal. The
+  // extended URL needs "scheme://" unbroken, the www form "www." unbroken, the e-mail form a local part, "@" and a domain
+  // with a dot, all unescaped. Also a fuzzy linkify-style bare host ("a.example", dots unescaped) next to where one was.
+  const literals = (md: string) => [
+    ...md.matchAll(/(?<!\\)\b(?:https?|ftp|file|mailto|xmpp|[a-z][a-z0-9+.-]*):(?!\\)\/\//gi),
+    ...md.matchAll(/(?:^|[\s*_~(])www\.(?=[A-Za-z0-9-])/gi),
+    ...md.matchAll(/[A-Za-z0-9.+_-]@[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g),
+    ...md.matchAll(/(?:\/\/|\\@|www\\\.)[A-Za-z0-9-]+\.[A-Za-z]{2,}/g),
+  ].map((m) => m[0]);
+
+  it.each([
+    ["a bare https URL", "See https://example.com/a?b=1 for more.", "See https\\://example\\.com/a?b=1 for more."],
+    ["an http URL with a port and a path dot", "http://e/x.png and http://a.b.example:8080/p", "http\\://e/x.png and http\\://a\\.b\\.example:8080/p"],
+    ["any scheme with //", "ftp://files.example.org javascript://x", "ftp\\://files\\.example\\.org javascript\\://x"],
+    ["a www host", "Go to www.example.com today", "Go to www\\.example\\.com today"],
+    ["a www host after punctuation, any case", "(WWW.Example.com) *www.x.org*", "(WWW\\.Example\\.com) \\*www\\.x\\.org\\*"],
+    ["a www inside a URL is escaped once", "https://www.example.com", "https\\://www\\.example\\.com"],
+    ["an e-mail address", "Mail prof.x+notes@uni.example.edu now", "Mail prof.x+notes\\@uni\\.example\\.edu now"],
+    ["a mailto: address", "mailto:a_b@example.com", "mailto:a\\_b\\@example\\.com"],
+    ["an e-mail inside a URL", "http://user@host.example/p", "http\\://user\\@host\\.example/p"],
+    ["ordinary prose with dots, colons and at-signs is unchanged", "Week 3: Node.js, e.g. 5 @ 10am, awww.", "Week 3: Node.js, e.g. 5 @ 10am, awww."],
+  ])("%s", (_n, inText, out) => {
+    const md = mdText(inText);
+    expect(md).toBe(out);
+    expect(literals(md), md).toEqual([]);
+    expect(shown(md)).toBe(inText); // the reader sees exactly the original text
+  });
+
+  it("the literal model is not vacuous: it finds the literals in the unescaped inputs", () => {
+    expect(literals("https://example.com www.example.com a@example.com")).toHaveLength(4);
+  });
+
+  it("the whole file has no autolink literal for hostile titles, course names, summaries and bullets", () => {
+    const evil = "Read https://evil.example/x, www.evil.example and a@evil.example";
+    const t = md({
+      lectureTitle: evil,
+      courseName: evil,
+      summary: { ...FINAL, tldr: evil, bullets: [evil] },
+      notes: { ...READY, sections: [{ heading: evil, bullets: [{ text: evil, citations: [{ segmentId: "s", startMs: 0 }] }] }] },
+    });
+    expect(literals(t)).toEqual([]);
+    expect(t.split("\n").filter((l) => l.includes("evil")).length).toBe(6);
+    for (const l of t.split("\n").filter((x) => x.includes("evil"))) expect(shown(l)).toContain(evil);
   });
 });
 

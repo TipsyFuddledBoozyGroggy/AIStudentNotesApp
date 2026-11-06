@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { inertOutside } from "@/lib/inertOutside";
 import { PlainText } from "@/lib/lecture";
 import { CONSENT_DIALOG_COPY as D } from "./copy";
 
@@ -21,7 +22,8 @@ const FOCUSABLE = 'button, input, a[href], select, textarea, [tabindex]:not([tab
  *
  * Behaviour: rendered only while open (so the box always starts unchecked); no timer, no auto-dismiss, and a click on
  * the backdrop does nothing. Escape and Cancel call onCancel. Tab and Shift+Tab stay inside. Everything else in <body>
- * is made `inert` while it is open, so the page behind cannot be reached by keyboard, pointer or screen reader.
+ * is made `inert` while it is open, so the page behind cannot be reached by keyboard, pointer or screen reader; the two
+ * announcer regions are exempt (inertOutside) so they can still be heard.
  */
 export function ConsentDialog({ courseName, onConfirm, onCancel }: ConsentDialogProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -40,14 +42,9 @@ export function ConsentDialog({ courseName, onConfirm, onCancel }: ConsentDialog
     if (!mounted) return;
     const overlay = overlayRef.current;
     if (!overlay) return;
-    const made: Element[] = [];
-    for (const el of Array.from(document.body.children)) {
-      if (el === overlay || el.hasAttribute("inert")) continue;
-      el.setAttribute("inert", "");
-      made.push(el);
-    }
+    const undo = inertOutside(overlay); // the announcer regions stay reachable (S2)
     checkRef.current?.focus();
-    return () => made.forEach((el) => el.removeAttribute("inert"));
+    return undo;
   }, [mounted]);
 
   if (!mounted) return null;

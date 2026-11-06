@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { inertOutside } from "@/lib/inertOutside";
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -20,7 +21,9 @@ export interface ConfirmDialogProps {
  * focus starts on the safe choice, Tab stays inside, Escape cancels, focus returns to the opener on cancel. Not a live
  * region. Since redesign-round2 slice 6 it is portalled to <body> and everything else in <body> is `inert` while it is
  * open, so the page behind cannot be reached by keyboard, pointer or screen reader (and a control half-scrolled under
- * the sticky header is not a reachable target while the dialog is up, which axe otherwise reports as target-size).
+ * the sticky header is not a reachable target while the dialog is up, which axe otherwise reports as target-size). The
+ * two announcer regions are exempt (inertOutside), so a line said through them while the dialog is up can be heard.
+ * Shift+Tab from a focused non-button inside (the delete problem line, review section 7.3) wraps to the last button.
  */
 export function ConfirmDialog({ open, heading, children, confirmLabel, cancelLabel, busy, busyLabel, onConfirm, onCancel }: ConfirmDialogProps) {
   const id = useId();
@@ -35,15 +38,9 @@ export function ConfirmDialog({ open, heading, children, confirmLabel, cancelLab
   useEffect(() => {
     if (!open || !mounted) return;
     opener.current = document.activeElement as HTMLElement | null;
-    const overlay = overlayRef.current;
-    const made: Element[] = [];
-    for (const el of Array.from(document.body.children)) {
-      if (el === overlay || el.hasAttribute("inert")) continue;
-      el.setAttribute("inert", "");
-      made.push(el);
-    }
+    const undo = inertOutside(overlayRef.current); // the announcer regions stay reachable (S2)
     keepRef.current?.focus();
-    return () => made.forEach((el) => el.removeAttribute("inert"));
+    return undo;
   }, [open, mounted]);
 
   if (!open || !mounted) return null;
@@ -69,7 +66,8 @@ export function ConfirmDialog({ open, heading, children, confirmLabel, cancelLab
             const btns = Array.from(ref.current?.querySelectorAll<HTMLElement>("button") ?? []);
             const first = btns[0];
             const last = btns[btns.length - 1];
-            if (e.shiftKey && document.activeElement === first) {
+            const onButton = btns.includes(document.activeElement as HTMLElement);
+            if (e.shiftKey && (document.activeElement === first || !onButton)) {
               e.preventDefault();
               last.focus();
             } else if (!e.shiftKey && document.activeElement === last) {

@@ -30,13 +30,17 @@ type View =
   | { k: "loading" }
   | { k: "previewError" }
   | { k: "notAvailable" }
-  | { k: "preview"; p: DocsPreview; key: string; stale: boolean }
+  | { k: "preview"; p: DocsPreview; key: string; note: PreviewNote }
   | { k: "saving"; a: Attempt }
   | { k: "success"; record: DocsExportRecord }
-  | { k: "retry"; a: Attempt; wait: number | null }
+  /** `unknown`: no answer, a 5xx or an unreadable answer, so the save may have committed (M1); otherwise the server said nothing was written. */
+  | { k: "retry"; a: Attempt; wait: number | null; unknown: boolean }
   | { k: "lastAttempt" }
   | { k: "permanent" }
   | { k: "inProgress" };
+
+/** The line above a reloaded preview: the notes moved (412), or the lecture's Demo Doc moved (first 409 invalid_state, M3). */
+type PreviewNote = "stale" | "changedState" | null;
 
 const SUCCESS = { created: C.success.created, updated: C.success.updated, unchanged: C.success.unchanged } as const;
 
@@ -60,6 +64,8 @@ export function DocsExport({ sessionId, notes, api = defaultApi, timeZone }: Doc
   const inFlight = useRef(false);
   // Every request belongs to one opening of the dialog; an answer for an earlier opening is dropped.
   const epoch = useRef(0);
+  // 409 invalid_state answers to a confirm in this opening: the first reloads the preview, the second is permanent (M3).
+  const invalidStates = useRef(0);
   const notesId = notes.notesId;
 
   useEffect(() => {
@@ -83,22 +89,22 @@ export function DocsExport({ sessionId, notes, api = defaultApi, timeZone }: Doc
   }, [focusMsg]);
 
   const loadPreview = useCallback(
-    async (stale: boolean) => {
+    async (note: PreviewNote) => {
       const my = epoch.current;
       setView({ k: "loading" });
       setChoice(null);
       try {
         const p = await api.preview(sessionId, notesId);
         if (my !== epoch.current) return;
-        setView({ k: "preview", p, key: newIdempotencyKey(), stale });
-        if (stale) {
-          announcer.status(C.stale);
+        setView({ k: "preview", p, key: newIdempotencyKey(), note });
+        if (note) {
+          announcer.status(note === "stale" ? C.stale : C.changedState);
           setFocusMsg((n) => n + 1);
         }
       } catch (e) {
         if (my !== epoch.current) return;
         setView(e instanceof DocsApiError && e.isNotFound ? { k: "notAvailable" } : { k: "previewError" });
-        if (stale) setFocusMsg((n) => n + 1);
+        if (note) setFocusMsg((n) => n + 1);
       }
     },
     [api, sessionId, notesId, announcer],
@@ -117,7 +123,8 @@ export function DocsExport({ sessionId, notes, api = defaultApi, timeZone }: Doc
       return;
     }
     const err = record.error;
-    if (err?.retryable && record.retry.allowed) settle({ k: "retry", a, wait: err.retryAfterSeconds }, C.retry.body);
+    // A failed record is the server's word that nothing was written (contract 4.3), so "Nothing was saved" is true here.
+    if (err?.retryable && record.retry.allowed) settle({ k: "retry", a, wait: err.retryAfterSeconds, unknown: false }, C.retry.body);
     else if (err?.retryable) settle({ k: "lastAttempt" }, C.lastAttempt.body);
     else settle({ k: "permanent" }, C.permanent);
   };
@@ -138,16 +145,27 @@ export function DocsExport({ sessionId, notes, api = defaultApi, timeZone }: Doc
       if (status === 412) {
         // The content or the document moved: nothing was saved; show the new version and let the student confirm again (F11).
         inFlight.current = false;
-        await loadPreview(true);
+        await loadPreview("stale");
+        return;
+      }
+      if (status === 409 && code === "invalid_state" && invalidStates.current++ === 0) {
+        // From the stopped lecture page this means the lecture's Demo Doc moved (another tab made or deleted one), so the
+        // chosen mode no longer fits; a failed check stores nothing and leaves the key free (contract 4.1 step 9). Show the
+        // current preview once; a second one in this opening (for example the document cap) is the permanent line, so the
+        // dialog cannot loop (M3).
+        inFlight.current = false;
+        await loadPreview("changedState");
         return;
       }
       if (status === 404) settle({ k: "notAvailable" }, C.notAvailable);
       else if (status === 409 && code === "retry_limit_reached") settle({ k: "lastAttempt" }, C.lastAttempt.body);
       else if (status === 409 && code === "export_in_progress") settle({ k: "inProgress" }, C.inProgress.body);
-      else if (status === 429) settle({ k: "retry", a, wait: e instanceof DocsApiError ? e.retryAfterSeconds : null }, C.retry.body);
-      // No answer, a server failure or a body we could not read: the same key and body are safe to send again (a replay
-      // returns the stored record, so nothing can be written twice).
-      else if (status === 0 || status >= 500 || code === "malformed_response") settle({ k: "retry", a, wait: null }, C.retry.body);
+      // A 429 is refused before the body is read (contract 4.1 step 6): nothing was written.
+      else if (status === 429) settle({ k: "retry", a, wait: e instanceof DocsApiError ? e.retryAfterSeconds : null, unknown: false }, C.retry.body);
+      // No answer, a server failure or a body we could not read: the write may have committed before the answer was lost
+      // (contract 4.3), so the line must not say nothing was saved (M1). The same key and body are safe to send again (a
+      // replay returns the stored record, so nothing can be written twice).
+      else if (status === 0 || status >= 500 || code === "malformed_response") settle({ k: "retry", a, wait: null, unknown: true }, C.retry.unknown);
       else settle({ k: "permanent" }, C.permanent);
     } finally {
       inFlight.current = false;
@@ -156,7 +174,8 @@ export function DocsExport({ sessionId, notes, api = defaultApi, timeZone }: Doc
 
   const open = () => {
     epoch.current += 1;
-    void loadPreview(false);
+    invalidStates.current = 0;
+    void loadPreview(null);
   };
   const close = () => {
     if (view?.k === "saving") return;
@@ -184,16 +203,16 @@ export function DocsExport({ sessionId, notes, api = defaultApi, timeZone }: Doc
   );
   const actions = (...nodes: ReactNode[]) => <div className="mt-6 flex flex-wrap justify-end gap-3">{nodes}</div>;
 
-  function previewBody(p: DocsPreview, key: string, opts: { stale: boolean; saving: boolean }) {
+  function previewBody(p: DocsPreview, key: string, opts: { note: PreviewNote; saving: boolean }) {
     const writable = p.canWrite && p.actions.length > 0;
     const needsChoice = p.actions.includes("update");
     const chosen = !needsChoice || choice !== null;
     const matches = p.canWrite && p.actions.length === 0;
     return (
       <>
-        {opts.stale ? (
-          <p ref={msgRef} tabIndex={-1} data-testid="docs-stale" className="note note-notice mt-3 max-w-prose">
-            {C.stale}
+        {opts.note ? (
+          <p ref={msgRef} tabIndex={-1} data-testid={opts.note === "stale" ? "docs-stale" : "docs-changed-state"} className="note note-notice mt-3 max-w-prose">
+            {opts.note === "stale" ? C.stale : C.changedState}
           </p>
         ) : null}
         <div className="mt-3 space-y-2" data-testid="docs-preview">
@@ -290,7 +309,7 @@ export function DocsExport({ sessionId, notes, api = defaultApi, timeZone }: Doc
           <>
             {message(C.preview.error, "docs-preview-error")}
             {actions(
-              <button key="t" type="button" className="btn-primary" onClick={() => void loadPreview(false)}>
+              <button key="t" type="button" className="btn-primary" onClick={() => void loadPreview(null)}>
                 {C.preview.tryAgain}
               </button>,
               <span key="c">{closeBtn()}</span>,
@@ -305,9 +324,9 @@ export function DocsExport({ sessionId, notes, api = defaultApi, timeZone }: Doc
           </>
         );
       case "preview":
-        return previewBody(v.p, v.key, { stale: v.stale, saving: false });
+        return previewBody(v.p, v.key, { note: v.note, saving: false });
       case "saving":
-        return previewBody(v.a.p, v.a.key, { stale: false, saving: true });
+        return previewBody(v.a.p, v.a.key, { note: null, saving: true });
       case "success": {
         const ref = v.record.docRef!;
         return (
@@ -326,7 +345,7 @@ export function DocsExport({ sessionId, notes, api = defaultApi, timeZone }: Doc
       case "retry":
         return (
           <>
-            {message(C.retry.body, "docs-retry")}
+            {message(v.unknown ? C.retry.unknown : C.retry.body, "docs-retry")}
             {v.wait !== null ? (
               <p className="mt-2 max-w-prose" data-testid="docs-retry-wait">
                 {C.retry.wait(v.wait)}
@@ -345,7 +364,7 @@ export function DocsExport({ sessionId, notes, api = defaultApi, timeZone }: Doc
           <>
             {message(C.lastAttempt.body, "docs-last-attempt")}
             {actions(
-              <button key="s" type="button" className="btn-primary" onClick={() => void loadPreview(false)}>
+              <button key="s" type="button" className="btn-primary" onClick={() => void loadPreview(null)}>
                 {C.lastAttempt.startAgain}
               </button>,
               <span key="c">{closeBtn()}</span>,
@@ -364,7 +383,7 @@ export function DocsExport({ sessionId, notes, api = defaultApi, timeZone }: Doc
           <>
             {message(C.inProgress.body, "docs-in-progress")}
             {actions(
-              <button key="k" type="button" className="btn-primary" onClick={() => void loadPreview(false)}>
+              <button key="k" type="button" className="btn-primary" onClick={() => void loadPreview(null)}>
                 {C.inProgress.checkAgain}
               </button>,
               <span key="c">{closeBtn()}</span>,

@@ -70,11 +70,23 @@ describe("DOCS_COPY (item 3, DRAFT)", () => {
     expect(ticked.has(`${C.page.deleteHeading} ${C.page.deleteBody}`)).toBe(true);
   });
 
-  it("the one departure: section 4's retry line fails the shared lint, so the derived line replaces only that clause", () => {
+  it("the departure: section 4's retry line fails the shared lint; retry.body, retry.unknown and changedState follow the UX review", () => {
     const original = "That did not save. Nothing was saved and nothing was lost. You can try again.";
     expect(ticked.has(original)).toBe(true);
     expect(FORBIDDEN.some(([, re]) => re.test(original))).toBe(true);
-    expect(C.retry.body).toBe("That did not save. Nothing was saved and your notes are fine. You can try again.");
+    expect(C.retry.body).toBe("That did not save. Nothing was saved, and your notes are not affected. You can try again.");
+    expect(C.retry.unknown).toBe("We did not get an answer, so we could not confirm whether it saved. Your notes are not affected. You can try again. It will not be saved twice.");
+    expect(C.changedState).toBe("This lecture's Demo Doc changed while you were looking. Here is the current version. Nothing was saved yet.");
+    // Word for word in the UX review's section 9 list (DRAFT, PO approval pending), so a wording change there trips this.
+    const review = readFileSync(path.resolve(process.cwd(), "../../docs/ux/demo-doc-and-export-ux-review.md"), "utf8");
+    const s9 = review.slice(review.indexOf("## 9. Exact recommended replacement strings"), review.indexOf("## 10. Prioritised change list"));
+    for (const t of [C.retry.body, C.retry.unknown, C.changedState]) expect(s9, t).toContain(`"${t}"`);
+  });
+
+  it("M1: the unknown-outcome line never says nothing was saved; it promises only what the reused key keeps", () => {
+    expect(C.retry.unknown).not.toMatch(/nothing was saved/i);
+    expect(C.retry.unknown).toMatch(/It will not be saved twice\.$/);
+    expect(C.retry.body).toMatch(/Nothing was saved/);
   });
 
   const all = collectStrings(C);

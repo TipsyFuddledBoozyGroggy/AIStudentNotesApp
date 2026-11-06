@@ -391,13 +391,18 @@ describe("Review density (redesign-round2 slice 6)", () => {
     expect(keep).toHaveFocus();
     expect(keep).toHaveClass("btn-primary");
     for (const b of within(dialog).getAllByRole("button")) expect(b.className).not.toMatch(/48px/);
-    // Portalled to <body>; everything else in <body> is inert while it is open (modal semantics, as the consent pop-up).
-    expect(container).toHaveAttribute("inert");
+    // Portalled to <body>; everything else in <body> is inert while it is open (modal semantics, as the consent pop-up),
+    // except the announcer regions inside the container, which stay reachable (UX review 7.3, S2).
+    const regions = '[data-region="status"], [data-region="alert"]';
+    const page = Array.from(container.children).filter((el) => !el.matches(regions));
+    expect(page.length).toBeGreaterThan(0);
+    for (const el of page) expect(el).toHaveAttribute("inert");
+    for (const el of Array.from(container.querySelectorAll(regions))) expect(el.closest("[inert]")).toBeNull();
     expect(dialog.closest("[inert]")).toBeNull();
     expect(await axeViolations(container)).toEqual([]);
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(screen.getByRole("button", { name: "Delete this syllabus" })).toHaveFocus());
-    expect(container).not.toHaveAttribute("inert");
+    expect(document.querySelectorAll("[inert]")).toHaveLength(0);
   });
 
   it("one at a time: a 'Please check' item's Approve is a plain secondary described by the hint; a clear item keeps the filled Approve (review 4)", async () => {

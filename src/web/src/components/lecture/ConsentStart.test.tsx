@@ -69,10 +69,16 @@ describe("ConsentStart", () => {
     expect(d).toHaveAttribute("aria-modal", "true");
     expect(d).toHaveAccessibleDescription("Tether turns on the microphone only after you confirm this for Biology 101.");
     expect(within(d).getByRole("checkbox")).toHaveFocus();
-    expect(container).toHaveAttribute("inert"); // RTL's container is a direct child of <body>
+    // RTL's container is a direct child of <body>. It holds the announcer regions, which stay reachable (UX review 7.3, S2),
+    // so the container itself is not inert; every other child of it (the page) is.
+    const regions = '[data-region="status"], [data-region="alert"]';
+    const page = Array.from(container.children).filter((el) => !el.matches(regions));
+    expect(page.length).toBeGreaterThan(0);
+    for (const el of page) expect(el).toHaveAttribute("inert");
+    for (const el of Array.from(container.querySelectorAll(regions))) expect(el.closest("[inert]")).toBeNull();
     expect(d.closest("[inert]")).toBeNull();
     await userEvent.click(within(d).getByRole("button", { name: "Cancel" }));
-    expect(container).not.toHaveAttribute("inert");
+    expect(document.querySelectorAll("[inert]")).toHaveLength(0);
   });
 
   it("dialog: Tab and Shift+Tab stay inside", async () => {

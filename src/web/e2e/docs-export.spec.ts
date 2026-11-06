@@ -232,7 +232,7 @@ test("Q3 delete the Demo Doc, then F21: a forced provider failure, then Try agai
   await dialog.getByRole("button", { name: "Save to Demo Doc" }).click();
   const failed = (await (await first).json()) as { status: string; exportId: string; attempt: number; error: { code: string; retryAfterSeconds: number } };
   expect([failed.status, failed.error.code, failed.attempt]).toEqual(["failed", "provider_unavailable", 1]);
-  await expect(dialog.getByTestId("docs-retry")).toHaveText("That did not save. Nothing was saved and your notes are fine. You can try again.");
+  await expect(dialog.getByTestId("docs-retry")).toHaveText("That did not save. Nothing was saved, and your notes are not affected. You can try again.");
   await expect(dialog.getByTestId("docs-retry")).toBeFocused();
   await expect(dialog.getByTestId("docs-retry-wait")).toHaveText(`Please wait about ${failed.error.retryAfterSeconds} seconds, then try again.`);
   expect((await page.request.get(`${ORIGIN}/api/v1/sessions/${lecture.id}/docs-export`).then((r) => r.json())).target).toBeNull();
@@ -258,6 +258,62 @@ test("Q3 delete the Demo Doc, then F21: a forced provider failure, then Try agai
   });
   expect(replay.headers()["idempotency-replayed"]).toBe("true");
   expect(((await replay.json()) as { docRef: { docId: string } }).docRef.docId).toBe(ok.docRef.docId);
+  lecture.docId = ok.docRef.docId;
+  await page.unroute(/\/api\/v1\/sessions\/[^/]+\/docs-export$/);
+});
+
+test("M1: the save commits but its answer is lost; the line does not say nothing was saved, and Try again replays the same key into one document", async ({ page }) => {
+  test.setTimeout(120_000);
+  expect(lecture.docId).not.toBe("");
+  // Start from no Demo Doc, so the next export is a create.
+  const del = await page.request.delete(`${ORIGIN}/api/v1/demo-docs/${lecture.docId}`, { headers: { Origin: ORIGIN } });
+  expect(del.status()).toBe(204);
+  await page.goto(`/lectures/${lecture.id}`);
+  await readyNotes(page);
+  await expect(page.getByTestId("docs-export-saved")).toHaveCount(0);
+  const confirms: Request[] = [];
+  let lost = 0;
+  // The first confirm reaches the API (which commits), then the browser is told the connection failed.
+  await page.route(/\/api\/v1\/sessions\/[^/]+\/docs-export$/, async (route) => {
+    const r = route.request();
+    if (r.method() === "POST" && lost === 0) {
+      lost++;
+      const res = await route.fetch();
+      expect(res.status()).toBe(200);
+      await route.abort("failed");
+    } else await route.continue();
+  });
+  page.on("request", (r) => {
+    if (isConfirm(r)) confirms.push(r);
+  });
+  const dialog = await openDialog(page);
+  await expect(dialog.getByTestId("docs-preview")).toBeVisible();
+  await dialog.getByRole("button", { name: "Save to Demo Doc" }).click();
+  const line = dialog.getByTestId("docs-retry");
+  await expect(line).toHaveText("We did not get an answer, so we could not confirm whether it saved. Your notes are not affected. You can try again. It will not be saved twice.");
+  await expect(line).toBeFocused();
+  await expect(dialog).not.toContainText("Nothing was saved");
+  await expect(dialog.getByTestId("docs-retry-wait")).toHaveCount(0);
+  // The write did commit: the lecture already has a Demo Doc.
+  const before = (await page.request.get(`${ORIGIN}/api/v1/sessions/${lecture.id}/docs-export`).then((r) => r.json())) as { target: { docId: string } | null };
+  expect(before.target).not.toBeNull();
+  await settle(page);
+  await scan(page, "docs-retry-unknown");
+
+  const tryAgain = dialog.getByRole("button", { name: "Try again" });
+  await expect(tryAgain).not.toHaveAttribute("aria-busy", "true");
+  const second = page.waitForResponse((r) => isConfirm(r.request()));
+  await tryAgain.click();
+  const res = await second;
+  expect(res.headers()["idempotency-replayed"]).toBe("true");
+  const ok = (await res.json()) as { status: string; docRef: { docId: string } };
+  expect([ok.status, ok.docRef.docId]).toEqual(["succeeded", before.target!.docId]);
+  await expect(dialog.getByTestId("docs-success")).toHaveText("Saved to a Demo Doc.");
+  expect(confirms).toHaveLength(2);
+  expect(confirms[1]!.headers()["idempotency-key"]).toBe(confirms[0]!.headers()["idempotency-key"]);
+  expect(confirms[1]!.postData()).toBe(confirms[0]!.postData());
+  const state = (await page.request.get(`${ORIGIN}/api/v1/sessions/${lecture.id}/docs-export`).then((r) => r.json())) as { target: { docId: string; version: number } };
+  expect([state.target.docId, state.target.version]).toEqual([ok.docRef.docId, 1]);
   lecture.docId = ok.docRef.docId;
   await page.unroute(/\/api\/v1\/sessions\/[^/]+\/docs-export$/);
 });

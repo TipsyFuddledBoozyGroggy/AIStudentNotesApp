@@ -239,6 +239,87 @@ describe("Save to a Demo Doc dialog", () => {
     expect(confirms()[1]!.key).not.toBe(confirms()[0]!.key);
   });
 
+  it("M1: a 429 is a server-confirmed failure: the 'nothing was saved' line, the advisory wait, and the same key on Try again", async () => {
+    server.use(
+      http.post(
+        "*/api/v1/sessions/:id/docs-export",
+        () => HttpResponse.json({ type: "https://errors.tether.invalid/rate_limited", title: "slow", status: 429, code: "rate_limited", traceId: "t" }, { status: 429, headers: { "Retry-After": "7" } }),
+        { once: true },
+      ),
+    );
+    const { user } = await mount();
+    await openPreview(user);
+    await user.click(within(dialog()).getByRole("button", { name: C.preview.save }));
+    await waitFor(() => expect(within(dialog()).getByTestId("docs-retry")).toHaveTextContent(C.retry.body));
+    expect(within(dialog()).getByTestId("docs-retry")).toHaveFocus();
+    await waitFor(() => expect(statusText()).toBe(C.retry.body), { timeout: 3000 });
+    await user.click(within(dialog()).getByRole("button", { name: C.retry.tryAgain }));
+    await waitFor(() => expect(within(dialog()).getByTestId("docs-success")).toBeInTheDocument());
+    const [a, b] = confirms();
+    expect([b!.key, b!.body]).toEqual([a!.key, a!.body]);
+  });
+
+  it.each([
+    ["no answer (network error)", () => HttpResponse.error()],
+    ["a 503", () => HttpResponse.json({ type: "https://errors.tether.invalid/provider_unavailable", title: "x", status: 503, code: "provider_unavailable", traceId: "t" }, { status: 503 })],
+    ["a 200 body that does not parse", () => HttpResponse.json({ status: "succeeded" })],
+  ])("M1: %s may have saved, so the line never says nothing was saved; Try again reuses the key and saves once", async (_n, reply) => {
+    server.use(http.post("*/api/v1/sessions/:id/docs-export", reply, { once: true }));
+    const { user } = await mount();
+    await openPreview(user);
+    await user.click(within(dialog()).getByRole("button", { name: C.preview.save }));
+    await waitFor(() => expect(within(dialog()).getByTestId("docs-retry")).toHaveTextContent(C.retry.unknown));
+    const line = within(dialog()).getByTestId("docs-retry");
+    expect(line).toHaveFocus();
+    expect(dialog().textContent).not.toMatch(/nothing was saved/i);
+    expect(within(dialog()).queryByTestId("docs-retry-wait")).toBeNull();
+    await waitFor(() => expect(statusText()).toBe(C.retry.unknown), { timeout: 3000 });
+    await user.click(within(dialog()).getByRole("button", { name: C.retry.tryAgain }));
+    await waitFor(() => expect(within(dialog()).getByTestId("docs-success")).toHaveTextContent(C.success.created));
+    const [a, b] = confirms();
+    expect([b!.key, b!.body]).toEqual([a!.key, a!.body]);
+    expect(docsMock.docCount()).toBe(1);
+  });
+
+  const invalidState = () =>
+    HttpResponse.json({ type: "https://errors.tether.invalid/invalid_state", title: "state", status: 409, code: "invalid_state", traceId: "t" }, { status: 409 });
+
+  it("M3: a first 409 invalid_state reloads the preview with the changed-state line (focused, said once); nothing was saved", async () => {
+    server.use(http.post("*/api/v1/sessions/:id/docs-export", invalidState, { once: true }));
+    const { user } = await mount();
+    await openPreview(user);
+    await user.click(within(dialog()).getByRole("button", { name: C.preview.save }));
+    await waitFor(() => expect(within(dialog()).getByTestId("docs-changed-state")).toHaveTextContent(C.changedState));
+    expect(within(dialog()).getByTestId("docs-changed-state")).toHaveFocus();
+    expect(within(dialog()).queryByTestId("docs-permanent")).toBeNull();
+    expect(within(dialog()).queryByTestId("docs-stale")).toBeNull();
+    expect(within(dialog()).getByTestId("docs-preview")).toBeInTheDocument();
+    await waitFor(() => expect(statusText()).toBe(C.changedState), { timeout: 3000 });
+    expect(previews()).toHaveLength(2);
+    expect(docsMock.docCount()).toBe(0);
+    await user.click(within(dialog()).getByRole("button", { name: C.preview.save }));
+    await waitFor(() => expect(within(dialog()).getByTestId("docs-success")).toBeInTheDocument());
+    expect(confirms()[1]!.key).not.toBe(confirms()[0]!.key); // a new preview makes a new key (F04)
+    expect(docsMock.docCount()).toBe(1);
+  });
+
+  it("M3: a second 409 invalid_state in the same opening shows the permanent line; a new opening starts the count again", async () => {
+    server.use(http.post("*/api/v1/sessions/:id/docs-export", invalidState));
+    const { user } = await mount();
+    await openPreview(user);
+    await user.click(within(dialog()).getByRole("button", { name: C.preview.save }));
+    await waitFor(() => expect(within(dialog()).getByTestId("docs-changed-state")).toBeInTheDocument());
+    await user.click(within(dialog()).getByRole("button", { name: C.preview.save }));
+    await waitFor(() => expect(within(dialog()).getByTestId("docs-permanent")).toHaveTextContent(C.permanent));
+    expect(within(dialog()).getByTestId("docs-permanent")).toHaveFocus();
+    expect(previews()).toHaveLength(2);
+    await user.click(within(dialog()).getByRole("button", { name: C.preview.close }));
+    await openPreview(user);
+    await user.click(within(dialog()).getByRole("button", { name: C.preview.save }));
+    await waitFor(() => expect(within(dialog()).getByTestId("docs-changed-state")).toBeInTheDocument());
+    expect(confirms()).toHaveLength(3);
+  });
+
   it("F08 (1b): with an earlier Demo Doc and changed notes, Save stays disabled until a choice; no default; update and second doc", async () => {
     const { user } = await mount();
     await openPreview(user);

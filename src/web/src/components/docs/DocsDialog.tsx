@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
+import { inertOutside } from "@/lib/inertOutside";
 
 const FOCUSABLE = 'button, a[href], input:not([disabled]), [tabindex="0"]';
 
@@ -16,9 +17,9 @@ export interface DocsDialogProps {
 
 /**
  * The Save to a Demo Doc dialog shell. Same primitives and behaviour as the shared ConfirmDialog (.dialog-scrim, .dialog,
- * portalled to <body>, everything else `inert`, Tab stays inside, Escape closes) but not destructive: focus starts on the
- * dialog heading (F12), not on a button, and the caller returns focus to its opener. Not a live region; results are said
- * through the existing announcer.
+ * portalled to <body>, everything else `inert` except the announcer regions (inertOutside), Tab stays inside, Escape
+ * closes) but not destructive: focus starts on the dialog heading (F12), not on a button, and the caller returns focus to
+ * its opener. Not a live region; results are said through the existing announcer.
  */
 export function DocsDialog({ heading, headingRef, onClose, busy, children }: DocsDialogProps) {
   const id = useId();
@@ -29,15 +30,9 @@ export function DocsDialog({ heading, headingRef, onClose, busy, children }: Doc
 
   useEffect(() => {
     if (!mounted) return;
-    const overlay = overlayRef.current;
-    const made: Element[] = [];
-    for (const el of Array.from(document.body.children)) {
-      if (el === overlay || el.hasAttribute("inert")) continue;
-      el.setAttribute("inert", "");
-      made.push(el);
-    }
+    const undo = inertOutside(overlayRef.current); // the announcer regions stay reachable (S2)
     headingRef.current?.focus();
-    return () => made.forEach((el) => el.removeAttribute("inert"));
+    return undo;
   }, [mounted, headingRef]);
 
   if (!mounted) return null;

@@ -130,7 +130,7 @@ describe("Delete this lecture", () => {
     [409, P.conflict],
     [429, P.rate],
     [401, P.session],
-  ])("%i: the dialog stays open with one line in its description, said once, focus stays on the confirm button; a retry works", async (status, text) => {
+  ])("%i: the dialog stays open with one line in its description, said once, focus moves to that line (S3); a retry works", async (status, text) => {
     const del = vi.fn().mockRejectedValueOnce(new ApiError(status, "x", "server detail")).mockResolvedValueOnce(undefined);
     const d = deletion({ deleteSession: del });
     const m = await mountLecture({ ...stopped, route: { deletion: d.props } });
@@ -140,6 +140,13 @@ describe("Delete this lecture", () => {
     const dialog = await screen.findByRole("dialog");
     await waitFor(() => expect(dialog).toHaveAccessibleDescription(new RegExp(`${text.replace(/[.?]/g, "\\$&")}$`)));
     expect(within(dialog).queryByText(/server detail/)).toBeNull();
+    // UX review 7.3 (S3) amends delete-wording-draft 6.3: the problem line takes focus; Tab and Shift+Tab stay inside.
+    const line = within(dialog).getByText(text);
+    await waitFor(() => expect(line).toHaveFocus());
+    await userEvent.tab();
+    expect(within(dialog).getByRole("button", { name: C.keep })).toHaveFocus();
+    line.focus();
+    await userEvent.tab({ shift: true });
     expect(confirm).toHaveFocus();
     expect(confirm).toHaveTextContent(C.confirm);
     expect(m.statusLog).toEqual([text]);

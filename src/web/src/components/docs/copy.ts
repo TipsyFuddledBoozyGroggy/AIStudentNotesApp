@@ -5,8 +5,9 @@
 //
 // Two deliberate departures, both flagged for review:
 //  - retry.body: section 4 says "Nothing was saved and nothing was lost.", which the shared copy lint forbids ("nothing was
-//    lost" is listed as deficit framing, language guide 2/3.9). Derived: the "lost" clause is replaced by "Your notes are
-//    fine.", the phrase section 4 itself uses in the last-attempt and permanent lines.
+//    lost" is listed as deficit framing, language guide 2/3.9). It now follows the UX review
+//    (docs/ux/demo-doc-and-export-ux-review.md section 9, DRAFT, PO approval pending), which also adds retry.unknown and
+//    changedState; those three are pinned against that review, not section 4.
 //  - The three lines that say what a Demo Doc is NOT (entry.help, preview.where, page.banner) name Google only to say nothing
 //    goes there. They are kept word for word; whether to keep the negation is a question for the Lead and UX.
 
@@ -58,9 +59,19 @@ export const DOCS_COPY = {
     where: "This copy stays inside Tether. It is deleted when you delete this lecture.",
   },
   stale: "The notes changed while you were looking. Here is the new version. Nothing was saved yet.",
+  /**
+   * DRAFT, UX review (docs/ux/demo-doc-and-export-ux-review.md section 6, M3): the first 409 invalid_state on a confirm,
+   * where the lecture's Demo Doc moved (not the notes), above the reloaded preview.
+   */
+  changedState: "This lecture's Demo Doc changed while you were looking. Here is the current version. Nothing was saved yet.",
   retry: {
-    /** Derived (see the header): section 4's "nothing was lost" clause fails the copy lint. */
-    body: "That did not save. Nothing was saved and your notes are fine. You can try again.",
+    /**
+     * DRAFT, UX review section 3 (M1): only where the server guarantees nothing was written (a 200 failed record, a 429).
+     * Replaces the earlier derived line; section 4's "nothing was lost" clause fails the copy lint (see the header).
+     */
+    body: "That did not save. Nothing was saved, and your notes are not affected. You can try again.",
+    /** DRAFT, UX review section 3 (M1): no answer, a 5xx or an unreadable answer, where the save may have committed. */
+    unknown: "We did not get an answer, so we could not confirm whether it saved. Your notes are not affected. You can try again. It will not be saved twice.",
     wait: (n: number) => `Please wait about ${n} seconds, then try again.`,
     tryAgain: "Try again",
   },

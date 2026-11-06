@@ -50,6 +50,12 @@ function DemoDocBody({ api = defaultApi, timeZone }: DemoDocPageProps) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const deletedRef = useRef<HTMLHeadingElement>(null);
+  const problemRef = useRef<HTMLParagraphElement>(null);
+
+  // A delete problem line takes focus when it appears (UX review section 7.3, S3), as LectureDelete does.
+  useEffect(() => {
+    if (problem) problemRef.current?.focus();
+  }, [problem]);
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get("lecture");
@@ -172,7 +178,7 @@ function DemoDocBody({ api = defaultApi, timeZone }: DemoDocPageProps) {
       >
         <p>{C.deleteBody}</p>
         {problem ? (
-          <p data-delete-problem className="font-semibold text-ink">
+          <p ref={problemRef} tabIndex={-1} data-delete-problem className="font-semibold text-ink">
             {problem}
           </p>
         ) : null}

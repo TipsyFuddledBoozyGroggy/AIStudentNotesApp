@@ -1,10 +1,11 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { confirmBody, createDocsApi, newIdempotencyKey, type DocsApi } from "@/lib/docs";
+import { confirmBody, createDocsApi, DocsApiError, newIdempotencyKey, type DocsApi } from "@/lib/docs";
 import * as db from "@/mocks/db";
 import { resetDocsMock, seedDocsSession } from "@/mocks/docsDb";
 import { axeViolations } from "@/test/axe";
+import { DELETE_PROBLEM_COPY as P } from "../deleteCopy";
 import { DOCS_COPY } from "./copy";
 
 // DX-F16..F18a: the Demo Doc page renders title and blocks as text only, shows the practice-copy banner and lecture times,
@@ -123,6 +124,29 @@ describe("Demo Doc page", () => {
     expect(sent.filter((s) => s.startsWith("DELETE"))).toEqual([`DELETE http://localhost/api/v1/demo-docs/${params.docId}`]);
     await expect(api.getDemoDoc(params.docId)).rejects.toMatchObject({ status: 404 });
     await waitFor(() => expect(document.querySelector('[data-region="status"]')).toHaveTextContent(C.deleted));
+  });
+
+  it("S3: a delete problem keeps the dialog open, says the line once, moves focus to it, and a second press works", async () => {
+    const user = userEvent.setup();
+    params.docId = await makeDoc();
+    const real = api;
+    const deleteDemoDoc = vi.fn(real.deleteDemoDoc).mockRejectedValueOnce(new DocsApiError(429, "rate_limited", 30));
+    render(<DemoDocPage api={{ ...real, deleteDemoDoc }} />);
+    await waitFor(() => expect(screen.getByTestId("demo-doc")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: C.delete }));
+    const dialog = screen.getByRole("dialog", { name: C.deleteHeading });
+    await user.click(within(dialog).getByRole("button", { name: C.deleteConfirm }));
+    const line = await within(dialog).findByText(P.rate);
+    await waitFor(() => expect(line).toHaveFocus());
+    expect(dialog).toHaveAccessibleDescription(`${C.deleteBody} ${P.rate}`);
+    await waitFor(() => expect(document.querySelector('[data-region="status"]')).toHaveTextContent(P.rate));
+    // The status region stays outside the dialog's inert sweep (S2).
+    expect(document.querySelector('[data-region="status"]')!.closest("[inert]")).toBeNull();
+    await user.tab();
+    expect(within(dialog).getByRole("button", { name: C.keep })).toHaveFocus();
+    await user.click(within(dialog).getByRole("button", { name: C.deleteConfirm }));
+    await waitFor(() => expect(screen.getByTestId("demo-doc-deleted")).toHaveFocus());
+    expect(deleteDemoDoc).toHaveBeenCalledTimes(2);
   });
 });
 
