@@ -91,7 +91,7 @@ export function ConfirmDialog({ open, heading, children, confirmLabel, cancelLab
           <button ref={keepRef} type="button" className="btn-primary" onClick={cancel}>
             {cancelLabel}
           </button>
-          <button type="button" className="btn-secondary" aria-disabled={busy ? true : undefined} onClick={() => !busy && onConfirm()}>
+          <button type="button" className="btn-secondary" aria-disabled={busy ? true : undefined} aria-busy={busy ? true : undefined} onClick={() => !busy && onConfirm()}>
             {busy && busyLabel ? busyLabel : confirmLabel}
           </button>
         </div>

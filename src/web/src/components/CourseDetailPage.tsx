@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { api, ApiError, type Course } from "@/lib/api";
 import { useRequireUser } from "./AuthProvider";
+import { CourseDelete } from "./CourseDelete";
 import { CourseDetailView } from "./CourseDetailView";
+import { COURSE_DELETE_COPY as CD } from "./deleteCopy";
+import { markDeleted, takeDeleted, type DeletedMarker } from "./deleteFlow";
+import { AnnouncerProvider, useAnnouncer } from "./lecture/Announcer";
 
 type State = { s: "loading" } | { s: "notfound" } | { s: "error" } | { s: "ready"; course: Course };
 
@@ -51,5 +55,47 @@ export function CourseDetailPage() {
       </div>
     );
   }
-  return <CourseDetailView course={state.course} justAdded={justAdded} />;
+  // The existing announcer (two regions, Announcer.tsx) says the after-delete line once; no new live region.
+  return (
+    <AnnouncerProvider>
+      <CourseReady course={state.course} justAdded={justAdded} />
+    </AnnouncerProvider>
+  );
+}
+
+function CourseReady({ course, justAdded }: { course: Course; justAdded: boolean }) {
+  const router = useRouter();
+  const announcer = useAnnouncer();
+  // One-shot marker from the lecture page's delete, read and removed on the first mount; the ref keeps the answer across
+  // StrictMode's simulated remount (whose second read would find nothing), as the PO-19 arrival marker does.
+  const taken = useRef<{ id: string; m: DeletedMarker | null } | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (taken.current?.id !== course.id) {
+      taken.current = { id: course.id, m: takeDeleted({ kind: "lecture", courseId: course.id }) };
+      if (taken.current.m) announcer.status(taken.current.m.announce);
+    }
+    setNote(taken.current.m?.note ?? null);
+  }, [course.id, announcer]);
+
+  return (
+    <CourseDetailView
+      course={course}
+      justAdded={justAdded}
+      deletedNote={note}
+      onDismissDeleted={() => {
+        setNote(null);
+        if (taken.current) taken.current.m = null;
+      }}
+      deleteSection={
+        <CourseDelete
+          courseId={course.id}
+          onDeleted={(outcome) => {
+            markDeleted({ kind: "course", note: outcome === "gone" ? CD.gone : CD.doneNote(course.name), announce: outcome === "gone" ? CD.gone : CD.done });
+            router.push("/");
+          }}
+        />
+      }
+    />
+  );
 }

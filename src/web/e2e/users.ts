@@ -28,6 +28,8 @@ export const USERS = {
   reopen: `e2e-reopen-${id}@dev.local`,
   // PO-19 move after Stop: its own user, because "Don't show this again" is a per-user preference the spec turns on and off.
   stopmove: `e2e-stopmove-${id}@dev.local`,
+  // PO-20by delete a lecture / delete a course: its own user, so the courses it deletes are never another spec's.
+  deleter: `e2e-delete-${id}@dev.local`,
 } as const;
 export const authFile = (email: string) => path.join(AUTH_DIR, `${email}.json`);
 export const stateFor = (k: keyof typeof USERS) => authFile(USERS[k]);

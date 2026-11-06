@@ -5,6 +5,7 @@ import type { LectureState } from "@/lib/lecture";
 import { useAnnouncer } from "./Announcer";
 import { ANNOUNCE, OFFLINE_COPY, TRANSCRIPT_COPY as T } from "./copy";
 import { formatMs } from "./format";
+import { LectureDelete, type LectureDeletion } from "./LectureDelete";
 import type { MicSource, MicTrack } from "./micSource";
 import {
   AudioSkippedNote,
@@ -56,6 +57,11 @@ export interface LectureScreenProps {
   userId?: string | null;
   /** PO-19: this page was opened by the move (one-shot marker): focus the Stopped heading and say so once. */
   arrivedFromStop?: boolean;
+  /**
+   * PO-20by, the lecture's own page only: "Delete this lecture" in the review toolbar. Shown only while the server says
+   * Stopped or Failed (never Active or Paused), with no fatal state, and not in focus mode. Absent: no delete control.
+   */
+  deletion?: LectureDeletion;
 }
 
 /** A Stopped reason the student's own Stop produces (system reasons never open the move notice). */
@@ -349,6 +355,11 @@ export function LectureScreen(props: LectureScreenProps) {
               <p id="export-reason" className="help max-w-prose sm:col-span-2">
                 Not built yet. Nothing is sent anywhere. When it exists it will ask you first.
               </p>
+              {props.deletion && !focus && s.fatal === null && (serverState === "Stopped" || serverState === "Failed") ? (
+                <div className="sm:col-span-2">
+                  <LectureDelete {...props.deletion} />
+                </div>
+              ) : null}
             </section>
           ) : null}
           {/* Desktop: the open recap is a sheet above the transcript, in the student's reading column (5.2). */}

@@ -33,7 +33,7 @@ export async function mountLecture(
     track?: "live" | "ended" | "stubborn" | "none";
     settings?: Parameters<typeof LectureScreen>[0]["settingsOverride"];
     /** PO-19 props (live route: onOpenPage / openPageHref / userId; reopen page: arrivedFromStop). Absent: as before. */
-    route?: Pick<LectureScreenProps, "onOpenPage" | "openPageHref" | "userId" | "arrivedFromStop">;
+    route?: Pick<LectureScreenProps, "onOpenPage" | "openPageHref" | "userId" | "arrivedFromStop" | "deletion">;
   } = {},
 ): Promise<Mounted> {
   const { track: trackMode = "live", settings, route, ...rt } = o;

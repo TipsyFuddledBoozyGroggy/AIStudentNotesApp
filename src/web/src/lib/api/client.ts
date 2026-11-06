@@ -1,6 +1,6 @@
 import { notesRequestBody } from "@/lib/lecture/aiPayloads";
 import { ApiError } from "./errors";
-import type { AudioTicket, Course, CourseList, CreateCourseInput, CreateSessionInput, LectureSessionDto, ProblemDetails, UserProfile } from "./types";
+import type { AudioTicket, Course, CourseList, CreateCourseInput, CreateSessionInput, LectureSessionDto, ProblemDetails, SessionList, UserProfile } from "./types";
 
 /**
  * The only module that knows how to talk HTTP to the backend. UI code depends on
@@ -15,12 +15,21 @@ export interface ApiClient {
   listCourses(): Promise<CourseList>;
   createCourse(input: CreateCourseInput): Promise<Course>;
   getCourse(id: string): Promise<Course>;
+  /**
+   * Deletes the course and everything in it (`DELETE /courses/{id}?purge=true`; the plain form only hides the course and is
+   * not offered, PO-20by). The server stops a live lecture first. 204; 404 gone or not yours; 409 lost a race (nothing deleted).
+   */
+  deleteCourse(id: string): Promise<void>;
+  /** Every lecture of a course, all states, following `nextCursor` (server maximum 100 a page). 404 when not yours. */
+  listSessions(courseId: string): Promise<LectureSessionDto[]>;
   createSession(input: CreateSessionInput): Promise<LectureSessionDto>;
   getSession(id: string): Promise<LectureSessionDto>;
   /** Pause and stop are never refused by the server. Resume can be 429 `rate_limited`. */
   pauseSession(id: string): Promise<LectureSessionDto>;
   resumeSession(id: string): Promise<LectureSessionDto>;
   stopSession(id: string): Promise<LectureSessionDto>;
+  /** C-21 `DELETE /sessions/{id}`: stops a live lecture first, then deletes it. 204; 404 gone; 409 lost a race (nothing deleted). */
+  deleteSession(id: string): Promise<void>;
   createAudioTicket(id: string): Promise<AudioTicket>;
   /** Raw page; the caller validates it. */
   getTranscriptPage(id: string, afterSeq: string | null, limit: number): Promise<unknown>;
@@ -106,6 +115,22 @@ export function createApiClient({ baseUrl, fetchImpl }: ApiClientOptions): ApiCl
     async getCourse(id) {
       return (await request(`/courses/${encodeURIComponent(id)}`)).json() as Promise<Course>;
     },
+    async deleteCourse(id) {
+      await request(`/courses/${encodeURIComponent(id)}?purge=true`, { method: "DELETE" });
+    },
+    async listSessions(courseId) {
+      const out: LectureSessionDto[] = [];
+      let cursor: string | null = null;
+      // 50 pages of 100 is far beyond one course; the bound only guards against a cursor that never ends.
+      for (let i = 0; i < 50; i++) {
+        const q = new URLSearchParams({ limit: "100", ...(cursor ? { cursor } : {}) });
+        const page = (await (await request(`/courses/${encodeURIComponent(courseId)}/sessions?${q}`)).json()) as SessionList;
+        out.push(...page.items);
+        cursor = page.nextCursor;
+        if (!cursor) break;
+      }
+      return out;
+    },
     async createSession(input) {
       const body = { consent: input.consent, ...(input.title ? { title: input.title } : {}) };
       const res = await request(`/courses/${encodeURIComponent(input.courseId)}/sessions`, {
@@ -126,6 +151,9 @@ export function createApiClient({ baseUrl, fetchImpl }: ApiClientOptions): ApiCl
     },
     async stopSession(id) {
       return (await request(`/sessions/${encodeURIComponent(id)}/stop`, { method: "POST" })).json() as Promise<LectureSessionDto>;
+    },
+    async deleteSession(id) {
+      await request(`/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
     },
     async createAudioTicket(id) {
       return (await request(`/sessions/${encodeURIComponent(id)}/audio-ticket`, { method: "POST" })).json() as Promise<AudioTicket>;

@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, type LectureSessionDto } from "@/lib/api";
 import { useRequireUser } from "../AuthProvider";
+import { LECTURE_DELETE_COPY as LD } from "../deleteCopy";
+import { markDeleted } from "../deleteFlow";
 import { AnnouncerProvider } from "./Announcer";
 import { LectureScreen } from "./LectureScreen";
 import { BrowserMicSource } from "./micSource";
@@ -76,6 +78,15 @@ export function LectureReopenPage() {
         courseName={session.title ?? undefined}
         arrivedFromStop={arrivedFromStop}
         onBackToCourse={() => router.push(`/courses/${encodeURIComponent(session.courseId)}`)}
+        deletion={{
+          sessionId: session.id,
+          onDeleted: (outcome) => {
+            // Never before the server answered (draft 6.2): the course page shows the note, says it once and focuses its h1.
+            const note = outcome === "gone" ? LD.gone : session.title ? LD.doneNote(session.title) : LD.done;
+            markDeleted({ kind: "lecture", courseId: session.courseId, note, announce: outcome === "gone" ? LD.gone : LD.done });
+            router.push(`/courses/${encodeURIComponent(session.courseId)}`);
+          },
+        }}
       />
     </AnnouncerProvider>
   );

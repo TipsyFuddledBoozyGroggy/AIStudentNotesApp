@@ -1,13 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import type { Course } from "@/lib/api";
+import { DELETE_PROBLEM_COPY } from "./deleteCopy";
 import { SyllabusCard } from "./syllabus/SyllabusCard";
 
 interface Props {
   course: Course;
   justAdded?: boolean;
+  /** After a lecture of this course was deleted (draft 6.2): one note under the heading, dismissable, no timer. */
+  deletedNote?: string | null;
+  onDismissDeleted?: () => void;
+  /** "Delete this course" (CourseDelete), under the syllabus. The page supplies it; absent in isolated view tests. */
+  deleteSection?: ReactNode;
 }
 
 /**
@@ -16,7 +22,7 @@ interface Props {
  * ledger row). The lecture entry is a plain link: nothing starts, and no microphone is touched, until the consent
  * screen's Start button.
  */
-export function CourseDetailView({ course, justAdded }: Props) {
+export function CourseDetailView({ course, justAdded, deletedNote, onDismissDeleted, deleteSection }: Props) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     headingRef.current?.focus(); // success flow: focus moves to the course heading
@@ -42,6 +48,21 @@ export function CourseDetailView({ course, justAdded }: Props) {
             {course.name} added.
           </p>
         )}
+        {deletedNote ? (
+          <div data-deleted-note className="note note-neutral mt-3 flex max-w-prose flex-wrap items-center justify-between gap-x-4">
+            <p className="min-w-0">{deletedNote}</p>
+            <button
+              type="button"
+              className="btn-tertiary optical-end"
+              onClick={() => {
+                onDismissDeleted?.();
+                headingRef.current?.focus(); // the button goes with the note; focus must not fall to <body>
+              }}
+            >
+              {DELETE_PROBLEM_COPY.dismiss}
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <section aria-labelledby="lecture-heading" className="desk-section mt-12">
@@ -57,6 +78,8 @@ export function CourseDetailView({ course, justAdded }: Props) {
       </section>
 
       <SyllabusCard courseId={course.id} className="mt-12" />
+
+      {deleteSection}
 
       <Link href="/" className="btn-tertiary optical-start mt-12">
         Back to dashboard

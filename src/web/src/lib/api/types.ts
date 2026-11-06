@@ -62,6 +62,12 @@ export interface LectureSessionDto {
   demoSource?: boolean;
 }
 
+/** `GET /courses/{id}/sessions` (SessionListResponse). */
+export interface SessionList {
+  items: LectureSessionDto[];
+  nextCursor: string | null;
+}
+
 export interface CreateSessionInput {
   courseId: string;
   title?: string;

@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type { Course } from "@/lib/api";
 import { chooseNextStep, explainNextStep, MAX_DASHBOARD_COURSES, sortByRecentUse } from "@/lib/nextStep";
 import { CourseCard } from "./CourseCard";
+import { DELETE_PROBLEM_COPY } from "./deleteCopy";
 import { Chevron, Disclosure } from "./ui/Disclosure";
 
 export type DashboardState =
@@ -16,6 +17,9 @@ interface Props {
   state: DashboardState;
   displayName?: string;
   onRetry: () => void;
+  /** After a course was deleted (draft 6.2): one note under the greeting, dismissable, no timer; focus goes to the h1. */
+  deletedNote?: string | null;
+  onDismissDeleted?: () => void;
 }
 
 function todayLabel(): string {
@@ -80,11 +84,13 @@ function HowItWorks({ hasLecture }: { hasLecture: boolean }) {
 }
 
 /** The date hangs in the margin beside the greeting from 1024 and sits above it below (redesign-round2 5.3). */
-function Greeting({ children }: { children: string }) {
+function Greeting({ children, headingRef }: { children: string; headingRef?: RefObject<HTMLHeadingElement | null> }) {
   return (
     <div className="desk-section">
       <p className="label desk-label">{todayLabel()}</p>
-      <h1 className="desk-body display text-display break-words">{children}</h1>
+      <h1 ref={headingRef} tabIndex={headingRef ? -1 : undefined} className="desk-body display text-display break-words">
+        {children}
+      </h1>
     </div>
   );
 }
@@ -95,7 +101,14 @@ function Greeting({ children }: { children: string }) {
  * whole-row links; "How a lecture works" is a closed-after-first-lecture disclosure under the list. Data fetching lives
  * in the page container.
  */
-export function DashboardView({ state, displayName, onRetry }: Props) {
+export function DashboardView({ state, displayName, onRetry, deletedNote, onDismissDeleted }: Props) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const ready = state.status === "ready";
+  const hasNote = !!deletedNote;
+  useEffect(() => {
+    if (ready && hasNote) headingRef.current?.focus(); // after a course delete: focus moves to the dashboard h1
+  }, [ready, hasNote]);
+
   if (state.status === "loading") {
     return (
       <div>
@@ -128,7 +141,24 @@ export function DashboardView({ state, displayName, onRetry }: Props) {
 
   return (
     <div>
-      <Greeting>{displayName ? `Hi, ${displayName}.` : "Welcome."}</Greeting>
+      <Greeting headingRef={headingRef}>{displayName ? `Hi, ${displayName}.` : "Welcome."}</Greeting>
+      {deletedNote ? (
+        <div className="desk-section mt-6">
+          <div data-deleted-note className="desk-body note note-neutral flex max-w-prose flex-wrap items-center justify-between gap-x-4">
+            <p className="min-w-0">{deletedNote}</p>
+            <button
+              type="button"
+              className="btn-tertiary optical-end"
+              onClick={() => {
+                onDismissDeleted?.();
+                headingRef.current?.focus(); // the button goes with the note; focus must not fall to <body>
+              }}
+            >
+              {DELETE_PROBLEM_COPY.dismiss}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <section aria-labelledby="next-step-heading" className="desk-section mt-12">
         <h2 id="next-step-heading" className="label desk-label">
