@@ -2,6 +2,8 @@
 
 Reviewer: security-engineer. Date: 2026-11-05 (system date; the reviewed documents are dated 2026-11-06, so the machine clock and the authors' dates disagree by a day). HEAD `ddc1c53`, working tree clean before this review. Register rows: **DXD-01..DXD-13** in `docs/security/findings-register.md` (Part II, "Demo Doc export design review"). Severity vocabulary per `docs/security/severity-policy.md`; ratings calibrated to the personal, one-user, mock-only scope (PO-15/16, PO-20cb, PO-20cc). This review clears no gate.
 
+**Re-review 2026-11-05 (commit f7aa2ef): see section 6.** DXD-01..DXD-13 are FIXED-CONTRACT-ONLY. There are four new LOW rows (DXD-14..DXD-17). Backend implementation may start.
+
 ## 0. What I read and what I ran
 
 **READ:** `docs/architecture/docs-export-demo-adr.md`, `docs/API_CONTRACTS_DOCS_EXPORT.md`, `docs/product/docs-export-tasks.md`, all 8 schemas and the fixture list in `src/shared/contracts/docs.export.v1/` (fixture text sampled); `CLAUDE.md` invariants; `docs/agents/project-playbook.md`; `docs/DECISIONS.md` ADR-020..020d, PO-20aw, PO-20by, PO-20ca, PO-20cb, PO-20cc; legal row L-14; `RootSecret.cs` (DerivedKeys labels), `SeparateRateBucket.cs`, `OwnershipSaveChangesInterceptor.cs`, `Tether.Host/Program.cs` (limiter chain lines 79-130, header middleware 157-175), `SyllabusModule.cs` (startup guards), Syllabus idempotency and digest code (`SyllabusService.cs`, `Support.cs`, `ItemService.cs` by grep), `Lectures.Contracts/SessionPorts.cs`, `SessionCutoff.cs` header, `AiScope.cs`, `ModuleBoundaryTests.cs` allow-lists (grep), `PersistenceTests.cs` cross-schema FK pin (grep), lecture.v1 `notes.schema.json` (`truncated`), web `notesExport.ts` (truncated line, grep).
@@ -51,3 +53,47 @@ ADR section 9 says the evaluation order, idempotency, retry rules and audit are 
 - Q-C: Which shared environment set do fault guards use, `Development|Test` or `Development|Test|Testing`? The same sweep touches Ai and Transcript, which are outside this item. (DXD-07)
 
 No question for the PO arises from this review: a real provider already needs its own PO go (tasks P2).
+
+## 6. Re-review of design rev 2 (commit f7aa2ef, 2026-11-05)
+
+**READ:** the revised `docs/API_CONTRACTS_DOCS_EXPORT.md`, `docs/architecture/docs-export-demo-adr.md`, `docs/product/docs-export-tasks.md`, all 8 schemas, the fixture list, the `docs/API_CONTRACTS.md` row change, and the diff `ddc1c53..f7aa2ef`. I also re-read `SyllabusService.cs:257-275` and grepped the Ai and Transcript callers of `ISessionDirectory`. **RAN:** ajv 2020 (`src/web/node_modules/ajv`, strict off, `date-time` not checked) in a scratch script outside the repo: 20 valid and 42 invalid fixtures, all as expected. Three probes: an `update` with `expectedExistingDocId: null` is rejected; a `dxp_` id in that field is accepted (nit); an `external` docRef with `provider: demo_docs` is accepted, so the client-side rejection is the guard. Also RAN: the register's section 6 count recipe. **Not run:** any build, .NET test or app.
+
+### 6.1 Disposition of DXD-01..DXD-13
+
+All 13 rows are **FIXED-CONTRACT-ONLY**. The defect is closed in the text, but nothing is built, so each stays unresolved until the task tests it names exist and pass. Per-row evidence is in the register.
+
+| Row | Where it is fixed | Tests that will close it |
+|---|---|---|
+| DXD-01 | contract 4.3, ADR 2 item 4a and 5 (single transaction; session `FOR KEY SHARE` port, then advisory lock, then docs rows; 23503/23505 mapping; deadlock retry) | B23, B23a, B24, B25c, B25d |
+| DXD-02 | ADR 9 "Correction of the first draft" | a real provider's own tests and a security re-review (separate PO go) |
+| DXD-03 | contract 3, 4.1, 6 (`docs-read`/`docs-write` buckets, body deadline) | B43 (cap residual: DXD-16) |
+| DXD-04 | contract 4.1 step 5/7, 4.4 | B15, B19, B23, B25a, B25b, B27 (residual: DXD-15) |
+| DXD-05 | `expectedExistingDocId` in the schema and contract 4.3 | B20a, B22, F03 |
+| DXD-06 | `docs-common#/$defs/contentDigest`, ADR 7 | B09, B09b |
+| DXD-07 | contract 4.8, ADR 7 | B32, B32a, B32b |
+| DXD-08 | ADR 4 (pinned surfaces, user-bound reader, additive `SessionInfo`) | B01, B02a (side effect: DXD-17) |
+| DXD-09 | ADR 5 "Persistence rules" | B03, B03a, B05a (conflict: DXD-14) |
+| DXD-10 | contract 4.7 | B04, B05, B05b, B35 |
+| DXD-11 | `label` const, contract 7, F1 | F01, F04a, F16-F18 |
+| DXD-12 | contract 2 and 4.1, `$defs/sessionId` | B11, B12a, B39 |
+| DXD-13 | `notesTruncated`, contract 4.2 | B09a, F18a |
+
+### 6.2 New findings (all LOW, OPEN)
+
+- **DXD-14:** the fixed docs-row order (`idempotency_keys` before `doc_exports`) conflicts with the new FK `(export_id, user_id)` from `idempotency_keys` to `doc_exports`. The blanket rule "23503 -> 404" would show the failure as a calm 404. Fix: put `doc_exports` first, or make the FK deferrable, and map to 404 only a 23503 from the named session FKs.
+- **DXD-15:** "23505 on the key -> replay of the winner" skips the fingerprint check. The key scope does not include the session and the advisory lock is per lecture, so one key sent for two lectures at the same time would replay the other lecture's record. Fix: compare fingerprints (equal: replay; different: 400), as Syllabus does.
+- **DXD-16:** the 200-document cap is said to be race-free "under the same advisory lock", but that lock is per (user, session). Fix: add a per-user lock, in a fixed position after the session lock, or use a per-user counter row.
+- **DXD-17:** the additive `SessionInfo.Title` also reaches the Ai module (`AiGateway`, `NotesService`, `CatchUpService`, `SummaryEngine` all call `ISessionDirectory`). Fix: a narrow Docs-only port, or a test that Ai never reads `Title`.
+
+### 6.3 Checked and acceptable
+
+The demo now has no pending state, reaper or `export_in_progress`, and the reserved code stays in the schema. Faults are injected inside a savepoint. NAS-01 is replaced by the session lock re-check. Ai and Transcript keep their own fault-guard environment sets (Lead decision Q-C): this is a repo-wide inconsistency outside the item, not a Docs defect. Leftover `create_another` documents can be deleted but are not listed (accepted nice-to-have). One nit, not a finding: `expectedExistingDocId` uses the generic id pattern rather than a `ddc_` pattern.
+
+### 6.4 Can backend implementation start?
+
+**Yes.** There are 0 CRITICAL and 0 HIGH findings, and the eleven must-fix items from section 2 are in the contract and task text. DXD-01 and DXD-02 are MEDIUM and FIXED-CONTRACT-ONLY, so they block production, not local work. Before backend writes the migration and the write path:
+
+1. Fold the four new LOW text fixes into the contract and tasks: DXD-14 row order and narrow 23503 mapping, DXD-15 fingerprint on 23505, DXD-16 per-user cap lock, DXD-17 title port or test.
+2. Or, if the Lead prefers not to revise the text again, treat them as backend acceptance requirements.
+
+DXD-14 matters most: if it is followed literally, every first confirm fails. I re-review the built routes, tests and log canary when the backend reports; FIXED-VERIFIED needs those tests to have been read and, where possible, run.
