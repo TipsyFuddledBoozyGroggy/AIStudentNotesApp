@@ -2,6 +2,8 @@
 
 Reviewer: security-engineer. Date: 2026-11-05 (system date; the reviewed documents are dated 2026-11-06, so the machine clock and the authors' dates disagree by a day). HEAD `ddc1c53`, working tree clean before this review. Register rows: **DXD-01..DXD-13** in `docs/security/findings-register.md` (Part II, "Demo Doc export design review"). Severity vocabulary per `docs/security/severity-policy.md`; ratings calibrated to the personal, one-user, mock-only scope (PO-15/16, PO-20cb, PO-20cc). This review clears no gate.
 
+**Built-code review 2026-11-05 (HEAD 2100828): see section 7.** DXD-01 and DXD-03..DXD-17 are FIXED-VERIFIED (tests read and run), DXD-02 stays FIXED-CONTRACT-ONLY, two new LOW rows DXB-01 and DXB-02; nothing blocks a push.
+
 **Re-review 2026-11-05 (commit f7aa2ef): see section 6.** DXD-01..DXD-13 are FIXED-CONTRACT-ONLY. There are four new LOW rows (DXD-14..DXD-17). Backend implementation may start.
 
 ## 0. What I read and what I ran
@@ -97,3 +99,60 @@ The demo now has no pending state, reaper or `export_in_progress`, and the reser
 2. Or, if the Lead prefers not to revise the text again, treat them as backend acceptance requirements.
 
 DXD-14 matters most: if it is followed literally, every first confirm fails. I re-review the built routes, tests and log canary when the backend reports; FIXED-VERIFIED needs those tests to have been read and, where possible, run.
+
+## 7. Review of built code (HEAD 2100828, 2026-11-05)
+
+Commits reviewed: 4121bd2 (backend), 6e473b6 (contract rev 4, backend aligned), 2100828 (frontend). Working tree clean and equal to local `origin/main` before the review (I did not fetch). Ratings calibrated to the personal, mock-only scope (PO-15/16, PO-20cb, PO-20cc). This clears no gate.
+
+### 7.1 What I read and what I ran
+
+**READ:** `src/api/src/Modules/Docs/**` (endpoints, export service, demo provider, document builder and digest, support, wire, problems, module guards, DbContext, D001), `Lectures/Application/DocsSessionSource.cs` and the `IDocsSessionSource` port, `Ai/Notes/NotesSnapshotReader.cs` and `Ai.Contracts/NotesSnapshot.cs`, `RootSecret.cs` (HKDF labels), `WireId.cs`, `Tether.Host/Program.cs` (module wiring), `docker-compose*.yml`, `.github/workflows/ci.yml` and `appsettings*.json` (by grep for environment and fault keys), tests `DocsBoundaryTests`, `ModuleBoundaryTests` (Docs lines), `ModuleGuardTests`, `DocsExportAuthTests`, `DocsExportPrivacyTests`, `DocsExportLockTests` (lines 1-250 in full, the rest by test name), `DocsExportPersistenceTests` (B05b), web `lib/docs/client.ts`, `parse.ts` (id and docRef rules), `components/docs/DemoDocPage.tsx`, `DocBlocks.tsx`, `DocsExport.tsx` (send, retry and key handling), `format.ts`, `lecture/notesExport.ts`, `notesExport.test.ts` (hostile-text case), `lib/download.ts`, `deleteFlow.ts`, `lib/lecture/plainText.ts`, `app/demo-docs/[docId]/page.tsx`.
+
+**RAN** (SDK container `mcr.microsoft.com/dotnet/sdk:10.0`; dev API container left running, `:5080/health/live` 200 before and after):
+- `dotnet test tests/Tether.DocsTests`: Passed 74, Failed 0.
+- `dotnet test tests/Tether.ArchitectureTests`: Passed 38, Failed 0.
+- `dotnet test tests/Tether.ContractTests --filter FullyQualifiedName~Docs`: Passed 76, Failed 0.
+- `dotnet test tests/Tether.IntegrationTests --filter FullyQualifiedName~DocsExport` (network `aistudentnotesapp_default`, dev Postgres): Passed 63, Failed 0, 21 s. This includes the log canary B40/B41, the AI isolation test B42, the rate-bucket tests B43, the lock-order and race tests B23-B25g and B32b, and the IDOR tests B36-B39.
+- `npx vitest run src/lib/docs src/components/docs src/components/lecture/notesExport.test.ts src/components/lecture/NotesExport.test.tsx src/components/deleteFlow.test.ts`: 8 files, 217 passed.
+- `git log` and `git diff 441596f~1..HEAD` scanned for user folders, personal names, e-mail addresses and key prefixes: no hit; all five commits are by the GitHub noreply address; no image files in those commits.
+- The register's section 6 per-status count recipe before the edit (matched section 5) and after it.
+
+**Not run:** the full .NET and web suites, `tsc`, `eslint`, Playwright (including `e2e/docs-export.spec.ts`), any Markdown renderer, and any reproduction of DXB-02. I wrote no test and changed no app code.
+
+### 7.2 Result
+
+0 CRITICAL, 0 HIGH, 0 new MEDIUM, 2 new LOW (DXB-01, DXB-02). **Nothing blocks a push.** DXD-01 (MEDIUM) and DXD-03..DXD-17 (LOW) are FIXED-VERIFIED. DXD-02 (MEDIUM) stays FIXED-CONTRACT-ONLY: it is the precondition list for a real Google provider, which does not exist.
+
+### 7.3 Checks against the contract
+
+| Check | Verdict | Evidence |
+|---|---|---|
+| Authorization and IDOR, all 5 routes | OK | Ownership through the ambient user only: `DocsSessionSource` (EF query filter, and `user_id = @u` in the locking SQL), `NotesSnapshotReader` (filter plus owner check), query filters on all five docs entities, `user_id` in every raw SQL statement (B05a scan). Foreign and missing ids give identical 404 bodies on every route, with any body, content type or digest (B36). Bob reusing Alice's key or doc id gets his own answers (B36 second test). 401 on all five unauthenticated (B38). |
+| Origin and CSRF | OK | Group filter: exactly one `Origin`, ordinal match, on every non-GET (B37: none, foreign and `null` give 403). |
+| Idempotency, fingerprint, replay | OK | Key syntax checked first; lookup under the locks; HMAC fingerprint over method, session path and canonical body, `FixedTimeEquals` against the ring; replay only of a succeeded record, with `Idempotency-Replayed: true`; a failed record retries with re-run checks up to 5 attempts; a 4xx stores nothing; concurrent same key gives identical bodies (B13-B15, B19-B20a, B23, B25a/b, B26-B28). |
+| Lock order, 23503 and 23505 | OK | Session FOR KEY SHARE, then the (user, session) and user advisory locks, then rows exports, keys, document, target, audit; only the three named session FKs map 23503 to 404; 23505 on the key repeats the attempt and the repeat compares fingerprints (B25d, B25e, B25f, B25g; deadlock counter unchanged). Account erasure is not covered: DXB-02. |
+| Digest | OK | HKDF label `docs-content-digest.v1`, input `label LF sessionId LF canonical JSON`, golden string and digest pinned, constant-time compare with a length check (B09, B09b). |
+| Rate buckets and body limits | OK | `docs-read` 60/min and `docs-write` 10/min on all five routes, never the shared `w:` bucket; 2 KB cap counted while reading; 10 s read deadline; 415 and 413 do not leak for a foreign session (B43). Kestrel `MinDataRate` not exercised under TestServer (Info DXB-I2). |
+| Fault header impossible outside Development and Test | OK | `DocsModule.cs:31-33` refuses any `Docs:Demo:Faults:*` child outside those two (B32: Production, Staging, Testing, `production`, QA); the header is read only when the flag is on (B32a). The flag is set only in `docker-compose.dev.yml:44` and `ci.yml:385`, both with `ASPNETCORE_ENVIRONMENT: Development`; the base compose and appsettings set none. In the dev stack any signed-in same-origin client can send the header (dev only, accepted). |
+| No token, no HttpClient, AI isolation | OK | Docs references only SharedKernel, Lectures.Contracts, Ai.Contracts and Docs.Contracts; no HTTP, Google, Anthropic or Azure assembly; no token-like member; Ai references no Docs; the snapshot has no segment, transcript, prompt, model or client field; preview and confirm make no AI call and spend no budget (B01, B02a, B02b, B42). |
+| Log canary | OK | B40/B41 RAN with every category at Trace and Npgsql row detail on: title, bullet, digest and the fake bearer and query tokens never reach a log record across 400, 404, 412, 413, 415, provider failure, success, replay, state, read, foreign read and delete, and delete. The audit table has only the content-free columns. A source scan forbids content in Docs log calls. |
+| XSS on the Demo Doc page | OK | Title and every block are `PlainText` React text nodes; no raw-HTML API, no Markdown, no link built from content; the `[docId]` param is pattern-checked before any request; the `?lecture=` link is used only when it is a canonical session id; the client refuses the `external` docRef and any `openPath` other than `/demo-docs/<its docId>`. Server text policy strips Cf (bidi), controls, tags and private use. The missing web CSP stays M2C-29. |
+| Exported `.md` | LOW gap | Escaping covers emphasis, code, links, images, raw HTML, tables, headings, entities and list markers, but bare URLs, `www.` hosts and e-mail addresses are auto-linked by GFM viewers: DXB-01. |
+| File name | OK | `notesFileName` strips path separators, reserved characters, controls, bidi and zero-width characters, leading and trailing dots and spaces, caps at 80 code points, avoids device names and always ends in ` notes[ YYYY-MM-DD].md`; no course name or id. |
+| SQL `user_id` | OK | B05a source scan RAN; I re-read each raw statement in `DocsExportService` and `DemoDocsProvider`. |
+| Deletion cascade | OK | Lecture delete and course purge remove exports, targets, Demo Docs and keys (keys through the composite FK to exports) and keep the content-free audit; `delete from identity.users` removes everything including the audit; student delete removes the document and clears the pointer (B03a, B04, B05, B05b, B35). Audit retention after a lecture delete is still the open PO-20ca/L-14 question. The web delete flow probes once after a lost answer and never claims a delete it cannot see. |
+
+### 7.4 New findings
+
+- **LOW DXB-01**: the Markdown export leaves bare URLs, `www.` hosts and e-mail addresses to GFM auto-linking; the doc comment ('can not open a link') overclaims, and the hostile-text test expects `http://e/x.png` to pass through. Fix: break autolink literals and test with a real GFM renderer. Owner frontend-engineer.
+- **LOW DXB-02**: account erasure versus a running confirm or student delete. The writer holds the session row, then takes the user row last (audit FK); a cascade from `identity.users` takes them the other way round, so PostgreSQL aborts one side. The Docs side retries correctly; the future erasure caller (NEW-01) must repeat on 40P01/40001 and get a race test. Reasoned from the code, not reproduced. Owners backend-engineer, database-architect.
+
+### 7.5 Observations (Info, not findings; review only)
+
+- DXB-I1: confirm reads the notes snapshot before it takes the session lock (on purpose: no connection is held while waiting for another). A notes press that finishes in between makes the confirm write the press the student previewed rather than the newest one. The digest still binds what was reviewed; same user; no security effect.
+- DXB-I2: the Kestrel data-rate floor is set but not exercised (TestServer); the 10 s read deadline is tested.
+- DXB-I3: `DELETE /demo-docs/{id}` leaves `doc_exports.doc_id` pointing at the removed document; a later read is a calm 404. Expected for history.
+
+### 7.6 Must-fix and push
+
+Nothing must be fixed before a push (no CRITICAL or HIGH). Before production: DXD-02 (real-provider preconditions) and the pre-existing M2C-29 (web CSP). Recommended next, both LOW: DXB-01 (small, frontend) and DXB-02 (with the NEW-01 erasure work).
