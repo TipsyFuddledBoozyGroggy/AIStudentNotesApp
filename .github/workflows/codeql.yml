@@ -42,14 +42,14 @@ jobs:
           - language: javascript-typescript
             build-mode: none
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25  # v4.1.0
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73  # v6.1.0
         if: matrix.language == 'csharp'
         with:
           global-json-file: src/api/global.json   # 10.0.403, rollForward latestFeature
-      - uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d  # v4.38.3 (commit SHA resolved via gh api 2026-11-01, tag dated 2026-10-08)
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066  # v4.38.3 (commit SHA resolved via gh api 2026-11-01, tag dated 2026-10-08)
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
@@ -57,6 +57,6 @@ jobs:
       - name: Build C# (traced by CodeQL)
         if: matrix.language == 'csharp'
         run: dotnet build src/api/Tether.slnx -c Release -p:UseSharedCompilation=false
-      - uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d  # v4.38.3 (commit SHA resolved via gh api 2026-11-01, tag dated 2026-10-08)
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066  # v4.38.3 (commit SHA resolved via gh api 2026-11-01, tag dated 2026-10-08)
         with:
           category: "/language:${{ matrix.language }}"
