@@ -46,7 +46,7 @@ jobs:
       web: ${{ steps.f.outputs.web }}
       e2e: ${{ steps.f.outputs.e2e }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -107,10 +107,10 @@ jobs:
       run:
         working-directory: src/web
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -159,17 +159,17 @@ jobs:
     env:
       ConnectionStrings__Default: "Host=127.0.0.1;Port=5432;Database=college_companion_dev;Username=cc_dev;Password=cc_dev_only_password"   # compose dev-only default
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25  # v4.1.0
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73  # v6.1.0
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       # Cache policy (SBR-01): every run RESTORES; only a push to main SAVES, so a pull request (untrusted code) can
       # never write a cache that main or another run restores. No NuGet lock file exists in the repo
       # (RestorePackagesWithLockFile is off), so the key hashes the files that pin versions: csproj, props, global.json.
       - id: nuget
-        uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('src/api/**/*.csproj', 'src/api/Directory.Build.props', 'src/api/global.json') }}
@@ -183,7 +183,7 @@ jobs:
         run: dotnet restore
       - name: Save NuGet cache (push to main only)
         if: ${{ github.event_name == 'push' && steps.nuget.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('src/api/**/*.csproj', 'src/api/Directory.Build.props', 'src/api/global.json') }}
@@ -203,7 +203,7 @@ jobs:
           bash docs/ops/db-log-canary.sh cc-postgres-dev
       - name: Upload test results and DB log (on failure)
         if: ${{ failure() }}
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08  # v4.6.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: api-test-results
           path: ${{ runner.temp }}/trx
@@ -224,10 +224,10 @@ jobs:
       run:
         working-directory: src/web
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -236,7 +236,7 @@ jobs:
       - id: pw
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
       - id: pwcache
-        uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-${{ hashFiles('src/web/package-lock.json') }}
@@ -245,7 +245,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Save Playwright browser cache (push to main only)
         if: ${{ github.event_name == 'push' && steps.pwcache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-${{ hashFiles('src/web/package-lock.json') }}
@@ -253,7 +253,7 @@ jobs:
         run: npx playwright test -c playwright.harness.config.ts --workers=1
       - name: Upload Playwright output (on failure)
         if: ${{ failure() }}
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08  # v4.6.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: e2e-harness-output
           path: |
@@ -306,7 +306,7 @@ jobs:
     env:
       API_PROXY_TARGET: http://localhost:5080
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       # Coverage guard: a spec added later but not listed in any shard would silently never run in CI.
@@ -328,17 +328,17 @@ jobs:
             if [ "$n" -ne 1 ]; then echo "::error::e2e-screens/$b is listed in $n shards (must be exactly 1)"; bad=1; fi
           done
           exit "$bad"
-      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: src/web/package-lock.json
-      - uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25  # v4.1.0
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73  # v6.1.0
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       # Cache policy (SBR-01): restore on every run, save only on a push to main (see the api job).
       - id: nuget
-        uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('src/api/**/*.csproj', 'src/api/Directory.Build.props', 'src/api/global.json') }}
@@ -347,7 +347,7 @@ jobs:
       - id: pw
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
       - id: pwcache
-        uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-${{ hashFiles('src/web/package-lock.json') }}
@@ -356,7 +356,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Save Playwright browser cache (push to main only)
         if: ${{ github.event_name == 'push' && steps.pwcache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-${{ hashFiles('src/web/package-lock.json') }}
@@ -392,7 +392,7 @@ jobs:
           curl -fsS --retry 60 --retry-delay 2 --retry-connrefused http://127.0.0.1:5080/health/live
       - name: Save NuGet cache (push to main only)
         if: ${{ github.event_name == 'push' && steps.nuget.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4.2.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('src/api/**/*.csproj', 'src/api/Directory.Build.props', 'src/api/global.json') }}
@@ -429,7 +429,7 @@ jobs:
           bash docs/ops/db-log-canary.sh cc-postgres-dev
       - name: Upload Playwright output, axe reports and server logs (on failure)
         if: ${{ failure() }}
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08  # v4.6.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: e2e-real-output-${{ matrix.shard }}
           path: |
@@ -447,7 +447,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0   # full history (SEC-019)
           persist-credentials: false
@@ -475,13 +475,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25  # v4.1.0
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73  # v6.1.0
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: npm audit, production dependencies (any severity fails)
@@ -534,12 +534,12 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       # Needs the dependency graph, which is free for public repositories and part of GitHub Advanced Security
       # for private ones. If this step errors with "Dependency review is not supported", enable the graph or drop the job.
-      - uses: actions/dependency-review-action@3b139cfc5fae8b618d3eae3675e383bb1769c019  # v4.5.0
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294  # v5.0.0
         with:
           fail-on-severity: high
           comment-summary-in-pr: never
@@ -567,11 +567,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Trivy image scan, postgres:16.15-alpine (gate; gosu ignores in .trivyignore.yaml expire 2026-12-01)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           cache: false
           scan-type: image
@@ -581,7 +581,7 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
       - name: Trivy image scan, dotnet SDK dev image (report only)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           cache: false
           scan-type: image
@@ -590,7 +590,7 @@ jobs:
           ignore-unfixed: true
           exit-code: "0"
       - name: Trivy config scan (compose and workflows)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           cache: false
           scan-type: config
