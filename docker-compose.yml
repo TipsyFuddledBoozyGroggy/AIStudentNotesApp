@@ -2,7 +2,7 @@
 # Credentials default to DEV-ONLY values; override via .env (gitignored).
 services:
   postgres:
-    image: postgres:16.15-alpine
+    image: postgres:18.4-alpine
     container_name: cc-postgres-dev
     # SB-01 (docs/security/syllabus-built-review.md): keep row and statement text out of the Postgres SERVER log.
     # Applies to EVERY environment; a production DB must carry the same settings (managed DB parameter group).
