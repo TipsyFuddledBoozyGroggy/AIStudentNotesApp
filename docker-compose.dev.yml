@@ -2,7 +2,7 @@
 # Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm dotnet dotnet test src/api
 services:
   dotnet:
-    image: mcr.microsoft.com/dotnet/sdk:10.0
+    image: mcr.microsoft.com/dotnet/sdk:11.0
     working_dir: /repo
     volumes:
       - .:/repo
@@ -17,7 +17,7 @@ services:
   # Runs the API for local web development (Development env => dev login enabled).
   # Reachable only from this machine. Start: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d api
   api:
-    image: mcr.microsoft.com/dotnet/sdk:10.0
+    image: mcr.microsoft.com/dotnet/sdk:11.0
     working_dir: /repo
     command: dotnet run --project src/api/src/Tether.Host --urls http://0.0.0.0:5080
     ports:
