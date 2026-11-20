@@ -40,3 +40,7 @@ Thumbs.db
 .claude/settings.local.json
 
 .fake
+
+# Review Desk data and stray local settings must never be committed (public repo)
+/data/
+/settings.local.json
