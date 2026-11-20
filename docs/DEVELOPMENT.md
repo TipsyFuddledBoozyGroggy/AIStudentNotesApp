@@ -5,7 +5,7 @@
 Needs Docker Desktop (running) and Node.js 22 or newer. Nothing else: no .NET SDK, no accounts, no keys.
 
 1. Start everything with one command from the repo root.
-   - PowerShell: `.scriptsstart-local.ps1`
+   - PowerShell: `.\scripts\start-local.ps1`
    - Git Bash or any shell with Node: `node scripts/start-local.mjs`
 2. It starts Postgres and the API (docker compose, dev overlay), waits for `http://localhost:5080/health/live`, starts the web
    server (`npm run dev:real` in `src/web`), waits for `http://localhost:3000`, seeds the demo data and prints the URL. The very first
@@ -22,7 +22,7 @@ Needs Docker Desktop (running) and Node.js 22 or newer. Nothing else: no .NET SD
 What the script will and will not do:
 - It never starts a second `next dev` (that corrupts `.next`, lesson L-DEVSERVER) and never runs `next build`. If a dev server is already
   on :3000 and forwards `/api` to the real API, it is reused; if :3000 is taken by something else it stops and says so.
-- It starts the web server inside its own window (output in `%TEMP%	ether-localweb-dev.log`), so closing the window ends it. `--detach`
+- It starts the web server inside its own window (output in `%TEMP%\tether-localweb-dev.log`), so closing the window ends it. `--detach`
   tries to leave it running in the background; that mode is best effort and was not verified on a plain Windows terminal.
 - Seeding (`node scripts/seed-demo.mjs`, also `start-local.mjs --seed`, `--no-seed` to skip) uses the public API and dev login only,
   refuses any host but localhost, and looks each item up by title first, so running it again adds nothing. If you delete a demo
