@@ -3,6 +3,7 @@
     <InternalsVisibleTo Include="Tether.IntegrationTests" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Npgsql" Version="11.0.0" />
     <ProjectReference Include="..\Tether.SharedKernel\Tether.SharedKernel.csproj" />
     <ProjectReference Include="..\Modules\Identity\Tether.Identity\Tether.Identity.csproj" />
     <ProjectReference Include="..\Modules\Courses\Tether.Courses\Tether.Courses.csproj" />
