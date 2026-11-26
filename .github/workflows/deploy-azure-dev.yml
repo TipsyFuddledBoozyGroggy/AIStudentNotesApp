@@ -1,0 +1,301 @@
+name: Deploy Azure dev (POC)
+# Authored 2026-11-26. NEVER RUN ON GITHUB as of this writing. Manual only (workflow_dispatch), so it never reports on a
+# pull request or a push and cannot become part of the required `ci result` check in ci.yml.
+# Read infra/README.md first: it lists the one-time steps only the Product Owner can do and explains the two-run flow.
+#
+# What a run does:
+#   build   builds src/api/Dockerfile and src/web/Dockerfile, pushes both to ghcr.io tagged with the commit SHA, and
+#           stops early if Azure could not pull them anonymously (the packages must be public).
+#   deploy  waits for the reviewer of the GitHub environment `azure-dev`, signs in to Azure with OIDC as `tether-deployer`
+#           (no stored Azure secret), deploys infra/main.bicep to the resource group `tether-dev`, then checks health
+#           and checks from outside that the access gate refuses an anonymous request.
+#
+# Access gate (the API runs with dev login ON, so the web address must never be open):
+#   - no gate configured          -> the web app is deployed with INTERNAL ingress only (run 1 of the two-run flow)
+#   - Entra sign-in configured    -> pass 1 applies sign-in while the web app is still internal, pass 2 makes it public
+#   - fail closed: if a run that asked for public ingress does not end with the outside gate check PASSED (deploy failed,
+#     outputs unreadable, gate check timed out, anonymous request answered 2xx, run cancelled), the last step makes the
+#     web ingress internal again
+#
+# This repository is public, so these logs are public. Nothing here prints a secret, an allowed IP address, the web
+# address, the environment domain or the database server name (masked before any Azure error text is printed).
+# AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID and EASYAUTH_CLIENT_ID are identifiers, not credentials, but
+# they are stored as GitHub environment SECRETS (not variables): GitHub prints a step's env values in the step's log
+# header, and only secrets are masked there.
+#
+# Action pins: full commit SHA with the tag in the trailing comment (house rule, see ci.yml).
+#   actions/checkout  v4.2.2  same pin as ci.yml (docs/security/action-pin-verification.md)
+#   azure/login       v3.1.0  read 2026-11-26 with `git ls-remote --tags https://github.com/Azure/login.git`; the commit
+#                             is "prepare release v3.1.0" (2026-09-10) on the official repo's releases/v3.1.0 branch, where
+#                             this action publishes its built code. Not exercised by a run yet.
+on:
+  workflow_dispatch:
+
+# Nothing by default; each job declares exactly what it needs.
+permissions: {}
+
+concurrency:
+  group: deploy-azure-dev
+  cancel-in-progress: false
+
+env:
+  RESOURCE_GROUP: tether-dev
+  DEPLOYMENT_NAME: tether-poc
+  # The API app name is also the host the web image proxies to (http://<name>), baked in at image build time
+  # (src/web/Dockerfile). Change it only here; infra/poc.bicepparam reads the same variables.
+  TETHER_API_APP_NAME: tether-api
+  TETHER_WEB_APP_NAME: tether-web
+  BICEP_VERSION: v0.49.2   # the version infra/main.bicep was compiled and linted with on 2026-11-26
+
+jobs:
+  build:
+    name: build and push images (ghcr.io)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Main branch only
+        if: ${{ github.ref != 'refs/heads/main' }}
+        run: |
+          echo "::error::This workflow deploys the main branch only. Run it from main."
+          exit 1
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Image names (commit SHA tag)
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"   # ghcr.io needs lower case
+          echo "TETHER_API_IMAGE=ghcr.io/${owner}/tether-api:${GITHUB_SHA}" >> "$GITHUB_ENV"
+          echo "TETHER_WEB_IMAGE=ghcr.io/${owner}/tether-web:${GITHUB_SHA}" >> "$GITHUB_ENV"
+      - name: Sign in to ghcr.io (workflow token)
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: echo "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      # No secret and no environment choice is baked into either image (see the Dockerfiles); the images are public.
+      - name: Build the API image
+        run: |
+          docker build --pull \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --tag "$TETHER_API_IMAGE" --file src/api/Dockerfile src/api
+      - name: Build the web image (API address baked in)
+        # `next build` downloads the Google Fonts and that fetch fails now and then with no code cause, so retry up to
+        # 3 times, the same way the web job in ci.yml does (PO-20aq). Three failures in a row is a real failure.
+        run: |
+          for attempt in 1 2 3; do
+            if docker build --pull \
+              --build-arg "API_PROXY_TARGET=http://${TETHER_API_APP_NAME}" \
+              --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+              --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+              --tag "$TETHER_WEB_IMAGE" --file src/web/Dockerfile src/web; then exit 0; fi
+            echo "::warning::web image build attempt $attempt failed"; sleep 20
+          done
+          exit 1
+      - name: Push both images
+        run: |
+          set -euo pipefail
+          docker push "$TETHER_API_IMAGE"
+          docker push "$TETHER_WEB_IMAGE"
+      - name: Sign out of ghcr.io
+        if: ${{ always() }}
+        run: docker logout ghcr.io
+      # A package is PRIVATE when it is first pushed. The Product Owner makes each one public once (infra/README.md).
+      - name: Images must be pullable without credentials
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          failed=0
+          for image in "$TETHER_API_IMAGE" "$TETHER_WEB_IMAGE"; do
+            if ! bash infra/scripts/check-public-image.sh "$image"; then failed=1; fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::Azure cannot pull a private image. Make both packages public once, then use 'Re-run failed jobs':"
+            echo "  ${GITHUB_SERVER_URL}/users/${owner}/packages/container/tether-api/settings  (Danger Zone, Change visibility, Public)"
+            echo "  ${GITHUB_SERVER_URL}/users/${owner}/packages/container/tether-web/settings  (Danger Zone, Change visibility, Public)"
+            exit 1
+          fi
+
+  deploy:
+    name: deploy to Azure (resource group tether-dev)
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    # The federated credential of `tether-deployer` trusts exactly this environment of this repository. The environment's
+    # required reviewer (the Product Owner) approves every run here, before any Azure sign-in.
+    environment: azure-dev
+    permissions:
+      contents: read
+      id-token: write   # OIDC sign-in to Azure; no client secret exists
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TETHER_EASYAUTH_CLIENT_ID: ${{ secrets.EASYAUTH_CLIENT_ID }}
+      TETHER_DEPLOY_STAMP: ${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Mask identifiers and set image names
+        run: |
+          set -euo pipefail
+          for value in "$AZURE_SUBSCRIPTION_ID" "$AZURE_TENANT_ID" "$AZURE_CLIENT_ID" "$TETHER_EASYAUTH_CLIENT_ID"; do
+            if [ -n "$value" ]; then echo "::add-mask::$value"; fi
+          done
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "TETHER_API_IMAGE=ghcr.io/${owner}/tether-api:${GITHUB_SHA}" >> "$GITHUB_ENV"
+          echo "TETHER_WEB_IMAGE=ghcr.io/${owner}/tether-web:${GITHUB_SHA}" >> "$GITHUB_ENV"
+      # Secrets are handed only to the steps that need them, never to the whole job.
+      - name: Preflight (inputs and access gate; nothing touches Azure yet)
+        id: preflight
+        env:
+          TETHER_DB_ADMIN_PASSWORD: ${{ secrets.TETHER_DB_ADMIN_PASSWORD }}
+          TETHER_ROOT_SECRET: ${{ secrets.TETHER_ROOT_SECRET }}
+          TETHER_EASYAUTH_CLIENT_SECRET: ${{ secrets.EASYAUTH_CLIENT_SECRET }}
+          TETHER_ALLOWED_IP_RANGES: ${{ secrets.ALLOWED_IP_RANGES }}
+        run: bash infra/scripts/preflight.sh
+      - name: Sign in to Azure (OIDC, no stored secret)
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906  # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Install the pinned Bicep compiler
+        run: |
+          set -euo pipefail
+          az bicep install --version "$BICEP_VERSION"
+          az bicep version
+      - name: Deploy infra/main.bicep
+        id: deploy
+        env:
+          GATE: ${{ steps.preflight.outputs.gate }}
+          TETHER_DB_ADMIN_PASSWORD: ${{ secrets.TETHER_DB_ADMIN_PASSWORD }}
+          TETHER_ROOT_SECRET: ${{ secrets.TETHER_ROOT_SECRET }}
+          TETHER_EASYAUTH_CLIENT_SECRET: ${{ secrets.EASYAUTH_CLIENT_SECRET }}
+          TETHER_ALLOWED_IP_RANGES: ${{ secrets.ALLOWED_IP_RANGES }}
+        run: |
+          set -euo pipefail
+          # $1 = true or false: ask for public web ingress. infra/poc.bicepparam reads every TETHER_* variable.
+          # --output none: the command would otherwise print every non-secret parameter and output into this public log.
+          # stderr is held back until the names this deployment may have just created are masked (a failure message can
+          # name the environment domain or the database server).
+          deploy() {
+            echo "Deploying with exposeWeb=$1 ..."
+            if [ "$1" = "true" ]; then echo "attempted_public=true" >> "$GITHUB_OUTPUT"; fi
+            local rc=0
+            TETHER_EXPOSE_WEB="$1" az deployment group create \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "$DEPLOYMENT_NAME" \
+              --template-file infra/main.bicep \
+              --parameters infra/poc.bicepparam \
+              --output none 2> "$RUNNER_TEMP/az-deploy.err" || rc=$?
+            bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP"
+            cat "$RUNNER_TEMP/az-deploy.err" >&2
+            rm -f "$RUNNER_TEMP/az-deploy.err"
+            return "$rc"
+          }
+          bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP"
+          signin_active() {
+            bash infra/scripts/web-auth-active.sh "$RESOURCE_GROUP" "$TETHER_WEB_APP_NAME" "$TETHER_EASYAUTH_CLIENT_ID"
+          }
+
+          if [ "$GATE" = "none" ]; then
+            deploy false
+          elif [[ "$GATE" == entra* ]] && [ "$(signin_active)" != "true" ]; then
+            # The sign-in settings are a child of the web app, so they can only be applied after the web app is written.
+            # Writing a PUBLIC web app first would leave it open until the settings land. So: internal first.
+            echo "Sign-in is not active on the web app yet. Pass 1 applies it while the web app is still internal."
+            deploy false
+            active=false
+            for _ in $(seq 1 20); do
+              if [ "$(signin_active)" = "true" ]; then active=true; break; fi
+              sleep 15
+            done
+            if [ "$active" != "true" ]; then
+              echo "::error::Azure does not report sign-in as enabled on the web app. It stays internal. Nothing was made public."
+              exit 1
+            fi
+            # Heuristic settle time for the platform to put the sign-in layer in front of running replicas. UNVERIFIED;
+            # the outside check below is what actually proves the gate, and a failure there closes the ingress.
+            sleep 60
+            echo "Pass 2 makes the web app public behind sign-in."
+            deploy true
+          else
+            deploy true
+          fi
+      - name: Read deployment outputs (masked)
+        id: outputs
+        run: |
+          set -euo pipefail
+          outputs="$(az deployment group show --resource-group "$RESOURCE_GROUP" --name "$DEPLOYMENT_NAME" --query properties.outputs --output json)"
+          web_fqdn="$(jq -r '.webFqdn.value' <<< "$outputs")"
+          domain="$(jq -r '.environmentDefaultDomain.value' <<< "$outputs")"
+          echo "::add-mask::$web_fqdn"
+          echo "::add-mask::$domain"
+          {
+            echo "WEB_FQDN=$web_fqdn"
+            echo "WEB_PUBLIC=$(jq -r '.webIsPublic.value' <<< "$outputs")"
+            echo "GATE=$(jq -r '.accessGate.value' <<< "$outputs")"
+          } >> "$GITHUB_ENV"
+      - name: Smoke check (health from Azure, gate from outside)
+        id: smoke
+        env:
+          API_APP_NAME: ${{ env.TETHER_API_APP_NAME }}
+          WEB_APP_NAME: ${{ env.TETHER_WEB_APP_NAME }}
+        run: bash infra/scripts/smoke.sh
+      # Safety net, fail closed. Runs when this run asked for public ingress and did NOT finish with the outside gate check
+      # passed: the deploy failed part way (the web app may already be public), the outputs could not be read, the gate
+      # check timed out or got a 2xx, or the run was cancelled. A health failure after a PASSED gate check does not close it.
+      # Also after a failed pass 1 when a gate is configured: the web app may still be public from an earlier run while
+      # Azure no longer reports sign-in as active (that is why pass 1 ran).
+      - name: Close the web ingress (public was requested but the gate was not proven)
+        if: ${{ (failure() || cancelled()) && steps.smoke.outputs.gate_verified != 'true' && (steps.deploy.outputs.attempted_public == 'true' || (steps.deploy.conclusion == 'failure' && steps.preflight.outputs.gate != 'none')) }}
+        env:
+          TETHER_DB_ADMIN_PASSWORD: ${{ secrets.TETHER_DB_ADMIN_PASSWORD }}
+          TETHER_ROOT_SECRET: ${{ secrets.TETHER_ROOT_SECRET }}
+          TETHER_EASYAUTH_CLIENT_SECRET: ${{ secrets.EASYAUTH_CLIENT_SECRET }}
+          TETHER_ALLOWED_IP_RANGES: ${{ secrets.ALLOWED_IP_RANGES }}
+        run: |
+          set -euo pipefail
+          bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP"
+          rc=0
+          TETHER_EXPOSE_WEB=false az deployment group create \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$DEPLOYMENT_NAME" \
+            --template-file infra/main.bicep \
+            --parameters infra/poc.bicepparam \
+            --output none 2> "$RUNNER_TEMP/az-close.err" || rc=$?
+          bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP"
+          cat "$RUNNER_TEMP/az-close.err" >&2
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::CLOSING THE WEB INGRESS FAILED. The web app may be public without a proven gate. Make it internal by hand now: Azure portal, container app ${TETHER_WEB_APP_NAME}, Ingress, untick 'Accepting traffic from anywhere' (or disable ingress)."
+            exit 1
+          fi
+          echo "::error::The web app was made internal again: this run asked for public ingress but did not prove from outside that the access gate refuses an anonymous request."
+      - name: Failed deployment operations (codes and messages only)
+        if: ${{ failure() && steps.deploy.conclusion == 'failure' }}
+        run: |
+          bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP"
+          az deployment operation group list --resource-group "$RESOURCE_GROUP" --name "$DEPLOYMENT_NAME" \
+            --query "[?properties.provisioningState=='Failed'].{type:properties.targetResource.resourceType, name:properties.targetResource.resourceName, code:properties.statusMessage.error.code, message:properties.statusMessage.error.message}" \
+            --output json || true
+      - name: Summary
+        if: ${{ always() }}
+        run: |
+          {
+            echo "### Tether POC deploy"
+            echo ""
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Access gate: \`${GATE:-unknown}\`"
+            if [ "${WEB_PUBLIC:-}" = "true" ]; then
+              echo "- Web app: **public behind the gate**. The address is not printed here (public log). Find it in the Azure portal: resource group \`${RESOURCE_GROUP}\`, container app \`${TETHER_WEB_APP_NAME}\`, Application Url."
+            elif [ "${WEB_PUBLIC:-}" = "false" ]; then
+              echo "- Web app: **internal only, not reachable from the internet**. Next: the Product Owner runs \`scripts/azure/create-signin-app.ps1\`, then this workflow again (infra/README.md)."
+            else
+              echo "- Web app: state unknown (the run failed before the outputs were read)."
+            fi
+            echo "- Providers: mocks only. No AI or speech resource exists in Azure."
+          } >> "$GITHUB_STEP_SUMMARY"
