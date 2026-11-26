@@ -6,32 +6,19 @@ Build a neurodivergent-friendly college academic assistant. Prioritize the real 
 ## Who is in charge
 - Human Product Owner approves product tradeoffs, spending, external system permissions, production deployment and any high-risk actions.
 - You (the main Claude Code conversation) are **Lead Architect and Orchestrator**. You own technical coherence, backlog sequencing, integration, and final reporting.
-- The 12 existing engineering specialists, 5 additional assurance/research subagents and the `agent-refiner` (agent-definition auditor) in `.claude/agents/` provide domain-specific design, implementation and independent review. Delegate narrowly by name and include paths, context, deliverables and acceptance criteria in each delegation.
+- The team is six shared agents defined once in the user-level `~/.claude/agents/` (so every project sees them): `product-owner`, `architect`, `senior-engineer-fable`, `senior-engineer-opus`, `junior-dev` (cheap model, very simple tasks only) and `qa-engineer`. The former 18 project specialists were removed on 2026-11-25 (PO-20ce); they remain in git history. Delegate narrowly and include paths, context, deliverables and acceptance criteria.
 - Subagents do **not** automatically coordinate with one another. The main coordinator gathers their outputs, reconciles conflicts, manages changes and requests independent verification.
 
-## Specialist routing
+## Team routing
 | Task | Delegate to |
 |---|---|
-| Scope, journeys, stories | `product-manager` |
-| Neurodivergent cognitive load, accessibility | `neurodivergent-ux-specialist` |
-| React/Next.js UI | `frontend-engineer` |
-| ASP.NET Core services | `backend-engineer` |
-| PostgreSQL / EF Core | `database-architect` |
-| Claude, prompts, retrieval, evaluation | `ai-agent-engineer` |
-| Streaming speech-to-text | `speech-engineer` |
-| Google OAuth, Docs, Drive, Calendar | `google-integration` |
-| Quiz science, mastery, spaced review | `learning-science` |
-| Threat model/privacy/consent | `security-engineer` |
-| Test coverage and release gate | `qa-engineer` |
-| CI, deployment, monitoring, cost | `devops-engineer` |
-| Recording consent, FERPA applicability, campus rules, contractual/legal review preparation | `legal-compliance-reviewer` |
-| Source-verified STT/Claude vendor facts, prices, limits, terms | `vendor-verification-researcher` |
-| Physical-device, screen reader, browser and real-audio test plans/evidence | `device-accessibility-validation` |
-| Human neurodivergent student, clinician and learning-science validation planning | `human-research-coordinator` |
-| CI/security scanning, monitoring, spending and backup/restore readiness audit | `production-readiness-auditor` |
-| Audit agent definitions after an incident; propose project-specific refinements (never edits agents itself) | `agent-refiner` |
+| Stories, acceptance criteria, backlog order, scope cuts | `product-owner` |
+| System design, contracts, ADRs, settling senior disagreements | `architect` |
+| Hard design or implementation (always as a pair) | `senior-engineer-fable` + `senior-engineer-opus` |
+| Very simple, well-specified edits only | `junior-dev` (a senior reviews the diff) |
+| Independent testing and acceptance verification | `qa-engineer` |
 
-Tie-breaks: vendor terms/DPA legal reading -> `legal-compliance-reviewer`; vendor facts, prices, quotas and read-only Azure checks -> `vendor-verification-researcher`; CI/workflow authoring -> `devops-engineer`, independent audit of it -> `production-readiness-auditor`; automated a11y in CI -> `qa-engineer`, manual AT/device -> `device-accessibility-validation`; study design with real people -> `human-research-coordinator`, pedagogy content -> `learning-science`. Questions for the PO go to the Lead, who posts them on the Review Desk; no subagent does.
+Senior pairing protocol, run by the Lead: (1) independent proposals, (2) cross-critique, (3) converge or architect decides, (4) one builds, the other reviews. Subagents cannot message each other; the Lead carries every hand-off. Questions for the human PO go to the Lead, who posts them on the Review Desk. The legal-compliance agent is retired (PO-20cd); legal gates stay as recorded and are not marked PASS.
 
 ## Recommended technical stack
 - Frontend: Next.js / React / TypeScript, accessible UI, mobile responsive.
