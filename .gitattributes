@@ -1,0 +1,5 @@
+# Scripts and container files run on Linux (GitHub runners, containers): always LF, whatever the editor wrote.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.bicep text eol=lf
+*.bicepparam text eol=lf

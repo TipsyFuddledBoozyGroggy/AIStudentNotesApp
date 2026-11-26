@@ -8,7 +8,8 @@ import { stateFor } from "./users";
 test.describe.configure({ mode: "serial" });
 test.use({ storageState: stateFor("alice") });
 
-const ORIGIN = "http://localhost:3000";
+// E2E_BASE_URL lets playwright.poc.config.ts aim this spec at the containerized stack (docker-compose.poc.yml, :3100).
+const ORIGIN = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const DEMO_LINE_1 = "Demo replay segment one";
 const startedSessions: string[] = [];
 

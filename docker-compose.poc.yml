@@ -1,0 +1,108 @@
+# Proof-of-concept stack: the two PRODUCTION images (src/api/Dockerfile, src/web/Dockerfile) wired the way Azure Container
+# Apps will run them. Local only; not a deployment definition and not the dev workflow (that is docker-compose.dev.yml).
+#
+#   export TETHER_POC_ROOT_SECRET="$(openssl rand -base64 48)"   # every compose command below needs it set (also ps/logs/down)
+#   docker compose -f docker-compose.poc.yml up -d --build
+#   open http://localhost:3100  (dev login: any email, no password)
+#   docker compose -f docker-compose.poc.yml down      # add -v to wipe the POC database
+# Keep the same secret across restarts of one database: ETags and idempotency keys derive from it.
+#
+# Mirrors the planned Azure shape:
+#  - API runs as Development with dev login ON (the only sign-in that exists). That is why the Azure URL needs an access gate.
+#  - API has NO host port and sits on an internal network: only the web container can reach it, through the Next.js
+#    same-origin proxy (/api, /hubs, /ingest). The browser only ever talks to the web server.
+#  - Rate limits stay at the shipped defaults. Security:RootSecret is supplied even though Development could generate one.
+# Distinct project name, volumes and port (3100), so it never touches the dev stack (cc-postgres-dev, :3000, :5080).
+name: tether-poc
+
+services:
+  postgres:
+    image: postgres:16.15-alpine
+    # SB-01: same logging settings as docker-compose.yml (no row or statement text in the server log). Azure's managed
+    # Postgres needs the same values in its server parameters.
+    command:
+      - postgres
+      - -c
+      - log_error_verbosity=terse
+      - -c
+      - log_min_error_statement=panic
+      - -c
+      - log_statement=none
+      - -c
+      - log_duration=off
+      - -c
+      - log_min_duration_statement=-1
+      - -c
+      - log_min_duration_sample=-1
+      - -c
+      - log_parameter_max_length=0
+      - -c
+      - log_parameter_max_length_on_error=0
+    environment:
+      POSTGRES_USER: tether_poc                       # local POC only
+      POSTGRES_PASSWORD: tether_poc_local_only        # local POC only, never reuse
+      POSTGRES_DB: tether_poc
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tether_poc -d tether_poc"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build:
+      context: ./src/api
+    image: tether-api:poc
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Auth__DevLogin__Enabled: "true"
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=tether_poc;Username=tether_poc;Password=tether_poc_local_only"
+      # The public origin the BROWSER uses (the web server), not the API address. Azure: https://<web app FQDN>.
+      Security__AllowedOrigins__0: "http://localhost:3100"
+      # Required here on purpose (Development would otherwise generate one inside the container and lose it on restart).
+      Security__RootSecret: "${TETHER_POC_ROOT_SECRET:?set TETHER_POC_ROOT_SECRET to the output of openssl rand -base64 48}"
+      # Cookie keys survive an API restart (otherwise every restart signs everyone out). /home/app is the image's writable home.
+      DataProtection__KeysPath: /home/app/keys
+      # Explicit even though Development migrates anyway (Program.cs); the same flag is what a non-Development run would need.
+      Database__MigrateOnStartup: "true"
+      # 6 a minute per user is the shipped default, and the default here. e2e/lecture.spec.ts starts lectures faster than
+      # that: on 2026-11-26 its sixth start was answered 429 (audio-ticket) and the run failed 5 passed / 1 failed / 3 not
+      # run. For an E2E run only, start the stack with TETHER_POC_AUDIO_TICKETS_PER_MINUTE=600 (playwright.poc.config.ts).
+      RateLimiting__AudioTicketPermitPerMinute: "${TETHER_POC_AUDIO_TICKETS_PER_MINUTE:-6}"
+    volumes:
+      - apphome:/home/app
+    networks: [backend]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # No ports: and no healthcheck (the chiseled image has no shell or curl). Probes in Azure are HTTP: /health/live, /health/ready.
+
+  web:
+    build:
+      context: ./src/web
+      args:
+        API_PROXY_TARGET: http://api:8080   # baked into the image at build time (see src/web/Dockerfile)
+    image: tether-web:poc
+    ports:
+      - "127.0.0.1:3100:3000"   # loopback only; 3000 stays free for the dev server
+    networks: [backend, frontend]
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/signin"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+
+networks:
+  backend:
+    internal: true   # no route out and no published ports: postgres and api are reachable only from containers on it
+  frontend: {}
+
+volumes:
+  pgdata:
+  apphome:

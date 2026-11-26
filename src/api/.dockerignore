@@ -1,0 +1,18 @@
+# Build context for src/api/Dockerfile. Keep build output, tests and local secrets out of the image context.
+**/bin/
+**/obj/
+**/TestResults/
+**/*.user
+**/.vs/
+tests/
+api/
+bin/
+**/appsettings.*.local.json
+**/secrets.json
+**/*.pfx
+**/*.pem
+**/*.key
+**/.env
+**/.env.*
+Dockerfile
+.dockerignore
