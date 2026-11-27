@@ -4,7 +4,7 @@
 # public, so its workflow logs are public too.
 #
 # Reads (environment):
-#   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID   identifiers from the GitHub environment variables
+#   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID   identifiers, stored as GitHub environment secrets
 #   TETHER_DB_ADMIN_PASSWORD, TETHER_ROOT_SECRET              GitHub environment secrets (required)
 #   TETHER_EASYAUTH_CLIENT_ID, TETHER_EASYAUTH_CLIENT_SECRET  sign-in gate (optional, but both or neither)
 #   TETHER_ALLOWED_IP_RANGES                                  optional extra layer on top of Entra (never a gate alone): IPv4 or CIDR (/16 to /32)
@@ -62,7 +62,7 @@ if [ -n "$client_id" ] && [ -n "$client_secret" ]; then
   if [[ "$client_id" =~ $guid_re ]]; then
     auth=true
   else
-    bad "Variable EASYAUTH_CLIENT_ID is not a GUID. Re-run scripts/azure/create-signin-app.ps1."
+    bad "Secret EASYAUTH_CLIENT_ID is not a GUID. Re-run scripts/azure/create-signin-app.ps1."
   fi
 elif [ -n "$client_id" ] || [ -n "$client_secret" ]; then
   bad "Only one of the secrets EASYAUTH_CLIENT_ID and EASYAUTH_CLIENT_SECRET is set. Re-run scripts/azure/create-signin-app.ps1 (it sets both)."

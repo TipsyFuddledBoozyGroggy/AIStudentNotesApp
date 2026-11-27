@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  One-time Azure bootstrap for Tether, run BY THE PRODUCT OWNER in his own terminal, signed in as himself.
+  One-time Azure bootstrap for Tether, run BY THE PRODUCT OWNER in their own terminal, signed in as themselves.
   Agents never run this and never see its output beyond what the PO pastes.
 
 .WHAT IT CREATES (nothing else)
@@ -16,8 +16,13 @@
   existing read-only tether-reader identity. A budget only ALERTS; it does not stop spending.
 
 .USAGE
-  az login                                   # as yourself, in your own terminal
-  .\scripts\azure\bootstrap-tether-dev.ps1 -AlertEmail you@example.com
+  Use your own az profile, not the default one (that holds the agents' read-only identity):
+    PowerShell:  $env:AZURE_CONFIG_DIR = "$HOME\.azure-po"      cmd:  set "AZURE_CONFIG_DIR=%USERPROFILE%\.azure-po"
+  az login --tenant <your tenant id>         # as yourself (naming the tenant makes az ask for MFA when it is required)
+  powershell -ExecutionPolicy Bypass -File .\scripts\azure\bootstrap-tether-dev.ps1 -AlertEmail you@example.com
+  (Script execution is disabled on this machine, hence powershell.exe -ExecutionPolicy Bypass. Not from PowerShell ISE:
+  it cannot answer the YES prompt of a script started this way.)
+  Done once on 2026-11-26.
   Add -Remove to delete everything this script created (the resource group and its contents, the app, the budget).
   Safe to run again: each step skips what already exists. It stops at the first failed step and says which one.
   Works in Windows PowerShell 5.1 and PowerShell 7.

@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
-  One-time set-up of the Microsoft sign-in gate for the Tether proof of concept, run BY THE PRODUCT OWNER in his own
-  terminal, signed in as himself in both tools (az login, gh auth login). Agents never run this and never see its
+  One-time set-up of the Microsoft sign-in gate for the Tether proof of concept, run BY THE PRODUCT OWNER in their own
+  terminal, signed in as themselves in both tools (az login, gh auth login). Agents never run this and never see its
   output beyond what the PO pastes. Works on Windows PowerShell 5.1 and PowerShell 7.
 
 .WHY
@@ -28,10 +28,14 @@
   sign-in, or touch the tether-deployer and tether-reader identities. It costs nothing.
 
 .USAGE
-  az login                                    # as yourself, in your own terminal
+  Use your own az profile, not the default one (that holds the agents' read-only identity):
+    PowerShell:  $env:AZURE_CONFIG_DIR = "$HOME\.azure-po"      cmd:  set "AZURE_CONFIG_DIR=%USERPROFILE%\.azure-po"
+  az login --tenant <your tenant id>          # as yourself (naming the tenant makes az ask for MFA when it is required)
   gh auth login                               # as yourself, once
-  .\scripts\azure\create-signin-app.ps1
-  .\scripts\azure\create-signin-app.ps1 -TeamMembers someone@yourdirectory.example, another@yourdirectory.example
+  Script execution is disabled on this machine, so start it through powershell.exe (works from cmd and PowerShell):
+  powershell -ExecutionPolicy Bypass -File .\scripts\azure\create-signin-app.ps1
+  powershell -ExecutionPolicy Bypass -File .\scripts\azure\create-signin-app.ps1 -TeamMembers someone@yourdirectory.example,another@yourdirectory.example
+  (Not from PowerShell ISE: it cannot answer the YES prompt of a script started this way.)
   Safe to run again: it reuses the app, adds missing people and issues a fresh secret (then run the deploy again).
   Add -Remove to delete the app registration and the two GitHub values. After the next deploy the web app is then
   internal only again (no gate, no public address).
@@ -48,6 +52,9 @@ param(
   [switch]$Remove
 )
 $ErrorActionPreference = 'Stop'
+# Started through `powershell -File` (the only way on a machine where scripts are disabled), a comma list arrives as ONE
+# string ("a@x,b@x"), not an array. Split it here so both ways of starting the script give the same list.
+$TeamMembers = @($TeamMembers | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 
 $SecretName = 'EASYAUTH_CLIENT_SECRET'
 $ClientIdSecretName = 'EASYAUTH_CLIENT_ID'
@@ -129,6 +136,11 @@ foreach ($tool in 'az', 'gh') {
 
 $account = ConvertFrom-JsonObject (Invoke-Checked 'Reading the signed-in Azure account (run: az login)' { az account show --output json })
 if ($null -eq $account) { throw 'Not signed in to Azure. Run: az login' }
+# The default az profile on this machine belongs to the agents' read-only identity (a service principal). The PO signs in
+# under a separate profile; when AZURE_CONFIG_DIR is not pointing at it, stop here instead of failing part way.
+if ($account.user.type -ne 'user') {
+  throw 'az is signed in as a service principal, not as you. Point AZURE_CONFIG_DIR at your own sign-in first (PowerShell: $env:AZURE_CONFIG_DIR = "$HOME\.azure-po"   cmd: set AZURE_CONFIG_DIR=%USERPROFILE%\.azure-po), check with: az account show --query user.name -o tsv, then run this script again.'
+}
 Invoke-Checked 'Checking the GitHub sign-in (run: gh auth login)' { gh auth status } | Out-Null
 Invoke-Checked "Finding the GitHub environment '$GitHubEnvironment' in $Repo (create it first: repository Settings, Environments)" {
   gh api "repos/$Repo/environments/$GitHubEnvironment" --jq .name
