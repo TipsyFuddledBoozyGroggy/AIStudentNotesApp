@@ -283,7 +283,7 @@ Write-Host "        Under 'Authorized redirect URIs' press 'Add URI' and paste e
 Write-Host ""
 Write-Host "          $redirectAddress"
 Write-Host ""
-Write-Host "        Keep the localhost address that is already there. No trailing slash. Google can take a few minutes to apply it."
+Write-Host "        No localhost address is needed (if one is there, leave it). No trailing slash. Google can take a few minutes to apply it."
 Write-Host "STEP 2. Still in the console: Audience, Test users, Add users. Add each Google account you will let in (at most 100)."
 Write-Host "        The page must still say 'Testing'. Do NOT press 'Publish app'."
 Write-Host ""

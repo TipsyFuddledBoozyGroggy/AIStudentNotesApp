@@ -52,7 +52,7 @@ set "AZURE_CONFIG_DIR=%USERPROFILE%\.azure-po" && powershell -ExecutionPolicy By
 
 The script walks you through it:
 
-1. It prints **one web address** ending in `/api/v1/auth/google/callback`. In a browser open the Google Cloud console, choose the project **tether-oauth-dev** at the top, open **Google Auth Platform, Clients, Tether**. Under **Authorized redirect URIs** press **Add URI**, paste the address exactly, **Save**. Keep the localhost address that is already there.
+1. It prints **one web address** ending in `/api/v1/auth/google/callback`. In a browser open the Google Cloud console, choose the project **tether-oauth-dev** at the top, open **Google Auth Platform, Clients, Tether**. Under **Authorized redirect URIs** press **Add URI**, paste the address exactly, **Save**. You do not need a localhost address; if one is there, leave it.
 2. Still in the console: **Audience, Test users, Add users**. Add each Google account you want to let in (at most 100). The page must still say **Testing**. **Do not press "Publish app"**: that would let any Google account reach Tether's own check.
 3. Back in the script, press Enter. Paste the **Client ID** from the Tether client page.
 4. Paste the **Client secret** (what you type is hidden). The console no longer shows an old secret: if you do not have it, press **Add secret** on the client page and copy the new one. Never paste the secret into a chat or a file.
