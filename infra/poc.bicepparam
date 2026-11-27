@@ -10,6 +10,8 @@ param apiAppName = readEnvironmentVariable('TETHER_API_APP_NAME', 'tether-api')
 param webAppName = readEnvironmentVariable('TETHER_WEB_APP_NAME', 'tether-web')
 param deploymentStamp = readEnvironmentVariable('TETHER_DEPLOY_STAMP', '')
 param exposeWeb = toLower(readEnvironmentVariable('TETHER_EXPOSE_WEB', 'false')) == 'true'
+// Empty = the main region. infra/scripts/postgres-location.sh decides it (keeps the region of an existing server).
+param postgresLocation = readEnvironmentVariable('TETHER_POSTGRES_LOCATION', '')
 
 // --- Secrets (GitHub environment secrets; set once with scripts/azure/set-deploy-secrets.ps1) ---
 param postgresAdminPassword = readEnvironmentVariable('TETHER_DB_ADMIN_PASSWORD')

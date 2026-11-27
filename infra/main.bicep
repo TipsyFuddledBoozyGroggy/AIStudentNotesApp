@@ -31,8 +31,8 @@ targetScope = 'resourceGroup'
 @description('Region for everything except (optionally) the database. Defaults to the resource group region (westus3).')
 param location string = resourceGroup().location
 
-@description('Region for the PostgreSQL server. Change only if the subscription is refused Burstable servers in the main region.')
-param postgresLocation string = location
+@description('Region for the PostgreSQL server; empty means the main region. The deploy workflow picks it: the region of the server that already exists, otherwise the first region in its list that accepts a Burstable server (deploy run 1, 2026-11-26: westus3 answered SkuNotAvailable although not restricted for the subscription).')
+param postgresLocation string = ''
 
 @description('Container Apps environment name. scripts/azure/create-signin-app.ps1 reads its default domain by this name.')
 param environmentName string = 'tether-dev-env'
@@ -178,7 +178,11 @@ var webIpRestrictions = map(range(0, length(cleanIpRanges)), i => {
   action: 'Allow'
 })
 
-var postgresServerName = 'tether-dev-pg-${uniqueString(resourceGroup().id)}'
+var pgLocation = empty(postgresLocation) ? location : toLower(postgresLocation)
+// The region is part of the name: a server left in state Failed in one region can never block the attempt in the next,
+// and each region's server has its own name. (The first name, without the region, appeared in a public log on
+// 2026-11-26 before that server was refused; it is no longer used.)
+var postgresServerName = 'tether-dev-pg-${uniqueString(resourceGroup().id, pgLocation)}'
 var logWorkspaceName = 'tether-dev-logs'
 
 var webFqdn = '${webAppName}.${containerEnv.properties.defaultDomain}'
@@ -236,7 +240,7 @@ resource containerEnv 'Microsoft.App/managedEnvironments@2025-01-01' = {
 
 resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
   name: postgresServerName
-  location: postgresLocation
+  location: pgLocation
   tags: tags
   sku: { name: postgresSkuName, tier: 'Burstable' }
   properties: {

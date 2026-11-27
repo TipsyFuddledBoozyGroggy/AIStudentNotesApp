@@ -46,6 +46,10 @@ env:
   TETHER_API_APP_NAME: tether-api
   TETHER_WEB_APP_NAME: tether-web
   BICEP_VERSION: v0.49.2   # the version infra/main.bicep was compiled and linted with on 2026-11-26
+  # Database regions to try, in order, when no database server exists yet (infra/scripts/postgres-location.sh). Deploy
+  # run 1 (2026-11-26) got SkuNotAvailable for Burstable B1ms in westus3, which the capability API does not list as
+  # restricted for this subscription; eastus IS restricted (capability API, same day), so it is not in the list.
+  TETHER_POSTGRES_CANDIDATES: westus3 westus2 centralus
 
 jobs:
   build:
@@ -193,23 +197,42 @@ jobs:
               --template-file infra/main.bicep \
               --parameters infra/poc.bicepparam \
               --output none 2> "$RUNNER_TEMP/az-deploy.err" || rc=$?
-            bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP"
+            bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP" "$RUNNER_TEMP/az-deploy.err"
             cat "$RUNNER_TEMP/az-deploy.err" >&2
-            rm -f "$RUNNER_TEMP/az-deploy.err"
+            mv -f "$RUNNER_TEMP/az-deploy.err" "$RUNNER_TEMP/az-deploy.last.err"
             return "$rc"
           }
           bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP"
+          # Database region: the region of the server that already exists, otherwise each candidate in turn. The next
+          # candidate is tried ONLY when Azure refused the region or the SKU (any other failure stops the run).
+          read -r -a pg_candidates <<< "$TETHER_POSTGRES_CANDIDATES"
+          mapfile -t pg_locations < <(bash infra/scripts/postgres-location.sh "$RESOURCE_GROUP" "${pg_candidates[@]}")
+          first_deploy() {
+            local loc rc=1
+            for loc in "${pg_locations[@]}"; do
+              export TETHER_POSTGRES_LOCATION="$loc"
+              echo "Database region: $loc"
+              rc=0
+              deploy "$1" || rc=$?
+              if [ "$rc" -eq 0 ]; then return 0; fi
+              if ! grep -q -E 'SkuNotAvailable|LocationIsOfferRestricted|ProvisioningDisabled|restricted in this region' "$RUNNER_TEMP/az-deploy.last.err"; then
+                return "$rc"
+              fi
+              echo "::warning::Azure refused a database in $loc (region or SKU not available to this subscription). Trying the next region."
+            done
+            return "$rc"
+          }
           signin_active() {
             bash infra/scripts/web-auth-active.sh "$RESOURCE_GROUP" "$TETHER_WEB_APP_NAME" "$TETHER_EASYAUTH_CLIENT_ID"
           }
 
           if [ "$GATE" = "none" ]; then
-            deploy false
+            first_deploy false
           elif [[ "$GATE" == entra* ]] && [ "$(signin_active)" != "true" ]; then
             # The sign-in settings are a child of the web app, so they can only be applied after the web app is written.
             # Writing a PUBLIC web app first would leave it open until the settings land. So: internal first.
             echo "Sign-in is not active on the web app yet. Pass 1 applies it while the web app is still internal."
-            deploy false
+            first_deploy false
             active=false
             for _ in $(seq 1 20); do
               if [ "$(signin_active)" = "true" ]; then active=true; break; fi
@@ -223,9 +246,9 @@ jobs:
             # the outside check below is what actually proves the gate, and a failure there closes the ingress.
             sleep 60
             echo "Pass 2 makes the web app public behind sign-in."
-            deploy true
+            deploy true   # same database region as pass 1 (TETHER_POSTGRES_LOCATION is still exported)
           else
-            deploy true
+            first_deploy true
           fi
       - name: Read deployment outputs (masked)
         id: outputs
@@ -262,6 +285,10 @@ jobs:
         run: |
           set -euo pipefail
           bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP"
+          # Same database region as the server that exists (never a new server elsewhere).
+          read -r -a pg_candidates <<< "$TETHER_POSTGRES_CANDIDATES"
+          TETHER_POSTGRES_LOCATION="$(bash infra/scripts/postgres-location.sh "$RESOURCE_GROUP" "${pg_candidates[@]}" | head -n 1)"
+          export TETHER_POSTGRES_LOCATION
           rc=0
           TETHER_EXPOSE_WEB=false az deployment group create \
             --resource-group "$RESOURCE_GROUP" \
@@ -269,7 +296,7 @@ jobs:
             --template-file infra/main.bicep \
             --parameters infra/poc.bicepparam \
             --output none 2> "$RUNNER_TEMP/az-close.err" || rc=$?
-          bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP"
+          bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP" "$RUNNER_TEMP/az-close.err"
           cat "$RUNNER_TEMP/az-close.err" >&2
           if [ "$rc" -ne 0 ]; then
             echo "::error::CLOSING THE WEB INGRESS FAILED. The web app may be public without a proven gate. Make it internal by hand now: Azure portal, container app ${TETHER_WEB_APP_NAME}, Ingress, untick 'Accepting traffic from anywhere' (or disable ingress)."
@@ -282,7 +309,10 @@ jobs:
           bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP"
           az deployment operation group list --resource-group "$RESOURCE_GROUP" --name "$DEPLOYMENT_NAME" \
             --query "[?properties.provisioningState=='Failed'].{type:properties.targetResource.resourceType, name:properties.targetResource.resourceName, code:properties.statusMessage.error.code, message:properties.statusMessage.error.message}" \
-            --output json || true
+            --output json > "$RUNNER_TEMP/az-ops.json" 2>&1 || true
+          # A refused resource never existed, so only its name in this text can mask it.
+          bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP" "$RUNNER_TEMP/az-ops.json"
+          cat "$RUNNER_TEMP/az-ops.json"
       - name: Summary
         if: ${{ always() }}
         run: |

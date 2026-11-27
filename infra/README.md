@@ -75,7 +75,7 @@ Never add to the environment without a cost decision: a dedicated workload profi
 
 - "Images must be pullable": make the two packages public (step 4).
 - Preflight errors name the missing variable or secret and the script that sets it.
-- "restricted from provisioning" on the database: set `postgresLocation` in `infra/poc.bicepparam` to another US region.
+- Database region: the deploy keeps the region of the server that exists; with none yet it tries `TETHER_POSTGRES_CANDIDATES` in the workflow (westus3, westus2, centralus) and moves on ONLY when Azure refuses the region or the SKU (`SkuNotAvailable`, restricted). Run 1 on 2026-11-26 got `SkuNotAvailable` for B1MS in westus3. B1MS is $0.017 an hour in westus2 too, $0.01921 in centralus (about $1.60 a month more), read 2026-11-26. A database outside westus3 adds a cross-region round trip (tens of milliseconds) to every query; acceptable for the POC, and a reason to move the app to the same region later.
 - Every `/api` call answers 400 after sign-in: the platform sends a different Host header than expected. Tell the Lead (the fix is the `AllowedHosts` line in `infra/main.bicep`).
 - The API revision never becomes healthy: usually the database connection. Tell the Lead; the container log is in the Log Analytics workspace `tether-dev-logs`.
 
