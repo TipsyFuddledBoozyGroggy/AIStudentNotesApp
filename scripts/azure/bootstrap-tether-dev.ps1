@@ -22,7 +22,9 @@
   powershell -ExecutionPolicy Bypass -File .\scripts\azure\bootstrap-tether-dev.ps1 -AlertEmail you@example.com
   (Script execution is disabled on this machine, hence powershell.exe -ExecutionPolicy Bypass. Not from PowerShell ISE:
   it cannot answer the YES prompt of a script started this way.)
-  Done once on 2026-11-26.
+  First run 2026-11-26. Running it again is how to correct the alert address or the GitHub trust subject: the budget is
+  updated in place, the trust subject is replaced when it differs from what GitHub sends, everything else is skipped.
+  Needs gh signed in (it reads this repository's OIDC subject format).
   Add -Remove to delete everything this script created (the resource group and its contents, the app, the budget).
   Safe to run again: each step skips what already exists. It stops at the first failed step and says which one.
   Works in Windows PowerShell 5.1 and PowerShell 7.
@@ -94,8 +96,21 @@ foreach ($t in 50, 80, 100) {
   $notif["actual$t"] = @{ enabled = $true; operator = 'GreaterThanOrEqualTo'; threshold = $t; thresholdType = 'Actual'; contactEmails = @($AlertEmail) }
 }
 $notif['forecast100'] = @{ enabled = $true; operator = 'GreaterThanOrEqualTo'; threshold = 100; thresholdType = 'Forecasted'; contactEmails = @($AlertEmail) }
-$body = @{ properties = @{ category = 'Cost'; amount = $MonthlyBudgetUsd; timeGrain = 'Monthly'
-  timePeriod = @{ startDate = $start; endDate = $end }; notifications = $notif } } | ConvertTo-Json -Depth 8
+$budget = @{ properties = @{ category = 'Cost'; amount = $MonthlyBudgetUsd; timeGrain = 'Monthly'
+  timePeriod = @{ startDate = $start; endDate = $end }; notifications = $notif } }
+# Run again (for example to correct the alert address), the budget already exists: keep its period (a start date may not
+# move) and send its eTag, so the PUT is an update of that budget.
+$ErrorActionPreference = 'Continue'   # Windows PowerShell 5.1 turns a redirected native stderr line into a terminating error under 'Stop'
+$existingBudgetJson = az rest --method get --url $budgetUrl 2>$null; $getRc = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+if ($getRc -eq 0 -and $existingBudgetJson) {
+  $existingBudget = $existingBudgetJson | Out-String | ConvertFrom-Json
+  if ($existingBudget.eTag) { $budget.eTag = $existingBudget.eTag }
+  $period = $existingBudget.properties.timePeriod
+  if ($period.startDate) { $budget.properties.timePeriod = @{ startDate = $period.startDate; endDate = $period.endDate } }
+  Write-Host '  budget exists: updating its amount and alert address'
+}
+$body = $budget | ConvertTo-Json -Depth 8
 $tmp = Write-JsonTemp $body
 az rest --method put --url $budgetUrl --body "@$tmp" | Out-Null; $rc = $LASTEXITCODE
 Remove-Item $tmp
@@ -110,20 +125,39 @@ if (-not $spId) { $spId = az ad sp create --id $appId --query id -o tsv; Assert-
 
 # 4. Federated credential: only this repo's protected environment
 Write-Host '4/6 GitHub trust (environment only)'
-$existing = az ad app federated-credential list --id $appId --query "[?name=='github-azure-dev'].name" -o tsv; Assert-Ok 'list federated credentials'
-if (-not $existing) {
-  $fed = @{ name = 'github-azure-dev'; issuer = 'https://token.actions.githubusercontent.com'
-    subject = "repo:${Repo}:environment:${GitHubEnvironment}"; audiences = @('api://AzureADTokenExchange') } | ConvertTo-Json
+# The subject must equal, character for character, what GitHub puts in the job's token. A repository with GitHub's
+# "immutable subject" on (this one, seen on deploy run 1, 2026-11-26) uses owner and repository IDs:
+#   repo:Owner@123/Name@456:environment:azure-dev        (otherwise repo:Owner/Name:environment:azure-dev)
+# so read the prefix from GitHub instead of assuming it.
+$oidcJson = gh api "repos/$Repo/actions/oidc/customization/sub"
+if ($LASTEXITCODE -ne 0 -or -not $oidcJson) { throw 'Step failed: read the GitHub OIDC subject format (gh must be installed and signed in: gh auth login). Nothing after this step ran.' }
+$oidc = $oidcJson | Out-String | ConvertFrom-Json
+if (-not $oidc.use_default) { throw 'Step failed: this repository uses a custom OIDC subject template; tell the Lead (the trust has to be built from it). Nothing after this step ran.' }
+$prefix = if ($oidc.sub_claim_prefix) { $oidc.sub_claim_prefix } else { "repo:$Repo" }
+$subject = "${prefix}:environment:${GitHubEnvironment}"
+Write-Host "  subject: $subject"
+$fed = @{ name = 'github-azure-dev'; issuer = 'https://token.actions.githubusercontent.com'
+  subject = $subject; audiences = @('api://AzureADTokenExchange') } | ConvertTo-Json
+$current = @(az ad app federated-credential list --id $appId --query "[?name=='github-azure-dev'].subject" -o tsv); Assert-Ok 'list federated credentials'
+if (-not $current[0]) {
   $tmp = Write-JsonTemp $fed
   az ad app federated-credential create --id $appId --parameters "@$tmp" | Out-Null; $rc = $LASTEXITCODE
   Remove-Item $tmp
   Assert-Ok 'create federated credential' $rc
-}
+} elseif ($current[0] -cne $subject) {
+  Write-Host "  replacing the old subject: $($current[0])"
+  $tmp = Write-JsonTemp $fed
+  az ad app federated-credential update --id $appId --federated-credential-id github-azure-dev --parameters "@$tmp" | Out-Null; $rc = $LASTEXITCODE
+  Remove-Item $tmp
+  Assert-Ok 'update federated credential subject' $rc
+} else { Write-Host '  already correct' }
 
 # 5. Contributor on the one resource group. A new identity can take a minute to be visible to role assignment, so retry.
 Write-Host '5/6 Contributor on the resource group only'
 $scope = "/subscriptions/$sub/resourceGroups/$ResourceGroup"
-$assigned = $false
+$found = @(az role assignment list --scope $scope --role Contributor --query "[?principalId=='$spId'].id" -o tsv); Assert-Ok 'look up the existing role assignment'
+$assigned = [bool]$found[0]
+if ($assigned) { Write-Host '  already assigned' }
 for ($i = 1; $i -le 6 -and -not $assigned; $i++) {
   az role assignment create --assignee-object-id $spId --assignee-principal-type ServicePrincipal --role Contributor --scope $scope | Out-Null
   if ($LASTEXITCODE -eq 0) { $assigned = $true } else { Write-Host "  not visible yet, retrying in 20s ($i/6)"; Start-Sleep -Seconds 20 }
