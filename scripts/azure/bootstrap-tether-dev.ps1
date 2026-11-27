@@ -49,6 +49,11 @@ function Write-JsonTemp([string]$Json) {
 $acctJson = az account show --output json
 if ($LASTEXITCODE -ne 0 -or -not $acctJson) { throw 'Not signed in. Run: az login' }
 $acct = $acctJson | Out-String | ConvertFrom-Json
+# The default az profile on this machine belongs to the agents' read-only identity (a service principal). The PO signs in
+# under a separate profile; when AZURE_CONFIG_DIR is not pointing at it, stop here instead of failing at step 1.
+if ($acct.user.type -ne 'user') {
+  throw 'az is signed in as a service principal, not as you. Point AZURE_CONFIG_DIR at your own sign-in first (PowerShell: $env:AZURE_CONFIG_DIR = "$HOME\.azure-po"   cmd: set AZURE_CONFIG_DIR=%USERPROFILE%\.azure-po), check with: az account show --query user.name -o tsv, then run this script again.'
+}
 $sub = $acct.id; $tenant = $acct.tenantId
 $budgetUrl = "https://management.azure.com/subscriptions/$sub/providers/Microsoft.Consumption/budgets/tether-monthly?api-version=2023-05-01"
 Write-Host ""
