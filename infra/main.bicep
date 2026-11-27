@@ -1,4 +1,6 @@
-// Tether proof-of-concept hosting on Azure. Authored 2026-11-26. NEVER DEPLOYED as of this writing.
+// Tether hosting on Azure. Authored 2026-11-26 (first deployed that day); reworked 2026-11-27 for ADR-022
+// (docs/architecture/go-live-signin-adr.md): Google sign-in, invite-only, API always in Production. The ADR-022 version
+// has NOT been deployed as of this writing.
 // Deployed by .github/workflows/deploy-azure-dev.yml as the `tether-deployer` identity, which holds Contributor on the
 // resource group `tether-dev` and nothing else (scripts/azure/bootstrap-tether-dev.ps1). Read infra/README.md first.
 //
@@ -8,12 +10,21 @@
 //     no planned-maintenance window: each of those adds a USD 0.10 per hour management charge)
 //   - PostgreSQL 16 Flexible Server, smallest Burstable size, TLS required, password sign-in
 //   - Container app `tether-api`: INTERNAL ingress only, reachable only from inside the environment
-//   - Container app `tether-web`: the only public entry, and only when an access gate is configured (see below)
+//   - Container app `tether-web`: the only public entry, and only in an access mode that has a gate (see below)
 //
-// ACCESS GATE (the API runs as Development with dev login ON, so the public URL must never be open):
-//   - Primary gate: Microsoft Entra sign-in in front of the web app (Container Apps built-in authentication).
-//   - Optional extra: an IP allowlist on the web ingress.
-//   - With neither configured the web app gets INTERNAL ingress only. There is no parameter that opens it without a gate.
+// THE API ALWAYS RUNS AS PRODUCTION. This template has no Development branch and never sets a dev-login variable
+// (ADR-022 R1): the only sign-in in Azure is Google sign-in limited to the Tether invite list. Missing Google, invite or
+// key-ring values stop the deployment; they never fall back to anything.
+//
+// ACCESS MODES (parameter `access`, chosen per run in the deploy workflow):
+//   - team     Microsoft Entra sign-in (Container Apps built-in authentication) in front of the web app, and Google
+//              sign-in behind it. Used for the first Production run and as the rollback.
+//   - invited  Built-in authentication declared OFF. Google sign-in plus the Tether invite list is the gate.
+//   - closed   The web app gets INTERNAL ingress only. Built-in authentication is left as it is. In the workflow the
+//              emergency stop (input access=closed) does NOT deploy this template: it changes the one ingress setting
+//              with infra/scripts/close-web.sh, so it never depends on the values below. This template's closed mode
+//              is the fallback of the workflow's fail-closed step when that one-setting change does not work.
+//   An optional IP allowlist on the web ingress applies on top of either public mode. It is never a gate on its own.
 //
 // What the deploy identity cannot do, and how this file works around it:
 //   - It cannot create role assignments, so there is no managed-identity image pull and no Key Vault access role.
@@ -56,12 +67,17 @@ param webImage string
 @description('Changes on every deploy (the workflow passes the run id). Forces a new revision so changed secrets are picked up.')
 param deploymentStamp string = ''
 
-// --- Access gate ---
+// --- Access mode and gate ---
 
-@description('Ask for PUBLIC web ingress. Honoured only when a gate is configured; asking for it without a gate fails the deployment.')
+@description('''Who can reach the web app (ADR-022 section 2).
+team: Entra sign-in in front (needs easyAuthClientId and easyAuthClientSecret). invited: built-in authentication declared off; Google sign-in and the invite list are the gate. closed: internal ingress only; built-in authentication is not touched.''')
+@allowed(['team', 'invited', 'closed'])
+param access string = 'closed'
+
+@description('Ask for PUBLIC web ingress. Honoured only in the team and invited modes. false with access=team is pass 1 of a two-pass run: Entra sign-in is applied while the web app is still internal.')
 param exposeWeb bool = false
 
-@description('Client id of the Entra sign-in app registration the Product Owner created (scripts/azure/create-signin-app.ps1). Empty = built-in sign-in off.')
+@description('Client id of the Entra sign-in app registration the Product Owner created (scripts/azure/create-signin-app.ps1). Required for access=team.')
 param easyAuthClientId string = ''
 
 @description('Client secret of that app registration. Stored as a Container Apps secret, never in the template or its outputs.')
@@ -86,13 +102,41 @@ param postgresAdminPassword string
 @minLength(44)
 param rootSecret string
 
+// --- Google sign-in, invite list, key ring (ADR-022 section 2). All required in every access mode. ---
+// Defaults are empty on purpose: the guard below then stops the deployment with a plain message instead of a parameter error.
+
+@description('Google OAuth client id (GitHub secret GOOGLE_CLIENT_ID, stored by scripts/azure/set-google-signin.ps1). Not a credential: it is public in every authorization URL.')
+param googleClientId string = ''
+
+@description('Google OAuth client secret (GitHub secret GOOGLE_CLIENT_SECRET). Stored as the Container Apps secret google-client-secret.')
+@secure()
+param googleClientSecret string = ''
+
+@description('The Tether invite list: comma-separated, lower-case email addresses, 1 to 100 (GitHub secret TETHER_INVITED_EMAILS, written by scripts/azure/set-invites.ps1). Stored as the Container Apps secret invite-emails. Personal data: never in the template, its outputs or a log.')
+@secure()
+param invitedEmails string = ''
+
+@description('Certificate that protects the sign-in cookie key ring: base64 of a PFX with no password (GitHub secret DP_CERT_PFX). Stored as the Container Apps secret dp-cert.')
+@secure()
+param dataProtectionCertificate string = ''
+
+@description('The previous key-ring certificate, kept after a rotation so older keys still open (GitHub secret DP_CERT_PFX_PREVIOUS). Empty = none. Stored as the Container Apps secret dp-cert-previous.')
+@secure()
+param dataProtectionPreviousCertificate string = ''
+
+@description('What Google sign-in does with an account that carries a hosted-domain claim (a school or work account). refuse is the default (ADR-022 R7, the Lead\'s reading, pending the Product Owner).')
+@allowed(['refuse', 'allow'])
+param hostedDomainPolicy string = 'refuse'
+
 // --- Database ---
 
 @description('PostgreSQL administrator login. The POC app connects as this login (it runs the migrations).')
 param postgresAdminLogin string = 'tetheradmin'
 
-@description('Database name.')
-param postgresDatabaseName string = 'tether'
+@description('Database the API uses. ADR-022 R8: the first Production run starts on a NEW, empty database (tether_live), so no dev-login row ever sits next to a Google account. The earlier database `tether` is not declared here any more; an incremental deployment leaves it and its data on the server until the Product Owner deletes it.')
+@minLength(1)
+@maxLength(63)
+param postgresDatabaseName string = 'tether_live'
 
 @description('PostgreSQL compute size. Standard_B1ms is the smallest Burstable size.')
 param postgresSkuName string = 'Standard_B1ms'
@@ -152,24 +196,33 @@ var webPort = 3000 // src/web/Dockerfile: PORT=3000
 var cleanIpRanges = filter(map(allowedIpRanges, r => trim(r)), r => !empty(r))
 var authOn = !empty(easyAuthClientId) && !empty(easyAuthClientSecret)
 var ipGateOn = !empty(cleanIpRanges)
-// PO-20cf: public access always needs Entra sign-in. The IP allowlist is only an extra layer on top of it, never a gate on
-// its own (a wide range would hand dev login, and so every account, to everyone behind it).
-var gateOn = authOn
+// Everything the Production API needs to offer Google sign-in to invited people and to keep its cookie keys.
+var googleOn = !empty(googleClientId) && !empty(googleClientSecret) && !empty(invitedEmails) && !empty(dataProtectionCertificate)
+// Built-in (Entra) authentication is ON only in the team mode.
+var entraActive = access == 'team' && authOn
+// The gate that makes public ingress acceptable. The IP allowlist is only an extra layer on top, never a gate on its own.
+//   team:    Entra sign-in in front (the Production API with Google sign-in sits behind it).
+//   invited: the Production API itself: Google sign-in limited to the invite list, and no dev login in this template.
+//   closed:  none, and none needed: the ingress is internal.
+var gateOn = access == 'team' ? entraActive : (access == 'invited' ? googleOn : false)
 
-// Guards. Each one stops the deployment with a plain message instead of creating something unsafe.
+// Guards. Each one stops the deployment with a plain message instead of creating something unsafe. No message names a value.
 var authHalfConfigured = empty(easyAuthClientId) != empty(easyAuthClientSecret)
 // Same floor as infra/scripts/preflight.sh (/16), so a deployment started without the workflow cannot widen the allowlist.
 var openIpRange = !empty(filter(cleanIpRanges, r => contains(r, '/') && int(last(split(r, '/'))) < 16))
-var guardMessage = authHalfConfigured
-  ? 'easyAuthClientId and easyAuthClientSecret must be set together (run scripts/azure/create-signin-app.ps1).'
-  : openIpRange
-      ? 'allowedIpRanges contains a range wider than /16. That is not an allowlist.'
-      : (exposeWeb && !gateOn)
-          ? 'exposeWeb is true but Entra sign-in is not configured. The web app is never made public without it (an IP allowlist is only an extra layer).'
-          : ''
-// Evaluated wherever webExternal is used (the web ingress), so a failed guard stops the deployment before the web app is touched.
-// Belt and braces: even if fail() were skipped, webExternal is false unless Entra sign-in is configured.
-var webExternal = empty(guardMessage) ? (exposeWeb && gateOn) : fail(guardMessage)
+var guardMessage = !googleOn
+  ? 'googleClientId, googleClientSecret, invitedEmails and dataProtectionCertificate must all be set, in every access mode (run scripts/azure/set-google-signin.ps1 and scripts/azure/set-invites.ps1). The API has no other sign-in in Azure and never falls back to one.'
+  : authHalfConfigured
+      ? 'easyAuthClientId and easyAuthClientSecret must be set together (run scripts/azure/create-signin-app.ps1).'
+      : openIpRange
+          ? 'allowedIpRanges contains a range wider than /16. That is not an allowlist.'
+          : (access == 'team' && !authOn)
+              ? 'access is team but Entra sign-in is not configured (run scripts/azure/create-signin-app.ps1). Use access=invited or access=closed, or configure it.'
+              : ''
+// `guardsPassed` is read by the API (its Google settings) AND by the web ingress, so a failed guard stops the deployment
+// before either app is written. Belt and braces: even if fail() were skipped, webExternal is false without a gate.
+var guardsPassed = empty(guardMessage) ? true : fail(guardMessage)
+var webExternal = guardsPassed && access != 'closed' && exposeWeb && gateOn
 
 var webIpRestrictions = map(range(0, length(cleanIpRanges)), i => {
   name: 'allow-${i}'
@@ -188,6 +241,10 @@ var logWorkspaceName = 'tether-dev-logs'
 var webFqdn = '${webAppName}.${containerEnv.properties.defaultDomain}'
 var apiInternalFqdn = '${apiAppName}.internal.${containerEnv.properties.defaultDomain}'
 var webOrigin = 'https://${webFqdn}'
+// ADR-022 section 2: the ONE redirect address. The same string is checked by the API at startup, compared by the outside
+// smoke probe and printed for the Product Owner by scripts/azure/set-google-signin.ps1. Built from the environment's own
+// domain, never from a request header.
+var googleRedirectUri = '${webOrigin}/api/v1/auth/google/callback'
 
 var stampEnv = empty(deploymentStamp) ? [] : [{ name: 'TETHER_DEPLOY_STAMP', value: deploymentStamp }]
 var scaleToZeroCooldown = { cooldownPeriod: scaleToZeroCooldownSeconds }
@@ -274,14 +331,20 @@ resource postgresAllowAzure 'Microsoft.DBforPostgreSQL/flexibleServers/firewallR
   dependsOn: [postgresDatabase]
 }
 
-// Tighter alternative (UNVERIFIED): one rule per outbound address the environment reports. Read from the web app because
-// it does not need the database, so the API can wait for the rules. When switching to this mode, delete the
+// Tighter alternative (UNVERIFIED, not used by infra/poc.bicepparam): one rule per outbound address the environment
+// reports. The addresses are read from the web app AS IT ALREADY EXISTS (an `existing` reference, not the `web` resource
+// declared below): the web app now waits for the API (see its dependsOn), the API waits for these rules, so reading
+// them from the declared web app would be a circle. Consequence: this mode works only once the web app exists, so
+// the first deployment of an environment must use azureServices. When switching to this mode, delete the
 // AllowAllAzureServicesAndResourcesWithinAzureIps rule by hand: an incremental deployment does not remove it.
+resource webAlreadyDeployed 'Microsoft.App/containerApps@2025-01-01' existing = if (postgresFirewallMode == 'containerAppOutboundIps') {
+  name: webAppName
+}
 module postgresAllowOutbound 'modules/postgres-firewall.bicep' = if (postgresFirewallMode == 'containerAppOutboundIps') {
   name: 'tether-postgres-firewall'
   params: {
     serverName: postgres.name
-    ipAddresses: web.properties.outboundIpAddresses
+    ipAddresses: webAlreadyDeployed!.properties.outboundIpAddresses
   }
   dependsOn: [postgresDatabase]
 }
@@ -331,7 +394,7 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
         // the https name contains a per-environment suffix that is unknown when the web image is built.
         allowInsecure: true
       }
-      secrets: [
+      secrets: concat([
         {
           name: 'db-connection'
           // Password charset is limited to letters, digits, hyphen and underscore (checked by the workflow), so it cannot break out of the string.
@@ -341,7 +404,12 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
           value: 'Host=${postgres.properties.fullyQualifiedDomainName};Port=5432;Database=${postgresDatabaseName};Username=${postgresAdminLogin};Password=${postgresAdminPassword};SSL Mode=${postgresSslMode};GSS Encryption Mode=Disable;Maximum Pool Size=20'
         }
         { name: 'root-secret', value: rootSecret }
-      ]
+        // ADR-022 section 2. These names are the contract with the API and with scripts/azure/set-invites.ps1 (it
+        // rewrites `invite-emails` in place and restarts the API); do not rename one without the other.
+        { name: 'google-client-secret', value: googleClientSecret }
+        { name: 'invite-emails', value: invitedEmails }
+        { name: 'dp-cert', value: dataProtectionCertificate }
+      ], empty(dataProtectionPreviousCertificate) ? [] : [{ name: 'dp-cert-previous', value: dataProtectionPreviousCertificate }])
       // No `registries` entry: the images are public and pulled anonymously.
     }
     template: {
@@ -352,10 +420,10 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
           resources: { cpu: json('0.25'), memory: '0.5Gi' }
           env: concat(
             [
-              // POC ONLY. Development is the only environment in which the API allows dev login, and dev login is the only
-              // sign-in that exists. The access gate on the web app is what keeps strangers out.
-              { name: 'ASPNETCORE_ENVIRONMENT', value: 'Development' }
-              { name: 'Auth__DevLogin__Enabled', value: 'true' }
+              // ADR-022 R1: a literal. There is no parameter, condition or branch that yields anything else, and no
+              // dev-login variable is ever set (appsettings.json ships it false; the API refuses to start with it on
+              // outside Development). infra/scripts/api-signin-mode.sh reads exactly these two facts from the live app.
+              { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
               { name: 'ConnectionStrings__Default', secretRef: 'db-connection' }
               { name: 'Security__RootSecret', secretRef: 'root-secret' }
               // The origin the BROWSER uses (the web app), checked on every unsafe request and WebSocket upgrade.
@@ -365,12 +433,25 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
               { name: 'AllowedHosts', value: '${apiAppName};${apiInternalFqdn}' }
               { name: 'Database__MigrateOnStartup', value: 'true' }
               { name: 'Syllabus__Worker__PollMilliseconds', value: string(apiSyllabusWorkerPollMs) }
+              // --- Google sign-in, invite list, key ring (ADR-022 section 2; the API refuses to start if one is wrong) ---
+              // Plain value: the client id is public in every authorization URL. `guardsPassed` ties the API to the guards.
+              { name: 'Auth__Google__ClientId', value: guardsPassed ? googleClientId : '' }
+              { name: 'Auth__Google__ClientSecret', secretRef: 'google-client-secret' }
+              { name: 'Auth__Google__RedirectUri', value: googleRedirectUri }
+              { name: 'Auth__Google__Admission', value: 'allowlist' } // the only value the API accepts; open sign-up is not a setting
+              { name: 'Auth__Google__HostedDomainPolicy', value: hostedDomainPolicy }
+              { name: 'Auth__Invite__Emails', secretRef: 'invite-emails' }
+              // The sign-in cookie keys live in the database (identity.data_protection_keys), protected by this certificate.
+              { name: 'DataProtection__Certificate', secretRef: 'dp-cert' }
               // Deliberately NOT set:
-              //  - Security__TrustedProxies / TrustedProxyNetworks: the platform proxy's address range is not known, and the
-              //    API refuses wide ranges. Effect: the API sees every caller as one address (per-IP limits are shared).
-              //  - DataProtection__KeysPath: cookie keys are ephemeral. Effect: every API restart or deploy signs everyone out.
+              //  - Auth__DevLogin__Enabled: never, in any access mode (see above).
+              //  - Security__TrustedProxies / TrustedProxyNetworks: forwarded headers stay untrusted until the hop chain has
+              //    been measured (ADR-022 R6). Effect: the API sees every caller as one address (per-IP limits are shared).
+              //  - RateLimiting__AuthStart*, AuthCallback*: the defaults in code apply (ADR-022 section 2).
+              //  - DataProtection__KeysPath: honoured in Development only.
               //  - Ai__Provider, Speech__Provider, Docs__Provider, Syllabus__*: defaults are the mocks; the API refuses anything else.
             ],
+            empty(dataProtectionPreviousCertificate) ? [] : [{ name: 'DataProtection__PreviousCertificates__0', secretRef: 'dp-cert-previous' }],
             stampEnv
           )
           probes: [
@@ -410,7 +491,7 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Web container app: the only public entry, and only behind a gate
+// Web container app: the only public entry, and only in an access mode that has a gate
 // ---------------------------------------------------------------------------------------------------------------------
 
 resource web 'Microsoft.App/containerApps@2025-01-01' = {
@@ -423,12 +504,14 @@ resource web 'Microsoft.App/containerApps@2025-01-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: {
-        external: webExternal // false unless exposeWeb AND a gate; see the guards above
+        external: webExternal // false unless access is team or invited, exposeWeb is true AND that mode's gate is configured
         targetPort: webPort
         transport: 'auto'
         allowInsecure: false // http is redirected to https
         ipSecurityRestrictions: webIpRestrictions // any Allow rule makes the ingress deny every other address
       }
+      // Kept in every mode while the Entra values exist, so going back to access=team is one pass. In the invited mode
+      // nothing refers to it (see webAuthOff), so removing the Entra registration later cannot break a deployment.
       secrets: authOn ? [{ name: 'easyauth-client-secret', value: easyAuthClientSecret }] : []
     }
     template: {
@@ -449,43 +532,59 @@ resource web 'Microsoft.App/containerApps@2025-01-01' = {
       scale: union({ minReplicas: webMinReplicas, maxReplicas: 1 }, webMinReplicas == 0 ? scaleToZeroCooldown : {})
     }
   }
+  // The API first, then the web app: new web code never runs against the previous API for the length of a rollout
+  // (for example a sign-in page asking for /auth/methods before the API has it). Not a gate; an ordering nicety.
+  dependsOn: [api]
 }
 
-// Built-in authentication ("Easy Auth"): every request to the web app, including /api, the SignalR negotiate POST and
-// the /hubs and /ingest WebSocket upgrades, must carry the platform's sign-in session cookie or is redirected to
-// Microsoft sign-in. Who may sign in is decided in Entra: the app registration is single-tenant and its enterprise
-// application has "assignment required" on, so only users the Product Owner assigns get a token.
-// The deploy workflow applies this while the web ingress is still internal, then opens the ingress in a second pass.
-resource webAuth 'Microsoft.App/containerApps/authConfigs@2025-01-01' = if (authOn) {
-  parent: web
-  name: 'current'
-  properties: {
-    platform: { enabled: true }
-    globalValidation: {
-      unauthenticatedClientAction: 'RedirectToLoginPage'
-      redirectToProvider: 'azureactivedirectory'
-    }
-    httpSettings: { requireHttps: true }
-    identityProviders: {
-      azureActiveDirectory: {
-        enabled: true
-        registration: {
-          clientId: easyAuthClientId
-          clientSecretSettingName: 'easyauth-client-secret' // the Container Apps secret above
-          openIdIssuer: '${environment().authentication.loginEndpoint}${easyAuthTenantId}/v2.0'
-        }
-        validation: {
-          allowedAudiences: [easyAuthClientId, 'api://${easyAuthClientId}']
-        }
+// Built-in authentication ("Easy Auth"), declared EXPLICITLY in both public modes (ADR-022 section 2).
+//
+// team: every request to the web app, including /api, the SignalR negotiate POST and the /hubs and /ingest WebSocket
+// upgrades, must carry the platform's sign-in session cookie or is redirected to Microsoft sign-in. Who may sign in is
+// decided in Entra: the app registration is single-tenant and its enterprise application has "assignment required" on,
+// so only users the Product Owner assigns get a token.
+var webAuthOn = {
+  platform: { enabled: true }
+  globalValidation: {
+    unauthenticatedClientAction: 'RedirectToLoginPage'
+    redirectToProvider: 'azureactivedirectory'
+  }
+  httpSettings: { requireHttps: true }
+  identityProviders: {
+    azureActiveDirectory: {
+      enabled: true
+      registration: {
+        clientId: easyAuthClientId
+        clientSecretSettingName: 'easyauth-client-secret' // the Container Apps secret on the web app
+        openIdIssuer: '${environment().authentication.loginEndpoint}${easyAuthTenantId}/v2.0'
+      }
+      validation: {
+        allowedAudiences: [easyAuthClientId, 'api://${easyAuthClientId}']
       }
     }
-    login: {
-      // Fixed 12 hours from sign-in. When it lapses, background requests are redirected to sign-in and fail until the
-      // page is reloaded (see "Known limits" in infra/README.md).
-      cookieExpiration: { convention: 'FixedTime', timeToExpiration: '12:00:00' }
-      preserveUrlFragmentsForLogins: false
-    }
   }
+  login: {
+    // Fixed 12 hours from sign-in. When it lapses, background requests are redirected to sign-in and fail until the
+    // page is reloaded (see "Known limits" in infra/README.md).
+    cookieExpiration: { convention: 'FixedTime', timeToExpiration: '12:00:00' }
+    preserveUrlFragmentsForLogins: false
+  }
+}
+// invited: the settings are written with the platform switched OFF. Leaving the resource out would NOT turn it off: an
+// incremental deployment keeps a child resource it is no longer told about (ASSUMED ARM behaviour, and the reason for
+// this block), so the Microsoft prompt would stay. No identity provider is listed, so nothing refers to the Entra secret.
+// UNVERIFIED until the first invited run: that Azure accepts this body and takes the sign-in layer away in place.
+var webAuthOff = {
+  platform: { enabled: false }
+  globalValidation: { unauthenticatedClientAction: 'AllowAnonymous' }
+  httpSettings: { requireHttps: true }
+  identityProviders: {}
+}
+// closed: not declared, so whatever is there stays (the ingress is internal, nothing is reachable either way).
+resource webAuth 'Microsoft.App/containerApps/authConfigs@2025-01-01' = if (access != 'closed') {
+  parent: web
+  name: 'current'
+  properties: entraActive ? webAuthOn : webAuthOff
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -509,8 +608,14 @@ output signInRedirectUri string = '${webOrigin}/.auth/login/aad/callback'
 @description('True when the web app has public ingress after this deployment.')
 output webIsPublic bool = webExternal
 
-@description('none, entra, ip or entra+ip.')
-output accessGate string = authOn ? (ipGateOn ? 'entra+ip' : 'entra') : (ipGateOn ? 'ip' : 'none')
+@description('Redirect address the Google OAuth client must carry (Google Cloud console, Authorized redirect URIs). The same value the API gets as Auth:Google:RedirectUri.')
+output googleRedirectUri string = googleRedirectUri
+
+@description('The access mode this deployment applied: team, invited or closed.')
+output access string = access
+
+@description('closed, entra, entra+ip, google or google+ip. Read by infra/scripts/smoke.sh to pick what an outside request must get.')
+output accessGate string = access == 'closed' ? 'closed' : '${access == 'team' ? 'entra' : 'google'}${ipGateOn ? '+ip' : ''}'
 
 output environmentName string = containerEnv.name
 output environmentDefaultDomain string = containerEnv.properties.defaultDomain

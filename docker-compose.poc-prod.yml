@@ -1,0 +1,160 @@
+# Local PRODUCTION rehearsal stack (ADR-022, docs/architecture/go-live-signin-adr.md): the two production images wired
+# the way Azure runs them after go-live. The API runs as Production: no dev login, Google sign-in settings required,
+# sign-in cookie keys in the database behind a certificate, a NEW empty database. Local only; not a deployment
+# definition. The everyday local stack with dev login is still docker-compose.poc.yml.
+#
+# What it is for:
+#   - proving that the API starts in Production with the settings infra/main.bicep gives it (same variable names), and
+#     that its migrations build a fresh database;
+#   - rehearsing the six outside smoke probes of infra/scripts/smoke.sh (dev login does not exist, sign-in start, the
+#     302 through the Next proxy, cookie attributes) before any Azure run.
+# What it cannot do: complete a real Google sign-in. The Google client id and secret below are placeholders, the API
+# container has no route to the internet, and Google only knows the Azure address and http://localhost:5080.
+#
+#   bash infra/local/make-local-prod-env.sh        # once: throwaway TLS certificate, root secret and key-ring certificate, kept OUTSIDE the repository
+#   docker compose --env-file "$HOME/.tether/poc-prod/poc-prod.env" -f docker-compose.poc-prod.yml up -d --build
+#   docker compose --env-file "$HOME/.tether/poc-prod/poc-prod.env" -f docker-compose.poc-prod.yml run --rm rehearsal
+#   open https://localhost:3443   (the browser warns about the self-signed certificate; the sign-in page shows the Google button only)
+#   docker compose --env-file "$HOME/.tether/poc-prod/poc-prod.env" -f docker-compose.poc-prod.yml down -v
+#
+# Why https on localhost: outside Development the API refuses a redirect address that is not https and only issues
+# Secure `__Host-` cookies, and the smoke script only speaks https. The `tls` service stands in for the Azure ingress.
+# Distinct project name, volume and port, so it never touches the dev stack or docker-compose.poc.yml.
+name: tether-poc-prod
+
+services:
+  postgres:
+    image: postgres:16.15-alpine
+    # SB-01: same logging settings as docker-compose.yml (no row or statement text in the server log).
+    command:
+      - postgres
+      - -c
+      - log_error_verbosity=terse
+      - -c
+      - log_min_error_statement=panic
+      - -c
+      - log_statement=none
+      - -c
+      - log_duration=off
+      - -c
+      - log_min_duration_statement=-1
+      - -c
+      - log_min_duration_sample=-1
+      - -c
+      - log_parameter_max_length=0
+      - -c
+      - log_parameter_max_length_on_error=0
+    environment:
+      POSTGRES_USER: tether_poc                       # local rehearsal only
+      POSTGRES_PASSWORD: tether_poc_local_only        # local rehearsal only, never reuse
+      POSTGRES_DB: tether_live                        # the same database name infra/poc.bicepparam uses (ADR-022 R8), created empty
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tether_poc -d tether_live"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build:
+      context: ./src/api
+    image: tether-api:poc
+    environment:
+      # The same names and shapes infra/main.bicep sets (ADR-022 section 2). Keep the two in step.
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=tether_live;Username=tether_poc;Password=tether_poc_local_only"
+      Security__RootSecret: "${TETHER_POC_ROOT_SECRET:?run infra/local/make-local-prod-env.sh and pass its poc-prod.env with --env-file}"
+      # The origin the BROWSER (and the smoke probes) use: the local TLS front.
+      Security__AllowedOrigins__0: "https://localhost:3443"
+      # Host header the API accepts: the name the web proxy calls it by (Azure: the API app name).
+      AllowedHosts: "api"
+      Database__MigrateOnStartup: "true"
+      # Placeholders by default: they have the right SHAPE, so the API starts, but Google would refuse them.
+      Auth__Google__ClientId: "${TETHER_POC_GOOGLE_CLIENT_ID:-123456789012-localrehearsalplaceholder.apps.googleusercontent.com}"
+      Auth__Google__ClientSecret: "${TETHER_POC_GOOGLE_CLIENT_SECRET:-local-rehearsal-placeholder-not-a-google-value}"
+      Auth__Google__RedirectUri: "https://localhost:3443/api/v1/auth/google/callback"
+      Auth__Google__Admission: "allowlist"
+      Auth__Google__HostedDomainPolicy: "refuse"
+      Auth__Invite__Emails: "${TETHER_POC_INVITED_EMAILS:-rehearsal@example.invalid}"
+      DataProtection__Certificate: "${TETHER_POC_DP_CERT_PFX:?run infra/local/make-local-prod-env.sh and pass its poc-prod.env with --env-file}"
+      # Deliberately NOT set, as in Azure: Auth__DevLogin__Enabled, DataProtection__KeysPath, any trusted proxy, any rate limit.
+    networks: [backend]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # No ports: and no healthcheck (the chiseled image has no shell or curl).
+
+  web:
+    build:
+      context: ./src/web
+      args:
+        API_PROXY_TARGET: http://api:8080   # baked into the image at build time (see src/web/Dockerfile)
+    image: tether-web:poc
+    networks: [backend, frontend]
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/signin"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    # No ports: the only way in is the TLS front below, as the only way in to Azure is the https ingress.
+
+  tls:
+    # node:22-alpine, the same pinned digest as src/web/Dockerfile. Runs one small script; see infra/local/tls-proxy.mjs.
+    image: node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a
+    command: ["node", "/proxy/tls-proxy.mjs"]
+    user: "1000:1000"
+    read_only: true
+    environment:
+      TARGET_HOST: web
+      TARGET_PORT: "3000"
+      LISTEN_PORT: "3443"
+      TLS_DIR: /tls
+    volumes:
+      - ./infra/local/tls-proxy.mjs:/proxy/tls-proxy.mjs:ro
+      - "${TETHER_POC_TLS_DIR:?run infra/local/make-local-prod-env.sh and pass its poc-prod.env with --env-file}:/tls:ro"
+    ports:
+      - "127.0.0.1:3443:3443"   # loopback only
+    networks: [frontend]
+    depends_on:
+      - web
+
+  # One-shot: the six "invited" outside probes of infra/scripts/smoke.sh against https://localhost:3443, in rehearsal
+  # mode (no Azure reads, nothing written anywhere). It shares the TLS front's network, so "localhost:3443" is that
+  # front and the address matches the redirect address the API was given.
+  #   docker compose ... run --rm rehearsal
+  rehearsal:
+    profiles: [rehearsal]
+    build:
+      context: ./infra/local
+      dockerfile: rehearsal.Dockerfile
+    image: tether-smoke-rehearsal:local
+    network_mode: "service:tls"
+    read_only: true
+    tmpfs: [/tmp]
+    environment:
+      SMOKE_LOCAL_REHEARSAL: "1"
+      GATE: google
+      WEB_FQDN: "localhost:3443"
+      CURL_CA_BUNDLE: /tls/tls-cert.pem
+      SMOKE_GATE_WAIT_SECONDS: "60"
+      SMOKE_POLL_SECONDS: "5"
+    volumes:
+      - ./infra/scripts:/scripts:ro
+      - "${TETHER_POC_TLS_DIR:?run infra/local/make-local-prod-env.sh and pass its poc-prod.env with --env-file}:/tls:ro"
+    command: ["/scripts/smoke.sh"]
+    depends_on:
+      - tls
+
+networks:
+  backend:
+    internal: true   # no route out and no published ports: postgres and api are reachable only from containers on it
+  frontend: {}
+
+volumes:
+  pgdata:

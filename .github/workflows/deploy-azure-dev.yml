@@ -1,28 +1,57 @@
 name: Deploy Azure dev (POC)
-# Authored 2026-11-26; first run on GitHub the same day (build job and Azure OIDC sign-in work; see docs/PROGRESS.md for
-# what the first runs found). Manual only (workflow_dispatch), so it never reports on a pull request or a push and cannot
-# become part of the required `ci result` check in ci.yml.
-# Read infra/README.md first: it lists the one-time steps only the Product Owner can do and explains the two-run flow.
+# Authored 2026-11-26; reworked 2026-11-27 for ADR-022 (docs/architecture/go-live-signin-adr.md): the API always runs as
+# Production with Google sign-in limited to the Tether invite list, and each run chooses an ACCESS MODE. The ADR-022
+# version of this file has not run on GitHub as of this writing. Manual only (workflow_dispatch), so it never reports on
+# a pull request or a push and cannot become part of the required `ci result` check in ci.yml.
+# Read infra/README.md first: it lists the steps only the Product Owner can do and the order of the runs.
+#
+# Access modes (input `access`; the tables are in ADR-022 section 2):
+#   team     Microsoft (Entra) sign-in in front of the site, Google sign-in behind it. The DEFAULT: a careless run puts
+#            the Microsoft gate back, which is the safe direction. Also the rollback.
+#   invited  no Microsoft sign-in; Google sign-in plus the invite list is the gate.
+#   closed   the emergency stop: the website is made internal only. It builds nothing, deploys nothing and never touches
+#            the API. It changes one setting, the web app's ingress (infra/scripts/close-web.sh), so it needs only the
+#            Azure sign-in ids and runs even when every other secret is missing or broken (Lead ruling F1).
 #
 # What a run does:
-#   build   builds src/api/Dockerfile and src/web/Dockerfile, pushes both to ghcr.io tagged with the commit SHA, and
-#           stops early if Azure could not pull them anonymously (the packages must be public).
+#   plan    works out which commit is deployed (the newest on main, or `release_sha`) and whether images are built.
+#   build   (skipped for gate_only, release_sha and closed) builds src/api/Dockerfile and src/web/Dockerfile, pushes
+#           both to ghcr.io tagged with the commit SHA, and stops early if Azure could not pull them anonymously.
 #   deploy  waits for the reviewer of the GitHub environment `azure-dev`, signs in to Azure with OIDC as `tether-deployer`
-#           (no stored Azure secret), deploys infra/main.bicep to the resource group `tether-dev`, then checks health
-#           and checks from outside that the access gate refuses an anonymous request.
+#           (no stored Azure secret), checks the run against what is LIVE, deploys infra/main.bicep to the resource
+#           group `tether-dev`, then checks health, the live sign-in mode and, from outside, the gate.
+#           For `closed` it only makes the web ingress internal and checks from outside that the site does not answer.
 #
-# Access gate (the API runs with dev login ON, so the web address must never be open):
-#   - no gate configured          -> the web app is deployed with INTERNAL ingress only (run 1 of the two-run flow)
-#   - Entra sign-in configured    -> pass 1 applies sign-in while the web app is still internal, pass 2 makes it public
-#   - fail closed: if a run that asked for public ingress does not end with the outside gate check PASSED (deploy failed,
-#     outputs unreadable, gate check timed out, anonymous request answered 2xx, run cancelled), the last step makes the
-#     web ingress internal again
+# Rules this file enforces (each stops the run before anything is deployed):
+#   - Every Google, invite-list and key-ring value must be present whenever something is deployed, that is for `team`
+#     and `invited` (preflight). Nothing falls back to another sign-in: infra/main.bicep has no Development branch and
+#     never sets a dev-login variable. `closed` deploys nothing and is exempt.
+#   - `invited` is refused unless the LIVE API is already Production with no dev-login variable
+#     (infra/scripts/api-signin-mode.sh). So the Microsoft gate never comes off in front of an API nobody has tried.
+#   - Taking the Microsoft gate off (it is on, the run asks for `invited`) must be a `gate_only` run: no new code rides
+#     along with the gate change.
+#     Whether the gate is on is read from Azure; a read that fails is "unknown" and refuses, it is never taken as "off".
+#   - A `gate_only` run keeps the release that is live: it refuses unless the live images are this commit's (or
+#     `release_sha`'s). One exception, the rollback: `team` + `gate_only` with no `release_sha` ADOPTS the live images
+#     when main has moved on, provided the live API is a Production API with no dev login. Putting the Microsoft gate
+#     back is therefore always one step (infra/scripts/live-rules.sh).
+#   - The template of the commit being deployed, and the template at the go-live tag, are checked by content: Production
+#     as a literal and no dev-login variable (infra/scripts/release-guard.sh).
+#   - `release_sha` must be on main and at or after the tag `go-live-base` (the first commit whose template has no dev
+#     login). A rollback can therefore never deploy a dev-login release onto a database that holds Google accounts.
+#   - Fail closed: if a run that asked for public ingress does not end with the gate check PASSED (deploy failed, outputs
+#     unreadable, a probe failed or never got a clear answer, run cancelled), the last step makes the web ingress
+#     internal again: first with the same one-setting change `closed` uses, and if that does not work by deploying
+#     the template with internal ingress.
 #
-# This repository is public, so these logs are public. Nothing here prints a secret, an allowed IP address, the web
-# address, the environment domain or the database server name (masked before any Azure error text is printed).
-# AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID and EASYAUTH_CLIENT_ID are identifiers, not credentials, but
-# they are stored as GitHub environment SECRETS (not variables): GitHub prints a step's env values in the step's log
-# header, and only secrets are masked there.
+# A run with `release_sha` deploys THAT commit's infra/ folder and images; only this workflow file is the newest one.
+# So the inputs and environment names the infra scripts read are a contract across releases: change them additively.
+#
+# This repository is public, so these logs are public. Nothing here prints a secret, an invited address, an allowed IP
+# address, the web address, the environment domain or the database server name (masked before any Azure error text is
+# printed). AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, EASYAUTH_CLIENT_ID and GOOGLE_CLIENT_ID are
+# identifiers, not credentials, but they are stored as GitHub environment SECRETS (not variables): GitHub prints a
+# step's env values in the step's log header, and only secrets are masked there.
 #
 # Action pins: full commit SHA with the tag in the trailing comment (house rule, see ci.yml).
 #   actions/checkout  v4.2.2  same pin as ci.yml (docs/security/action-pin-verification.md)
@@ -31,6 +60,20 @@ name: Deploy Azure dev (POC)
 #                             this action publishes its built code. OIDC sign-in with it worked on 2026-11-26.
 on:
   workflow_dispatch:
+    inputs:
+      access:
+        description: "Who can reach the site. team = Microsoft sign-in in front (default, and the rollback). invited = Google sign-in and the invite list only. closed = nobody (emergency stop)."
+        type: choice
+        options: [team, invited, closed]
+        default: team
+      gate_only:
+        description: "Change the access mode only. No new code is built; the release that is live stays. Required when taking the Microsoft gate off."
+        type: boolean
+        default: false
+      release_sha:
+        description: "Optional. Full commit id of the release to deploy or keep, when it is not the newest commit on main. Must be at or after the tag go-live-base."
+        type: string
+        default: ""
 
 # Nothing by default; each job declares exactly what it needs.
 permissions: {}
@@ -46,26 +89,101 @@ env:
   # (src/web/Dockerfile). Change it only here; infra/poc.bicepparam reads the same variables.
   TETHER_API_APP_NAME: tether-api
   TETHER_WEB_APP_NAME: tether-web
-  BICEP_VERSION: v0.49.2   # the version infra/main.bicep was compiled and linted with on 2026-11-26
+  BICEP_VERSION: v0.49.2   # the version infra/main.bicep was compiled and linted with on 2026-11-27
   # Database regions to try, in order, when no database server exists yet (infra/scripts/postgres-location.sh). Deploy
   # run 1 (2026-11-26) got SkuNotAvailable for Burstable B1ms in westus3, which the capability API does not list as
   # restricted for this subscription; eastus IS restricted (capability API, same day), so it is not in the list.
   TETHER_POSTGRES_CANDIDATES: westus3 westus2 centralus
+  # The first commit on main whose infra/main.bicep has no dev login (ADR-022). The Lead creates this tag when that
+  # commit is on main. `release_sha` must be this commit or a later one.
+  GO_LIVE_TAG: go-live-base
 
 jobs:
-  build:
-    name: build and push images (ghcr.io)
+  plan:
+    name: plan (which commit, build or not)
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 10
     permissions:
       contents: read
-      packages: write
+    outputs:
+      target_sha: ${{ steps.plan.outputs.target_sha }}
+      build: ${{ steps.plan.outputs.build }}
     steps:
       - name: Main branch only
         if: ${{ github.ref != 'refs/heads/main' }}
         run: |
           echo "::error::This workflow deploys the main branch only. Run it from main."
           exit 1
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0     # full history and tags: release_sha is checked against main and the go-live tag
+          fetch-tags: true
+      - name: Decide the commit and whether images are built
+        id: plan
+        env:
+          ACCESS: ${{ inputs.access }}
+          GATE_ONLY: ${{ inputs.gate_only }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: |
+          set -euo pipefail
+          if [ "$ACCESS" = "closed" ]; then
+            # The emergency stop deploys nothing: no commit to choose, no images, and the other inputs are not looked at.
+            echo "target_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "Access: closed. Nothing is built or deployed; the web ingress is made internal."
+            exit 0
+          fi
+          release="$(printf '%s' "$RELEASE_SHA" | tr -d '[:space:]')"
+          if [ -n "$release" ]; then
+            if [[ ! "$release" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::release_sha must be a full commit id (40 lower-case hex characters), or empty for the newest commit on main."
+              exit 1
+            fi
+            if ! git cat-file -e "${release}^{commit}" 2>/dev/null; then
+              echo "::error::release_sha is not a commit in this repository."
+              exit 1
+            fi
+            if ! git merge-base --is-ancestor "$release" HEAD; then
+              echo "::error::release_sha is not on main. Only commits on main are deployed."
+              exit 1
+            fi
+            if ! base="$(git rev-parse --quiet --verify "refs/tags/${GO_LIVE_TAG}^{commit}")"; then
+              echo "::error::The tag ${GO_LIVE_TAG} does not exist, so release_sha cannot be checked. An older release may still have dev login; it is never deployed. Leave release_sha empty or ask the Lead to create the tag."
+              exit 1
+            fi
+            if ! git merge-base --is-ancestor "$base" "$release"; then
+              echo "::error::release_sha is older than the tag ${GO_LIVE_TAG}. Releases from before go-live have dev login and are never deployed again (ADR-022)."
+              exit 1
+            fi
+            # The tag is only as good as where it was put. Check what it points at: the template AT the tag must itself
+            # be free of dev login (content, not position). A tag on a dev-login commit is refused here.
+            if ! git show "${base}:infra/main.bicep" > "$RUNNER_TEMP/tag-main.bicep" 2>/dev/null; then : > "$RUNNER_TEMP/tag-main.bicep"; fi
+            bash infra/scripts/release-guard.sh "$RUNNER_TEMP/tag-main.bicep" "the tag ${GO_LIVE_TAG}"
+            target="$release"
+          else
+            target="$GITHUB_SHA"
+          fi
+          # Whatever commit is deployed, its own template must run the API as Production with no dev-login variable.
+          if ! git show "${target}:infra/main.bicep" > "$RUNNER_TEMP/target-main.bicep" 2>/dev/null; then : > "$RUNNER_TEMP/target-main.bicep"; fi
+          bash infra/scripts/release-guard.sh "$RUNNER_TEMP/target-main.bicep" "the commit to deploy"
+          # Images are built only for the newest commit, and only when the run is allowed to bring new code.
+          build=true
+          if [ -n "$release" ] || [ "$GATE_ONLY" = "true" ]; then build=false; fi
+          echo "target_sha=$target" >> "$GITHUB_OUTPUT"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "Commit to deploy: $target. Build images in this run: $build. Access: $ACCESS. Gate only: $GATE_ONLY."
+
+  build:
+    name: build and push images (ghcr.io)
+    needs: plan
+    if: ${{ needs.plan.outputs.build == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
           persist-credentials: false
@@ -126,7 +244,9 @@ jobs:
 
   deploy:
     name: deploy to Azure (resource group tether-dev)
-    needs: build
+    needs: [plan, build]
+    # Runs when the plan passed and the build either passed or was skipped on purpose (gate_only, release_sha, closed).
+    if: ${{ !cancelled() && needs.plan.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     # The federated credential of `tether-deployer` trusts exactly this environment of this repository. The environment's
@@ -141,25 +261,39 @@ jobs:
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       TETHER_EASYAUTH_CLIENT_ID: ${{ secrets.EASYAUTH_CLIENT_ID }}
       TETHER_DEPLOY_STAMP: ${{ github.run_id }}-${{ github.run_attempt }}
+      ACCESS: ${{ inputs.access }}
+      GATE_ONLY: ${{ inputs.gate_only }}
+      TARGET_SHA: ${{ needs.plan.outputs.target_sha }}
+      BUILT_IN_THIS_RUN: ${{ needs.plan.outputs.build }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
           persist-credentials: false
+          ref: ${{ needs.plan.outputs.target_sha }}   # the release being deployed: its infra/ folder matches its images
       - name: Mask identifiers and set image names
         run: |
           set -euo pipefail
           for value in "$AZURE_SUBSCRIPTION_ID" "$AZURE_TENANT_ID" "$AZURE_CLIENT_ID" "$TETHER_EASYAUTH_CLIENT_ID"; do
             if [ -n "$value" ]; then echo "::add-mask::$value"; fi
           done
+          if [[ ! "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]; then echo "::error::The plan job gave no commit id."; exit 1; fi
           owner="${GITHUB_REPOSITORY_OWNER,,}"
-          echo "TETHER_API_IMAGE=ghcr.io/${owner}/tether-api:${GITHUB_SHA}" >> "$GITHUB_ENV"
-          echo "TETHER_WEB_IMAGE=ghcr.io/${owner}/tether-web:${GITHUB_SHA}" >> "$GITHUB_ENV"
+          echo "TETHER_API_IMAGE=ghcr.io/${owner}/tether-api:${TARGET_SHA}" >> "$GITHUB_ENV"
+          echo "TETHER_WEB_IMAGE=ghcr.io/${owner}/tether-web:${TARGET_SHA}" >> "$GITHUB_ENV"
       # Secrets are handed only to the steps that need them, never to the whole job.
-      - name: Preflight (inputs and access gate; nothing touches Azure yet)
+      - name: Preflight (inputs and access mode; nothing touches Azure yet)
         id: preflight
         env:
+          TETHER_ACCESS: ${{ inputs.access }}
+          TETHER_GATE_ONLY: ${{ inputs.gate_only }}
+          TETHER_RELEASE_SHA: ${{ inputs.release_sha }}
           TETHER_DB_ADMIN_PASSWORD: ${{ secrets.TETHER_DB_ADMIN_PASSWORD }}
           TETHER_ROOT_SECRET: ${{ secrets.TETHER_ROOT_SECRET }}
+          TETHER_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          TETHER_GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          TETHER_INVITED_EMAILS: ${{ secrets.TETHER_INVITED_EMAILS }}
+          TETHER_DP_CERT_PFX: ${{ secrets.DP_CERT_PFX }}
+          TETHER_DP_CERT_PFX_PREVIOUS: ${{ secrets.DP_CERT_PFX_PREVIOUS }}
           TETHER_EASYAUTH_CLIENT_SECRET: ${{ secrets.EASYAUTH_CLIENT_SECRET }}
           TETHER_ALLOWED_IP_RANGES: ${{ secrets.ALLOWED_IP_RANGES }}
         run: bash infra/scripts/preflight.sh
@@ -169,30 +303,97 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      # EMERGENCY STOP (access=closed). Everything between here and the smoke check is skipped for it. This step changes
+      # ONE setting, the web app's ingress, to internal (infra/scripts/close-web.sh). It deploys no template and never
+      # touches the API, so it needs no Google, invite-list, key-ring, database or Entra value and no particular image
+      # to be live (Lead ruling F1).
+      - name: Close the web ingress (access=closed, the emergency stop)
+        id: close_web
+        if: ${{ inputs.access == 'closed' }}
+        run: |
+          set -euo pipefail
+          bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP"
+          rc=0
+          bash infra/scripts/close-web.sh "$RESOURCE_GROUP" "$TETHER_WEB_APP_NAME" "$RUNNER_TEMP/az-close.err" || rc=$?
+          bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP" "$RUNNER_TEMP/az-close.err"
+          cat "$RUNNER_TEMP/az-close.err" >&2
+          if [ "$rc" -ne 0 ]; then exit "$rc"; fi
+          # The public host name the site had (web app name + the environment's domain), for the outside check below.
+          # After the change Azure reports only the internal name, so it is put together here.
+          domain=""
+          app_json="$(az resource show --resource-group "$RESOURCE_GROUP" --name "$TETHER_WEB_APP_NAME" --resource-type Microsoft.App/containerApps --api-version 2025-01-01 --output json 2>/dev/null)" || app_json=""
+          env_id="$(jq -r '.properties.environmentId // .properties.managedEnvironmentId // ""' <<< "$app_json" 2>/dev/null)" || env_id=""
+          if [ -n "$env_id" ]; then
+            domain="$(az resource show --ids "$env_id" --api-version 2025-01-01 --query properties.defaultDomain --output tsv 2>/dev/null | tr -d '\r[:space:]')" || domain=""
+          fi
+          if [ -z "$domain" ]; then
+            echo "::warning::Azure reports the web ingress as internal. The site's public name could not be read, so the check from outside is skipped."
+            echo "outside_check=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "::add-mask::$domain"
+          echo "::add-mask::${TETHER_WEB_APP_NAME}.${domain}"
+          {
+            echo "WEB_FQDN=${TETHER_WEB_APP_NAME}.${domain}"
+            echo "WEB_PUBLIC=false"
+            echo "GATE=closed"
+          } >> "$GITHUB_ENV"
+          echo "outside_check=true" >> "$GITHUB_OUTPUT"
       - name: Install the pinned Bicep compiler
+        if: ${{ inputs.access != 'closed' }}
         run: |
           set -euo pipefail
           az bicep install --version "$BICEP_VERSION"
           az bicep version
+      # Read-only. Compares what the run asks for with what is LIVE and stops the run before any deployment when a rule
+      # in the header of this file is not met.
+      - name: Check the run against what is live
+        id: live
+        if: ${{ inputs.access != 'closed' }}
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: |
+          set -euo pipefail
+          bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP"
+          # The rules, and the one exception for the rollback (gate_only + team keeps whatever is live), are in the
+          # script so they can be tested without Azure (infra/scripts/tests/smoke-cases.sh).
+          bash infra/scripts/live-rules.sh
+          # release_sha without gate_only: an earlier release is deployed again; its images must still exist.
+          if [ "$(grep -c -x 'check_images=true' "$GITHUB_OUTPUT" || true)" != "0" ]; then
+            for image in "$TETHER_API_IMAGE" "$TETHER_WEB_IMAGE"; do
+              if ! bash infra/scripts/check-public-image.sh "$image"; then
+                echo "::error::The images of release_sha cannot be pulled (never built, deleted, or private). Nothing was deployed."
+                exit 1
+              fi
+            done
+          fi
       - name: Deploy infra/main.bicep
         id: deploy
+        if: ${{ inputs.access != 'closed' }}
         env:
-          GATE: ${{ steps.preflight.outputs.gate }}
+          API_MODE: ${{ steps.live.outputs.api_mode }}
+          ENTRA_ACTIVE: ${{ steps.live.outputs.entra_active }}
           TETHER_DB_ADMIN_PASSWORD: ${{ secrets.TETHER_DB_ADMIN_PASSWORD }}
           TETHER_ROOT_SECRET: ${{ secrets.TETHER_ROOT_SECRET }}
+          TETHER_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          TETHER_GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          TETHER_INVITED_EMAILS: ${{ secrets.TETHER_INVITED_EMAILS }}
+          TETHER_DP_CERT_PFX: ${{ secrets.DP_CERT_PFX }}
+          TETHER_DP_CERT_PFX_PREVIOUS: ${{ secrets.DP_CERT_PFX_PREVIOUS }}
           TETHER_EASYAUTH_CLIENT_SECRET: ${{ secrets.EASYAUTH_CLIENT_SECRET }}
           TETHER_ALLOWED_IP_RANGES: ${{ secrets.ALLOWED_IP_RANGES }}
         run: |
           set -euo pipefail
-          # $1 = true or false: ask for public web ingress. infra/poc.bicepparam reads every TETHER_* variable.
+          # $1 = access mode (team or invited); $2 = true or false: ask for public web ingress.
+          # infra/poc.bicepparam reads every TETHER_* variable.
           # --output none: the command would otherwise print every non-secret parameter and output into this public log.
           # stderr is held back until the names this deployment may have just created are masked (a failure message can
           # name the environment domain or the database server).
           deploy() {
-            echo "Deploying with exposeWeb=$1 ..."
-            if [ "$1" = "true" ]; then echo "attempted_public=true" >> "$GITHUB_OUTPUT"; fi
+            echo "Deploying with access=$1 exposeWeb=$2 ..."
+            if [ "$2" = "true" ]; then echo "attempted_public=true" >> "$GITHUB_OUTPUT"; fi
             local rc=0
-            TETHER_EXPOSE_WEB="$1" az deployment group create \
+            TETHER_ACCESS="$1" TETHER_EXPOSE_WEB="$2" az deployment group create \
               --resource-group "$RESOURCE_GROUP" \
               --name "$DEPLOYMENT_NAME" \
               --template-file infra/main.bicep \
@@ -214,7 +415,7 @@ jobs:
               export TETHER_POSTGRES_LOCATION="$loc"
               echo "Database region: $loc"
               rc=0
-              deploy "$1" || rc=$?
+              deploy "$1" "$2" || rc=$?
               if [ "$rc" -eq 0 ]; then return 0; fi
               if ! grep -q -E 'SkuNotAvailable|LocationIsOfferRestricted|ProvisioningDisabled|restricted in this region' "$RUNNER_TEMP/az-deploy.last.err"; then
                 return "$rc"
@@ -226,33 +427,59 @@ jobs:
           signin_active() {
             bash infra/scripts/web-auth-active.sh "$RESOURCE_GROUP" "$TETHER_WEB_APP_NAME" "$TETHER_EASYAUTH_CLIENT_ID"
           }
-
-          if [ "$GATE" = "none" ]; then
-            first_deploy false
-          elif [[ "$GATE" == entra* ]] && [ "$(signin_active)" != "true" ]; then
-            # The sign-in settings are a child of the web app, so they can only be applied after the web app is written.
-            # Writing a PUBLIC web app first would leave it open until the settings land. So: internal first.
-            echo "Sign-in is not active on the web app yet. Pass 1 applies it while the web app is still internal."
-            first_deploy false
-            active=false
+          wait_for_signin() {
+            local active=false
             for _ in $(seq 1 20); do
               if [ "$(signin_active)" = "true" ]; then active=true; break; fi
               sleep 15
             done
             if [ "$active" != "true" ]; then
-              echo "::error::Azure does not report sign-in as enabled on the web app. It stays internal. Nothing was made public."
-              exit 1
+              echo "::error::Azure does not report Microsoft sign-in as enabled on the web app."
+              return 1
             fi
             # Heuristic settle time for the platform to put the sign-in layer in front of running replicas. UNVERIFIED;
             # the outside check below is what actually proves the gate, and a failure there closes the ingress.
             sleep 60
-            echo "Pass 2 makes the web app public behind sign-in."
-            deploy true   # same database region as pass 1 (TETHER_POSTGRES_LOCATION is still exported)
-          else
-            first_deploy true
-          fi
+          }
+
+          case "$ACCESS" in
+            invited)
+              # The step before this one proved the live API is already Production with no dev login.
+              first_deploy invited true
+              ;;
+            team)
+              if [ "$ENTRA_ACTIVE" = "true" ]; then
+                # Microsoft sign-in is in front already and stays there throughout: one pass.
+                first_deploy team true
+              elif [ "$API_MODE" = "google" ]; then
+                # Microsoft sign-in is off, but the live API is a Production API with Google sign-in, so the site is
+                # guarded the whole time. Put the Microsoft gate back in place, in one pass (the rollback).
+                first_deploy team true
+                wait_for_signin
+              else
+                # No proven gate of either kind (first deploy, or the API of the dev-login era). The sign-in settings
+                # are a child of the web app, so they can only be applied after the web app is written; writing a
+                # PUBLIC web app first would leave it open until they land. So: internal first.
+                echo "Microsoft sign-in is not active and the live API is not a Production API. Pass 1 applies sign-in while the web app is internal."
+                first_deploy team false
+                if ! wait_for_signin; then
+                  echo "::error::The web app stays internal. Nothing was made public."
+                  exit 1
+                fi
+                echo "Pass 2 makes the web app public behind Microsoft sign-in."
+                deploy team true   # same database region as pass 1 (TETHER_POSTGRES_LOCATION is still exported)
+              fi
+              ;;
+            *)
+              echo "::error::Unknown access mode."
+              exit 1
+              ;;
+          esac
       - name: Read deployment outputs (masked)
         id: outputs
+        if: ${{ inputs.access != 'closed' }}
+        env:
+          EXPECTED_GATE: ${{ steps.preflight.outputs.gate }}
         run: |
           set -euo pipefail
           outputs="$(az deployment group show --resource-group "$RESOURCE_GROUP" --name "$DEPLOYMENT_NAME" --query properties.outputs --output json)"
@@ -260,38 +487,65 @@ jobs:
           domain="$(jq -r '.environmentDefaultDomain.value' <<< "$outputs")"
           echo "::add-mask::$web_fqdn"
           echo "::add-mask::$domain"
+          gate="$(jq -r '.accessGate.value' <<< "$outputs")"
+          # The gate is the one preflight decided from this run's inputs. What Azure reports must agree with it.
+          if [ "$gate" != "$EXPECTED_GATE" ]; then
+            echo "::error::The deployment reports the gate '$gate' but this run asked for '$EXPECTED_GATE'. Nothing is verified."
+            exit 1
+          fi
           {
             echo "WEB_FQDN=$web_fqdn"
             echo "WEB_PUBLIC=$(jq -r '.webIsPublic.value' <<< "$outputs")"
-            echo "GATE=$(jq -r '.accessGate.value' <<< "$outputs")"
+            echo "GATE=$gate"
           } >> "$GITHUB_ENV"
-      - name: Smoke check (health from Azure, gate from outside)
+      # For access=closed only the outside check runs (the site must not answer), and only when the public name is known.
+      - name: Smoke check (health and sign-in mode from Azure, gate from outside)
         id: smoke
+        if: ${{ inputs.access != 'closed' || steps.close_web.outputs.outside_check == 'true' }}
         env:
           API_APP_NAME: ${{ env.TETHER_API_APP_NAME }}
           WEB_APP_NAME: ${{ env.TETHER_WEB_APP_NAME }}
+          EXPECTED_API_IMAGE: ${{ env.TETHER_API_IMAGE }}
         run: bash infra/scripts/smoke.sh
-      # Safety net, fail closed. Runs when this run asked for public ingress and did NOT finish with the outside gate check
-      # passed: the deploy failed part way (the web app may already be public), the outputs could not be read, the gate
-      # check timed out or got a 2xx, or the run was cancelled. A health failure after a PASSED gate check does not close it.
-      # Also after a failed pass 1 when a gate is configured: the web app may still be public from an earlier run while
-      # Azure no longer reports sign-in as active (that is why pass 1 ran).
+      # Safety net, fail closed. Runs when this run asked for public ingress and did NOT finish with the gate check
+      # passed: the deploy failed part way (the web app may already be public), the outputs could not be read, a probe
+      # failed, timed out or never got a clear answer, or the run was cancelled. A health failure after a PASSED gate
+      # check does not close it. Also after a failed deploy in a public mode: the web app may be public from an earlier run.
       - name: Close the web ingress (public was requested but the gate was not proven)
-        if: ${{ (failure() || cancelled()) && steps.smoke.outputs.gate_verified != 'true' && (steps.deploy.outputs.attempted_public == 'true' || (steps.deploy.conclusion == 'failure' && steps.preflight.outputs.gate != 'none')) }}
+        if: ${{ (failure() || cancelled()) && steps.smoke.outputs.gate_verified != 'true' && (steps.deploy.outputs.attempted_public == 'true' || (steps.deploy.conclusion == 'failure' && steps.preflight.outputs.access != 'closed')) }}
         env:
           TETHER_DB_ADMIN_PASSWORD: ${{ secrets.TETHER_DB_ADMIN_PASSWORD }}
           TETHER_ROOT_SECRET: ${{ secrets.TETHER_ROOT_SECRET }}
+          TETHER_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          TETHER_GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          TETHER_INVITED_EMAILS: ${{ secrets.TETHER_INVITED_EMAILS }}
+          TETHER_DP_CERT_PFX: ${{ secrets.DP_CERT_PFX }}
+          TETHER_DP_CERT_PFX_PREVIOUS: ${{ secrets.DP_CERT_PFX_PREVIOUS }}
           TETHER_EASYAUTH_CLIENT_SECRET: ${{ secrets.EASYAUTH_CLIENT_SECRET }}
           TETHER_ALLOWED_IP_RANGES: ${{ secrets.ALLOWED_IP_RANGES }}
         run: |
           set -euo pipefail
           bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP"
+          # First: the same one-setting change the emergency stop uses. It does not depend on the template, on any
+          # secret or on the API, so it also works when the deployment itself is what failed.
+          rc=0
+          bash infra/scripts/close-web.sh "$RESOURCE_GROUP" "$TETHER_WEB_APP_NAME" "$RUNNER_TEMP/az-close-web.err" || rc=$?
+          bash infra/scripts/mask-azure-names.sh "$RESOURCE_GROUP" "$RUNNER_TEMP/az-close-web.err"
+          cat "$RUNNER_TEMP/az-close-web.err" >&2
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::The web app was made internal again: this run asked for public ingress but did not prove the gate. To open it again, fix the cause and run the workflow (access=team puts the Microsoft gate back)."
+            exit 0
+          fi
+          echo "::warning::The one-setting change did not close the web ingress. Falling back to deploying the template with internal ingress."
           # Same database region as the server that exists (never a new server elsewhere).
           read -r -a pg_candidates <<< "$TETHER_POSTGRES_CANDIDATES"
-          TETHER_POSTGRES_LOCATION="$(bash infra/scripts/postgres-location.sh "$RESOURCE_GROUP" "${pg_candidates[@]}" | head -n 1)"
-          export TETHER_POSTGRES_LOCATION
+          # Read into an array and take the first line (not `| head -n 1`: a reader that stops early can fail the
+          # pipeline under pipefail, and this step must not fail for a reason like that).
+          mapfile -t pg_close_locations < <(bash infra/scripts/postgres-location.sh "$RESOURCE_GROUP" "${pg_candidates[@]}")
+          export TETHER_POSTGRES_LOCATION="${pg_close_locations[0]:-}"
           rc=0
-          TETHER_EXPOSE_WEB=false az deployment group create \
+          # access=closed: internal ingress; the built-in authentication settings are left exactly as they are.
+          TETHER_ACCESS=closed TETHER_EXPOSE_WEB=false az deployment group create \
             --resource-group "$RESOURCE_GROUP" \
             --name "$DEPLOYMENT_NAME" \
             --template-file infra/main.bicep \
@@ -303,7 +557,7 @@ jobs:
             echo "::error::CLOSING THE WEB INGRESS FAILED. The web app may be public without a proven gate. Make it internal by hand now: Azure portal, container app ${TETHER_WEB_APP_NAME}, Ingress, untick 'Accepting traffic from anywhere' (or disable ingress)."
             exit 1
           fi
-          echo "::error::The web app was made internal again: this run asked for public ingress but did not prove from outside that the access gate refuses an anonymous request."
+          echo "::error::The web app was made internal again: this run asked for public ingress but did not prove the gate. To open it again, fix the cause and run the workflow (access=team puts the Microsoft gate back)."
       - name: Failed deployment operations (codes and messages only)
         if: ${{ failure() && steps.deploy.conclusion == 'failure' }}
         run: |
@@ -316,18 +570,34 @@ jobs:
           cat "$RUNNER_TEMP/az-ops.json"
       - name: Summary
         if: ${{ always() }}
+        env:
+          GATE_VERIFIED: ${{ steps.smoke.outputs.gate_verified }}
+          CLOSED_VERIFIED: ${{ steps.smoke.outputs.closed_verified }}
+          IMAGES: ${{ steps.live.outputs.images }}
         run: |
           {
-            echo "### Tether POC deploy"
+            echo "### Tether deploy"
             echo ""
-            echo "- Commit: \`${GITHUB_SHA}\`"
-            echo "- Access gate: \`${GATE:-unknown}\`"
-            if [ "${WEB_PUBLIC:-}" = "true" ]; then
-              echo "- Web app: **public behind the gate**. The address is not printed here (public log). Find it in the Azure portal: resource group \`${RESOURCE_GROUP}\`, container app \`${TETHER_WEB_APP_NAME}\`, Application Url."
-            elif [ "${WEB_PUBLIC:-}" = "false" ]; then
-              echo "- Web app: **internal only, not reachable from the internet**. Next: the Product Owner runs \`scripts/azure/create-signin-app.ps1\`, then this workflow again (infra/README.md)."
+            if [ "$ACCESS" = "closed" ]; then
+              echo "- Emergency stop (access \`closed\`): nothing was built or deployed; only the web ingress was changed."
+            elif [ "${IMAGES:-}" = "adopted-live" ]; then
+              echo "- Release: the images that were live were kept (main has moved on; this run changed the access mode only)."
             else
-              echo "- Web app: state unknown (the run failed before the outputs were read)."
+              echo "- Commit: \`${TARGET_SHA}\`"
             fi
+            echo "- Access asked for: \`${ACCESS}\` (gate only: \`${GATE_ONLY}\`)"
+            echo "- Gate after this run: \`${GATE:-unknown}\`; site public with its gate proven by the smoke check: \`${GATE_VERIFIED:-false}\`"
+            if [ "${WEB_PUBLIC:-}" = "true" ] && [ "${GATE_VERIFIED:-}" = "true" ]; then
+              echo "- Web app: **public behind the gate**. The address is not printed here (public log). Find it in the Azure portal: resource group \`${RESOURCE_GROUP}\`, container app \`${TETHER_WEB_APP_NAME}\`, Application Url."
+            elif [ "$ACCESS" = "closed" ] && [ "${CLOSED_VERIFIED:-}" = "true" ]; then
+              echo "- Web app: **internal only**, and an outside request did not get the site."
+            elif [ "${WEB_PUBLIC:-}" = "false" ] && [ "$ACCESS" != "closed" ]; then
+              echo "- Web app: **internal only**, although this run asked for a public site. The run did not do what was asked; read the failed step."
+            elif [ "${WEB_PUBLIC:-}" = "false" ]; then
+              echo "- Web app: **internal only, not reachable from the internet** (the outside check did not confirm it; read that step)."
+            else
+              echo "- Web app: not confirmed public behind a proven gate. If this run asked for public ingress, the last step made it internal again (check that step)."
+            fi
+            echo "- Sign-in: Google, invited accounts only. The API runs as Production; no dev login exists in this template."
             echo "- Providers: mocks only. No AI or speech resource exists in Azure."
           } >> "$GITHUB_STEP_SUMMARY"

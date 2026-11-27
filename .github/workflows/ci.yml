@@ -598,13 +598,46 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: "1"
 
+  # Case tests for the scripts that guard the Azure deploy (ADR-022, docs/architecture/go-live-signin-adr.md):
+  # infra/scripts/preflight.sh (what a run may start with), smoke.sh (what counts as a proven gate, including "the
+  # dev-login route does not exist"), live-rules.sh (what a run may do given what is live, including the one-step
+  # rollback), release-guard.sh (a template with dev login is never deployed), api-signin-mode.sh, web-auth-state.sh
+  # and close-web.sh (the emergency stop). A mistake in them fails
+  # OPEN in production, and the deploy workflow itself is manual, so nothing else would run them on a pull request.
+  # No Azure, no GitHub API, no Google and no network beyond the checkout: the site is a stand-in on localhost with a
+  # throwaway certificate, and `az` is a stand-in script put first on PATH (the runner's real az is never called).
+  # bash, jq, curl, openssl and node are preinstalled on ubuntu-24.04 (the first step fails plainly if one is not).
+  # About two minutes: the retry-until-the-deadline cases wait on purpose. Same area filter as the other code jobs;
+  # infra/ is not a path the `changes` job knows, so any change there counts as code and runs this job.
+  infra-scripts:
+    name: infra scripts (preflight, smoke and emergency-stop case tests)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Tools the case tests need
+        run: |
+          set -eu
+          for tool in bash jq curl openssl node; do
+            command -v "$tool" > /dev/null || { echo "::error::$tool is not on this runner image"; exit 1; }
+          done
+      - name: Preflight case tests
+        run: bash infra/scripts/tests/preflight-cases.sh
+      - name: Smoke, sign-in mode and emergency-stop case tests
+        run: bash infra/scripts/tests/smoke-cases.sh
+
   # One stable check name for branch protection (SEC-040, not configured yet). Matrix shard names and skipped jobs
   # change with the diff; this job always runs and fails if any needed job failed or was cancelled. Skipped counts as
   # success, same as for a required check on a docs-only change.
   ci-result:
     name: ci result (all required jobs)
     if: ${{ always() }}
-    needs: [changes, web, api, e2e-harness, e2e-real, secret-scan, dependency-audit, dependency-review, image-scan]
+    needs: [changes, web, api, e2e-harness, e2e-real, infra-scripts, secret-scan, dependency-audit, dependency-review, image-scan]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
