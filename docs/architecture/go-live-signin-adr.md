@@ -29,7 +29,7 @@ Base path `/api/v1`. Errors are the existing ProblemDetails with a stable `code`
 | `POST /auth/google/signin/start` | anonymous; allow-listed `Origin` (middleware [V]); `auth-start` limits | `{"landing":"home"}` (`landing` enum; v1 has only `home`; `additionalProperties:false`) | 200 `{"purpose":"signin","authorizationUrl":"https://accounts.google.com/o/oauth2/v2/auth?...","expiresAt":"<instant>"}` plus the binder cookie | 400 `validation_failed`, 403 `csrf_failed`, 415, 429 `rate_limited` (also when the live-state cap is reached), 404 when Google is not configured (Development only) |
 | `GET /auth/google/callback` | state plus binder; `auth-callback` limits | query `state`, `code`, `error` only; everything else is ignored, `error_description` is never read | always **302**, relative `Location`, binder cleared (see outcomes) | POST/PUT/OPTIONS give 405 |
 | `POST /auth/logout`, `GET /me` | unchanged [V] | | | |
-| `POST /dev/login` | mapped only in Development with dev login on [V] | unchanged | | 404 everywhere else |
+| `POST /dev/login` | mapped only in Development with dev login on [V] | unchanged | | not mapped everywhere else: an anonymous request gets 401 `unauthenticated` from the fallback policy (an authenticated one gets 404) |
 
 `purpose` is an open enum: `signin` now; `reauth` (ADR-021) and `connect` (PO-9d) later. The callback dispatches on the purpose stored in the row.
 
@@ -140,7 +140,7 @@ Values are masked, and the invite list is reported by count.
 
 **Limits (R6, defaults in code):**
 - Start: a global bucket of 300/min, plus 10/min per binder hash when a binder cookie is present.
-- Callback with a binder: 300/min global plus 10/min per binder. Callback without a binder: a separate 30/min bucket.
+- Callback whose state row is live and whose binder matches: 300/min global plus 10/min per binder. Every other callback (bad or unknown state, missing or mismatched binder): a separate 30/min invalid bucket (`AuthCallbackInvalidPermitPerMinute`), so forged callbacks cannot starve real returns (review fix O1).
 - Live state rows capped at 3,000.
 - Forwarded headers stay untrusted. Run A adds a one-off, content-free log of the `X-Forwarded-For` entry count and whether each entry is
   private or public (shape only, never a value). The Lead rules on trust before anyone but the PO is invited.
@@ -165,7 +165,7 @@ fail closed (R11).
 
 | # | Probe | Pass | Breach (ingress closes) |
 |---|---|---|---|
-| 1 | `POST /api/v1/dev/login` with JSON `{"email":"smoke@example.invalid"}` | 404 | any 2xx or 400 |
+| 1 | `POST /api/v1/dev/login` with JSON `{"email":"smoke@example.invalid"}` | 404, or 401 with problem code `unauthenticated` and no `Set-Cookie` (the fallback policy answers 401 for every unmapped route, pinned by `Dev_login_endpoint_does_not_exist_in_production`; a mapped dev login is anonymous and never answers 401). Lead ruling 2026-11-27 | any 2xx or 400; a 401 with any other code or with a `Set-Cookie` |
 | 2 | `GET /api/v1/auth/methods` | 200, `{"google":true,"devLogin":false}` | `devLogin:true` |
 | 3 | `GET /api/v1/me`; `POST /hubs/lecture/negotiate` | 401 both | 2xx |
 | 4 | `POST /api/v1/auth/google/signin/start` with `{"landing":"home"}` | 200; URL starts with `https://accounts.google.com/o/oauth2/v2/auth?`; `redirect_uri` equals the expected value (compared, never printed); `response_type=code`, `code_challenge_method=S256`, `scope=openid email profile`; `Set-Cookie: __Host-cc.signin` with Secure, HttpOnly, SameSite=Lax, Path=/, Max-Age=600 and no Domain | any other URL host |
@@ -202,7 +202,7 @@ QA, local Production rehearsal; (6) PO steps, then Runs A, B, R, B' (R9). About 
 **Integration points the Lead checks:**
 1. Every env var and secret name in section 2 matches, by grep across `main.bicep` and the API options binding.
 2. The redirect address is the same string in Bicep, the API startup check, the smoke probe and the value the PO script prints.
-3. The smoke probe expectations (cookie name and attributes, methods JSON, the exact `Location`, dev login 404) match the API tests that
+3. The smoke probe expectations (cookie name and attributes, methods JSON, the exact `Location`, dev login 404 or 401 `unauthenticated`) match the API tests that
    assert the same values.
 4. The certificate format the script writes (base64 PFX, no password, RSA 3072) loads in `KeyRingTests` from a PFX generated the same way.
 5. The invite list format (comma-separated) parses identically: the API normalises it (trim, lower case) and the script writes it already normalised.
