@@ -13,14 +13,17 @@ export function MockProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(!MOCKING);
 
   useEffect(() => {
-    if (!MOCKING) return;
     let cancelled = false;
-    import("@/mocks/browser")
-      .then((m) => m.startMockWorker())
-      .catch(() => undefined)
-      .finally(() => {
-        if (!cancelled) setReady(true);
-      });
+    // The env value is compared INLINE (not through MOCKING): Next replaces it with a literal at build time, so in a build with mocking
+    // disabled this whole branch is constant-false and webpack never emits the mock-handler chunk (QA D3). Through a variable it would.
+    if (process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
+      import("@/mocks/browser")
+        .then((m) => m.startMockWorker())
+        .catch(() => undefined)
+        .finally(() => {
+          if (!cancelled) setReady(true);
+        });
+    }
     return () => {
       cancelled = true;
     };

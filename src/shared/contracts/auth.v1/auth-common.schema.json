@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/auth.v1/auth-common.schema.json",
+  "title": "auth.v1 shared definitions",
+  "description": "Shared definitions for auth.v1 (docs/API_CONTRACTS_AUTH.md, ADR-022). timestamp and authorizationUrl are byte-identical copies of calendar.v1/calendar-common (a contract test asserts it).",
+  "$defs": {
+    "timestamp": {
+      "description": "RFC 3339 with offset. Instants only (created/updated/synced); never used for dates the student reads.",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})(?![\\s\\S])"
+    },
+    "authorizationUrl": {
+      "description": "Server-built Google authorization URL (state, nonce, S256 challenge inside). Host and path are fixed; the contract tests parse the query.",
+      "type": "string",
+      "pattern": "^https://accounts\\.google\\.com/o/oauth2/v2/auth\\?[A-Za-z0-9._~%&=+:/-]{40,2000}(?![\\s\\S])"
+    },
+    "purpose": {
+      "description": "Flow purpose. v1 has only signin; reauth (ADR-021) and connect (PO-9d) are later additive values.",
+      "type": "string",
+      "enum": [
+        "signin"
+      ]
+    },
+    "landing": {
+      "description": "Post-sign-in landing key. A key, never a URL or path: the server accepts no return URL (the exact return path stays in the browser, sessionStorage).",
+      "type": "string",
+      "enum": [
+        "home"
+      ]
+    },
+    "callbackOutcome": {
+      "description": "Closed outcome set appended to the post-callback redirect /signin?purpose=signin&outcome=<code>. Never carries a code, token, email, subject or Google error text.",
+      "type": "string",
+      "enum": [
+        "signed_in",
+        "access_denied",
+        "not_invited",
+        "school_account",
+        "account_closed",
+        "state_invalid",
+        "provider_unavailable",
+        "rate_limited"
+      ]
+    }
+  }
+}

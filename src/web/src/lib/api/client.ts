@@ -1,6 +1,6 @@
 import { notesRequestBody } from "@/lib/lecture/aiPayloads";
 import { ApiError } from "./errors";
-import type { AudioTicket, Course, CourseList, CreateCourseInput, CreateSessionInput, LectureSessionDto, ProblemDetails, SessionList, UserProfile } from "./types";
+import type { AudioTicket, AuthMethods, Course, CourseList, CreateCourseInput, CreateSessionInput, GoogleSignInStart, LectureSessionDto, ProblemDetails, SessionList, UserProfile } from "./types";
 
 /**
  * The only module that knows how to talk HTTP to the backend. UI code depends on
@@ -10,6 +10,13 @@ import type { AudioTicket, Course, CourseList, CreateCourseInput, CreateSessionI
  */
 export interface ApiClient {
   getMe(): Promise<UserProfile>;
+  /** auth.v1: anonymous. Which sign-in controls to show (the server is the only authority on this). */
+  getAuthMethods(): Promise<AuthMethods>;
+  /**
+   * auth.v1: starts Google sign-in. Body exactly {"landing":"home"}; the server builds the URL and sets the binder cookie.
+   * Errors: 400 validation_failed, 403 csrf_failed, 429 rate_limited (Retry-After).
+   */
+  startGoogleSignIn(): Promise<GoogleSignInStart>;
   devLogin(email: string): Promise<void>;
   logout(): Promise<void>;
   listCourses(): Promise<CourseList>;
@@ -99,6 +106,13 @@ export function createApiClient({ baseUrl, fetchImpl }: ApiClientOptions): ApiCl
   return {
     async getMe() {
       return (await request("/me")).json() as Promise<UserProfile>;
+    },
+    async getAuthMethods() {
+      return (await request("/auth/methods")).json() as Promise<AuthMethods>;
+    },
+    async startGoogleSignIn() {
+      const res = await request("/auth/google/signin/start", { method: "POST", body: JSON.stringify({ landing: "home" }) });
+      return res.json() as Promise<GoogleSignInStart>;
     },
     async devLogin(email) {
       await request("/dev/login", { method: "POST", body: JSON.stringify({ email }) });

@@ -189,3 +189,68 @@ public class ProductionLikeLogPipelineCanaryTests(ProductionLikeLogPipelineCanar
         LogPipelineCanary.AssertClean(f.Logs.Lines.ToArray(), requireDbCategories: true); // MigrateOnStartup runs real SQL through EF and Npgsql
     }
 }
+
+/// <summary>
+/// ADR-022: the whole Google sign-in flow at Trace in a Production host, with the fake Google handler. The email, subject, display name,
+/// authorization code, client secret, access token, state, nonce, binder and ID token must never appear in any log record of any category,
+/// on success and on every refusal path.
+/// </summary>
+public class GoogleSignInLogPipelineCanaryTests(GoogleSignInLogPipelineCanaryTests.Factory f) : IClassFixture<GoogleSignInLogPipelineCanaryTests.Factory>
+{
+    public const string Email = "canary-02-email-3f9a@example.invalid";
+    public const string Subject = "1999000000000000777";
+    public const string Name = "CANARY-02-DISPLAY-NAME-c4fe";
+    public const string Secret = "CANARY-02-CLIENT-SECRET-8a1d";
+
+    public sealed class Factory : GoogleFactory
+    {
+        public LogCanaryTests.CapturingProvider Logs { get; } = new();
+        protected override string FakeClientSecret => Secret;
+        protected override IEnumerable<KeyValuePair<string, string?>> ExtraSettings =>
+            [.. LogPipelineCanary.TraceEverything(ConnectionString), new("Auth:Google:ClientSecret", Secret), new("Auth:Invite:Emails", Email)];
+        protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.ConfigureServices(s => s.AddSingleton<ILoggerProvider>(Logs));
+        }
+    }
+
+    [Fact]
+    public async Task No_identity_token_code_or_state_value_reaches_any_log_category()
+    {
+        var sentinels = new List<string> { Email, Subject, Name, Secret, "ya29.fake-access-token-never-stored" };
+        async Task<string> RunAsync(string sub, string email, Action<FakeGrant>? shape = null)
+        {
+            var c = f.NewClient();
+            var s = await SignInDriver.StartAsync(c);
+            var (code, grant) = f.Fake.Issue(s.Challenge, s.Nonce, sub, email, name: Name);
+            shape?.Invoke(grant);
+            sentinels.AddRange([code, s.State, s.Nonce, s.Challenge, s.Binder.Split('=', 2)[1]]);
+            var res = await SignInDriver.CallbackAsync(c, $"state={s.State}&code={Uri.EscapeDataString(code)}", s.Binder);
+            if (SignInDriver.SessionCookie(res) is { } session) sentinels.Add(session.Split('=', 2)[1]);
+            // The ID token the fake signed and the derived PKCE verifier (never sent anywhere but the token endpoint).
+            if (f.Fake.LastIdToken is { } idToken) sentinels.Add(idToken);
+            var keys = f.Services.GetRequiredService<Tether.SharedKernel.Security.DerivedKeys>();
+            sentinels.Add(Tether.Identity.Google.GoogleSignInEndpoints.Derive(keys, Tether.SharedKernel.Security.DerivedKeys.Labels.OAuthPkce, s.State));
+            return SignInDriver.Location(res);
+        }
+        Assert.EndsWith("signed_in", await RunAsync(Subject, Email));
+        Assert.EndsWith("not_invited", await RunAsync(Subject + "1", "CANARY-02-uninvited-77@example.invalid"));
+        sentinels.Add("CANARY-02-uninvited-77@example.invalid");
+        Assert.EndsWith("provider_unavailable", await RunAsync(Subject + "2", Email, g => g.Claims["aud"] = "CANARY-02-WRONG-AUD"));
+        Assert.EndsWith("school_account", await RunAsync(Subject + "3", Email, g => g.Claims["hd"] = "canary-02-school.example.invalid"));
+        sentinels.Add("canary-02-school.example.invalid");
+        await Task.Delay(300);
+
+        var lines = f.Logs.Lines.ToArray();
+        Assert.True(lines.Length > 50, $"Trace logging must be on (saw {lines.Length} records)");
+        Assert.Contains(lines, l => l.Contains("Google sign-in finished: signed_in", StringComparison.Ordinal)); // the outcome codes are logged
+        Assert.Contains(lines, l => l.Contains("Google sign-in refused: not_invited", StringComparison.Ordinal));
+        foreach (var s in sentinels)
+        {
+            var bad = lines.Where(l => l.Contains(s, StringComparison.Ordinal)).Select(l => l.Length > 200 ? l[..200] : l).ToArray();
+            Assert.True(bad.Length == 0, $"sentinel leaked into {bad.Length} log record(s), first: {bad.FirstOrDefault()}");
+        }
+        LogPipelineCanary.AssertClean(lines, requireDbCategories: true);
+    }
+}

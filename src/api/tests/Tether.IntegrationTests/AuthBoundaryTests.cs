@@ -17,6 +17,9 @@ public class AuthBoundaryTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [
         "POST /api/v1/dev/login",
         "POST /api/v1/auth/logout",
+        "GET /api/v1/auth/methods",
+        "POST /api/v1/auth/google/signin/start",
+        "GET /api/v1/auth/google/callback",
         "GET /health/live",
         "GET /health/ready",
     ];

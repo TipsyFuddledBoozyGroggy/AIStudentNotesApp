@@ -22,7 +22,10 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     private readonly string _adminConnection =
         Environment.GetEnvironmentVariable("ConnectionStrings__Default")
         ?? throw new InvalidOperationException("ConnectionStrings__Default must point at the compose postgres.");
-    public string DbName { get; } = "cc_test_" + Guid.NewGuid().ToString("N");
+    /// <summary>The throwaway database. A fixture that sets it to ANOTHER factory's database (a second host over the same rows, ADR-022 key-ring and
+    /// startup tests) neither creates nor drops it: <see cref="OwnsDatabase"/> is false then.</summary>
+    public string DbName { get; init; } = "cc_test_" + Guid.NewGuid().ToString("N");
+    public bool OwnsDatabase { get; init; } = true;
 
     /// <summary>Controllable clock injected as the app TimeProvider (starts at real time).</summary>
     public TestClock Clock { get; } = new();
@@ -35,6 +38,29 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     protected virtual string? AllowedHostsValue => "localhost;api.example.test";
     /// <summary>Test-only root secret (B1-11). Random-looking, not a documented sample. Override with null to exercise the missing-secret paths.</summary>
     protected virtual string? RootSecretValue => "p3Qw9ZsXk2VbN7mLr4TyHc8JdFaE5uGiOo1WqSzAeRtYvBnMxCkDlPhUjIgKfLb0";
+
+    /// <summary>The https web origin the Google redirect address lives on (ADR-022: it must be one of Security:AllowedOrigins).</summary>
+    public const string WebOrigin = "https://app.example.test";
+    public const string GoogleClientId = "1234567890-tethertestclient.apps.googleusercontent.com";
+    public const string GoogleClientSecret = "test-only-google-client-secret";
+    public const string InvitedEmail = "invited@example.invalid";
+    public const string SecondInvitedEmail = "second.invited@example.invalid";
+
+    /// <summary>
+    /// ADR-022: outside Development the API refuses to start without Google sign-in, an invite list and a key-ring certificate, so every
+    /// fixture gets a complete, fake configuration (no request ever reaches Google: GoogleSignIn tests swap the HTTP handler). Override with []
+    /// to exercise the missing-configuration paths; <see cref="Settings"/> is applied after these and can change any single key.
+    /// </summary>
+    protected virtual IEnumerable<KeyValuePair<string, string?>> GoogleSettings =>
+    [
+        new("Security:AllowedOrigins:1", WebOrigin),
+        new("Auth:Google:ClientId", GoogleClientId),
+        new("Auth:Google:ClientSecret", GoogleClientSecret),
+        new("Auth:Google:RedirectUri", WebOrigin + "/api/v1/auth/google/callback"),
+        new("Auth:Google:Admission", "allowlist"),
+        new("Auth:Invite:Emails", InvitedEmail + "," + SecondInvitedEmail),
+        new("DataProtection:Certificate", TestCertificates.Current),
+    ];
 
     // Pooled on purpose: an unpooled string made the app host and every test helper open a fresh TCP connection per query, which
     // exhausted ephemeral ports once the suite passed ~580 tests (2026-10-31). DisposeAsync clears the pools before the forced drop.
@@ -69,7 +95,11 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // Docs export routes have their own buckets (docs.export.v1 section 4.1, DXD-03); lifted like the others. The rate tests put the real values back.
         foreach (var k in new[] { "DocsReadPermitPerMinute", "DocsWritePermitPerMinute" })
             builder.UseSetting("RateLimiting:" + k, "100000");
+        // Google sign-in buckets (auth.v1 section 8); GoogleSignInRateLimitTests put real values back.
+        foreach (var k in new[] { "AuthStartPermitPerMinute", "AuthStartPerBinderPermitPerMinute", "AuthCallbackPermitPerMinute", "AuthCallbackPerBinderPermitPerMinute", "AuthCallbackInvalidPermitPerMinute" })
+            builder.UseSetting("RateLimiting:" + k, "100000");
         builder.UseSetting("Syllabus:Worker:PollMilliseconds", "40");
+        foreach (var (k, v) in GoogleSettings) builder.UseSetting(k, v);
         foreach (var (k, v) in Settings) builder.UseSetting(k, v);
         builder.ConfigureTestServices(s =>
         {
@@ -82,6 +112,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        if (!OwnsDatabase) return;
         await using var admin = new NpgsqlConnection(new NpgsqlConnectionStringBuilder(_adminConnection) { Pooling = false }.ConnectionString);
         await admin.OpenAsync();
         await using var cmd = new NpgsqlCommand($"create database \"{DbName}\"", admin);
@@ -98,6 +129,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     async Task IAsyncLifetime.DisposeAsync()
     {
         await base.DisposeAsync();
+        if (!OwnsDatabase) return;
         NpgsqlConnection.ClearAllPools();
         await using var admin = new NpgsqlConnection(new NpgsqlConnectionStringBuilder(_adminConnection) { Pooling = false }.ConnectionString);
         await admin.OpenAsync();

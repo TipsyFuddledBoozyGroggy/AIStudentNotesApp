@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/auth.v1/auth-callback-outcome.schema.json",
+  "title": "Google callback outcome",
+  "description": "The query of the relative Location the server sends after GET /api/v1/auth/google/callback: /signin?purpose=...&outcome=... (shown as an object). Nothing else is ever appended.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "purpose",
+    "outcome"
+  ],
+  "properties": {
+    "purpose": {
+      "$ref": "auth-common.schema.json#/$defs/purpose"
+    },
+    "outcome": {
+      "$ref": "auth-common.schema.json#/$defs/callbackOutcome"
+    }
+  }
+}

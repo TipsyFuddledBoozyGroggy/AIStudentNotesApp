@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/auth.v1/auth-start-response.schema.json",
+  "title": "Google authorization start response",
+  "description": "200 from POST /api/v1/auth/google/signin/start, together with the binder cookie. The browser navigates to authorizationUrl. The state inside is single use, bound to the binder cookie, and expires at expiresAt (10 minutes).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "purpose",
+    "authorizationUrl",
+    "expiresAt"
+  ],
+  "properties": {
+    "purpose": {
+      "$ref": "auth-common.schema.json#/$defs/purpose"
+    },
+    "authorizationUrl": {
+      "$ref": "auth-common.schema.json#/$defs/authorizationUrl"
+    },
+    "expiresAt": {
+      "$ref": "auth-common.schema.json#/$defs/timestamp"
+    }
+  }
+}

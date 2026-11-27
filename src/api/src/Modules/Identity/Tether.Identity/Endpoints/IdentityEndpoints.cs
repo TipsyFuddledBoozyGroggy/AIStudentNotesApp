@@ -24,9 +24,15 @@ internal static partial class IdentityEndpoints
     [GeneratedRegex(@"^[^\s@]+@[^\s@]+\.[^\s@]+$")]
     private static partial Regex EmailPattern();
 
-    public static void Map(IEndpointRouteBuilder api, bool devLoginEnabled)
+    public static void Map(IEndpointRouteBuilder api, IdentityOptions options)
     {
         api.MapGet("/me", GetMe);
+
+        // auth.v1: which sign-in controls the web shows. devLogin is true exactly when /dev/login is mapped.
+        // A constant answer with no database read, so it is outside the shared anonymous bucket (in Azure every visitor shares one address).
+        api.MapGet("/auth/methods", () => Results.Json(new { google = options.Google.Enabled, devLogin = options.DevLoginEnabled }))
+            .AllowAnonymous().WithMetadata(Google.GoogleSignInRouteMetadata.Instance);
+        if (options.Google.Enabled) Google.GoogleSignInEndpoints.Map(api);
 
         // Idempotent and safe when signed out; still subject to the Origin check.
         api.MapPost("/auth/logout", async (HttpContext ctx, IdentityDbContext db, TimeProvider clock) =>
@@ -38,7 +44,7 @@ internal static partial class IdentityEndpoints
             return Results.NoContent();
         }).AllowAnonymous();
 
-        if (devLoginEnabled)
+        if (options.DevLoginEnabled)
         {
             api.MapPost("/dev/login", DevLogin).AllowAnonymous().RequireRateLimiting("auth");
         }
@@ -80,12 +86,14 @@ internal static partial class IdentityEndpoints
         if (email.Length is 0 or > 320 || !EmailPattern().IsMatch(email))
             return Problems.Validation("email", "Enter a valid email.");
 
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
+        // By subject, not email: email is no longer unique (ADR-022), and a dev login must never land on a Google user.
+        var subject = User.DevPrefix + email;
+        var user = await db.Users.FirstOrDefaultAsync(u => u.ExternalSubject == subject, ct);
         if (user is null)
         {
             user = new User
             {
-                Id = Ids.New(), ExternalSubject = "dev:" + email, Email = email,
+                Id = Ids.New(), ExternalSubject = subject, Email = email,
                 DisplayName = DisplayNameFrom(email), CreatedAt = clock.GetUtcNow(),
             };
             db.Users.Add(user);

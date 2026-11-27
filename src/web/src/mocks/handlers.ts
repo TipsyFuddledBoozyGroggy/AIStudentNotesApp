@@ -16,6 +16,9 @@ function problem(status: number, code: string, title: string, errors?: Record<st
 const unauth = () => problem(401, "unauthenticated", "Please sign in.");
 
 export const handlers = [
+  // auth.v1: mock mode is local development, so only the dev form is offered (Google sign-in needs the real API).
+  http.get(`${P}/auth/methods`, () => HttpResponse.json({ google: false, devLogin: true })),
+
   http.post(`${P}/dev/login`, async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as { email?: string };
     const email = body.email?.trim() ?? "";

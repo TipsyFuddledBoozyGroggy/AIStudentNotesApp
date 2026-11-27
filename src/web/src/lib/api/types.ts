@@ -10,6 +10,19 @@ export interface UserProfile {
   displayName: string;
 }
 
+/** auth.v1 GET /auth/methods: which sign-in controls the server offers. devLogin is true only in local Development. */
+export interface AuthMethods {
+  google: boolean;
+  devLogin: boolean;
+}
+
+/** auth.v1 POST /auth/google/signin/start (200). The browser navigates to authorizationUrl; the server set the binder cookie. */
+export interface GoogleSignInStart {
+  purpose: "signin";
+  authorizationUrl: string;
+  expiresAt: string;
+}
+
 export interface Course {
   id: string;
   name: string;

@@ -19,6 +19,10 @@ public sealed class DerivedKeys
         public const string Idempotency = "idempotency.v1";
         public const string SyllabusAudit = "syllabus-audit.v1";
         public const string OAuthState = "oauth-state.v1";
+        /// <summary>Google sign-in nonce, derived from the state (auth.v1 section 3, ADR-022 R5). Never stored.</summary>
+        public const string OAuthNonce = "oauth-nonce.v1";
+        /// <summary>Google sign-in PKCE verifier, derived from the state (auth.v1 section 3, ADR-022 R5). Never stored, never leaves the server.</summary>
+        public const string OAuthPkce = "oauth-pkce.v1";
         /// <summary>Docs export content digest (DXD-06). Never shared with the idempotency or audit keys.</summary>
         public const string DocsContentDigest = "docs-content-digest.v1";
     }

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tether.invalid/auth.v1/auth-signin-start-request.schema.json",
+  "title": "Google sign-in start request",
+  "description": "POST /api/v1/auth/google/signin/start. Anonymous, Origin-checked. landing is a key, never a URL. No scope, redirect, return URL or client field is accepted: the server owns them. Unknown or duplicate members are 400 validation_failed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "landing"
+  ],
+  "properties": {
+    "landing": {
+      "$ref": "auth-common.schema.json#/$defs/landing"
+    }
+  }
+}

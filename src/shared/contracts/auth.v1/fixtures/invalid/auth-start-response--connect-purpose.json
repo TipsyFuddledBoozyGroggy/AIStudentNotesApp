@@ -1,0 +1,5 @@
+{
+  "purpose": "connect",
+  "authorizationUrl": "https://accounts.google.com/o/oauth2/v2/auth?client_id=1234567890-fakeclient.apps.googleusercontent.com&state=abcdefghijklmnop",
+  "expiresAt": "2026-11-27T12:10:00Z"
+}

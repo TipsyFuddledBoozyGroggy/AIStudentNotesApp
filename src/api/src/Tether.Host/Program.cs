@@ -45,6 +45,9 @@ foreach (var category in new[]
     builder.Logging.AddFilter(category, LogLevel.None);
 builder.Logging.AddFilter("Microsoft.AspNetCore.Routing", LogLevel.Warning);
 builder.Logging.AddFilter("Npgsql", LogLevel.Warning);
+// ADR-022: the Google sign-in client logs request URIs at Information; its requests carry codes in the body and nothing useful in the
+// URI, but no Google traffic detail belongs in the logs at all.
+builder.Logging.AddFilter("System.Net.Http.HttpClient.google-oidc", LogLevel.Warning);
 builder.Services.AddSharedKernel();
 builder.AddRootSecret(); // B1-11: fails startup outside Development without a valid Security:RootSecret; before any module that derives keys
 builder.AddIdentityModule(); // fails startup if dev login is enabled outside Development
@@ -91,12 +94,14 @@ var anonPermits = limits.GetValue("AnonymousPermitPerMinute", 60);
 // generous per-user bucket: far more than a student ever needs, so write/api exhaustion can never lock them out, yet finite.
 var reversalPermits = limits.GetValue("ConsentReversalPermitPerMinute", 600);
 // N-05: every permit must be positive, and anything above the shipped default outside Development is logged at startup.
-var permitDefaults = new (string Key, int Value, int Default)[]
-{
+(string Key, int Value, int Default)[] permitDefaults =
+[
     ("AuthPermitPerMinute", authPermits, 10), ("ApiPermitPerMinute", apiPermits, 120), ("WritePermitPerMinute", writePermits, 30),
     ("AnonymousPermitPerMinute", anonPermits, 60), ("ConsentReversalPermitPerMinute", reversalPermits, 600),
     ("AudioTicketPermitPerMinute", limits.GetValue("AudioTicketPermitPerMinute", 6), 6),
-};
+    // ADR-022 sign-in buckets (their own limiter in the Identity module; listed here for the same N-05 warning).
+    .. IdentityModule.SignInRateLimitDefaults.Select(d => (d.Key["RateLimiting:".Length..], limits.GetValue(d.Key["RateLimiting:".Length..], d.Default), d.Default)),
+];
 foreach (var p in permitDefaults)
     if (p.Value <= 0) throw new InvalidOperationException($"RateLimiting:{p.Key} must be a positive number (was {p.Value}).");
 static FixedWindowRateLimiterOptions PerMinute(int permits) =>
@@ -111,13 +116,16 @@ static bool IsHubNegotiate(HttpContext ctx) =>
 // ConsentReversalMetadata (SessionEndpoints); they still need the session cookie and a matching Origin and are counted in the
 // separate per-user "rev:" bucket (ConsentReversalPermitPerMinute), so the exemption is wide but not unlimited (N-03).
 static bool IsConsentReversal(HttpContext ctx) => ctx.IsConsentReversal();
+// ADR-022 R6: the two Google sign-in routes have their own buckets (global, per binder, unbound callbacks) inside the Identity module. In Azure
+// every caller reaches the API from one address, so the per-IP anonymous bucket would be a single 60/min for every sign-in.
+static bool IsGoogleSignIn(HttpContext ctx) => IdentityModule.IsGoogleSignInRoute(ctx);
 static string? UserKey(HttpContext ctx) =>
     ctx.User.Identity?.IsAuthenticated == true ? ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) : null;
 builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = 429;
     o.GlobalLimiter = PartitionedRateLimiter.CreateChained(
-        PartitionedRateLimiter.Create<HttpContext, string>(ctx => UserKey(ctx) is { } uid
+        PartitionedRateLimiter.Create<HttpContext, string>(ctx => IsGoogleSignIn(ctx) ? RateLimitPartition.GetNoLimiter("signin") : UserKey(ctx) is { } uid
             ? (ctx.SeparateRateBucket() is { } sep
                 // API_CONTRACTS_P2 section 11 (R2-14): syllabus routes have their own per-user buckets, never the shared ones.
                 ? RateLimitPartition.GetFixedWindowLimiter("sx:" + sep.Bucket + ":" + uid, _ => PerMinute(sep.PermitsPerMinute))
@@ -127,7 +135,7 @@ builder.Services.AddRateLimiter(o =>
             : RateLimitPartition.GetFixedWindowLimiter("ip:" + ClientIpKey.For(ctx.Connection.RemoteIpAddress),
                 _ => PerMinute(anonPermits))),
         PartitionedRateLimiter.Create<HttpContext, string>(ctx => UserKey(ctx) is { } uid && !HttpMethods.IsGet(ctx.Request.Method)
-            && !HttpMethods.IsHead(ctx.Request.Method) && !HttpMethods.IsOptions(ctx.Request.Method) && !IsHubNegotiate(ctx) && !IsConsentReversal(ctx) && ctx.SeparateRateBucket() is null
+            && !HttpMethods.IsHead(ctx.Request.Method) && !HttpMethods.IsOptions(ctx.Request.Method) && !IsHubNegotiate(ctx) && !IsConsentReversal(ctx) && ctx.SeparateRateBucket() is null && !IsGoogleSignIn(ctx)
             ? RateLimitPartition.GetFixedWindowLimiter("w:" + uid, _ => PerMinute(writePermits))
             : RateLimitPartition.GetNoLimiter("none")));
     o.AddPolicy("auth", ctx => RateLimitPartition.GetFixedWindowLimiter(
@@ -140,6 +148,9 @@ builder.Services.AddRateLimiter(o =>
 });
 
 builder.Services.AddHealthChecks().AddCheck<PostgresReadyCheck>("postgres", tags: ["ready"]);
+// ADR-022 R6: the shape of the forwarded-header chain, for Run A (on by default outside Development; counts and classes only).
+var forwardedChainLog = builder.Configuration.GetValue(ForwardedChainLog.EnabledKey, !builder.Environment.IsDevelopment());
+if (forwardedChainLog) builder.Services.AddSingleton<ForwardedChainLog>();
 
 var app = builder.Build();
 
@@ -148,12 +159,16 @@ if (!app.Environment.IsDevelopment())
     var raised = permitDefaults.Where(p => p.Value > p.Default).Select(p => $"RateLimiting:{p.Key}={p.Value} (default {p.Default})").ToList();
     if (raised.Count > 0)
         app.Logger.LogWarning("RateLimiting overrides above the shipped defaults outside Development: {Overrides}. The raised values belong in the dev overlay only.", string.Join(", ", raised));
-    if (string.IsNullOrEmpty(app.Configuration["DataProtection:KeysPath"]))
-        app.Logger.LogWarning("DataProtection:KeysPath is not set: cookie keys are ephemeral, so every restart signs everyone out and instances cannot share sessions.");
 }
 foreach (var warning in app.Services.GetRequiredService<Tether.SharedKernel.Security.DerivedKeys>().Warnings)
     app.Logger.LogWarning("{Warning}", warning);
 
+// Before the forwarded-headers middleware, so it sees the chain exactly as it arrived.
+if (forwardedChainLog)
+{
+    var chain = app.Services.GetRequiredService<ForwardedChainLog>();
+    app.Use((ctx, next) => { chain.Observe(ctx); return next(ctx); });
+}
 if (useForwardedHeaders) app.UseForwardedHeaders();
 
 // F-06: registered first and applied in OnStarting, so the headers are present on every response, including
@@ -241,6 +256,8 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Databas
     await app.Services.MigrateDocsAsync(); // after Identity and Lectures: FKs to lectures.lecture_sessions and identity.users
     await app.Services.SeedDevUsersAsync(); // no-op unless Development and dev login enabled
 }
+// ADR-022 R3/R8: outside Development, revoke the sessions of dev-login users and of people no longer on the invite list (counts only).
+await app.Services.RunIdentityStartupActionsAsync();
 
 app.Run();
 

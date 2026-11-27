@@ -1,0 +1,4 @@
+{
+  "landing": "home",
+  "scope": "openid email profile https://www.googleapis.com/auth/drive"
+}
