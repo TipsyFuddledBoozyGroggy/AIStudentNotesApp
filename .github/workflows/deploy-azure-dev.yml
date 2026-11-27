@@ -1,6 +1,7 @@
 name: Deploy Azure dev (POC)
-# Authored 2026-11-26. NEVER RUN ON GITHUB as of this writing. Manual only (workflow_dispatch), so it never reports on a
-# pull request or a push and cannot become part of the required `ci result` check in ci.yml.
+# Authored 2026-11-26; first run on GitHub the same day (build job and Azure OIDC sign-in work; see docs/PROGRESS.md for
+# what the first runs found). Manual only (workflow_dispatch), so it never reports on a pull request or a push and cannot
+# become part of the required `ci result` check in ci.yml.
 # Read infra/README.md first: it lists the one-time steps only the Product Owner can do and explains the two-run flow.
 #
 # What a run does:
@@ -27,7 +28,7 @@ name: Deploy Azure dev (POC)
 #   actions/checkout  v4.2.2  same pin as ci.yml (docs/security/action-pin-verification.md)
 #   azure/login       v3.1.0  read 2026-11-26 with `git ls-remote --tags https://github.com/Azure/login.git`; the commit
 #                             is "prepare release v3.1.0" (2026-09-10) on the official repo's releases/v3.1.0 branch, where
-#                             this action publishes its built code. Not exercised by a run yet.
+#                             this action publishes its built code. OIDC sign-in with it worked on 2026-11-26.
 on:
   workflow_dispatch:
 
