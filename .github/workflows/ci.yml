@@ -604,8 +604,11 @@ jobs:
   # rollback), release-guard.sh (a template with dev login is never deployed), api-signin-mode.sh, web-auth-state.sh
   # and close-web.sh (the emergency stop). A mistake in them fails
   # OPEN in production, and the deploy workflow itself is manual, so nothing else would run them on a pull request.
-  # No Azure, no GitHub API, no Google and no network beyond the checkout: the site is a stand-in on localhost with a
-  # throwaway certificate, and `az` is a stand-in script put first on PATH (the runner's real az is never called).
+  # No Azure, no GitHub API, no Google: the site is a stand-in on localhost with a throwaway certificate, and inside
+  # the case tests `az` is a stand-in script put first on PATH. The last step uses the runner's real az only to download
+  # the pinned Bicep compiler (the one network use beyond the checkout) and compile infra/main.bicep offline; Azure
+  # refused the whole template in Run A (2026-11-27) for a dependency circle that `bicep build` does not report, and
+  # infra/scripts/template-cycles.mjs finds that kind of circle.
   # bash, jq, curl, openssl and node are preinstalled on ubuntu-24.04 (the first step fails plainly if one is not).
   # About two minutes: the retry-until-the-deadline cases wait on purpose. Same area filter as the other code jobs;
   # infra/ is not a path the `changes` job knows, so any change there counts as code and runs this job.
@@ -630,6 +633,17 @@ jobs:
         run: bash infra/scripts/tests/preflight-cases.sh
       - name: Smoke, sign-in mode and emergency-stop case tests
         run: bash infra/scripts/tests/smoke-cases.sh
+      - name: Template circle-check case tests
+        run: bash infra/scripts/tests/template-cycles-cases.sh
+      - name: Template compiles, lints and has no dependency circle
+        env:
+          BICEP_VERSION: v0.49.2 # same pin as deploy-azure-dev.yml
+        run: |
+          set -euo pipefail
+          az bicep install --version "$BICEP_VERSION"
+          az bicep lint --file infra/main.bicep
+          az bicep build --file infra/main.bicep --outfile "$RUNNER_TEMP/main.json"
+          node infra/scripts/template-cycles.mjs "$RUNNER_TEMP/main.json"
 
   # One stable check name for branch protection (SEC-040, not configured yet). Matrix shard names and skipped jobs
   # change with the diff; this job always runs and fails if any needed job failed or was cancelled. Skipped counts as

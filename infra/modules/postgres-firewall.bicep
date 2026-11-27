@@ -1,5 +1,5 @@
-// One PostgreSQL firewall rule per address. A module because the address list (the Container Apps outbound addresses)
-// is only known while the deployment runs, and a loop needs its length at the start of the deployment it belongs to.
+// One PostgreSQL firewall rule per address in the list. infra/main.bicep passes its postgresOutboundIpAddresses parameter
+// (read before the deploy, never from a resource the same template deploys: that made a dependency circle, see there).
 // Used only when postgresFirewallMode = 'containerAppOutboundIps' in infra/main.bicep. UNVERIFIED against a real environment.
 
 @description('Name of the existing PostgreSQL flexible server.')

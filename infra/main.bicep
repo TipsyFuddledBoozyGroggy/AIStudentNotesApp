@@ -151,9 +151,12 @@ param postgresSslMode string = 'VerifyFull'
 
 @description('''Which addresses may open a connection to the database server (it has a public endpoint; see the note at the firewall rule).
 azureServices: any address inside Azure (one rule; robust).
-containerAppOutboundIps: only the outbound addresses the Container Apps environment reports (tighter; they can change, redeploy to refresh; UNVERIFIED).''')
+containerAppOutboundIps: only the addresses in postgresOutboundIpAddresses (tighter; they can change, so read them again before each deploy; UNVERIFIED).''')
 @allowed(['azureServices', 'containerAppOutboundIps'])
 param postgresFirewallMode string = 'azureServices'
+
+@description('Used only when postgresFirewallMode is containerAppOutboundIps: the outbound IPv4 addresses the Container Apps environment reports, read before the deploy (for example `az containerapp show --resource-group <group> --name <web app> --query properties.outboundIpAddresses`). An empty list there means no rule, so the API cannot reach the database.')
+param postgresOutboundIpAddresses string[] = []
 
 // --- Sizing and cost ---
 
@@ -331,20 +334,18 @@ resource postgresAllowAzure 'Microsoft.DBforPostgreSQL/flexibleServers/firewallR
   dependsOn: [postgresDatabase]
 }
 
-// Tighter alternative (UNVERIFIED, not used by infra/poc.bicepparam): one rule per outbound address the environment
-// reports. The addresses are read from the web app AS IT ALREADY EXISTS (an `existing` reference, not the `web` resource
-// declared below): the web app now waits for the API (see its dependsOn), the API waits for these rules, so reading
-// them from the declared web app would be a circle. Consequence: this mode works only once the web app exists, so
-// the first deployment of an environment must use azureServices. When switching to this mode, delete the
-// AllowAllAzureServicesAndResourcesWithinAzureIps rule by hand: an incremental deployment does not remove it.
-resource webAlreadyDeployed 'Microsoft.App/containerApps@2025-01-01' existing = if (postgresFirewallMode == 'containerAppOutboundIps') {
-  name: webAppName
-}
+// Tighter alternative (UNVERIFIED, not used by infra/poc.bicepparam): one rule per address in postgresOutboundIpAddresses.
+// The addresses are a parameter and are NOT read from the web app in this template. The web app waits for the API
+// (see its dependsOn) and the API waits for these rules, so any read of the web app here is a circle. An `existing`
+// reference to the same web app does not avoid it: with one, Azure refused the WHOLE template ("Circular dependency
+// detected", Run A on 2026-11-27), even though this mode was off. Keep every resource this template deploys out of
+// this module's inputs. When switching to this mode, delete the AllowAllAzureServicesAndResourcesWithinAzureIps rule
+// by hand: an incremental deployment does not remove it.
 module postgresAllowOutbound 'modules/postgres-firewall.bicep' = if (postgresFirewallMode == 'containerAppOutboundIps') {
   name: 'tether-postgres-firewall'
   params: {
     serverName: postgres.name
-    ipAddresses: webAlreadyDeployed!.properties.outboundIpAddresses
+    ipAddresses: postgresOutboundIpAddresses
   }
   dependsOn: [postgresDatabase]
 }
