@@ -102,7 +102,8 @@ jobs:
       - name: Sign out of ghcr.io
         if: ${{ always() }}
         run: docker logout ghcr.io
-      # A package is PRIVATE when it is first pushed. The Product Owner makes each one public once (infra/README.md).
+      # A package can start PRIVATE; then the Product Owner makes it public once (infra/README.md). On the first run
+      # (2026-11-26) both were public from the first push (linked to this public repository).
       - name: Images must be pullable without credentials
         run: |
           set -euo pipefail
