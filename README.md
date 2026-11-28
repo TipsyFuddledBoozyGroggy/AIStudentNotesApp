@@ -302,7 +302,7 @@ Not built yet, in rough order:
 4. **Study tools:** contextual tutoring, editable study guides, practice-test import and adaptive quizzes, and calendar reminders.
 5. **Later:** low-pressure executive-function coaching, concept tracking, spaced repetition, a knowledge map and selectable engagement modes.
 
-The current state and history of the work are in [docs/PROGRESS.md](docs/PROGRESS.md). The original milestone plan is [docs/DEVELOPMENT_ROADMAP.md](docs/DEVELOPMENT_ROADMAP.md). Product requirements are in [docs/PRODUCT_REQUIREMENTS.md](docs/PRODUCT_REQUIREMENTS.md).
+The current state and history of the work are in [docs/PROGRESS.md](docs/PROGRESS.md). Where each milestone stands, and what comes next, is in [docs/DEVELOPMENT_ROADMAP.md](docs/DEVELOPMENT_ROADMAP.md). Product requirements are in [docs/PRODUCT_REQUIREMENTS.md](docs/PRODUCT_REQUIREMENTS.md).
 
 ## Documentation
 
@@ -323,7 +323,7 @@ The current state and history of the work are in [docs/PROGRESS.md](docs/PROGRES
 | Vendor and legal research notes | [docs/vendors/](docs/vendors/), [docs/legal/](docs/legal/) |
 | Agent team and playbook | [docs/agents/](docs/agents/) |
 
-Some older documents still describe earlier stages of the project. Where a document and the code disagree, the code and [docs/PROGRESS.md](docs/PROGRESS.md) are the better guide.
+Design documents and reviews describe the project as it was when they were written. Where one disagrees with the code, the code and [docs/PROGRESS.md](docs/PROGRESS.md) are the better guide.
 
 ## Contributing and working with Claude Code
 

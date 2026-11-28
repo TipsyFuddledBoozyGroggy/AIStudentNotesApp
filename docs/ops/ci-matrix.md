@@ -1,45 +1,49 @@
-# CI matrix (authored 2026-11-01; area filters and e2e sharding added 2026-11-01, not yet run on GitHub)
+# CI matrix (refreshed 2026-11-27 from the workflow files and real GitHub runs)
 
-**Status: NOT_RUN.** These workflows were written and statically checked on 2026-10-31/11-01. No GitHub Actions run record exists, so nothing here is evidence for RELEASE_GATES G5. The gate stays `NOT_RUN` until a real run exists and an accountable reviewer has read it.
+**Status.** CI has run on GitHub many times since 2026-11-01. The first fully green run was 41336514945 on 2026-11-01. `ci.yml` runs on every push to main and on every pull request. The most recent green run on main is 46101097100 (commit 49e33a3, 2026-11-28 03:04 UTC). Dates below are UTC. **Nothing in this file clears release gate G5.** Green runs are evidence that the jobs work. They are not a deployment record, a restore drill, telemetry or a cost review. `docs/RELEASE_GATES.md` is the canonical register.
 
-Files: `.github/workflows/ci.yml`, `.github/workflows/codeql.yml`, `.github/dependabot.yml`, `docs/ops/db-log-canary.sh`.
+Files: `.github/workflows/ci.yml`, `codeql.yml`, `deploy-azure-dev.yml`, `.github/dependabot.yml`, `docs/ops/db-log-canary.sh`, `.trivyignore.yaml`.
 
-## Jobs
+## Jobs (ci.yml)
 
-Runtime figures are **estimates** from local runs of the same commands (marked L) or guesses (marked G). They include no runner start-up, cache restore or Playwright browser install.
+Durations are measured job times (start to finish on the runner, queue time excluded). Source: the five most recent successful push runs that ran every job including `infra-scripts`: 46101097100 (2026-11-28), 46099528347 (2026-11-28), 46083395709 (2026-11-27), 46078651462 (2026-11-27, attempt 2 after a rerun), 45979864216 (2026-11-27). Pushes to main always run everything, so none of these was a docs-only skip.
 
-| Job (workflow) | Runs on | What it does | Estimate | Local equivalent |
+| Job | Runs when | What it does | Measured | Local equivalent |
 |---|---|---|---|---|
-| `changes` (ci) | every PR/push | `git diff` against the base commit, classified into outputs `backend`, `web`, `e2e` (backend or web), `code` (see Area filters) | < 1 min G | n/a |
-| `web` (ci) | `web` changed | `npm ci`, `tsc --noEmit`, eslint, **named copy and skin lint gate** (4 vitest files, 186 tests, 2.6 s L), full vitest (about 20 s L), `next build` (14 s L); the `npm audit` steps moved to `dependency-audit` so they always run | 4 to 6 min G | `cd src/web && npm run typecheck && npm run lint && npm test && npm run build` |
-| `api` (ci) | `backend` changed | compose Postgres (hardened), `dotnet restore`, `build -c Release -warnaserror`, `dotnet test` (all 5 test projects, integration tests included, no dev API needed), then the **DB log canary** | 10 to 20 min G | stop the dev API first, then `docker compose up -d postgres` and `dotnet test` (see DEVELOPMENT.md) |
-| `e2e-harness` (ci) | `web` changed | Playwright harness config, own `next dev` on :3100, no API, `--workers=1` | 5 to 8 min G (1.1 min L for the run itself) | `cd src/web && npx playwright test -c playwright.harness.config.ts --workers=1` (never beside a dev server in the same folder) |
-| `e2e-real` x4 shards (ci) | `e2e` (backend or web) changed | Matrix of 4 runners, each with its own compose Postgres, API on :5080 (Development env) and `npm run dev:real` on :3000; serial inside a shard. Shards: `flows-a` (courses, syllabus, syllabus-utc, syllabus-unclaimed), `flows-b` (lecture, notes, reopen, stop-move), `screens-a` (screens + axe, skins), `screens-b` (geometry, gamer-glass, lecture-looks). Each runs the DB log canary and uploads artifacts on failure (`e2e-real-output-<shard>`) | 10 to 18 min G per shard; wall time is the slowest shard (was 25 to 40 min G serial; the first real CI runs took 35 to 55 min) | start the API and `npm run dev:real`, then the same `npx playwright test -c playwright.reuse.config.ts --workers=1 <specs>` / `-c playwright.screens.config.ts e2e-screens/<spec> --workers=1` |
-| `secret-scan` (ci) | **always**, full history | gitleaks v8.21.2, tarball verified against a pinned SHA-256 (SBR-03) | 1 min G | `gitleaks detect --source . --redact` |
-| `dependency-audit` (ci) | **always** | `npm audit` (prod: any severity fails; all: high/critical fail, moderate allowed up to the known 14), then `dotnet list package --vulnerable --include-transitive`, fails on High/Critical, and also fails if the check cannot run (nonzero exit, NU1900/feed errors, or no per-project result) (SBR-02) | 2 to 3 min G | same commands in `src/web` / `src/api` |
-| `dependency-review` (ci) | PRs with code changes | GitHub dependency review, fails on high | 1 min G | none |
-| `image-scan` (ci) | PRs with code changes only, never push to main; Trivy DB cache off (SBR-01) | Trivy: `postgres:16.15-alpine` (gates on fixable HIGH/CRITICAL; 26 gosu findings ignored by `.trivyignore.yaml` until 2026-12-01), `dotnet/sdk:10.0` (report only, dev tooling), repo config scan (compose, workflows) | 3 to 6 min G | `docker run --rm aquasec/trivy:0.69.3 image --ignorefile .trivyignore.yaml --ignore-unfixed --severity HIGH,CRITICAL postgres:16.15-alpine` |
-| `ci-result` (ci) | always | One stable check for branch protection: fails if any needed job failed or was cancelled; skipped counts as success | < 1 min G | none |
-| `analyze` x2 (codeql) | code PRs, pushes to main, weekly | CodeQL `security-extended` for `csharp` and `javascript-typescript`, no-build mode | 10 to 25 min G | none |
+| `changes` | every PR and push | Classifies the diff into `backend`, `web`, `e2e`, `code` (see Area filters) | 4 to 11 s | n/a |
+| `web` | `web` | `npm ci`, `tsc --noEmit`, eslint, a named copy-and-skin lint gate (4 vitest files), full vitest, `next build` (retried up to 3 times for font-fetch failures) | 2.2 to 3.0 min | `cd src/web && npm run typecheck && npm run lint && npm test && npm run build` |
+| `api` | `backend` | Compose Postgres (hardened), `dotnet restore`, `build -c Release -warnaserror`, `dotnet test` (all test projects, integration included), DB log canary | 2.9 to 3.0 min | stop the dev API, `docker compose up -d postgres`, `dotnet test` in `src/api` (see DEVELOPMENT.md) |
+| `e2e-harness` | `web` | Playwright harness config, own `next dev` on :3100, no API, `--workers=1` | 3.8 to 4.4 min | `cd src/web && npx playwright test -c playwright.harness.config.ts --workers=1` (not beside a dev server in the same folder) |
+| `e2e-real` x4 shards | `e2e` (backend or web) | Each shard has its own compose Postgres, API on :5080 (Development env) and `npm run dev:real` on :3000; serial inside a shard. DB log canary at the end; artifacts `e2e-real-output-<shard>` on failure | `flows-a` 2.9 to 3.9 min; `flows-b` 5.6 to 6.3 min; `screens-a` 14.9 to 17.9 min; `screens-b` 18.9 to 22.9 min | start the API and `npm run dev:real`, then `npx playwright test -c playwright.reuse.config.ts --workers=1 <specs>` or `-c playwright.screens.config.ts e2e-screens/<spec> --workers=1` |
+| `infra-scripts` | `code` | Case tests for the deploy scripts (`preflight-cases.sh`, `smoke-cases.sh`, `template-cycles-cases.sh`), then installs Bicep v0.49.2, lints and builds `infra/main.bicep`, and runs `infra/scripts/template-cycles.mjs` on the result to catch dependency circles | 1.9 to 2.2 min | `bash infra/scripts/tests/preflight-cases.sh` (and the other two); the Bicep step needs `az bicep` |
+| `secret-scan` | always | gitleaks 8.21.2 over full history, tarball checked against a pinned SHA-256 | 7 to 13 s | `gitleaks detect --source . --config .gitleaks.toml --redact` |
+| `dependency-audit` | always | `npm audit` (prod: any severity fails; all: high/critical fail, moderate allowed up to the known 14); `dotnet list package --vulnerable --include-transitive`, fails on High/Critical or if the check cannot run | 35 to 41 s | same commands in `src/web` and `src/api` |
+| `dependency-review` | pull requests with `code` | GitHub dependency review, fails on high | not measured on a push; ran on PRs | none |
+| `image-scan` | pull requests with `code`, never push | Trivy: `postgres:16.15-alpine` (gate, fixable HIGH/CRITICAL), `dotnet/sdk:10.0` (report only), repo config scan. Trivy DB cache off | not measured (skipped in the runs above) | `docker run --rm aquasec/trivy:0.69.3 image --ignorefile .trivyignore.yaml --ignore-unfixed --severity HIGH,CRITICAL postgres:16.15-alpine` |
+| `ci-result` | always | The one check for branch protection: fails if any needed job failed or was cancelled; skipped counts as success | 2 to 5 s | none |
 
-All jobs: `permissions: contents: read` (CodeQL adds `security-events: write` and `actions: read`), a timeout, and a concurrency group (PR runs are cancelled by newer pushes; main runs are not). Every action is pinned to a full commit SHA.
+Wall time of a full push run, from the same five runs: 19 min 9 s, 19 min 13 s, 20 min 34 s, 22 min 41 s, 27 min 23 s (the last includes a rerun). Typical: 19 to 23 minutes. `screens-b` sets it. Slowest shards vary by about 4 minutes between runs, so treat the figures as a range.
+
+All jobs: `permissions: contents: read` (least privilege), a timeout, and a concurrency group (PR runs are cancelled by newer pushes; main runs are not, but a newer push can cancel a queued main run: several runs show `cancelled`). Every action is pinned to a full commit SHA.
 
 ## Area filters (the `changes` job)
 
-Plain `git diff --name-only <base> HEAD` and a shell `case`, no third-party action. First match wins, per changed file:
+A plain `git diff --name-only <base> HEAD` and a shell `case`. No third-party action. **The diff filter applies to pull requests only.** A push to main has no base and always runs everything (so a docs-only push to main still runs the heavy jobs). For a PR, first match wins per changed file:
 
 | Path | Effect |
 |---|---|
-| `.github/*` (includes `ci.yml`, `codeql.yml`), `.gitleaks.toml`, `docs/ops/*`, any `.sh .bash .ps1 .cmd .bat` (SBR-04) | everything (backend and web) |
+| `.github/*`, `.gitleaks.toml`, `docs/ops/*`, any `*.sh *.bash *.ps1 *.cmd *.bat` | backend and web |
 | `docs/*`, `.claude/*`, any `*.md` | nothing (docs-only) |
 | `src/shared/contracts/*` | backend and web |
 | `src/api/*`, `docker-compose*.yml`, `global.json`, `Directory.*` (any folder) | backend |
 | `src/web/*` | web |
-| anything else (unknown path) | everything (conservative) |
+| anything else (for example `infra/*` non-markdown, `scripts/*` non-shell files, `.gitattributes`, `.trivyignore.yaml`) | backend and web (conservative) |
 
-Outputs: `backend`, `web`, `e2e` = backend or web, `code` = backend or web. A missing or unfetchable base commit runs everything. Job gating: `api` needs backend; `web` and `e2e-harness` need web; `e2e-real` needs e2e (a contract or API change can break the UI); `dependency-review` and `image-scan` need code and a PR; `secret-scan` and `dependency-audit` always run. Editing this file counts as `docs/ops/*` and runs everything (SBR-04, pre-existing).
+There is no `infra/` or `scripts/` rule. `infra/` files and `scripts/*.mjs` hit the "anything else" line and run everything. Any `.sh` or `.ps1` file runs everything wherever it lives (SBR-04). A markdown file such as `infra/README.md` counts as docs-only.
 
-The classifier was exercised locally with synthetic file lists (16 cases: docs-only, each area, contracts, scripts, workflow, gitleaks, dependabot, unknown path, README under src/). It has not run on GitHub.
+Outputs: `e2e` and `code` are each "backend or web". A missing or unfetchable base runs everything. Gating: `api` needs backend; `web` and `e2e-harness` need web; `e2e-real` needs e2e; `infra-scripts` needs code; `dependency-review` and `image-scan` need code and a PR; `secret-scan` and `dependency-audit` always run.
+
+**The classifier has no tests of its own.** There is no test file in the repo for it. It was exercised by hand on 2026-11-01 with 16 synthetic file lists, and the PR run 45979328130 ran it for real. The case tests under `infra/scripts/tests/` cover the deploy scripts, not this `case`.
 
 ## Job graph
 
@@ -47,121 +51,110 @@ The classifier was exercised locally with synthetic file lists (16 cases: docs-o
 changes ─┬─> web            (web)                       ─┐
          ├─> e2e-harness    (web)                        │
          ├─> api            (backend)                    │
-         ├─> e2e-real       (backend or web)             ├─> ci-result (always; skipped = ok)
-         │     ├ flows-a    courses, syllabus, syllabus-utc
-         │     ├ flows-b    lecture, notes, reopen, stop-move
-         │     ├ screens-a  screens + axe, skins
+         ├─> e2e-real       (backend or web)             │
+         │     ├ flows-a    courses, syllabus, syllabus-utc, syllabus-unclaimed, signin
+         │     ├ flows-b    lecture, notes, reopen, stop-move, delete, notes-export, docs-export
+         │     ├ screens-a  screens + axe, skins          ├─> ci-result (always; skipped = ok)
          │     └ screens-b  geometry, gamer-glass, lecture-looks
+         ├─> infra-scripts  (backend or web)             │
          └─> dependency-review, image-scan   (PR and code)
 secret-scan, dependency-audit   (no dependencies, always)  ─┘
 ```
 
-All jobs run in parallel after `changes`. Wall time is the slowest job, now one e2e shard rather than the whole serial e2e.
+All jobs run in parallel after `changes`. Wall time is the slowest job.
 
 ### Sharding rules
 
-- A shard is a runner, so it has its own IP (the dev-login limit is per shard), its own Postgres container and API process, and its own dev users. No data is shared between shards. The specs were already independent of each other: each creates its own courses and sessions with unique names, and per-user state uses dedicated users.
-- `e2e/global-setup.ts` honours `E2E_USERS` (comma-separated `e2e/users.ts` keys) and logs in only those users. Unset means every user, as before (local runs unchanged); an unknown key throws. The lists live in the `ci.yml` matrix and were derived from the `stateFor()` / `asUser()` calls per spec (checked by grep, all 17 keys are covered). A spec that calls `stateFor()` with a key missing from its shard's list fails with a missing storage-state file. When adding a user to a spec, add it to that shard's `users`.
-- The first step of every shard fails the job if any `e2e/*.spec.ts` or `e2e-screens/*.spec.ts` file is named in zero or in more than one shard, so a new spec cannot silently stop running.
-- Screens specs log in their own throwaway users, so they need no `E2E_USERS`. They still run as one Playwright process per spec file, as before, and a failure in one does not stop the next.
-- Rebalance by moving a spec name between shards (and its users, for `flows-*`). Do not split a single spec file across shards: several specs are serial and share state inside the file.
+- A shard is a runner: its own IP (the dev-login limit is per shard), Postgres container, API process and dev users. Specs create their own courses and sessions with unique names.
+- `e2e/global-setup.ts` honors `E2E_USERS` (comma-separated `e2e/users.ts` keys) and logs in only those users. Unset means all users (local runs unchanged); an unknown key throws. The lists live in the `ci.yml` matrix. A spec that calls `stateFor()` with a key missing from its shard's list fails with a missing storage-state file. When adding a user to a spec, add it to that shard's `users`.
+- The first step of every shard fails the job if any `e2e/*.spec.ts` or `e2e-screens/*.spec.ts` file is named in zero or in more than one shard. This caught a real gap on 2026-11-27 (PR run 45979328130: `signin.spec.ts` in 0 shards); fixed by f9502c2.
+- Screens specs log in their own throwaway users. They run as one Playwright process per spec file; a failure in one does not stop the next.
+- Rebalance by moving a spec name between shards (and its users, for `flows-*`). Do not split a spec file across shards: several specs are serial and share state.
 
 ### Caching
 
 | Cache | Key | Policy |
 |---|---|---|
-| NuGet (`~/.nuget/packages`) in `api` and each `e2e-real` shard | hash of `src/api/**/*.csproj`, `Directory.Build.props`, `global.json` (the repo has no NuGet lock file) | restore on every run, **save only on push to main** |
-| Playwright browsers (`~/.cache/ms-playwright`) | Playwright version + hash of `src/web/package-lock.json` | restore on every run, save only on push to main; OS libraries are still installed each run |
-| npm (`setup-node` `cache: npm`) | hash of `package-lock.json` (action default) | action default (also saves on PRs, scoped to the PR ref) |
-| Trivy DB | none | off by design (SBR-01), unchanged |
-| Docker images / buildx layers | none | not added: no image is built (no API Dockerfile) and only `postgres:16.15-alpine` is pulled (small); a layer cache would add a poisoning surface for little gain. Revisit when an API image exists |
-| `.next/cache` of the dev server | none | deliberately not cached (L-DEVSERVER: a stale or poisoned `.next` corrupts the dev server) |
+| NuGet in `api` and each `e2e-real` shard | hash of `src/api/**/*.csproj`, `Directory.Build.props`, `global.json` (no lock file) | restore on every run, **save only on push to main** |
+| Playwright browsers | Playwright version + hash of `package-lock.json` | restore on every run, save only on push to main; OS libraries installed each run |
+| npm (`setup-node`) | hash of `package-lock.json` | action default |
+| Trivy DB | none | off by design (SBR-01) |
+| Docker layers, `.next/cache` | none | not cached on purpose (no layer cache; a stale `.next` corrupts the dev server) |
 
-The restore/save split uses the `actions/cache/restore` and `actions/cache/save` sub-actions at the same pinned SHA as `actions/cache` (v4.2.0; both sub-actions exist at that commit, checked with `gh api`). Because PRs never save NuGet or Playwright caches, a PR's first run after a lock or csproj change is cold until a push to main has populated the cache (restore-keys fall back to the newest older cache with the same prefix).
+A PR's first run after a lock or csproj change is cold until a push to main has populated the cache.
 
-## Expected timings (ESTIMATES, not measured)
+## CodeQL (codeql.yml)
 
-Marked G (guess); nothing here has run on GitHub. The 35 to 55 minute serial `e2e real stack` figure is from the first CI runs.
+Triggers: pull requests and pushes to main (both skip docs-only changes via `paths-ignore: docs/**, **/*.md, .claude/**`) and a weekly schedule, Mondays 04:17 UTC. Two matrix jobs, query suite `security-extended`:
 
-| Scenario | Jobs that run | Estimated wall time |
+- `analyze (csharp)`: **manual build** (`dotnet build src/api/Tether.slnx -c Release`) under the CodeQL tracer, with the SDK from `src/api/global.json`. Buildless mode broke on .NET 10.
+- `analyze (javascript-typescript)`: no build.
+
+`github/codeql-action` is pinned at v4.38.3. Permissions: `contents: read`, plus `security-events: write` and `actions: read` on the job. Latest push run 46083395664 (2026-11-27) passed: csharp 152 s, javascript-typescript 86 s. The weekly schedule has run and passed (for example 45198634817 on 2026-11-23). Because `paths-ignore` means no check reports on docs-only changes, do not make a CodeQL check required in branch protection without revisiting that.
+
+## Dependabot (.github/dependabot.yml)
+
+Weekly updates for four ecosystems: `github-actions` (`/`, one group `actions`, max 5 open PRs), `npm` (`/src/web`, group `minor-and-patch`, max 5), `nuget` (`/src/api`, group `minor-and-patch`, max 5) and `docker-compose` (`/`, max 3, no group). Its PRs run the same CI as any PR.
+
+## Deploy workflow (deploy-azure-dev.yml)
+
+A manual `workflow_dispatch`, from main only. It never runs on a push or a pull request and is not part of `ci result`. **Every run waits for Product Owner approval** on the GitHub environment `azure-dev` before it signs in to Azure (OIDC, no stored Azure secret). Procedure, secrets, run order and the Product Owner steps are in [`infra/README.md`](../../infra/README.md); do not copy them here.
+
+Inputs:
+
+| Input | Meaning |
+|---|---|
+| `access` | `team` (default): Microsoft sign-in in front of the site, Google sign-in behind it; also the rollback. `invited`: Google sign-in and the invite list only. `closed`: emergency stop; makes the web ingress internal and deploys nothing |
+| `gate_only` | Change the access mode only. No new build; the live release stays. Required when taking the Microsoft gate off |
+| `release_sha` | Optional full commit id of an earlier release to deploy or keep. Must be on main and at or after the tag `go-live-base` |
+
+Before the deploy: a plan job (picks the commit, refuses a template that has a dev login), a build job that pushes both images to ghcr.io (skipped for `gate_only`, `release_sha` and `closed`) and a preflight (`infra/scripts/preflight.sh`) that refuses missing values. A live-state check then refuses unsafe moves, such as taking the Microsoft gate off before the live API is proven to be Production. After the deploy: a smoke check (`infra/scripts/smoke.sh`) of health, the live sign-in mode and, from outside, the gate. **Fail closed:** if a run that asked for public ingress does not end with the gate proven (deploy failed, probe failed or unclear, run cancelled), the last step makes the web ingress internal again.
+
+Runs so far: 5 (`gh run list --workflow deploy-azure-dev.yml`), all on 2026-11-27 UTC.
+
+| Run | Commit | Result |
 |---|---|---|
-| Docs-only change | `changes`, `secret-scan`, `dependency-audit`, `ci-result` | 2 to 4 min G |
-| Backend-only change | `api` (10 to 20 min), 4 e2e shards, audits, scans | 15 to 22 min G |
-| Web-only change | `web`, `e2e-harness`, 4 e2e shards, audits | 12 to 20 min G |
-| Both / CI config / contracts | everything | 15 to 22 min G, set by the slower of `api` and the slowest shard |
-| Per shard (setup 4 to 6 min + tests) | flows-a ~12, flows-b ~14, screens-a ~12, screens-b ~15 min G | slowest shard sets the e2e wall time |
+| 45924207613 | 54ddb99 | failure |
+| 45928522029 | 76c55d2 | success |
+| 45957101380 | 34a71f4 | success |
+| 46079398123 | b9a6367 | failure |
+| 46083406628 | c6078a1 | **success (latest)** |
 
-The shard split is by spec count and local experience, not by measured durations; expect to rebalance after the first runs. Cost: four runners in parallel use the same test minutes as before plus about 4 x 5 min of setup, roughly 15 to 20 extra runner minutes per full run. The repo is public, so standard runners are free; if it goes private this becomes billable and needs Product Owner approval.
+The infra-scripts CI job exists because Azure refused the template in a run for a dependency circle that `bicep build` does not report.
 
-## Planned, NOT built: nightly full-matrix workflow
+## Secrets needed in CI
 
-The slice 9 text asks for a PR subset of looks plus a nightly full matrix. Neither exists. Today every code PR runs the screens and skins specs in full (now sharded). A scheduled workflow (`schedule`, full looks matrix via `SCREENS`/`LOOKS`, plus the same shards) is planned only once real run times are known. Do not describe it as existing.
-
-## Secrets needed
-
-**None.** The CI database uses the compose dev-only credentials (`cc_dev` / `cc_dev_only_password`) on a throwaway runner container. No provider key is used; STT, Claude and Google stay mock. The e2e API is the Development environment (dev login enabled), with the same relaxed dev-only rate limits as `docker-compose.dev.yml`. That is acceptable on an ephemeral runner and must never be copied to a deployed environment.
+**None for `ci.yml`.** The CI database uses the compose dev-only credentials on a throwaway runner container. No provider key is used; STT, Claude and Google stay mock. The e2e API is the Development environment (dev login on, relaxed dev-only rate limits). Never copy that to a deployed environment. The deploy workflow uses GitHub environment secrets (see `infra/README.md`).
 
 ## SB-01 DB log canary
 
-`docker-compose.yml` starts Postgres with `log_error_verbosity=terse`, `log_min_error_statement=panic`, `log_statement=none`, `log_duration=off`, `log_parameter_max_length(_on_error)=0`, no `auto_explain`. `docs/ops/db-log-canary.sh <container> [--passive]` proves it: active mode forces a CHECK violation in a scratch database with a canary string and greps `docker logs`; passive mode greps the whole log for any `CANARY-`/`CANARY_` marker the test suites wrote. Exit 0 clean, 1 leak, 2 test could not run (so a broken probe cannot pass silently). Both modes run after the tests in `api` and `e2e-real`. Evidence of red and green runs is in the 2026-10-31 hand-off, not in a CI record.
+`docker-compose.yml` starts Postgres with `log_error_verbosity=terse`, `log_min_error_statement=panic`, `log_statement=none`, `log_duration=off`, `log_parameter_max_length(_on_error)=0`, no `auto_explain`. `docs/ops/db-log-canary.sh <container> [--passive]` proves it: active mode forces a CHECK violation with a canary string and greps `docker logs`; passive mode greps the whole log for any `CANARY-`/`CANARY_` marker the suites wrote. Exit 0 clean, 1 leak, 2 the probe could not run. Both modes run after the tests in `api` and in every `e2e-real` shard. A deployed database needs the same settings in its parameter group (deployment prerequisite, not covered by CI). The script must stay LF; `.gitattributes` forces LF for `*.sh`.
 
-A deployed database needs the same settings in its parameter group; that is a deployment prerequisite (SB-01), not covered by CI.
+## Trivy and the postgres image
+
+`image-scan` gates on `postgres:16.15-alpine`. Every postgres 16 tag checked on 2026-11-01 showed the same 26 HIGH findings, all in the Go stdlib of `/usr/local/bin/gosu` (upstream, not the tag). `.trivyignore.yaml` ignores those IDs for that path only, with `expired_at: 2026-12-01`, on the reasoning that gosu runs once to drop root and opens no listener. On or before 2026-12-01: re-scan the newest `postgres:16.x-alpine`; delete the file if gosu is rebuilt, otherwise renew with a fresh justification or change the base. This applies to local and CI containers only; a deployed database is managed Postgres.
+
+## Reading a failed run
+
+- `gh run view <id> --json jobs` and look for the first job with `conclusion: failure`. `ci result` only repeats it.
+- e2e failure: download the artifact `e2e-real-output-<shard>` (Playwright output, `api.log`, `web.log`; kept 7 days). Harness: `e2e-harness-output`. API tests: `api-test-results` (trx).
+- Shard coverage failure ("listed in 0 shards"): a spec file is not named in the `ci.yml` matrix.
+- Font fetch failure in `next build`: retried 3 times already; three failures in a row is real.
+- Canary exit 1 is a leak (real). Exit 2 is a broken probe (also a failure).
+- For flaky versus real, see Known limits. Diagnosis of the first red runs: `docs/ops/ci-first-run-e2e-diagnosis.md`.
 
 ## Known limits
 
-- Never run. First run will probably need fixes (path, timing, a Trivy finding on the base image, Playwright timing on a slower runner). Treat the first run as the test of this file.
-- `ci.yml` job names changed from the old file (`api`, `web` keep their ids). Branch protection is not configured and cannot be from here (SEC-040); when it is, require the final job ids, not names from the old file. Skipped (docs-only) jobs report success. `codeql.yml` uses `paths-ignore`, so a CodeQL check does not report on docs-only PRs: do not make it required without revisiting that.
-- CodeQL and dependency review need code scanning / the dependency graph enabled (free on public repos, GitHub Advanced Security on private). The repo is public (since 2026-11-01), CodeQL upload works (run 41321316201); dependency review runs on pull requests and has not run yet.
-- No nightly full-matrix run and no PR-subset-of-looks split yet (the slice 9 text asks for both): the screens/skins specs run in full on every code PR. Add a `schedule` and a `SCREENS` subset once real run times are known. No bundle budget step exists.
-- No API Dockerfile exists, so no application image is built or scanned. Trivy covers the images compose pulls and the config files only.
-- gitleaks tarball is checked against a SHA-256 pinned in `ci.yml`. On 2026-10-31 the pin was compared with the release's own `checksums.txt` and with a fresh download, and all three matched. This is trust on first use (same origin as the asset), so it catches a later replaced asset, not a release that was bad when pinned. No custom gitleaks config.
-- SBR-04: the docs-only filter treats `docs/ops/` and any `.sh/.bash/.ps1/.cmd/.bat` file as code, so editing the DB log canary runs the heavy jobs.
-- SBR-01 (cache half): `image-scan` runs on pull requests only, so a compromised scan action can only write PR-scoped caches. Cost: main is not scanned automatically after merge. Residual: the runtime cache token is still exposed to the action until it is replaced by a checksum-pinned binary (follow-up, not done).
-- None of the SBR-01..04 changes has run on GitHub yet.
-- Action SHAs were verified on 2026-10-31 per `docs/security/action-pin-verification.md` (Trivy v0.35.0, CodeQL v3.28.3). Verified is not exercised: none of them has run on GitHub yet. Some tags are older than the newest releases; Dependabot will propose bumps.
-- **CodeQL v3 deprecation (follow-up, not done):** `github/codeql-action` v3 is slated for deprecation in Dec 2026. The move to v4 (SHA `9b3254085494b55a0f7c4c2b3d2d52cc712ce370`, v4.39.1) is a follow-up that needs its release notes read first (behaviour, runner and input changes) and its own pin verification entry before any SHA in `ci.yml` is changed. The current v3.28.3 pins stay until then.
-- Postgres service in CI is the repo compose file (needs Docker Compose v2 with `--wait`, present on ubuntu-24.04 runners per GitHub's docs; not verified here).
-- Playwright browser cache is keyed by Playwright version and the lock file hash; OS libraries are re-installed each run. A Playwright container image as the job container would remove that step but changes the environment (and compose would run Docker-in-container); not done.
-- **Sharding, path filters, the cache split and `ci-result` are unproven**: authored and actionlint-clean 2026-11-01, no GitHub run. Branch protection should require `ci result (all required jobs)`, not individual shard names (matrix names change with the matrix).
-- Not parallelised yet: the `api` job (5 test projects, serial, 10 to 20 min G) is now the likely critical path for backend changes; splitting it by test project is the next lever.
-- Windows line endings: `docs/ops/db-log-canary.sh` must stay LF (there is no `.gitattributes` rule for it; CI checks out on Linux, a CRLF checkout on Windows would break it under Git Bash).
-- Backups, restore drill, telemetry, cost dashboards and deployment are outside CI and not done.
-
-
-## Measured timings (2026-11-01)
-
-| Run | Pipeline | Result | Wall time |
-|---|---|---|---|
-| 41328040245 | serial real-stack e2e | failed (lecture-looks, font timing) | 55 min |
-| 41331066937 | first sharded run | failed (geometry, font timing) | 42 min |
-| 41336514945 | sharded, after the layout fix | **green, all jobs** | **19 min** |
-
-The first green run is the measured baseline: the sharded pipeline ran about three times faster than the serial one. Trivy and dependency review are skipped on pushes by design and have not yet run on a pull request. The estimates earlier in this file are superseded by these measurements.
-
-## Trivy and the postgres image (2026-11-01)
-
-Dependabot PR run 41331403769: the `postgres:16-alpine` gate failed with 26 findings (25 HIGH, 1 CRITICAL, e.g. CVE-2025-68121 crypto/tls), all in the Go 1.24.6 stdlib of `/usr/local/bin/gosu` (gosu 1.19). The OS packages are clean. The gate was working.
-
-Local check, Trivy 0.69.3 (the default of trivy-action v0.35.0), `--severity HIGH,CRITICAL --ignore-unfixed --scanners vuln`, images pulled 2026-11-01: `postgres:16`, `16.15`, `16-alpine`, `16.15-alpine`, `16.15-alpine3.23`, `16.15-alpine3.24`, `16-bookworm`, `16.15-bookworm` all show the same 26 gosu findings and nothing else. **No postgres 16 tag is clean today**; the cause is upstream (the official image's gosu build), not the tag. `postgres:18` and others were not checked.
-
-What was done (smallest honest option): compose and the CI scan now pin `postgres:16.15-alpine` (a minor pin, so Dependabot proposes bumps), and `.trivyignore.yaml` ignores those 26 IDs for the path `usr/local/bin/gosu` only, with `expired_at: 2026-12-01`. Reasoning: gosu runs once to drop root and then exec()s postgres; it opens no listeners, so the stdlib net/http, tls, url and xml issues are not reachable; the DB is a localhost dev container or throwaway runner database. Checked locally: with the file the scan exits 0; with the expiry set in the past it exits 1 (26 findings); with a wrong path it exits 1. So a new finding elsewhere, or the expiry date, re-fails the gate. Used by the `image-scan` postgres step only (not the SDK or config steps).
-
-On or before 2026-12-01: re-scan the newest `postgres:16.x-alpine`; if gosu is rebuilt with Go >= 1.25.13, delete `.trivyignore.yaml`; otherwise renew with a fresh justification or switch to a different base. Alternatives not taken: building our own image that drops gosu (adds an image to maintain), or a broader `--skip-files` (hides more). Never carry this to a deployed database: that uses a managed Postgres.
-
-Other steps checked the same day: the repo config scan on a `git archive HEAD` copy is clean (exit 0). The `dotnet/sdk:10.0` report-only step shows 1 HIGH (libbrotli1 CVE-2026-111497, fixed in 1.1.0-2ubuntu0.1); it does not gate, and is dev tooling, so it is only reported.
-
-**Unproven until a PR run:** that trivy-action v0.35.0 honours `trivyignores: .trivyignore.yaml` on the runner (its entrypoint code supports a single YAML file, read from the pinned SHA), that the runner pulls the same gosu, . The running `cc-postgres-dev` image id (sha256:0cefaabd...) equals the `postgres:16.15-alpine` digest pulled today, so recreating it on the pinned tag should change nothing (read from `docker inspect`; recreate not done).
-
-
-## CI record, 2026-11-01 and 2026-11-02
-
-First runs on GitHub were red for non-code reasons and a few real bugs; each was fixed at its cause (see `docs/agents/lessons-log.md`). Fully green runs of the sharded pipeline, all jobs plus the aggregate `ci result (all required jobs)` check:
-
-| Run | Commit | Wall time |
-|---|---|---|
-| 41336514945 | first green run (after the layout and header fixes) | 19 min |
-| 41362025461 | 3471b93 | about 22 min |
-| 41394794168 | 1c32d29 (F-3 lock-order fix) | 22 min |
-| 41395502167 | cfdc590 (canary test fix) | about 22 min |
-
-Typical wall time is 20 to 25 minutes, set by the two `screens` shards. Not yet exercised on GitHub: the Trivy and dependency-review jobs (pull requests only), the nightly full matrix (not built, PO-20ak), and any deployment, backup/restore drill or telemetry (gate G5 stays not passed).
+- **PR-only jobs have run, on Dependabot PRs only.** All 25 PRs ever opened are Dependabot PRs (10 open, 15 closed, none merged). `dependency-review` passed on them (for example 45979328130, 45083059394). `image-scan` (Trivy) has **failed** on every PR run I read (45979328130 on 2026-11-27, 45083059394 on 2026-11-22, 41331403769 on 2026-11-01). In 45979328130 it reported 26 HIGH findings (the gosu ones) even though `.trivyignore.yaml` was present; I did not establish why. So the gate has never been seen green on GitHub, and the ignore file is unproven on the runner. Neither job has run on a PR from the maintainers.
+- Branch protection on `main` (read 2026-11-27 with `gh api .../branches/main/protection`): the required check is `ci result (all required jobs)`, not shard names; no required reviews; force pushes off; not enforced for admins (SEC-040).
+- **Flaky tests.**
+  - Run 46078651462 (2026-11-27, commit b9a6367) failed once in `RealtimeAudioTests.Timecodes_come_from_accepted_sample_counts_not_from_the_client_supplied_offset` with "The remote end closed the connection" and passed on rerun. Not fixed.
+  - `RealtimeAudioTests.Deleting_a_streaming_session_closes_the_socket...` once closed 1000 instead of 4409 (see `docs/PROGRESS.md`). Not fixed.
+  - `docs/DEVELOPMENT.md` lists two older load-sensitive tests seen 2026-11-01: `AiRouteTests.Concurrent_requests_with_the_same_key_make_exactly_one_catch_up_and_all_get_it` (expects 5 `Idempotency-Replayed` headers, got 4; a real race is not ruled out) and a `RealtimeLogCanaryTests` `ObjectDisposedException` (fixed). Run the .NET integration suite on an idle machine.
+  - Font-fetch failures in `next build` are retried in the workflow.
+- **Not implemented:** nightly or scheduled full matrix (CI has no `schedule`; only CodeQL does); PR-subset of looks; AI evals as a CI job; bundle budget; an image scan of the built API and web images (the Dockerfiles exist and the deploy workflow builds them, but `image-scan` still scans only the postgres image, the SDK image and the config files); backups, restore drill, telemetry and cost dashboards.
+- gitleaks tarball is checked against a pinned SHA-256 (trust on first use: it catches a later replaced asset, not a release that was bad when pinned).
+- `image-scan` runs on PRs only, so main is not scanned after merge (SBR-01). The runtime cache token is still exposed to the Trivy action until it is replaced by a checksum-pinned binary (follow-up).
+- Editing `docs/ops/` (including this file) runs every heavy job on a PR (SBR-04).
+- Not parallelized: the `api` job runs all test projects serially (about 3 minutes, not the critical path today).
+- Fork or Dependabot PRs get no repository secrets; CI needs none.

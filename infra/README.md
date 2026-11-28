@@ -1,6 +1,6 @@
 # Tether on Azure: deployment and go-live with Google sign-in
 
-First written 2026-11-26 (the proof of concept went live behind Microsoft sign-in that day). Reworked 2026-11-27 for ADR-022 (`docs/architecture/go-live-signin-adr.md`): invite-only Google sign-in, the API always in Production. **The ADR-022 version described here has not been deployed yet.** Providers are mocks only: no AI model and no speech service is created. No release gate changes (G1 stays BLOCKED, G5 stays NOT_VERIFIED).
+First written 2026-11-26 (the proof of concept went live behind Microsoft sign-in that day). Reworked 2026-11-27 for ADR-022 (`docs/architecture/go-live-signin-adr.md`): invite-only Google sign-in, the API always in Production. **The ADR-022 version was first deployed on 2026-11-27 in Run A (access=team, run 46083406628). The invited and rollback runs have not happened yet.** Providers are mocks only: no AI model and no speech service is created. No release gate changes (G1 stays BLOCKED, G5 stays NOT_VERIFIED).
 
 ## What gets created (all inside the resource group `tether-dev`, West US 3)
 

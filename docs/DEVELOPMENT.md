@@ -28,8 +28,9 @@ What the script will and will not do:
   refuses any host but localhost, and looks each item up by title first, so running it again adds nothing. If you delete a demo
   item it comes back on the next run. It sends the same DRAFT acknowledgement version ids the web app sends, on behalf of the
   synthetic demo user only; it does not change any consent, notice or Demo-source wording.
-- Everything is mock: the speech source is the replay "Demo source", AI is the mock client, the calendar is the "Demo calendar".
-  Compose passwords are dev-only defaults; no secret is needed. Real providers need Product Owner approval (see "Providers and cost").
+- Everything is a stand-in: the speech source is the replay "Demo source", AI is the mock client, the syllabus extractor is the mock,
+  the calendar is the "Demo calendar" and exports go to a "Demo Doc". Compose passwords are dev-only defaults; no secret is needed.
+  Real providers do not exist in the code yet (see "Providers and cost").
 
 ## Prerequisites
 - Docker Desktop (PostgreSQL, the API container and the .NET build and test image)
@@ -57,12 +58,21 @@ What the script will and will not do:
 5. Stop: `docker compose -f docker-compose.yml -f docker-compose.dev.yml stop api postgres` or `down` (keeps data). Wipe data: `down -v`.
 
 ## Secrets
-- API: provider keys (none are used today; all providers are mock) would go in user-secrets or environment variables, never in files; web: `.env.local` (gitignored).
+- API: provider keys (none are used today; all providers are stand-ins) would go in user-secrets or environment variables, never in files; web: `.env.local` (gitignored).
 - Compose credentials are DEV ONLY. Postgres is bound to loopback.
+- Hosted trial: Container Apps secrets, set by the deploy workflow from GitHub environment secrets that the PO stores with the scripts in `scripts/azure/` (`infra/README.md`). Agents never see their values.
 
 ## Providers and cost
-`.env.example` defaults STT, Claude and Google Docs to `mock`. Switching to a real provider incurs cost
-and needs Product Owner approval. Do not put lecture content in logs.
+Each provider setting has exactly one accepted value: `Speech:Provider` = `replay`, `Ai:Provider` = `mock`,
+`Syllabus:Extractor` = `mock`, `Syllabus:CalendarProvider` = `mock`, `Docs:Provider` = `demo_docs`. The API refuses to start
+with anything else (the checks are in each module's registration code), so no configuration change can turn on a paid provider.
+A real provider needs new code, the Product Owner's approval, and the vendor terms accepted by the PO in person first.
+Do not put lecture content in logs.
+
+## Hosted trial (Azure)
+Local development never needs Azure. The hosted trial, its access modes (`team`, `invited`, `closed`) and the deploy
+procedure are in `infra/README.md`. There the API always runs as Production: development login cannot start, and only
+invited Google accounts can sign in (ADR-022, `docs/architecture/go-live-signin-adr.md`). Each deploy waits for the PO's approval.
 
 ## Database logging (SB-01)
 `docker-compose.yml` starts Postgres with logging settings that keep row and statement text out of the server log
@@ -74,21 +84,32 @@ database needs the same settings in its parameter group.
 
 ## CI
 Workflows (first GitHub runs 2026-11-01; read run results with `gh run list`, and the gate status in `docs/RELEASE_GATES.md`, not here): `.github/workflows/ci.yml`
-(web, api, e2e-harness, e2e-real, secret-scan, dependency-audit, dependency-review, image-scan; docs-only changes skip the
-heavy jobs), `.github/workflows/codeql.yml` (C# and TypeScript), `.github/dependabot.yml`. Job table, estimates,
-local commands and known limits: `docs/ops/ci-matrix.md`. No secrets are needed.
+(web, api, e2e-harness, e2e-real in four shards, infra-scripts, secret-scan, dependency-audit, dependency-review, image-scan; on a
+pull request docs-only changes skip the heavy jobs, while a push to main always runs everything), `.github/workflows/codeql.yml` (C# and
+TypeScript), `.github/dependabot.yml`, and `.github/workflows/deploy-azure-dev.yml` (manual deploy of the hosted trial; each run
+waits for the PO's approval). Job table, measured durations, local commands and known limits: `docs/ops/ci-matrix.md`. CI needs no secrets.
 
 How to read results: open the run's Checks tab; a red job names the step that failed (`Copy and skin lint gate`,
 `Geometry`, `DB log canary (SB-01)` and so on). Playwright output, axe reports and API/web server logs are attached as
 artifacts only when a job fails (kept 7 days). The e2e jobs run serially because the dev login is limited to 10 per
-minute per IP. Branch protection must be configured in GitHub settings by the repo owner (SEC-040). Not implemented:
-nightly full look matrix, bundle budget, AI evals, deployment, backup/restore drill.
+minute per IP. Branch protection on `main` requires the `ci result (all required jobs)` check (SEC-040). Not implemented:
+nightly full matrix, bundle budget, AI evals, backup/restore drill.
 
-Before pushing a workflow change, lint it:
-`docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest`
+Before pushing a workflow change, lint it. In Git Bash:
+`MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/repo" -w /repo rhysd/actionlint:1.7.7`
+In PowerShell, drop `MSYS_NO_PATHCONV=1` and mount `"${PWD}:/repo"`.
+
+Before pushing a change under `infra/`:
+- `bash infra/scripts/tests/preflight-cases.sh` and `bash infra/scripts/tests/template-cycles-cases.sh`. `smoke-cases.sh` needs `jq`, so it may only run in CI.
+- `az bicep lint --file infra/main.bicep`, then `az bicep build --file infra/main.bicep --outfile <tmp>/main.json` and `node infra/scripts/template-cycles.mjs <tmp>/main.json`.
+- Shell scripts: `MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/mnt" -w /mnt koalaman/shellcheck:stable infra/scripts/*.sh`.
 
 ## Running integration tests next to the dev API
 `PersistenceTests.Rolling_back_every_migration_leaves_no_module_tables_behind` (and the migrate-down/up test) roll migrations back on the **shared dev database**. If the dev API container (`aistudentnotesapp-api-1`) or a Playwright run is using the same database, the rollback test can fail (seen 2026-10-30). Stop the API first (`docker stop aistudentnotesapp-api-1`), run `dotnet test`, then start it again for E2E. A separate test database per run would remove this coupling (not done).
 
 ### Load-sensitive integration tests (seen 2026-11-01)
 `AiRouteTests.Concurrent_requests_with_the_same_key_make_exactly_one_catch_up_and_all_get_it` (expects 5 `Idempotency-Replayed` headers, got 4) and a one-off `ObjectDisposedException` in `RealtimeLogCanaryTests` (the latter is FIXED 2026-11-01: the test sent audio frames past the close it expected; it now sends exactly 10) failed when the dotnet suite ran while another agent was running Playwright against the same machine and Postgres. Three clean runs with nothing else running: 600/600 each. Run the dotnet integration suite on an otherwise idle machine. A real defect is not ruled out for the catch-up test; if it fails on an idle machine, treat it as a product race (same-key catch-up replay) and write a deterministic reproduction.
+
+### Flaky realtime tests seen in GitHub CI (not fixed)
+- `RealtimeAudioTests.Deleting_a_streaming_session_closes_the_socket...` once closed 1000 instead of 4409 (2026-11-26): relay cleanup closes Normal before the delete's cutoff lands.
+- `RealtimeAudioTests.Timecodes_come_from_accepted_sample_counts_not_from_the_client_supplied_offset` once failed with "The remote end closed the connection" (2026-11-27, run 46078651462). The rerun passed.

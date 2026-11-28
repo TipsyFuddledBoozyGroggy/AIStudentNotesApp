@@ -1,7 +1,8 @@
-# ADR-022 (accepted by the Lead, pending build): invite-only Google sign-in, API in Production
+# ADR-022 (accepted; built; first deployed 2026-11-27): invite-only Google sign-in, API in Production
 
 Date 2026-11-27. Converged from `proposals/go-live-signin-{opus,fable}.md` and both critiques under the Lead's rulings R1-R12.
-Implements PO-20cg step 1 and S1/S4 in `docs/product/go-live-stories.md`. Nothing here is built. No gate changes.
+Implements PO-20cg step 1 and S1/S4 in `docs/product/go-live-stories.md`. No gate changes.
+**Status (2026-11-27):** built and tested locally (`docs/PROGRESS.md` iteration 14). Deployed in Run A with access=team (run 46083406628): the API runs as Production behind the Microsoft gate. Not yet verified: an invited Google sign-in end to end, the forwarded-header measurement (GLS-01), and the invited and rollback runs. The [V] and [A] marks below are as written at design time; the progress log records what Run A has since checked.
 **[V]** = checked in the repository, **[A]** = assumed and must be proven by a test or by Run A.
 
 **Defects and clarifications found in the rulings (none reverses a ruling):**

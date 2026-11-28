@@ -1,7 +1,8 @@
 name: Deploy Azure dev (POC)
 # Authored 2026-11-26; reworked 2026-11-27 for ADR-022 (docs/architecture/go-live-signin-adr.md): the API always runs as
 # Production with Google sign-in limited to the Tether invite list, and each run chooses an ACCESS MODE. The ADR-022
-# version of this file has not run on GitHub as of this writing. Manual only (workflow_dispatch), so it never reports on
+# version first ran on 2026-11-27 (Run A, access=team: run 46079398123 failed on a template dependency circle, run
+# 46083406628 was green; docs/PROGRESS.md iteration 14). Manual only (workflow_dispatch), so it never reports on
 # a pull request or a push and cannot become part of the required `ci result` check in ci.yml.
 # Read infra/README.md first: it lists the steps only the Product Owner can do and the order of the runs.
 #

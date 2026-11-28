@@ -174,6 +174,23 @@ Security re-review `docs/security/m2-b3-rereview.md`: 0 Critical/High, 1 Medium 
 - **Not verified yet:** an invited Google sign-in end to end (the PO's test), and the forwarded-header measurement (to be read after the PO's traffic).
 - **CI flake, not fixed.** `RealtimeAudioTests.Timecodes_come_from_accepted_sample_counts_not_from_the_client_supplied_offset` failed once on b9a6367, a docs-only commit, with "The remote end closed the connection". The rerun passed.
 - **README rewritten** for the app as built (1b39e92). Stale headers turned up in `docs/RELEASE_GATES.md` (2026-10-27), `docs/ARCHITECTURE.md`, `docs/DEVELOPMENT_ROADMAP.md`, `docs/SECURITY.md`, `docs/ops/ci-matrix.md` and the ADR-022 header. A refresh was offered to the PO; gate wording needs the PO.
+- **Stale docs refreshed** (the PO said yes):
+  - Gate register: G2 to G5 rewritten with current facts. The G1 row is unchanged and carries a note; its wording waits for the PO's OK. No status changed.
+  - Architecture index and shape, including the hosted environment.
+  - Roadmap, with status per milestone and go-live story.
+  - Security: QA read the code and tests and set a status per requirement (18 built and tested, 3 built, 17 partial, 3 not applicable today). Nothing was run, and it is not a sign-off.
+  - CI matrix, rebuilt from the workflows and real run timings (a full push run takes 19 to 23 minutes).
+  - The dev guide (provider settings, lint commands, flaky tests), the handoff doc, and the ADR-022, `infra/README.md`, `infra/main.bicep` and workflow header lines that still said "not deployed" or "never run".
+  - CLAUDE.md: the real repository layout, and the agent names that no longer exist.
+- **Found while refreshing:**
+  - The Trivy `image-scan` job has failed on every Dependabot PR run read. It still reports the 26 gosu findings that `.trivyignore.yaml` should ignore. The pinned action does handle a single YAML ignore file, so that is not the cause, and the cause is not found yet. The ignore entries expire on 2026-12-01.
+  - QA noted five issues with no row in the findings register:
+    - the default "any Azure service" database firewall rule;
+    - the web app's minimal CSP, with no test of the web headers;
+    - no test of the Google egress guard;
+    - the built app images are never scanned;
+    - Container Apps secrets can be read by anyone with Contributor on the group.
+  - Four register rows look stale: M2C-08, M2C-29, NEW-03, SBR-03.
 
 **Next (each deploy approved by the PO):**
 1. The PO tests Google sign-in behind Entra (Run A checks in `infra/README.md`).

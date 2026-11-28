@@ -1,6 +1,6 @@
 // Tether hosting on Azure. Authored 2026-11-26 (first deployed that day); reworked 2026-11-27 for ADR-022
 // (docs/architecture/go-live-signin-adr.md): Google sign-in, invite-only, API always in Production. The ADR-022 version
-// has NOT been deployed as of this writing.
+// was first deployed on 2026-11-27 (Run A, access=team).
 // Deployed by .github/workflows/deploy-azure-dev.yml as the `tether-deployer` identity, which holds Contributor on the
 // resource group `tether-dev` and nothing else (scripts/azure/bootstrap-tether-dev.ps1). Read infra/README.md first.
 //
