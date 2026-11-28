@@ -160,4 +160,24 @@ Security re-review `docs/security/m2-b3-rereview.md`: 0 Critical/High, 1 Medium 
 **Verified locally (agents' and QA's runs, real counts):** API 2,974 tests passed across 7 projects; web tsc clean, eslint 0 errors, vitest 3,484 passed; Playwright `signin.spec.ts` passed; infra case tests 66 preflight and 118 smoke cases passed; az bicep build and lint, actionlint, shellcheck and PowerShell parse clean. QA brought up the local Production stack: all six outside probes passed through the Next proxy; logs held no email, token or secret; 16 startup-refusal cases refused naming only the key. A PFX made by Windows PowerShell 5.1 loads in .NET 10 on Linux (Lead check).
 **Not verified:** anything in Azure, GitHub Actions or Google: a real Google sign-in, whether `hd` arrives with sign-in-only scopes, Google's screen for people not on the test list, Easy Auth switching off in place, `az ... @file` for the invite secret, the emergency-stop commands, the new CI job. Screen reader and device checks (G3).
 **Open:** GLS-01, one client can use up the shared sign-in start budget (fix after the Run A measurement); export-all and delete-account (PO-20ax) before anyone else; PO questions (school accounts at sign-in, AI budget shared or per person, real speech on prepared audio first, the delete-flow questions in ADR-021 section 11).
-**Next (each deploy approved by the PO):** PO steps in `infra/README.md` (Google console: redirect address and test users; the two scripts); Run A `access=team` (Production plus Google behind Entra; the PO tests); Run B `access=invited`; Run R `access=team` (rollback, timed); Run B' `access=invited`.
+**Run A (2026-11-27 to 28):**
+- **PO steps done.** In the Google console: the redirect address and a test user. `set-google-signin.ps1` stored the client id, a NEW client secret and the key-ring certificate. `set-invites.ps1` stored one address. The Tether client no longer had a localhost redirect address, so the step 1 wording was fixed (b9a6367).
+- **First attempt failed (run 46079398123).** Template validation said "Circular dependency detected". Nothing in Azure changed. The workflow then made the web ingress internal, by design: public ingress had been asked for without a proven gate.
+- **Cause.** d4cef87 made the web app wait for the API. After that, an `existing` reference to the web app, used by the optional containerAppOutboundIps firewall mode (off), closed the circle web → api → firewall rules → existing web app.
+- **Fix (c6078a1).** That mode now takes its addresses as a parameter. New `infra/scripts/template-cycles.mjs` has case tests and reproduces the circle on the failed template. CI's infra-scripts job now compiles and lints the template and checks it for circles; this passed on the runner.
+- **Retry green (run 46083406628, c6078a1).** It took about six minutes. Smoke check, from Azure and from outside:
+  - API revision runs Production, healthy, no `Auth__DevLogin__Enabled`, the image this run built.
+  - Web app healthy.
+  - Entra sign-in on, with the expected registration.
+  - An outside request without Microsoft sign-in got 401.
+  - The API uses `tether_live`. The trial database `tether` stays on the server, untouched.
+- **Not verified yet:** an invited Google sign-in end to end (the PO's test), and the forwarded-header measurement (to be read after the PO's traffic).
+- **CI flake, not fixed.** `RealtimeAudioTests.Timecodes_come_from_accepted_sample_counts_not_from_the_client_supplied_offset` failed once on b9a6367, a docs-only commit, with "The remote end closed the connection". The rerun passed.
+- **README rewritten** for the app as built (1b39e92). Stale headers turned up in `docs/RELEASE_GATES.md` (2026-10-27), `docs/ARCHITECTURE.md`, `docs/DEVELOPMENT_ROADMAP.md`, `docs/SECURITY.md`, `docs/ops/ci-matrix.md` and the ADR-022 header. A refresh was offered to the PO; gate wording needs the PO.
+
+**Next (each deploy approved by the PO):**
+1. The PO tests Google sign-in behind Entra (Run A checks in `infra/README.md`).
+2. Read the forwarded-header measurement and rule on GLS-01.
+3. Run B `access=invited`.
+4. Run R `access=team` (rollback, timed).
+5. Run B' `access=invited`.
